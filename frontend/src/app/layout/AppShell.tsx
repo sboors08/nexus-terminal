@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router';
+import { NavLink, Outlet, useLocation } from 'react-router';
+import { ROUTES } from '@/app/routing/routes';
 import { PRIMARY_NAVIGATION } from '@/shared/config/navigation';
 import styles from './AppShell.module.css';
 
@@ -6,7 +7,20 @@ function getNavClassName({ isActive }: { isActive: boolean }) {
   return isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink;
 }
 
+const PAGE_VERSION_LABELS: Record<string, string> = {
+  [ROUTES.dashboard]: 'Dashboard v0.1',
+  [ROUTES.scanner]: 'Scanner v0.1',
+  [ROUTES.workspace]: 'Workspace · каркас',
+  [ROUTES.alerts]: 'Alerts · каркас',
+  [ROUTES.marketHistory]: 'Market History · каркас',
+  [ROUTES.replay]: 'Replay · каркас',
+  [ROUTES.settings]: 'Settings · каркас',
+};
+
 export function AppShell() {
+  const location = useLocation();
+  const pageVersion = PAGE_VERSION_LABELS[location.pathname] ?? 'NEXUS frontend';
+
   return (
     <div className={styles.shell}>
       <aside className={styles.sidebar} aria-label="Основная навигация">
@@ -45,7 +59,7 @@ export function AppShell() {
           </div>
           <div className={styles.connectionStatus}>
             <span className={styles.connectionDot} aria-hidden="true" />
-            Dashboard v0.1
+            {pageVersion}
           </div>
         </header>
 
