@@ -10,7 +10,7 @@ function getNavClassName({ isActive }: { isActive: boolean }) {
 const PAGE_VERSION_LABELS: Record<string, string> = {
   [ROUTES.dashboard]: 'Dashboard v0.1',
   [ROUTES.scanner]: 'Scanner v0.1',
-  [ROUTES.workspace]: 'Workspace · каркас',
+  [ROUTES.workspace]: 'Workspace v0.1',
   [ROUTES.alerts]: 'Alerts · каркас',
   [ROUTES.marketHistory]: 'Market History · каркас',
   [ROUTES.replay]: 'Replay · каркас',
