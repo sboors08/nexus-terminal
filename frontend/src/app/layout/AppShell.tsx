@@ -45,7 +45,7 @@ export function AppShell() {
           </div>
           <div className={styles.connectionStatus}>
             <span className={styles.connectionDot} aria-hidden="true" />
-            Каркас v0.1
+            Dashboard v0.1
           </div>
         </header>
 
