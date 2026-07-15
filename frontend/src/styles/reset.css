@@ -1,0 +1,48 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--nexus-color-bg-canvas);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-canvas);
+  font-family: var(--nexus-font-family-sans);
+  font-size: var(--nexus-font-size-md);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--nexus-color-focus-ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  color: var(--nexus-color-text-primary);
+  background: rgb(82 185 244 / 30%);
+}

@@ -1,0 +1,39 @@
+.badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--nexus-space-1);
+  border: var(--nexus-border-width) solid currentColor;
+  border-radius: var(--nexus-radius-sm);
+  font-family: var(--nexus-font-family-mono);
+  font-size: var(--nexus-font-size-xs);
+  font-weight: var(--nexus-font-weight-bold);
+  letter-spacing: 0.04em;
+}
+
+.long,
+.triggered {
+  color: var(--nexus-color-long);
+  background: var(--nexus-color-long-soft);
+}
+
+.short {
+  color: var(--nexus-color-short);
+  background: var(--nexus-color-short-soft);
+}
+
+.observation {
+  color: var(--nexus-color-stage-observation);
+  background: var(--nexus-color-stage-observation-soft);
+}
+
+.approach {
+  color: var(--nexus-color-stage-approach);
+  background: var(--nexus-color-stage-approach-soft);
+}
+
+.confirmation {
+  color: var(--nexus-color-stage-confirmation);
+  background: var(--nexus-color-stage-confirmation-soft);
+}

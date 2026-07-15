@@ -1,0 +1,43 @@
+.page {
+  min-height: 60dvh;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--nexus-space-2);
+  text-align: center;
+}
+
+.code,
+.title,
+.description {
+  margin: 0;
+}
+
+.code {
+  color: var(--nexus-color-info);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 64px;
+  font-weight: var(--nexus-font-weight-bold);
+}
+
+.title {
+  color: var(--nexus-color-text-primary);
+}
+
+.description {
+  color: var(--nexus-color-text-secondary);
+}
+
+.link {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  margin-top: var(--nexus-space-1);
+  padding: 0 var(--nexus-space-2);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-on-accent);
+  background: var(--nexus-color-accent-primary);
+  font-size: var(--nexus-font-size-sm);
+  font-weight: var(--nexus-font-weight-semibold);
+  text-decoration: none;
+}

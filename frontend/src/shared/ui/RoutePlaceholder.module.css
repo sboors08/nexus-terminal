@@ -1,0 +1,71 @@
+.page {
+  display: grid;
+  gap: var(--nexus-space-3);
+}
+
+.header {
+  max-width: 760px;
+}
+
+.eyebrow,
+.title,
+.description,
+.placeholderText {
+  margin: 0;
+}
+
+.eyebrow {
+  margin-bottom: var(--nexus-space-1);
+  color: var(--nexus-color-info);
+  font-family: var(--nexus-font-family-mono);
+  font-size: var(--nexus-font-size-xs);
+  font-weight: var(--nexus-font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  color: var(--nexus-color-text-primary);
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.15;
+}
+
+.description {
+  margin-top: var(--nexus-space-1);
+  color: var(--nexus-color-text-secondary);
+  font-size: var(--nexus-font-size-md);
+  line-height: var(--nexus-line-height-body);
+}
+
+.placeholder {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--nexus-space-2);
+  padding: var(--nexus-space-4);
+  border: var(--nexus-border-width) dashed var(--nexus-color-border-strong);
+  border-radius: var(--nexus-radius-lg);
+  background: var(--nexus-color-bg-surface);
+  text-align: center;
+}
+
+.status {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 var(--nexus-space-2);
+  border: var(--nexus-border-width) solid var(--nexus-color-border-info);
+  border-radius: var(--nexus-radius-round);
+  color: var(--nexus-color-info);
+  background: var(--nexus-color-info-soft);
+  font-size: var(--nexus-font-size-xs);
+  font-weight: var(--nexus-font-weight-semibold);
+}
+
+.placeholderText {
+  max-width: 520px;
+  color: var(--nexus-color-text-muted);
+  font-size: var(--nexus-font-size-sm);
+  line-height: var(--nexus-line-height-body);
+}

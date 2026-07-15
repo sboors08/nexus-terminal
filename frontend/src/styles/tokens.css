@@ -1,0 +1,90 @@
+:root {
+  /* Typography */
+  --nexus-font-family-sans: 'Inter Variable', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --nexus-font-family-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --nexus-font-size-xs: 12px;
+  --nexus-font-size-sm: 14px;
+  --nexus-font-size-md: 16px;
+  --nexus-font-size-lg: 20px;
+  --nexus-font-size-xl: 24px;
+  --nexus-font-weight-regular: 400;
+  --nexus-font-weight-medium: 500;
+  --nexus-font-weight-semibold: 600;
+  --nexus-font-weight-bold: 700;
+  --nexus-line-height-body: 1.5;
+  --nexus-line-height-tight: 1.2;
+
+  /* 8 px spacing grid */
+  --nexus-space-0: 0;
+  --nexus-space-1: 8px;
+  --nexus-space-2: 16px;
+  --nexus-space-3: 24px;
+  --nexus-space-4: 32px;
+  --nexus-space-5: 40px;
+  --nexus-space-6: 48px;
+  --nexus-space-8: 64px;
+  --nexus-space-10: 80px;
+  --nexus-space-12: 96px;
+
+  /* Radius and borders */
+  --nexus-radius-sm: 8px;
+  --nexus-radius-md: 10px;
+  --nexus-radius-lg: 12px;
+  --nexus-radius-round: 999px;
+  --nexus-border-width: 1px;
+
+  /* Dark surfaces */
+  --nexus-color-bg-canvas: #07090d;
+  --nexus-color-bg-sidebar: #0a0e14;
+  --nexus-color-bg-surface: #0f141c;
+  --nexus-color-bg-surface-raised: #151b24;
+  --nexus-color-bg-hover: #171e28;
+  --nexus-color-bg-selected: #18222e;
+
+  /* Borders */
+  --nexus-color-border-subtle: #202a35;
+  --nexus-color-border-strong: #344150;
+  --nexus-color-border-accent: #2f6f91;
+  --nexus-color-border-info: #245f82;
+
+  /* Text */
+  --nexus-color-text-primary: #f3f6fa;
+  --nexus-color-text-secondary: #a9b3c1;
+  --nexus-color-text-muted: #717d8c;
+  --nexus-color-text-disabled: #4f5966;
+  --nexus-color-text-on-accent: #04110b;
+
+  /* Semantic direction */
+  --nexus-color-long: #32d583;
+  --nexus-color-long-hover: #4de197;
+  --nexus-color-long-soft: rgb(50 213 131 / 12%);
+  --nexus-color-short: #ff6273;
+  --nexus-color-short-hover: #ff7b89;
+  --nexus-color-short-soft: rgb(255 98 115 / 12%);
+
+  /* Setup stages */
+  --nexus-color-stage-observation: #84909f;
+  --nexus-color-stage-observation-soft: rgb(132 144 159 / 12%);
+  --nexus-color-stage-approach: #f4c95d;
+  --nexus-color-stage-approach-soft: rgb(244 201 93 / 12%);
+  --nexus-color-stage-confirmation: #a185ff;
+  --nexus-color-stage-confirmation-soft: rgb(161 133 255 / 12%);
+  --nexus-color-stage-triggered: var(--nexus-color-long);
+  --nexus-color-stage-triggered-soft: var(--nexus-color-long-soft);
+
+  /* Information and interaction */
+  --nexus-color-info: #52b9f4;
+  --nexus-color-info-soft: rgb(82 185 244 / 12%);
+  --nexus-color-accent-primary: #32d583;
+  --nexus-color-focus-ring: #62c7ff;
+
+  /* Layout */
+  --nexus-sidebar-width: 224px;
+  --nexus-topbar-height: 64px;
+  --nexus-content-max-width: 1920px;
+
+  /* Motion */
+  --nexus-duration-fast: 120ms;
+  --nexus-duration-base: 180ms;
+  --nexus-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+}
