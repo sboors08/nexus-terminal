@@ -12,7 +12,7 @@ const PAGE_VERSION_LABELS: Record<string, string> = {
   [ROUTES.scanner]: 'Scanner v0.1',
   [ROUTES.workspace]: 'Workspace v0.1',
   [ROUTES.alerts]: 'Alerts v0.1',
-  [ROUTES.marketHistory]: 'Market History · каркас',
+  [ROUTES.marketHistory]: 'Market History v0.1',
   [ROUTES.replay]: 'Replay · каркас',
   [ROUTES.settings]: 'Settings · каркас',
 };
