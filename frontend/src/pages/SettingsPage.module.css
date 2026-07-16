@@ -1,0 +1,727 @@
+.settingsPage {
+  display: grid;
+  gap: var(--nexus-space-3);
+  min-width: 0;
+  color: var(--nexus-color-text-primary);
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--nexus-space-3);
+}
+
+.eyebrow,
+.sectionEyebrow {
+  margin: 0 0 5px;
+  color: var(--nexus-color-info);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  font-weight: var(--nexus-font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pageHeader h1 {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.08;
+}
+
+.pageHeader > div:first-child > p:last-child {
+  margin: 8px 0 0;
+  color: var(--nexus-color-text-secondary);
+  font-size: 14px;
+}
+
+.headerStatus {
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+}
+
+.headerStatus > span {
+  padding: 7px 11px;
+  border: 1px solid;
+  border-radius: var(--nexus-radius-round);
+  font-size: 10px;
+  font-weight: var(--nexus-font-weight-bold);
+}
+
+.presetStatus {
+  border-color: rgb(50 213 131 / 42%);
+  color: var(--nexus-color-long);
+  background: var(--nexus-color-long-soft);
+}
+
+.customStatus {
+  border-color: rgb(161 133 255 / 44%);
+  color: var(--nexus-color-stage-confirmation);
+  background: var(--nexus-color-stage-confirmation-soft);
+}
+
+.headerStatus small {
+  color: var(--nexus-color-text-muted);
+  font-size: 10px;
+}
+
+.presetSection,
+.settingsNavigation,
+.settingsContent {
+  border: 1px solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-lg);
+  background: var(--nexus-color-bg-surface);
+}
+
+.presetSection {
+  padding: 14px;
+}
+
+.presetHeading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.presetHeading h2,
+.contentHeader h2,
+.sectionHeader h2,
+.integrationHeader h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.presetHeading > span,
+.contentHeader > div > span,
+.sectionHeader > div > span,
+.integrationHeader > div > span {
+  color: var(--nexus-color-text-muted);
+  font-size: 11px;
+}
+
+.presetGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.presetCard,
+.presetCardActive {
+  display: grid;
+  gap: 9px;
+  min-height: 112px;
+  padding: 12px;
+  border: 1px solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-md);
+  color: var(--nexus-color-text-secondary);
+  font: inherit;
+  text-align: left;
+  background: var(--nexus-color-bg-canvas);
+  cursor: pointer;
+  transition:
+    border-color var(--nexus-duration-fast),
+    background var(--nexus-duration-fast);
+}
+
+.presetCard:hover {
+  border-color: var(--nexus-color-border-strong);
+  background: var(--nexus-color-bg-hover);
+}
+
+.presetCardActive {
+  border-color: var(--nexus-color-border-info);
+  background: var(--nexus-color-info-soft);
+}
+
+.presetCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.presetCardTop strong {
+  color: var(--nexus-color-text-primary);
+  font-size: 13px;
+}
+
+.presetCardTop small {
+  padding: 3px 7px;
+  border-radius: var(--nexus-radius-round);
+  color: var(--nexus-color-info);
+  font-size: 8px;
+  font-weight: var(--nexus-font-weight-bold);
+  background: var(--nexus-color-info-soft);
+}
+
+.presetCard > span:nth-child(2),
+.presetCardActive > span:nth-child(2) {
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.presetMeta {
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+}
+
+.settingsLayout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: var(--nexus-space-2);
+  align-items: start;
+}
+
+.settingsNavigation {
+  position: sticky;
+  top: calc(var(--nexus-topbar-height) + 16px);
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+}
+
+.groupButton,
+.groupButtonActive {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  width: 100%;
+  min-height: 66px;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-secondary);
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.groupButton:hover {
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-hover);
+}
+
+.groupButtonActive {
+  border-color: var(--nexus-color-border-info);
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-info-soft);
+}
+
+.groupButton > span:first-child,
+.groupButtonActive > span:first-child {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-info);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+  font-weight: var(--nexus-font-weight-bold);
+  background: var(--nexus-color-info-soft);
+}
+
+.groupButton > span:last-child,
+.groupButtonActive > span:last-child {
+  display: grid;
+  gap: 4px;
+}
+
+.groupButton strong,
+.groupButtonActive strong {
+  font-size: 11px;
+}
+
+.groupButton small,
+.groupButtonActive small {
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.settingsContent {
+  overflow: hidden;
+}
+
+.contentHeader {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--nexus-color-border-subtle);
+}
+
+.groupContent {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.sectionCard {
+  overflow: hidden;
+  border: 1px solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-md);
+  background: var(--nexus-color-bg-canvas);
+}
+
+.sectionHeader,
+.integrationHeader {
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--nexus-color-border-subtle);
+}
+
+.integrationHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.testStatus {
+  padding: 5px 8px;
+  border: 1px solid var(--nexus-color-border-info);
+  border-radius: var(--nexus-radius-round);
+  color: var(--nexus-color-info);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+  font-weight: var(--nexus-font-weight-bold);
+  background: var(--nexus-color-info-soft);
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.selectField,
+.choiceField {
+  display: grid;
+  gap: 10px;
+  min-height: 122px;
+  padding: 14px;
+}
+
+.selectField:first-child {
+  border-right: 1px solid var(--nexus-color-border-subtle);
+}
+
+.selectField > span,
+.choiceField > span,
+.rangeField > .fieldHeading > span {
+  display: grid;
+  gap: 4px;
+}
+
+.selectField strong,
+.choiceField strong,
+.rangeField strong {
+  font-size: 11px;
+}
+
+.selectField small,
+.choiceField small,
+.rangeField small {
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.selectField select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid var(--nexus-color-border-strong);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-primary);
+  font: inherit;
+  font-size: 11px;
+  background: var(--nexus-color-bg-surface);
+  outline: none;
+}
+
+.selectField select:focus {
+  border-color: var(--nexus-color-focus-ring);
+}
+
+.choiceButtons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.choiceButtons button {
+  min-height: 36px;
+  border: 1px solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-secondary);
+  font: inherit;
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  background: var(--nexus-color-bg-surface);
+  cursor: pointer;
+}
+
+.choiceButtons button:hover:not(:disabled) {
+  border-color: var(--nexus-color-border-info);
+  color: var(--nexus-color-info);
+}
+
+.choiceButtons button:disabled {
+  color: var(--nexus-color-text-disabled);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.choiceButtons .choiceButtonActive {
+  border-color: var(--nexus-color-border-info);
+  color: var(--nexus-color-info);
+  background: var(--nexus-color-info-soft);
+}
+
+.toggleRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 16px;
+  min-height: 66px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--nexus-color-border-subtle);
+  cursor: pointer;
+}
+
+.toggleRow:last-child {
+  border-bottom: 0;
+}
+
+.toggleRow > span:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.toggleRow strong {
+  font-size: 11px;
+}
+
+.toggleRow small {
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.toggleRow input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggleRow i {
+  position: relative;
+  display: block;
+  width: 38px;
+  height: 22px;
+  border: 1px solid var(--nexus-color-border-strong);
+  border-radius: 999px;
+  background: var(--nexus-color-bg-surface-raised);
+  transition:
+    border-color var(--nexus-duration-fast),
+    background var(--nexus-duration-fast);
+}
+
+.toggleRow i::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--nexus-color-text-muted);
+  content: '';
+  transition:
+    transform var(--nexus-duration-fast),
+    background var(--nexus-duration-fast);
+}
+
+.toggleRow input:checked + i {
+  border-color: var(--nexus-color-long);
+  background: var(--nexus-color-long-soft);
+}
+
+.toggleRow input:checked + i::after {
+  background: var(--nexus-color-long);
+  transform: translateX(16px);
+}
+
+.toggleRow input:focus-visible + i {
+  outline: 2px solid var(--nexus-color-focus-ring);
+  outline-offset: 2px;
+}
+
+.rangeField {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-bottom: 1px solid var(--nexus-color-border-subtle);
+}
+
+.rangeField:last-child {
+  border-bottom: 0;
+}
+
+.fieldHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.fieldHeading output {
+  min-width: 72px;
+  padding: 5px 8px;
+  border: 1px solid var(--nexus-color-border-info);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-info);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  font-weight: var(--nexus-font-weight-bold);
+  text-align: center;
+  background: var(--nexus-color-info-soft);
+}
+
+.rangeField input {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  appearance: none;
+  background:
+    linear-gradient(
+      to right,
+      var(--nexus-color-info) 0,
+      var(--nexus-color-info) var(--range-progress),
+      var(--nexus-color-border-strong) var(--range-progress),
+      var(--nexus-color-border-strong) 100%
+    );
+  cursor: pointer;
+}
+
+.rangeField input::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  border: 3px solid var(--nexus-color-bg-surface);
+  border-radius: 50%;
+  appearance: none;
+  background: var(--nexus-color-info);
+  box-shadow: 0 0 0 1px var(--nexus-color-info);
+}
+
+.rangeField input::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 3px solid var(--nexus-color-bg-surface);
+  border-radius: 50%;
+  background: var(--nexus-color-info);
+  box-shadow: 0 0 0 1px var(--nexus-color-info);
+}
+
+.rangeLimits {
+  display: flex;
+  justify-content: space-between;
+}
+
+.segmentedControl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 14px;
+}
+
+.segmentedControl button {
+  display: grid;
+  gap: 6px;
+  min-height: 86px;
+  padding: 11px;
+  border: 1px solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-secondary);
+  font: inherit;
+  text-align: left;
+  background: var(--nexus-color-bg-surface);
+  cursor: pointer;
+}
+
+.segmentedControl button:hover {
+  border-color: var(--nexus-color-border-strong);
+}
+
+.segmentedControl .segmentActive {
+  border-color: var(--nexus-color-stage-approach);
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-stage-approach-soft);
+}
+
+.segmentedControl strong {
+  font-size: 11px;
+}
+
+.segmentedControl span {
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.integrationInfo {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.integrationInfo div {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border-right: 1px solid var(--nexus-color-border-subtle);
+}
+
+.integrationInfo div:last-child {
+  border-right: 0;
+}
+
+.integrationInfo span {
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+}
+
+.integrationInfo strong {
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+}
+
+.actionBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--nexus-color-border-subtle);
+  background: var(--nexus-color-bg-surface-raised);
+}
+
+.actionBar > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.actionBar strong {
+  font-size: 10px;
+}
+
+.actionBar span {
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+}
+
+.actionBar > div:last-child {
+  display: flex;
+  gap: 8px;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: var(--nexus-radius-sm);
+  font: inherit;
+  font-size: 10px;
+  font-weight: var(--nexus-font-weight-bold);
+  cursor: pointer;
+}
+
+.primaryButton {
+  border: 1px solid var(--nexus-color-long);
+  color: var(--nexus-color-text-on-accent);
+  background: var(--nexus-color-long);
+}
+
+.secondaryButton {
+  border: 1px solid var(--nexus-color-border-strong);
+  color: var(--nexus-color-text-secondary);
+  background: var(--nexus-color-bg-surface);
+}
+
+.primaryButton:hover {
+  background: var(--nexus-color-long-hover);
+}
+
+.secondaryButton:hover {
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-hover);
+}
+
+@media (max-width: 1180px) {
+  .settingsLayout {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .presetGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .presetCard,
+  .presetCardActive {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .pageHeader,
+  .presetHeading,
+  .actionBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .headerStatus {
+    justify-items: start;
+  }
+
+  .settingsLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .settingsNavigation {
+    position: static;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .fieldGrid,
+  .segmentedControl,
+  .integrationInfo {
+    grid-template-columns: 1fr;
+  }
+
+  .selectField:first-child,
+  .integrationInfo div {
+    border-right: 0;
+    border-bottom: 1px solid var(--nexus-color-border-subtle);
+  }
+
+  .integrationInfo div:last-child {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .settingsNavigation {
+    grid-template-columns: 1fr;
+  }
+
+  .choiceButtons {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .actionBar > div:last-child {
+    display: grid;
+  }
+}
