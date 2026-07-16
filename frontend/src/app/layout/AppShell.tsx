@@ -13,7 +13,7 @@ const PAGE_VERSION_LABELS: Record<string, string> = {
   [ROUTES.workspace]: 'Workspace v0.1',
   [ROUTES.alerts]: 'Alerts v0.1',
   [ROUTES.marketHistory]: 'Market History v0.1',
-  [ROUTES.replay]: 'Replay · каркас',
+  [ROUTES.replay]: 'Replay v0.1',
   [ROUTES.settings]: 'Settings · каркас',
 };
 
