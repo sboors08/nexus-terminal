@@ -29,37 +29,67 @@ const requiredRoutes = [
 
 const requiredLocales = [
   "export const DEFAULT_LOCALE: Locale = 'ru'",
-  "ru:",
-  "en:",
+  'ru:',
+  'en:',
   "'zh-cn':",
   'htmlLang:',
   'direction:',
 ];
 
-const [tokensCss, routesSource, localeConfigSource] = await Promise.all([
+const requiredApiMethods = [
+  'getMarketSymbols()',
+  'getSetups()',
+  'getSetupById(setupId: string)',
+  'getWorkspaceSnapshot(setupId?: string)',
+  'getAlerts()',
+  'getSetupHistory()',
+  'getReplaySession(sessionId?: string)',
+  'sendFeedback(payload: FeedbackPayload)',
+  'sendSetupFeedback(payload: SetupFeedback)',
+];
+
+const dataPages = [
+  'DashboardPage.tsx',
+  'ScannerPage.tsx',
+  'WorkspacePage.tsx',
+  'AlertsPage.tsx',
+  'MarketHistoryPage.tsx',
+  'ReplayPage.tsx',
+];
+
+const [tokensCss, routesSource, localeConfigSource, contractsSource, ...pageSources] = await Promise.all([
   readFile(resolve(root, 'src/styles/tokens.css'), 'utf8'),
   readFile(resolve(root, 'src/app/routing/routes.ts'), 'utf8'),
   readFile(resolve(root, 'src/shared/i18n/config.ts'), 'utf8'),
+  readFile(resolve(root, 'src/shared/api/contracts.ts'), 'utf8'),
+  ...dataPages.map((page) => readFile(resolve(root, 'src/pages', page), 'utf8')),
 ]);
 
 const missingTokens = requiredTokens.filter((token) => !tokensCss.includes(token));
 const missingRoutes = requiredRoutes.filter((route) => !routesSource.includes(route));
 const missingLocales = requiredLocales.filter((locale) => !localeConfigSource.includes(locale));
+const missingApiMethods = requiredApiMethods.filter((method) => !contractsSource.includes(method));
+const directFixtureImports = pageSources.flatMap((source, index) => (
+  source.includes("from '@/features/") && source.includes('Data')
+    ? [dataPages[index]]
+    : []
+));
 
-if (missingTokens.length > 0 || missingRoutes.length > 0 || missingLocales.length > 0) {
-  if (missingTokens.length > 0) {
-    console.error(`Missing design tokens: ${missingTokens.join(', ')}`);
+if (
+  missingTokens.length > 0
+  || missingRoutes.length > 0
+  || missingLocales.length > 0
+  || missingApiMethods.length > 0
+  || directFixtureImports.length > 0
+) {
+  if (missingTokens.length > 0) console.error(`Missing design tokens: ${missingTokens.join(', ')}`);
+  if (missingRoutes.length > 0) console.error(`Missing routes: ${missingRoutes.join(', ')}`);
+  if (missingLocales.length > 0) console.error(`Missing i18n configuration: ${missingLocales.join(', ')}`);
+  if (missingApiMethods.length > 0) console.error(`Missing Mock API methods: ${missingApiMethods.join(', ')}`);
+  if (directFixtureImports.length > 0) {
+    console.error(`Data pages import fixtures directly: ${directFixtureImports.join(', ')}`);
   }
-
-  if (missingRoutes.length > 0) {
-    console.error(`Missing routes: ${missingRoutes.join(', ')}`);
-  }
-
-  if (missingLocales.length > 0) {
-    console.error(`Missing i18n configuration: ${missingLocales.join(', ')}`);
-  }
-
   process.exit(1);
 }
 
-console.log('NEXUS foundation verified: routes, locales and mandatory design tokens are present.');
+console.log('NEXUS foundation verified: routes, locales, design tokens and unified Mock API are present.');

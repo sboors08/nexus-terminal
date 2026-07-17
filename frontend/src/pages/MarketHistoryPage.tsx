@@ -2,12 +2,14 @@ import { useMemo, useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import {
-  HISTORY_RESULT_LABELS,
-  MARKET_HISTORY_ITEMS,
+  nexusApi,
+  useApiQuery,
   type HistoryResult,
   type HistorySetupType,
   type MarketHistoryItem,
-} from '@/features/market-history/marketHistoryData';
+  type MarketHistoryViewData,
+} from '@/shared/api';
+import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { DirectionBadge, type TradeDirection } from '@/shared/ui/DirectionBadge';
 import { SetupStageBadge } from '@/shared/ui/SetupStageBadge';
 import styles from './MarketHistoryPage.module.css';
@@ -66,8 +68,9 @@ function buildPolyline(points: number[]) {
     .join(' ');
 }
 
-export function MarketHistoryPage() {
-  const [selectedId, setSelectedId] = useState(MARKET_HISTORY_ITEMS[0].id);
+function MarketHistoryPageContent({ data }: { data: MarketHistoryViewData }) {
+  const { items: historyItems, resultLabels } = data;
+  const [selectedId, setSelectedId] = useState(historyItems[0].id);
   const [search, setSearch] = useState('');
   const [result, setResult] = useState<ResultFilter>('all');
   const [direction, setDirection] = useState<DirectionFilter>('all');
@@ -77,7 +80,7 @@ export function MarketHistoryPage() {
 
   const filteredItems = useMemo(() => {
     const normalizedSearch = search.trim().toUpperCase();
-    const items = MARKET_HISTORY_ITEMS.filter((item) => {
+    const items = historyItems.filter((item) => {
       if (normalizedSearch && !`${item.symbol} ${item.setupLabel} ${item.resultLabel}`.toUpperCase().includes(normalizedSearch)) return false;
       if (result !== 'all' && item.result !== result) return false;
       if (direction !== 'all' && item.direction !== direction) return false;
@@ -95,17 +98,17 @@ export function MarketHistoryPage() {
 
   const selectedItem = useMemo(() => (
     filteredItems.find((item) => item.id === selectedId)
-      ?? MARKET_HISTORY_ITEMS.find((item) => item.id === selectedId)
+      ?? historyItems.find((item) => item.id === selectedId)
       ?? filteredItems[0]
-      ?? MARKET_HISTORY_ITEMS[0]
+      ?? historyItems[0]
   ), [filteredItems, selectedId]);
 
-  const successfulCount = MARKET_HISTORY_ITEMS.filter((item) => item.result === 'successful').length;
-  const completedCount = MARKET_HISTORY_ITEMS.filter((item) => ['successful', 'failed'].includes(item.result)).length;
-  const averageMove = MARKET_HISTORY_ITEMS
+  const successfulCount = historyItems.filter((item) => item.result === 'successful').length;
+  const completedCount = historyItems.filter((item) => ['successful', 'failed'].includes(item.result)).length;
+  const averageMove = historyItems
     .filter((item) => item.result === 'successful' && item.maxMovePct !== null)
     .reduce((sum, item) => sum + (item.maxMovePct ?? 0), 0) / successfulCount;
-  const replayCount = MARKET_HISTORY_ITEMS.filter((item) => item.replayAvailable).length;
+  const replayCount = historyItems.filter((item) => item.replayAvailable).length;
   const successRate = completedCount > 0 ? Math.round((successfulCount / completedCount) * 100) : 0;
 
   const resetFilters = () => {
@@ -134,7 +137,7 @@ export function MarketHistoryPage() {
       <section className={styles.summaryGrid} aria-label="Сводка истории сетапов">
         <article className={styles.summaryCard}>
           <p>Всего сетапов</p>
-          <strong>{MARKET_HISTORY_ITEMS.length}</strong>
+          <strong>{historyItems.length}</strong>
           <span>в текущей тестовой выборке</span>
         </article>
         <article className={styles.summaryCard}>
@@ -169,7 +172,7 @@ export function MarketHistoryPage() {
           <span>Результат</span>
           <select value={result} onChange={(event: ChangeEvent<HTMLSelectElement>) => setResult(event.target.value as ResultFilter)}>
             <option value="all">Все результаты</option>
-            {(Object.entries(HISTORY_RESULT_LABELS) as Array<[HistoryResult, string]>).map(([value, label]) => (
+            {(Object.entries(resultLabels) as Array<[HistoryResult, string]>).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
           </select>
@@ -214,7 +217,7 @@ export function MarketHistoryPage() {
 
         <div className={styles.filterResult}>
           <strong>{filteredItems.length}</strong>
-          <span>из {MARKET_HISTORY_ITEMS.length}</span>
+          <span>из {historyItems.length}</span>
         </div>
 
         <button className={styles.resetButton} type="button" onClick={resetFilters}>Сбросить</button>
@@ -262,7 +265,7 @@ export function MarketHistoryPage() {
                   </span>
                   <span className={styles.dateCell}>{formatUtcDate(item.detectedAt)}</span>
                   <span><SetupStageBadge stage={item.stageAtDetection} /></span>
-                  <span className={`${styles.resultBadge} ${getResultToneClass(item.result)}`}>{HISTORY_RESULT_LABELS[item.result]}</span>
+                  <span className={`${styles.resultBadge} ${getResultToneClass(item.result)}`}>{resultLabels[item.result]}</span>
                   <strong className={item.maxMovePct !== null ? styles.moveValue : styles.mutedValue}>{formatSignedPercent(item.maxMovePct)}</strong>
                   <span className={styles.durationCell}>{formatDuration(item.timeToTargetSec)}</span>
                 </button>
@@ -287,7 +290,7 @@ export function MarketHistoryPage() {
               <p>{selectedItem.setupLabel}</p>
             </div>
             <span className={`${styles.resultBadge} ${getResultToneClass(selectedItem.result)}`}>
-              {HISTORY_RESULT_LABELS[selectedItem.result]}
+              {resultLabels[selectedItem.result]}
             </span>
           </div>
 
@@ -363,4 +366,17 @@ export function MarketHistoryPage() {
       </div>
     </section>
   );
+}
+
+
+export function MarketHistoryPage() {
+  const query = useApiQuery('market-history-view', () => nexusApi.getMarketHistoryView());
+
+  if (query.status === 'loading') return <AsyncDataState state="loading" />;
+  if (query.status === 'error') {
+    return <AsyncDataState state="error" message={query.error?.message} onRetry={query.retry} />;
+  }
+  if (!query.data || query.data.items.length === 0) return <AsyncDataState state="empty" />;
+
+  return <MarketHistoryPageContent data={query.data} />;
 }

@@ -2,14 +2,15 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import {
-  ALERT_EVENT_LABELS,
-  ALERTS,
-  INITIAL_ALERT_RULES,
+  nexusApi,
+  useApiQuery,
   type AlertEventType,
   type AlertPriority,
   type AlertReadStatus,
-  type NexusAlert,
-} from '@/features/alerts/alertsData';
+  type AlertsViewData,
+  type AlertViewItem,
+} from '@/shared/api';
+import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { DirectionBadge, type TradeDirection } from '@/shared/ui/DirectionBadge';
 import { SetupStageBadge } from '@/shared/ui/SetupStageBadge';
 import styles from './AlertsPage.module.css';
@@ -44,21 +45,22 @@ const EVENT_MARKS: Record<AlertEventType, string> = {
   invalidated: '!',
 };
 
-function getResultLabel(alert: NexusAlert) {
+function getResultLabel(alert: AlertViewItem) {
   return alert.setupKind.startsWith('Отскок') ? 'Отскок' : 'Пробой';
 }
 
-function metricToneClass(tone: NexusAlert['metrics'][number]['tone']) {
+function metricToneClass(tone: AlertViewItem['metrics'][number]['tone']) {
   if (tone === 'positive') return styles.metricPositive;
   if (tone === 'negative') return styles.metricNegative;
   if (tone === 'warning') return styles.metricWarning;
   return '';
 }
 
-export function AlertsPage() {
-  const [alerts, setAlerts] = useState(ALERTS);
-  const [rules, setRules] = useState(INITIAL_ALERT_RULES);
-  const [selectedId, setSelectedId] = useState(ALERTS[0].id);
+function AlertsPageContent({ data }: { data: AlertsViewData }) {
+  const { alerts: initialAlerts, rules: initialRules, eventLabels } = data;
+  const [alerts, setAlerts] = useState(initialAlerts);
+  const [rules, setRules] = useState(initialRules);
+  const [selectedId, setSelectedId] = useState(initialAlerts[0].id);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [eventType, setEventType] = useState<TypeFilter>('all');
@@ -193,7 +195,7 @@ export function AlertsPage() {
           <span>Событие</span>
           <select value={eventType} onChange={(event) => setEventType(event.target.value as TypeFilter)}>
             <option value="all">Все типы событий</option>
-            {(Object.entries(ALERT_EVENT_LABELS) as Array<[AlertEventType, string]>).map(([value, label]) => (
+            {(Object.entries(eventLabels) as Array<[AlertEventType, string]>).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
           </select>
@@ -398,4 +400,17 @@ export function AlertsPage() {
       </div>
     </section>
   );
+}
+
+
+export function AlertsPage() {
+  const query = useApiQuery('alerts-view', () => nexusApi.getAlertsView());
+
+  if (query.status === 'loading') return <AsyncDataState state="loading" />;
+  if (query.status === 'error') {
+    return <AsyncDataState state="error" message={query.error?.message} onRetry={query.retry} />;
+  }
+  if (!query.data || query.data.alerts.length === 0) return <AsyncDataState state="empty" />;
+
+  return <AlertsPageContent data={query.data} />;
 }

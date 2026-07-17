@@ -1,14 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
-import { SCANNER_SETUPS } from '@/features/scanner/scannerData';
 import {
-  MARKET_DYNAMICS,
-  STAGE_FLOW,
-  WORKSPACE_LIQUIDITY,
-  WORKSPACE_PRINTS,
+  nexusApi,
+  useApiQuery,
   type PrintSide,
-} from '@/features/workspace/workspaceData';
+  type WorkspaceViewData,
+} from '@/shared/api';
+import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { DirectionBadge } from '@/shared/ui/DirectionBadge';
 import { SetupStageBadge } from '@/shared/ui/SetupStageBadge';
 import styles from './WorkspacePage.module.css';
@@ -117,20 +116,14 @@ function ChecklistIcon({ state }: { state: 'passed' | 'warning' | 'waiting' }) {
   return <span aria-hidden="true">·</span>;
 }
 
-export function WorkspacePage() {
-  const [searchParams] = useSearchParams();
+function WorkspacePageContent({ data }: { data: WorkspaceViewData }) {
+  const { selectedSetup, prints, liquidity, marketDynamics, stageFlow } = data;
   const [timeframe, setTimeframe] = useState<Timeframe>('5m');
   const [tapeFilter, setTapeFilter] = useState<TapeFilter>('all');
   const [alertCreated, setAlertCreated] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
 
-  const requestedSymbol = searchParams.get('symbol')?.toUpperCase();
-  const selectedSetup = useMemo(
-    () => SCANNER_SETUPS.find((setup) => setup.symbol === requestedSymbol) ?? SCANNER_SETUPS[0],
-    [requestedSymbol],
-  );
-
-  const visiblePrints = WORKSPACE_PRINTS.filter((print) => tapeFilter === 'all' || print.side === tapeFilter);
+  const visiblePrints = prints.filter((print) => tapeFilter === 'all' || print.side === tapeFilter);
   const resultLabel = selectedSetup.kind.includes('Отскок') ? 'Отскок' : 'Пробой';
   const currentStageIndex = { observation: 0, approach: 1, confirmation: 2, triggered: 3 }[selectedSetup.stage];
   const baseAsset = selectedSetup.symbol.replace('USDT', '');
@@ -318,14 +311,14 @@ export function WorkspacePage() {
                 <span>Цена</span><span>Размер</span><span>Возраст</span><span>Состояние</span><span>Исполнено</span>
               </div>
               <div className={styles.liquidityMap}>
-                {WORKSPACE_LIQUIDITY.slice(0, 5).map((level) => (
+                {liquidity.slice(0, 5).map((level) => (
                   <div key={level.id} className={`${styles.liquidityRow} ${styles.sellerRow}`}>
                     <span className={styles.liquidityBar} style={{ width: `${level.intensity * 100}%` }} />
                     <strong>{mapReferencePrice(level.price)}</strong><span>{level.size}</span><span>{level.age}</span><span>{level.state}</span><span>{level.fillPercent}%</span>
                   </div>
                 ))}
                 <div className={styles.currentPriceDivider}><span>ТЕКУЩАЯ ЦЕНА</span><strong>{selectedSetup.price}</strong></div>
-                {WORKSPACE_LIQUIDITY.slice(5).map((level) => (
+                {liquidity.slice(5).map((level) => (
                   <div key={level.id} className={`${styles.liquidityRow} ${styles.buyerRow}`}>
                     <span className={styles.liquidityBar} style={{ width: `${level.intensity * 100}%` }} />
                     <strong>{mapReferencePrice(level.price)}</strong><span>{level.size}</span><span>{level.age}</span><span>{level.state}</span><span>{level.fillPercent}%</span>
@@ -344,7 +337,7 @@ export function WorkspacePage() {
               </div>
 
               <div className={styles.dynamicsList}>
-                {MARKET_DYNAMICS.map((metric) => (
+                {marketDynamics.map((metric) => (
                   <div key={metric.label} className={styles.dynamicMetric}>
                     <span>{metric.label}</span>
                     <strong>{metric.value}</strong>
@@ -372,7 +365,7 @@ export function WorkspacePage() {
           </div>
 
           <div className={styles.stageFlow}>
-            {STAGE_FLOW.map((stage, index) => {
+            {stageFlow.map((stage, index) => {
               const status = index < currentStageIndex ? styles.stageComplete : index === currentStageIndex ? styles.stageCurrent : styles.stagePending;
               return (
                 <div key={stage.id} className={`${styles.stageItem} ${status}`}>
@@ -425,4 +418,22 @@ export function WorkspacePage() {
       </div>
     </section>
   );
+}
+
+
+export function WorkspacePage() {
+  const [searchParams] = useSearchParams();
+  const requestedSymbol = searchParams.get('symbol')?.toUpperCase() ?? '';
+  const query = useApiQuery(
+    `workspace-view:${requestedSymbol}`,
+    () => nexusApi.getWorkspaceView(requestedSymbol),
+  );
+
+  if (query.status === 'loading') return <AsyncDataState state="loading" />;
+  if (query.status === 'error') {
+    return <AsyncDataState state="error" message={query.error?.message} onRetry={query.retry} />;
+  }
+  if (!query.data) return <AsyncDataState state="empty" />;
+
+  return <WorkspacePageContent data={query.data} />;
 }

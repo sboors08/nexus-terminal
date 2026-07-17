@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import {
-  SCANNER_SETUPS,
+  nexusApi,
+  useApiQuery,
   type ScannerSetup,
   type ScannerSetupKind,
   type ScannerTimeframe,
-} from '@/features/scanner/scannerData';
+} from '@/shared/api';
+import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { DirectionBadge, type TradeDirection } from '@/shared/ui/DirectionBadge';
 import { SetupStageBadge, type SetupStage } from '@/shared/ui/SetupStageBadge';
 import styles from './ScannerPage.module.css';
@@ -108,7 +110,7 @@ function numericSort(setups: ScannerSetup[], sortKey: SortKey) {
   });
 }
 
-export function ScannerPage() {
+function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
   const [search, setSearch] = useState('');
   const [direction, setDirection] = useState<DirectionFilter>('all');
   const [kind, setKind] = useState<KindFilter>('all');
@@ -118,14 +120,14 @@ export function ScannerPage() {
   const [touches, setTouches] = useState<TouchesFilter>('all');
   const [btcStrength, setBtcStrength] = useState<BtcStrengthFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('distance');
-  const [selectedId, setSelectedId] = useState(SCANNER_SETUPS[0].id);
+  const [selectedId, setSelectedId] = useState(setups[0].id);
 
   const filteredSetups = useMemo(() => {
     const normalizedSearch = search.trim().toUpperCase();
     const maxDistance = distance === 'all' ? null : Number(distance);
     const minTouches = touches === 'all' ? null : Number(touches);
 
-    const result = SCANNER_SETUPS.filter((setup) => {
+    const result = setups.filter((setup) => {
       if (normalizedSearch && !setup.symbol.includes(normalizedSearch)) return false;
       if (direction !== 'all' && setup.direction !== direction) return false;
       if (kind !== 'all' && setup.kind !== kind) return false;
@@ -143,9 +145,9 @@ export function ScannerPage() {
 
   const selectedSetup = useMemo(() => {
     return filteredSetups.find((setup) => setup.id === selectedId)
-      ?? SCANNER_SETUPS.find((setup) => setup.id === selectedId)
+      ?? setups.find((setup) => setup.id === selectedId)
       ?? filteredSetups[0]
-      ?? SCANNER_SETUPS[0];
+      ?? setups[0];
   }, [filteredSetups, selectedId]);
 
   const resetFilters = () => {
@@ -265,7 +267,7 @@ export function ScannerPage() {
 
           <div className={styles.filterSummary}>
             <strong>{filteredSetups.length}</strong>
-            <span>из {SCANNER_SETUPS.length} сетапов</span>
+            <span>из {setups.length} сетапов</span>
           </div>
 
           <button className={styles.resetButton} type="button" onClick={resetFilters}>Сбросить фильтры</button>
@@ -411,4 +413,17 @@ export function ScannerPage() {
       </div>
     </section>
   );
+}
+
+
+export function ScannerPage() {
+  const query = useApiQuery('scanner-setups', () => nexusApi.getScannerSetups());
+
+  if (query.status === 'loading') return <AsyncDataState state="loading" />;
+  if (query.status === 'error') {
+    return <AsyncDataState state="error" message={query.error?.message} onRetry={query.retry} />;
+  }
+  if (!query.data || query.data.length === 0) return <AsyncDataState state="empty" />;
+
+  return <ScannerPageContent setups={query.data} />;
 }

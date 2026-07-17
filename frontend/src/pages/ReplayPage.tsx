@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import {
-  getReplaySession,
-  getReplayStage,
-  type ReplayCandle,
-  type ReplayLiquidityLevel,
-  type ReplaySession,
-} from '@/features/replay/replayData';
+  getReplayStageView,
+  nexusApi,
+  useApiQuery,
+  type ReplayViewCandle,
+  type ReplayViewLiquidityLevel,
+  type ReplayViewSession,
+} from '@/shared/api';
+import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { DirectionBadge } from '@/shared/ui/DirectionBadge';
 import { SetupStageBadge } from '@/shared/ui/SetupStageBadge';
 import styles from './ReplayPage.module.css';
@@ -61,9 +63,9 @@ function getStageIndex(frameIndex: number) {
 }
 
 function getLiquidityState(
-  level: ReplayLiquidityLevel,
+  level: ReplayViewLiquidityLevel,
   frameIndex: number,
-  session: ReplaySession,
+  session: ReplayViewSession,
 ) {
   const phase = frameIndex / Math.max(session.candles.length - 1, 1);
   if (level.side === 'ask' && level.price <= session.levelHigh * 1.001) {
@@ -78,9 +80,9 @@ function getLiquidityState(
 }
 
 function getExecutedPct(
-  level: ReplayLiquidityLevel,
+  level: ReplayViewLiquidityLevel,
   frameIndex: number,
-  session: ReplaySession,
+  session: ReplayViewSession,
 ) {
   const state = getLiquidityState(level, frameIndex, session);
   if (state === 'Снята') return null;
@@ -92,7 +94,7 @@ function ReplayChart({
   session,
   frameIndex,
 }: {
-  session: ReplaySession;
+  session: ReplayViewSession;
   frameIndex: number;
 }) {
   const visibleCandles = session.candles.slice(0, frameIndex + 1);
@@ -233,8 +235,8 @@ function ReplayMetrics({
   candle,
   frameIndex,
 }: {
-  session: ReplaySession;
-  candle: ReplayCandle;
+  session: ReplayViewSession;
+  candle: ReplayViewCandle;
   frameIndex: number;
 }) {
   const basePrice = session.candles[session.detectedFrameIndex].close;
@@ -256,10 +258,7 @@ function ReplayMetrics({
   );
 }
 
-export function ReplayPage() {
-  const [searchParams] = useSearchParams();
-  const requestedSessionId = searchParams.get('session');
-  const session = useMemo(() => getReplaySession(requestedSessionId), [requestedSessionId]);
+function ReplayPageContent({ session }: { session: ReplayViewSession }) {
   const [frameIndex, setFrameIndex] = useState(session.detectedFrameIndex);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState<ReplaySpeed>(1);
@@ -267,7 +266,7 @@ export function ReplayPage() {
 
   const lastFrameIndex = session.candles.length - 1;
   const currentCandle = session.candles[frameIndex] ?? session.candles[0];
-  const stage = getReplayStage(frameIndex);
+  const stage = getReplayStageView(frameIndex);
   const stageIndex = getStageIndex(frameIndex);
   const visiblePrints = session.prints
     .filter((print) => print.frameIndex <= frameIndex)
@@ -578,4 +577,22 @@ export function ReplayPage() {
       </div>
     </section>
   );
+}
+
+
+export function ReplayPage() {
+  const [searchParams] = useSearchParams();
+  const requestedSessionId = searchParams.get('session') ?? '';
+  const query = useApiQuery(
+    `replay-view:${requestedSessionId}`,
+    () => nexusApi.getReplayView(requestedSessionId),
+  );
+
+  if (query.status === 'loading') return <AsyncDataState state="loading" />;
+  if (query.status === 'error') {
+    return <AsyncDataState state="error" message={query.error?.message} onRetry={query.retry} />;
+  }
+  if (!query.data) return <AsyncDataState state="empty" />;
+
+  return <ReplayPageContent session={query.data} />;
 }
