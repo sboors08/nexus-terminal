@@ -11,6 +11,10 @@ export interface AppEnv {
   apiPrefix: string;
   corsOrigins: string[];
   logLevel: LogLevel;
+  binanceBaseUrl?: string;
+  binanceRequestTimeoutMs?: number;
+  binanceSymbolsLimit?: number;
+  binanceCacheTtlMs?: number;
 }
 
 function readEnum<T extends readonly string[]>(
@@ -21,35 +25,38 @@ function readEnum<T extends readonly string[]>(
 ): T[number] {
   if (!value) return fallback;
   if (allowed.includes(value)) return value as T[number];
-
   throw new Error(`${name} must be one of: ${allowed.join(', ')}`);
 }
 
-function readPort(value: string | undefined): number {
-  if (!value) return 4100;
-
-  const port = Number(value);
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-    throw new Error('PORT must be an integer between 1 and 65535');
+function readInteger(value: string | undefined, fallback: number, name: string, min: number, max: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new Error(`${name} must be an integer between ${min} and ${max}`);
   }
+  return parsed;
+}
 
-  return port;
+function readPort(value: string | undefined): number {
+  return readInteger(value, 4100, 'PORT', 1, 65_535);
 }
 
 function readApiPrefix(value: string | undefined): string {
   const prefix = value?.trim() || '/api/v1';
-  if (!prefix.startsWith('/')) {
-    throw new Error('API_PREFIX must start with /');
-  }
-
+  if (!prefix.startsWith('/')) throw new Error('API_PREFIX must start with /');
   return prefix.length > 1 ? prefix.replace(/\/$/, '') : prefix;
 }
 
 function readCorsOrigins(value: string | undefined): string[] {
-  return (value || 'http://localhost:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  return (value || 'http://localhost:5173').split(',').map((origin) => origin.trim()).filter(Boolean);
+}
+
+function readHttpUrl(value: string | undefined, fallback: string, name: string): string {
+  const candidate = value?.trim() || fallback;
+  let parsed: URL;
+  try { parsed = new URL(candidate); } catch { throw new Error(`${name} must be a valid HTTP URL`); }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error(`${name} must use http or https`);
+  return parsed.toString().replace(/\/$/, '');
 }
 
 export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
@@ -60,5 +67,9 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     apiPrefix: readApiPrefix(source.API_PREFIX),
     corsOrigins: readCorsOrigins(source.CORS_ORIGIN),
     logLevel: readEnum(source.LOG_LEVEL, LOG_LEVEL_VALUES, 'info', 'LOG_LEVEL'),
+    binanceBaseUrl: readHttpUrl(source.BINANCE_BASE_URL, 'https://data-api.binance.vision', 'BINANCE_BASE_URL'),
+    binanceRequestTimeoutMs: readInteger(source.BINANCE_REQUEST_TIMEOUT_MS, 5_000, 'BINANCE_REQUEST_TIMEOUT_MS', 250, 30_000),
+    binanceSymbolsLimit: readInteger(source.BINANCE_SYMBOLS_LIMIT, 100, 'BINANCE_SYMBOLS_LIMIT', 1, 500),
+    binanceCacheTtlMs: readInteger(source.BINANCE_CACHE_TTL_MS, 15_000, 'BINANCE_CACHE_TTL_MS', 0, 300_000),
   };
 }
