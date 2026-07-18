@@ -63,6 +63,7 @@ import {
   type DashboardCandle,
   type DashboardChartPeriod,
   type DashboardHotCoin,
+  type DashboardMarketModeData,
   type DashboardViewData,
 } from './dashboardViewData';
 
@@ -76,6 +77,7 @@ export type {
   DashboardCandle,
   DashboardChartPeriod,
   DashboardHotCoin,
+  DashboardMarketModeData,
   DashboardViewData,
   HistoryResult,
   HistorySetupType,

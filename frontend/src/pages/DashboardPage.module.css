@@ -45,6 +45,8 @@
 }
 
 .marketMode {
+  --market-tone: #35df8d;
+  --market-glow: rgb(48 221 137 / 22%);
   grid-column: 1 / span 4;
   grid-row: 1;
   align-self: start;
@@ -53,6 +55,22 @@
 }
 
 .panelHeader { min-height: 24px; }
+
+.autoBadge {
+  display: inline-grid;
+  min-width: 31px;
+  height: 16px;
+  margin-left: 6px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--market-tone) 55%, transparent);
+  border-radius: 999px;
+  color: var(--market-tone);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 7px;
+  line-height: 1;
+  background: color-mix(in srgb, var(--market-tone) 9%, transparent);
+  vertical-align: middle;
+}
 .info {
   display: grid;
   width: 16px;
@@ -87,7 +105,8 @@
   width: 92px;
   height: 82px;
   object-fit: contain;
-  filter: drop-shadow(0 0 14px rgb(48 221 137 / 18%));
+  filter: drop-shadow(0 0 14px var(--market-glow));
+  transition: filter 180ms ease, opacity 180ms ease;
 }
 
 .marketMood > div {
@@ -96,13 +115,13 @@
 }
 
 .marketMood strong {
-  color: #35df8d;
+  color: var(--market-tone);
   font-size: 21px;
   line-height: 1;
 }
 
 .marketMood span {
-  color: #35df8d;
+  color: var(--market-tone);
   font-size: 10px;
   font-weight: 700;
 }
@@ -112,8 +131,8 @@
   margin-top: 6px;
   padding: 7px 13px;
   border-radius: 4px;
-  color: #35df8d;
-  background: rgb(53 223 141 / 12%);
+  color: var(--market-tone);
+  background: color-mix(in srgb, var(--market-tone) 12%, transparent);
   font-size: 10px;
   font-style: normal;
   font-weight: 800;
@@ -184,14 +203,14 @@
 }
 
 .fearGreedGauge strong {
-  color: #35df8d;
+  color: var(--market-tone, #35df8d);
   font-family: var(--nexus-font-family-mono);
   font-size: 16px;
   line-height: 1;
 }
 
 .fearGreedGauge small {
-  color: #35df8d;
+  color: var(--market-tone, #35df8d);
   font-size: 9px;
 }
 

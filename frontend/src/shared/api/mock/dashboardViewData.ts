@@ -2,6 +2,18 @@ export type DashboardTone = 'green' | 'orange' | 'yellow' | 'purple' | 'cyan';
 export type DashboardActivityPeriod = '1M' | '5M' | '15M' | '1H' | '4H' | '24H';
 export type DashboardChartPeriod = '1M' | '5M' | '15M' | '1H' | '4H' | '1D';
 
+
+export type DashboardMarketModeData = {
+  btcPrice: number;
+  btcChangePct: number;
+  btcDominancePct: number;
+  btcDominanceChangePct: number;
+  marketVolatilityPct: number;
+  marketVolatilityLabel: string;
+  fearGreedIndex: number;
+  fearGreedLabel: string;
+};
+
 export type DashboardHotCoin = {
   rank: number;
   symbol: string;
@@ -76,6 +88,18 @@ export const DASHBOARD_STATS = [
   ['Изменение 24ч', '+6.31%'],
 ] as const;
 
+
+export const DASHBOARD_MARKET_MODE: DashboardMarketModeData = {
+  btcPrice: 104_250,
+  btcChangePct: 1.82,
+  btcDominancePct: 53.6,
+  btcDominanceChangePct: -0.35,
+  marketVolatilityPct: 64,
+  marketVolatilityLabel: 'Средняя',
+  fearGreedIndex: 72,
+  fearGreedLabel: 'Greed',
+};
+
 export const DASHBOARD_CHART_PERIODS: DashboardChartPeriod[] = ['1M', '5M', '15M', '1H', '4H', '1D'];
 export const DASHBOARD_ACTIVITY_PERIODS: DashboardActivityPeriod[] = ['1M', '5M', '15M', '1H', '4H', '24H'];
 
@@ -95,6 +119,7 @@ export const DASHBOARD_CANDLES: DashboardCandle[] = Array.from({ length: 70 }, (
 });
 
 export type DashboardViewData = {
+  marketMode: DashboardMarketModeData;
   hotCoins: DashboardHotCoin[];
   scannerRows: typeof DASHBOARD_SCANNER_ROWS;
   insights: typeof DASHBOARD_INSIGHTS;
@@ -106,6 +131,7 @@ export type DashboardViewData = {
 };
 
 export const DASHBOARD_VIEW_DATA: DashboardViewData = {
+  marketMode: DASHBOARD_MARKET_MODE,
   hotCoins: DASHBOARD_HOT_COINS,
   scannerRows: DASHBOARD_SCANNER_ROWS,
   insights: DASHBOARD_INSIGHTS,

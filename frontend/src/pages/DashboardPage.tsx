@@ -1,4 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react';
+import bearMarket from '@/assets/bear-market.png';
 import bullMarket from '@/assets/bull-market.png';
 import {
   nexusApi,
@@ -7,6 +8,7 @@ import {
   type DashboardCandle,
   type DashboardChartPeriod,
   type DashboardHotCoin,
+  type DashboardMarketModeData,
   type DashboardViewData,
 } from '@/shared/api';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
@@ -43,10 +45,86 @@ function HotCard({ coin, selected, onSelect }: { coin: DashboardHotCoin; selecte
   );
 }
 
-function FearGreed() {
+type MarketMode = 'bullish' | 'bearish';
+
+type ResolvedMarketMode = DashboardMarketModeData & {
+  mode: MarketMode;
+  title: 'BULLISH' | 'BEARISH';
+  trend: 'TRENDING UP' | 'TRENDING DOWN';
+  risk: 'RISK ON' | 'RISK OFF';
+  accent: string;
+  glow: string;
+  image: string;
+};
+
+function getMarketModeOverride(): MarketMode | null {
+  if (typeof window === 'undefined') return null;
+  const value = new URLSearchParams(window.location.search).get('marketMode');
+  return value === 'bullish' || value === 'bearish' ? value : null;
+}
+
+function resolveMarketMode(source: DashboardMarketModeData): ResolvedMarketMode {
+  const override = getMarketModeOverride();
+  const scenario = override === 'bearish'
+    ? {
+        ...source,
+        btcPrice: 98_760,
+        btcChangePct: -2.14,
+        btcDominancePct: 54.1,
+        btcDominanceChangePct: 0.48,
+        marketVolatilityPct: 82,
+        marketVolatilityLabel: 'Высокая',
+        fearGreedIndex: 28,
+        fearGreedLabel: 'Fear',
+      }
+    : source;
+
+  const automaticScore = scenario.btcChangePct + (scenario.fearGreedIndex - 50) / 20;
+  const mode: MarketMode = override ?? (automaticScore >= 0 ? 'bullish' : 'bearish');
+
+  return mode === 'bullish'
+    ? {
+        ...scenario,
+        mode,
+        title: 'BULLISH',
+        trend: 'TRENDING UP',
+        risk: 'RISK ON',
+        accent: '#35df8d',
+        glow: 'rgb(48 221 137 / 22%)',
+        image: bullMarket,
+      }
+    : {
+        ...scenario,
+        mode,
+        title: 'BEARISH',
+        trend: 'TRENDING DOWN',
+        risk: 'RISK OFF',
+        accent: '#ff5b54',
+        glow: 'rgb(255 91 84 / 24%)',
+        image: bearMarket,
+      };
+}
+
+function formatMarketNumber(value: number, fractionDigits = 2) {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
+}
+
+function formatSignedPercent(value: number) {
+  return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+}
+
+function FearGreed({ value, label, tone }: { value: number; label: string; tone: string }) {
+  const normalized = Math.min(100, Math.max(0, value));
+  const angle = Math.PI - (normalized / 100) * Math.PI;
+  const needleX = 60 + Math.cos(angle) * 33;
+  const needleY = 58 - Math.sin(angle) * 33;
+
   return (
     <div className={styles.fearGreedGauge}>
-      <svg viewBox="0 0 120 66" aria-label="Fear and Greed: 72">
+      <svg viewBox="0 0 120 66" aria-label={`Fear and Greed: ${value}`}>
         <defs>
           <linearGradient id="fearGauge" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0" stopColor="#ff6c2f" />
@@ -56,10 +134,10 @@ function FearGreed() {
         </defs>
         <path d="M12 58 A48 48 0 0 1 108 58" fill="none" stroke="#14251f" strokeWidth="11" />
         <path d="M12 58 A48 48 0 0 1 108 58" fill="none" stroke="url(#fearGauge)" strokeWidth="11" />
-        <line x1="60" y1="58" x2="82" y2="35" stroke="#eef5f2" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="60" y1="58" x2={needleX} y2={needleY} stroke="#eef5f2" strokeWidth="2.5" strokeLinecap="round" />
         <circle cx="60" cy="58" r="4" fill="#eef5f2" />
       </svg>
-      <span><strong>72</strong><small>Greed</small></span>
+      <span style={{ '--market-tone': tone } as CSSProperties}><strong>{value}</strong><small>{label}</small></span>
     </div>
   );
 }
@@ -104,28 +182,36 @@ function TradingChart({ candles }: { candles: DashboardCandle[] }) {
 }
 
 function DashboardPageContent({ data }: { data: DashboardViewData }) {
-  const { hotCoins, scannerRows, insights, levels, stats, chartPeriods, activityPeriods, candles } = data;
+  const { marketMode: marketModeSource, hotCoins, scannerRows, insights, levels, stats, chartPeriods, activityPeriods, candles } = data;
   const [selected, setSelected] = useState(hotCoins[0].symbol);
   const [activityPeriod, setActivityPeriod] = useState<DashboardActivityPeriod>('1M');
   const [chartPeriod, setChartPeriod] = useState<DashboardChartPeriod>('1M');
   const selectedCoin = useMemo(() => hotCoins.find((coin) => coin.symbol === selected) ?? hotCoins[0], [hotCoins, selected]);
+  const marketMode = useMemo(() => resolveMarketMode(marketModeSource), [marketModeSource]);
+  const marketModeStyle = {
+    '--market-tone': marketMode.accent,
+    '--market-glow': marketMode.glow,
+  } as CSSProperties;
 
   return (
     <section className={styles.dashboard}>
-      <article className={`${styles.panel} ${styles.marketMode}`}>
-        <header className={styles.panelHeader}><h2>BTC MARKET MODE</h2><span className={styles.info}>i</span></header>
+      <article className={`${styles.panel} ${styles.marketMode}`} style={marketModeStyle} data-market-mode={marketMode.mode}>
+        <header className={styles.panelHeader}>
+          <h2>BTC MARKET MODE <small className={styles.autoBadge}>AUTO</small></h2>
+          <span className={styles.info} title="Режим определяется автоматически по изменению BTC и индексу Fear & Greed.">i</span>
+        </header>
         <div className={styles.marketModeBody}>
           <div className={styles.marketMood}>
-            <img src={bullMarket} alt="Бычье настроение рынка" />
-            <div><strong>BULLISH</strong><span>TRENDING UP</span><em>RISK ON</em></div>
+            <img src={marketMode.image} alt={marketMode.mode === 'bullish' ? 'Бычье настроение рынка' : 'Медвежье настроение рынка'} />
+            <div><strong>{marketMode.title}</strong><span>{marketMode.trend}</span><em>{marketMode.risk}</em></div>
           </div>
           <div className={styles.btcStats}>
-            <div><span>BTC PRICE</span><strong>$104,250</strong><em>+1.82%</em></div>
-            <div><span>BTC DOMINANCE</span><strong>53.6%</strong><em className={styles.negative}>-0.35%</em></div>
-            <div><span>MARKET VOLATILITY</span><strong>64%</strong><small>Средняя</small></div>
+            <div><span>BTC PRICE</span><strong>${formatMarketNumber(marketMode.btcPrice, 0)}</strong><em className={marketMode.btcChangePct >= 0 ? styles.positive : styles.negative}>{formatSignedPercent(marketMode.btcChangePct)}</em></div>
+            <div><span>BTC DOMINANCE</span><strong>{marketMode.btcDominancePct.toFixed(1)}%</strong><em className={marketMode.btcDominanceChangePct >= 0 ? styles.positive : styles.negative}>{formatSignedPercent(marketMode.btcDominanceChangePct)}</em></div>
+            <div><span>MARKET VOLATILITY</span><strong>{marketMode.marketVolatilityPct}%</strong><small>{marketMode.marketVolatilityLabel}</small></div>
           </div>
         </div>
-        <div className={styles.fearRow}><span>FEAR &amp; GREED</span><FearGreed /></div>
+        <div className={styles.fearRow}><span>FEAR &amp; GREED</span><FearGreed value={marketMode.fearGreedIndex} label={marketMode.fearGreedLabel} tone={marketMode.accent} /></div>
       </article>
 
       <article className={`${styles.panel} ${styles.hotList}`}>
