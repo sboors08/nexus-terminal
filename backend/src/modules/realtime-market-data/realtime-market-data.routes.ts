@@ -74,10 +74,10 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
         return sendError(request, reply, 400, 'invalid_symbol', 'Invalid symbol format');
       }
 
+      const releaseSymbol = symbol
+        ? options.realtimeMarketDataService.acquireSymbol(symbol)
+        : null;
       const snapshots = options.realtimeMarketDataService.getSnapshots(symbol ?? undefined);
-      if (symbol && snapshots.length === 0) {
-        return sendError(request, reply, 404, 'symbol_not_subscribed', `Symbol ${symbol} is not subscribed`);
-      }
 
       reply.hijack();
       const response = reply.raw;
@@ -125,6 +125,7 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
         cleanedUp = true;
         clearInterval(heartbeat);
         unsubscribe();
+        releaseSymbol?.();
       };
 
       response.once('close', cleanup);

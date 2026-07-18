@@ -83,6 +83,10 @@ class FakeRealtimeService implements RealtimeMarketDataService {
     return [{ ...this.snapshot, recentTrades: [...this.snapshot.recentTrades] }];
   }
 
+  acquireSymbol(): () => void {
+    return () => undefined;
+  }
+
   subscribe(listener: RealtimeMarketDataListener, symbol?: string): () => void {
     const subscription = symbol ? { listener, symbol } : { listener };
     this.listeners.add(subscription);
@@ -182,7 +186,7 @@ test('Realtime SSE endpoint sends initial status and symbol snapshot', async (t)
   assert.equal(realtimeService.listenerCount, 0);
 });
 
-test('Realtime SSE endpoint rejects symbols outside the active subscription', async (t) => {
+test('Realtime SSE endpoint rejects an invalid symbol format', async (t) => {
   const app = await buildApp({
     env: testEnv,
     marketDataProvider: fixtureProvider,
@@ -192,9 +196,9 @@ test('Realtime SSE endpoint rejects symbols outside the active subscription', as
 
   const response = await app.inject({
     method: 'GET',
-    url: '/api/v1/market/realtime/stream?symbol=UNKNOWNUSDT',
+    url: '/api/v1/market/realtime/stream?symbol=BAD!',
   });
 
-  assert.equal(response.statusCode, 404);
-  assert.equal(response.json().error, 'symbol_not_subscribed');
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().error, 'invalid_symbol');
 });
