@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { apiContractRoutes } from './api-contract/api-contract.routes.js';
 import { healthRoutes } from './health/health.routes.js';
 
 /**
@@ -7,4 +8,5 @@ import { healthRoutes } from './health/health.routes.js';
  */
 export const apiModules: FastifyPluginAsync = async (app) => {
   await app.register(healthRoutes);
+  await app.register(apiContractRoutes);
 };
