@@ -149,6 +149,7 @@ test('Realtime market endpoints expose connection state and snapshots', async ()
       lastError: null,
     }),
     getSnapshots: (symbol) => symbol && symbol !== 'BTCUSDT' ? [] : snapshots,
+    acquireSymbol: () => () => undefined,
     subscribe: () => () => undefined,
   };
 

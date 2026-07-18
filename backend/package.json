@@ -12,9 +12,10 @@
     "build": "tsc -p tsconfig.json",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test test/health.test.ts test/api-contract.test.ts test/binance-market-data.test.ts test/binance-websocket.test.ts test/realtime-delivery.test.ts",
+    "test": "node --import tsx --test test/health.test.ts test/api-contract.test.ts test/binance-market-data.test.ts test/binance-websocket.test.ts test/realtime-delivery.test.ts test/dynamic-subscriptions.test.ts",
     "verify:foundation": "node scripts/verify-foundation.mjs",
-    "check": "npm run verify:foundation && npm run typecheck && npm test"
+    "verify:dynamic-subscriptions": "node scripts/verify-dynamic-subscriptions.mjs",
+    "check": "npm run verify:foundation && npm run verify:dynamic-subscriptions && npm run typecheck && npm test"
   },
   "dependencies": {
     "@fastify/cors": "11.3.0",

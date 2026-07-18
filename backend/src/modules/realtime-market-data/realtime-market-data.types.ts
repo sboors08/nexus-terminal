@@ -65,6 +65,7 @@ export interface RealtimeMarketDataService {
   stop(): void;
   getStatus(): RealtimeConnectionStatus;
   getSnapshots(symbol?: string): RealtimeSymbolSnapshot[];
+  acquireSymbol(symbol: string): () => void;
   subscribe(listener: RealtimeMarketDataListener, symbol?: string): () => void;
 }
 

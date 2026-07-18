@@ -78,7 +78,9 @@ function cloneSnapshot(snapshot: RealtimeSymbolSnapshot): RealtimeSymbolSnapshot
 
 export class BinanceWebSocketMarketDataService implements RealtimeMarketDataService {
   private readonly baseUrl: string;
-  private readonly symbols: string[];
+  private readonly initialSymbols: Set<string>;
+  private readonly activeSymbols = new Set<string>();
+  private readonly dynamicSymbolReferences = new Map<string, number>();
   private readonly socketFactory: RealtimeWebSocketFactory;
   private readonly scheduler: ReconnectScheduler;
   private readonly now: () => Date;
@@ -92,12 +94,13 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
 
   constructor(private readonly options: BinanceWebSocketServiceOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
-    this.symbols = [...new Set(options.symbols.map((symbol) => symbol.toUpperCase()))];
+    this.initialSymbols = new Set(options.symbols.map((symbol) => symbol.toUpperCase()));
+    for (const symbol of this.initialSymbols) this.activeSymbols.add(symbol);
     this.socketFactory = options.socketFactory ?? ((url) => new WebSocket(url) as unknown as RealtimeWebSocket);
     this.scheduler = options.scheduler ?? defaultScheduler;
     this.now = options.now ?? (() => new Date());
 
-    for (const symbol of this.symbols) {
+    for (const symbol of this.activeSymbols) {
       this.snapshots.set(symbol, {
         symbol,
         lastTrade: null,
@@ -113,8 +116,8 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       disconnectedAt: null,
       lastMessageAt: null,
       reconnectAttempts: 0,
-      subscribedSymbols: [...this.symbols],
-      streamCount: this.symbols.length * 2,
+      subscribedSymbols: this.getActiveSymbols(),
+      streamCount: this.activeSymbols.size * 2,
       lastError: null,
     };
   }
@@ -162,10 +165,51 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       return snapshot ? [cloneSnapshot(snapshot)] : [];
     }
 
-    return this.symbols
+    return this.getActiveSymbols()
       .map((item) => this.snapshots.get(item))
       .filter((snapshot): snapshot is RealtimeSymbolSnapshot => snapshot !== undefined)
       .map(cloneSnapshot);
+  }
+
+  acquireSymbol(symbol: string): () => void {
+    const normalizedSymbol = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9]{5,20}$/.test(normalizedSymbol)) {
+      throw new Error(`Invalid realtime symbol: ${symbol}`);
+    }
+
+    const currentReferences = this.dynamicSymbolReferences.get(normalizedSymbol) ?? 0;
+    this.dynamicSymbolReferences.set(normalizedSymbol, currentReferences + 1);
+
+    if (!this.activeSymbols.has(normalizedSymbol)) {
+      this.activeSymbols.add(normalizedSymbol);
+      this.snapshots.set(normalizedSymbol, {
+        symbol: normalizedSymbol,
+        lastTrade: null,
+        bookTicker: null,
+        recentTrades: [],
+        updatedAt: null,
+      });
+      this.restartForSubscriptionChange();
+    }
+
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+
+      const references = this.dynamicSymbolReferences.get(normalizedSymbol) ?? 0;
+      if (references > 1) {
+        this.dynamicSymbolReferences.set(normalizedSymbol, references - 1);
+        return;
+      }
+
+      this.dynamicSymbolReferences.delete(normalizedSymbol);
+      if (this.initialSymbols.has(normalizedSymbol)) return;
+
+      this.activeSymbols.delete(normalizedSymbol);
+      this.snapshots.delete(normalizedSymbol);
+      this.restartForSubscriptionChange();
+    };
   }
 
   subscribe(listener: RealtimeMarketDataListener, symbol?: string): () => void {
@@ -211,12 +255,53 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
   }
 
   private buildUrl(): string {
-    const streams = this.symbols.flatMap((symbol) => {
+    const streams = this.getActiveSymbols().flatMap((symbol) => {
       const normalized = symbol.toLowerCase();
       return [`${normalized}@trade`, `${normalized}@bookTicker`];
     });
 
     return `${this.baseUrl}/stream?streams=${streams.join('/')}`;
+  }
+
+  private getActiveSymbols(): string[] {
+    return [...this.activeSymbols];
+  }
+
+  private syncSubscriptionStatus(): void {
+    this.status = {
+      ...this.status,
+      subscribedSymbols: this.getActiveSymbols(),
+      streamCount: this.activeSymbols.size * 2,
+    };
+  }
+
+  private restartForSubscriptionChange(): void {
+    this.syncSubscriptionStatus();
+    this.emitStatus();
+
+    if (
+      this.manuallyStopped
+      || this.status.state === 'idle'
+      || this.status.state === 'stopped'
+    ) {
+      return;
+    }
+
+    if (this.reconnectHandle !== null) {
+      this.scheduler.cancel(this.reconnectHandle);
+      this.reconnectHandle = null;
+    }
+
+    const socket = this.socket;
+    this.socket = null;
+    this.generation += 1;
+    socket?.close(1000, 'NEXUS subscriptions changed');
+
+    this.status = {
+      ...this.status,
+      reconnectAttempts: 0,
+    };
+    this.connect();
   }
 
   private handleOpen(generation: number): void {
