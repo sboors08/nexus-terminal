@@ -1,6 +1,8 @@
 import type {
   RealtimeBookTicker,
   RealtimeConnectionStatus,
+  RealtimeMarketDataEvent,
+  RealtimeMarketDataListener,
   RealtimeMarketDataService,
   RealtimeSocketEvent,
   RealtimeSymbolSnapshot,
@@ -24,6 +26,11 @@ interface BinanceWebSocketServiceOptions {
 interface CombinedStreamPayload {
   stream?: string;
   data?: unknown;
+}
+
+interface RealtimeSubscription {
+  listener: RealtimeMarketDataListener;
+  symbol?: string;
 }
 
 interface BinanceTradeEvent {
@@ -76,6 +83,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
   private readonly scheduler: ReconnectScheduler;
   private readonly now: () => Date;
   private readonly snapshots = new Map<string, RealtimeSymbolSnapshot>();
+  private readonly subscriptions = new Set<RealtimeSubscription>();
   private socket: RealtimeWebSocket | null = null;
   private reconnectHandle: unknown = null;
   private generation = 0;
@@ -138,6 +146,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       state: 'stopped',
       disconnectedAt: this.now().toISOString(),
     };
+    this.emitStatus();
   }
 
   getStatus(): RealtimeConnectionStatus {
@@ -159,6 +168,18 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       .map(cloneSnapshot);
   }
 
+  subscribe(listener: RealtimeMarketDataListener, symbol?: string): () => void {
+    const normalizedSymbol = symbol?.toUpperCase();
+    const subscription: RealtimeSubscription = normalizedSymbol
+      ? { listener, symbol: normalizedSymbol }
+      : { listener };
+
+    this.subscriptions.add(subscription);
+    return () => {
+      this.subscriptions.delete(subscription);
+    };
+  }
+
   private connect(): void {
     if (this.manuallyStopped) return;
 
@@ -167,6 +188,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       ...this.status,
       state: this.status.reconnectAttempts > 0 ? 'reconnecting' : 'connecting',
     };
+    this.emitStatus();
 
     let socket: RealtimeWebSocket;
     try {
@@ -176,6 +198,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
         ...this.status,
         lastError: error instanceof Error ? error.message : 'Unable to create Binance WebSocket',
       };
+      this.emitStatus();
       this.scheduleReconnect();
       return;
     }
@@ -207,6 +230,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       reconnectAttempts: 0,
       lastError: null,
     };
+    this.emitStatus();
   }
 
   private handleMessage(generation: number, event: RealtimeSocketEvent): void {
@@ -243,6 +267,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       payload = JSON.parse(text) as CombinedStreamPayload;
     } catch {
       this.status = { ...this.status, lastError: 'Binance WebSocket returned invalid JSON' };
+      this.emitStatus();
       return;
     }
 
@@ -288,6 +313,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       snapshot.recentTrades.splice(0, snapshot.recentTrades.length - this.options.tradesBufferSize);
     }
     snapshot.updatedAt = receivedAt;
+    this.emitSnapshot(snapshot);
   }
 
   private applyBookTicker(event: BinanceBookTickerEvent, receivedAt: string): void {
@@ -317,11 +343,13 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
 
     snapshot.bookTicker = bookTicker;
     snapshot.updatedAt = receivedAt;
+    this.emitSnapshot(snapshot);
   }
 
   private handleError(generation: number): void {
     if (generation !== this.generation || this.manuallyStopped) return;
     this.status = { ...this.status, lastError: 'Binance WebSocket connection error' };
+    this.emitStatus();
   }
 
   private handleClose(generation: number, event: RealtimeSocketEvent): void {
@@ -337,7 +365,38 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       disconnectedAt: this.now().toISOString(),
       lastError: event.code === 1000 ? this.status.lastError : closeDetails,
     };
+    this.emitStatus();
     this.scheduleReconnect();
+  }
+
+  private emitStatus(): void {
+    this.emit({
+      type: 'status',
+      status: this.getStatus(),
+      emittedAt: this.now().toISOString(),
+    });
+  }
+
+  private emitSnapshot(snapshot: RealtimeSymbolSnapshot): void {
+    this.emit({
+      type: 'snapshot',
+      snapshot: cloneSnapshot(snapshot),
+      emittedAt: snapshot.updatedAt ?? this.now().toISOString(),
+    });
+  }
+
+  private emit(event: RealtimeMarketDataEvent): void {
+    for (const subscription of this.subscriptions) {
+      if (
+        event.type === 'snapshot'
+        && subscription.symbol
+        && subscription.symbol !== event.snapshot.symbol
+      ) {
+        continue;
+      }
+
+      subscription.listener(event);
+    }
   }
 
   private scheduleReconnect(): void {
@@ -354,6 +413,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       state: 'reconnecting',
       reconnectAttempts: attempt,
     };
+    this.emitStatus();
 
     this.reconnectHandle = this.scheduler.schedule(() => {
       this.reconnectHandle = null;

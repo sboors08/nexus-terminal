@@ -16,15 +16,17 @@ const requiredFiles = [
   'src/modules/realtime-market-data/realtime-market-data.routes.ts',
   'test/health.test.ts',
   'test/binance-websocket.test.ts',
+  'test/realtime-delivery.test.ts',
 ];
 
 await Promise.all(requiredFiles.map((path) => access(resolve(root, path))));
 
-const [packageSource, appSource, serverSource, webSocketSource] = await Promise.all([
+const [packageSource, appSource, serverSource, webSocketSource, realtimeRoutesSource] = await Promise.all([
   readFile(resolve(root, 'package.json'), 'utf8'),
   readFile(resolve(root, 'src/app.ts'), 'utf8'),
   readFile(resolve(root, 'src/server.ts'), 'utf8'),
   readFile(resolve(root, 'src/modules/realtime-market-data/binance-websocket.service.ts'), 'utf8'),
+  readFile(resolve(root, 'src/modules/realtime-market-data/realtime-market-data.routes.ts'), 'utf8'),
 ]);
 
 const packageJson = JSON.parse(packageSource);
@@ -54,7 +56,15 @@ for (const stream of ['@trade', '@bookTicker']) {
   if (!webSocketSource.includes(stream)) errors.push(`Missing Binance WebSocket stream: ${stream}`);
 }
 
-const sourceText = `${appSource}\n${serverSource}\n${webSocketSource}`;
+if (!realtimeRoutesSource.includes('/market/realtime/stream')) {
+  errors.push('Realtime SSE delivery route is missing');
+}
+
+if (!realtimeRoutesSource.includes('text/event-stream')) {
+  errors.push('Realtime delivery route does not use SSE');
+}
+
+const sourceText = `${appSource}\n${serverSource}\n${webSocketSource}\n${realtimeRoutesSource}`;
 if (sourceText.includes('../frontend') || sourceText.includes('../../frontend')) {
   errors.push('Backend must not import frontend implementation files');
 }
@@ -64,4 +74,4 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log('NEXUS backend verified: foundation, REST market data and Binance WebSocket Foundation v0.1 are present.');
+console.log('NEXUS backend verified: foundation, Binance realtime ingestion and SSE Realtime Delivery v0.1 are present.');
