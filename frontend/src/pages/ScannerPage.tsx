@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
+import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import {
   nexusApi,
   useApiQuery,
@@ -149,6 +150,13 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
       ?? filteredSetups[0]
       ?? setups[0];
   }, [filteredSetups, selectedId]);
+
+  useFeedbackPageContext({
+    screen: 'Scanner',
+    symbol: selectedSetup.symbol,
+    timeframe: selectedSetup.timeframe,
+    setupId: selectedSetup.id,
+  });
 
   const resetFilters = () => {
     setSearch('');
@@ -404,7 +412,7 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
           </section>
 
           <div className={styles.previewActions}>
-            <Link className={styles.primaryLink} to={`${ROUTES.workspace}?symbol=${selectedSetup.symbol}`}>
+            <Link className={styles.primaryLink} to={`${ROUTES.workspace}?symbol=${selectedSetup.symbol}&setupId=${selectedSetup.id}&timeframe=${selectedSetup.timeframe}`}>
               Открыть Workspace <span aria-hidden="true">→</span>
             </Link>
             <Link className={styles.secondaryLink} to={ROUTES.alerts}>Создать алерт</Link>

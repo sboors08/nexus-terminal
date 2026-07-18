@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
+import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import {
   nexusApi,
   useApiQuery,
@@ -122,6 +123,13 @@ function WorkspacePageContent({ data }: { data: WorkspaceViewData }) {
   const [tapeFilter, setTapeFilter] = useState<TapeFilter>('all');
   const [alertCreated, setAlertCreated] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+
+  useFeedbackPageContext({
+    screen: 'Workspace',
+    symbol: selectedSetup.symbol,
+    timeframe,
+    setupId: selectedSetup.id,
+  });
 
   const visiblePrints = prints.filter((print) => tapeFilter === 'all' || print.side === tapeFilter);
   const resultLabel = selectedSetup.kind.includes('Отскок') ? 'Отскок' : 'Пробой';

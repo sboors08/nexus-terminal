@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
+import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import {
   getReplayStageView,
   nexusApi,
@@ -263,6 +264,14 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState<ReplaySpeed>(1);
   const [activeTab, setActiveTab] = useState<ReplayTab>('detection');
+
+  useFeedbackPageContext({
+    screen: 'Replay',
+    symbol: session.symbol,
+    timeframe: session.timeframe,
+    setupId: session.setupId,
+    replayId: session.id,
+  });
 
   const lastFrameIndex = session.candles.length - 1;
   const currentCandle = session.candles[frameIndex] ?? session.candles[0];

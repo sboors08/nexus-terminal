@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
+import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import { nexusApi, useApiQuery, type Candle, type MarketSymbol } from '@/shared/api';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import styles from './MarketPage.module.css';
@@ -205,6 +206,11 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
   }, [filteredSymbols, selectedSymbol]);
 
   const selected = symbols.find((symbol) => symbol.symbol === selectedSymbol) ?? symbols[0];
+  useFeedbackPageContext({
+    screen: 'Market',
+    symbol: selected.symbol,
+    timeframe,
+  });
   const candlesQuery = useApiQuery(
     `market-candles:${selected.symbol}:${timeframe}`,
     () => nexusApi.getMarketCandles(selected.symbol, timeframe),
@@ -285,7 +291,7 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
             <article><span>Волатильность</span><strong>{selected.volatilityPct.toFixed(2)}%</strong><small>амплитуда периода</small></article>
           </div>
 
-          <div className={styles.workspaceBar}><div><span>Выбран {selected.symbol}</span><small>Откройте полный график, принты и ликвидность в рабочем пространстве.</small></div><Link className={styles.workspaceButton} to={`${ROUTES.workspace}?symbol=${selected.symbol}`}>Открыть в Workspace</Link></div>
+          <div className={styles.workspaceBar}><div><span>Выбран {selected.symbol}</span><small>Откройте полный график, принты и ликвидность в рабочем пространстве.</small></div><Link className={styles.workspaceButton} to={`${ROUTES.workspace}?symbol=${selected.symbol}&timeframe=${timeframe}`}>Открыть в Workspace</Link></div>
         </section>
 
         <aside className={styles.listPanel}>
