@@ -17,7 +17,6 @@ import {
 } from '@/features/market-history/marketHistoryData';
 import {
   REPLAY_SESSIONS,
-  getReplaySession as getReplaySessionViewFixture,
   getReplayStage as getReplayStageView,
   type ReplayCandle as ReplayViewCandle,
   type ReplayLiquidityLevel as ReplayViewLiquidityLevel,
@@ -117,10 +116,10 @@ export interface MarketHistoryViewData {
 export interface NexusViewApi {
   getDashboardView(): Promise<DashboardViewData | null>;
   getScannerSetups(): Promise<ScannerSetup[]>;
-  getWorkspaceView(symbol?: string | null): Promise<WorkspaceViewData | null>;
+  getWorkspaceView(setupId?: string | null, symbol?: string | null): Promise<WorkspaceViewData | null>;
   getAlertsView(): Promise<AlertsViewData>;
   getMarketHistoryView(): Promise<MarketHistoryViewData>;
-  getReplayView(sessionId?: string | null): Promise<ReplayViewSession | null>;
+  getReplayView(sessionId?: string | null, setupId?: string | null): Promise<ReplayViewSession | null>;
 }
 
 const MOCK_LATENCY_MS = 140;
@@ -188,6 +187,87 @@ function setupReasons(setup: ScannerSetup): SetupReason[] {
   }));
 }
 
+
+function buildHistoryChartPath(points: number[]) {
+  if (points.length === 0) return 'M0 105 L640 105';
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = Math.max(max - min, 1);
+  return points.map((value, index) => {
+    const x = points.length === 1 ? 0 : (index / (points.length - 1)) * 640;
+    const y = 190 - ((value - min) / range) * 170;
+    return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(' ');
+}
+
+function historyItemToScannerSetup(item: MarketHistoryItem): ScannerSetup {
+  const chartPath = buildHistoryChartPath(item.chartPoints);
+  const lastPoint = item.chartPoints.at(-1) ?? 50;
+  const levelY = Math.max(24, Math.min(186, 190 - lastPoint * 1.5));
+  const kind: ScannerSetupKind = item.setupLabel.includes('Отскок')
+    ? item.direction === 'long' ? 'Отскок от поддержки' : 'Отскок от сопротивления'
+    : item.direction === 'long' ? 'Пробой сопротивления' : 'Пробой поддержки';
+  const priceChange = item.maxMovePct ?? item.adverseMovePct ?? 0;
+  const priceDecimals = item.detectedPrice >= 1000 ? 2 : item.detectedPrice >= 10 ? 2 : 4;
+
+  return {
+    id: item.setupId,
+    symbol: item.symbol,
+    exchange: item.exchange,
+    direction: item.direction,
+    kind,
+    stage: item.result === 'successful' || item.result === 'failed' ? 'triggered' : item.stageAtDetection,
+    timeframe: item.timeframe,
+    price: item.detectedPrice.toLocaleString('ru-RU', {
+      minimumFractionDigits: priceDecimals,
+      maximumFractionDigits: priceDecimals,
+    }),
+    priceChange: `${priceChange > 0 ? '+' : ''}${priceChange.toFixed(2)}%`,
+    level: item.levelZone,
+    distancePercent: 0,
+    distanceLabel: 'архив',
+    touches: item.touchesCount,
+    formationMinutes: Math.round(item.formationDurationSec / 60),
+    formationLabel: `${Math.floor(item.formationDurationSec / 3600)}ч ${Math.round((item.formationDurationSec % 3600) / 60)}м`,
+    pullbackDepth: item.pullbackLabel === 'Глубокие' ? 'Глубокие' : 'Неглубокие',
+    volumeAnomaly: 1.2,
+    tradesAnomaly: 1.15,
+    tradeSpeed: 'Средняя',
+    btcCorrelation: '0.50',
+    btcStrength: item.btcRelativeStrength ?? 0,
+    btcStrengthLabel: `${(item.btcRelativeStrength ?? 0) > 0 ? '+' : ''}${(item.btcRelativeStrength ?? 0).toFixed(1)}%`,
+    activity: 'Средняя',
+    reasons: [item.resultReason, item.resultNote],
+    chartPath,
+    areaPath: `${chartPath} L640 210 L0 210 Z`,
+    levelY,
+    touchPoints: item.chartPoints.slice(-Math.max(2, Math.min(3, item.touchesCount))).map((value, index, values) => ({
+      x: 460 + (index / Math.max(values.length - 1, 1)) * 150,
+      y: Math.max(20, Math.min(190, 190 - value * 1.5)),
+    })),
+  };
+}
+
+function resolveWorkspaceSetup(setupId?: string | null, symbol?: string | null): ScannerSetup | null {
+  if (setupId) {
+    const direct = SCANNER_SETUPS.find((setup) => setup.id === setupId);
+    if (direct) return direct;
+    const historyItem = MARKET_HISTORY_ITEMS.find((item) => item.setupId === setupId);
+    if (historyItem) return historyItemToScannerSetup(historyItem);
+    return null;
+  }
+
+  const requestedSymbol = symbol?.toUpperCase();
+  if (requestedSymbol) {
+    const active = SCANNER_SETUPS.find((setup) => setup.symbol === requestedSymbol);
+    if (active) return active;
+    const historyItem = MARKET_HISTORY_ITEMS.find((item) => item.symbol === requestedSymbol);
+    if (historyItem) return historyItemToScannerSetup(historyItem);
+  }
+
+  return SCANNER_SETUPS[0] ?? null;
+}
+
 function toContractSetup(setup: ScannerSetup, index: number): Setup {
   const currentPrice = parseNumber(setup.price);
   const [zoneLow, zoneHigh] = parseLevelZone(setup.level, currentPrice);
@@ -233,6 +313,15 @@ function toContractSetup(setup: ScannerSetup, index: number): Setup {
 }
 
 const activeContractSetups: Setup[] = SCANNER_SETUPS.map(toContractSetup);
+const archivedViewSetups = MARKET_HISTORY_ITEMS
+  .filter((item) => !SCANNER_SETUPS.some((setup) => setup.id === item.setupId))
+  .map(historyItemToScannerSetup);
+const archivedContractSetups = archivedViewSetups.map((setup, index) => ({
+  ...toContractSetup(setup, activeContractSetups.length + index),
+  detectedAt: MARKET_HISTORY_ITEMS.find((item) => item.setupId === setup.id)?.detectedAt ?? FIXED_NOW,
+  updatedAt: MARKET_HISTORY_ITEMS.find((item) => item.setupId === setup.id)?.completedAt ?? FIXED_NOW,
+  scoreStatus: 'validated' as const,
+}));
 const inactiveContractSetups: Setup[] = activeContractSetups.slice(0, 2).map((setup, index) => ({
   ...clone(setup),
   id: `${setup.id}.inactive.${index + 1}`,
@@ -243,7 +332,7 @@ const inactiveContractSetups: Setup[] = activeContractSetups.slice(0, 2).map((se
   scoreStatus: null,
   level: { ...setup.level, status: 'invalidated' },
 }));
-const contractSetups: Setup[] = [...activeContractSetups, ...inactiveContractSetups];
+const contractSetups: Setup[] = [...activeContractSetups, ...inactiveContractSetups, ...archivedContractSetups];
 
 const MARKET_SEEDS = [
   ['BTCUSDT', 104250, 1.82],
@@ -404,12 +493,13 @@ const canonicalAlerts: NexusAlert[] = Array.from({ length: 30 }, (_, index) => {
       distancePct: setup.distanceToLevelPct,
       timeframe: setup.timeframe,
     },
-    workspaceUrl: `/app/workspace?symbol=${setup.symbol}`,
+    workspaceUrl: `/app/workspace?setupId=${setup.id}&symbol=${setup.symbol}&timeframe=${setup.timeframe}`,
   };
 });
 
 const canonicalHistory: SetupHistoryItem[] = MARKET_HISTORY_ITEMS.map((item, index) => ({
-  setup: contractSetups.find((setup) => setup.symbol === item.symbol)
+  setup: contractSetups.find((setup) => setup.id === item.setupId)
+    ?? contractSetups.find((setup) => setup.symbol === item.symbol)
     ?? contractSetups[index % contractSetups.length],
   result: item.result,
   maxMovePct: item.maxMovePct,
@@ -420,9 +510,13 @@ const canonicalHistory: SetupHistoryItem[] = MARKET_HISTORY_ITEMS.map((item, ind
 }));
 
 function createCanonicalReplay(sessionId?: string): ReplaySession | null {
-  const viewSession = getReplaySessionViewFixture(sessionId ?? null);
+  const viewSession = sessionId
+    ? REPLAY_SESSIONS.find((session) => session.id === sessionId) ?? null
+    : REPLAY_SESSIONS[0] ?? null;
   if (!viewSession) return null;
-  const setup = contractSetups.find((item) => item.symbol === viewSession.symbol) ?? contractSetups[0];
+  const setup = contractSetups.find((item) => item.id === viewSession.setupId)
+    ?? contractSetups.find((item) => item.symbol === viewSession.symbol)
+    ?? contractSetups[0];
   const initialSnapshot = createWorkspaceSnapshot(setup);
   const frames: ReplayFrame[] = viewSession.candles.map((candle, index) => ({
     timestamp: candle.timestamp,
@@ -482,7 +576,9 @@ const contractApi: NexusApi = {
     return deliver('setup', setup, null);
   },
   getWorkspaceSnapshot: async (setupId) => {
-    const setup = contractSetups.find((item) => item.id === setupId) ?? contractSetups[0] ?? null;
+    const setup = setupId
+      ? contractSetups.find((item) => item.id === setupId) ?? null
+      : contractSetups[0] ?? null;
     return deliver('workspace snapshot', setup ? createWorkspaceSnapshot(setup) : null, null);
   },
   getAlerts: () => deliver('alerts', canonicalAlerts, []),
@@ -509,9 +605,8 @@ const contractApi: NexusApi = {
 const viewApi: NexusViewApi = {
   getDashboardView: () => deliver('dashboard', DASHBOARD_VIEW_DATA, null),
   getScannerSetups: () => deliver('scanner setups', SCANNER_SETUPS, []),
-  getWorkspaceView: async (symbol) => {
-    const requestedSymbol = symbol?.toUpperCase();
-    const selectedSetup = SCANNER_SETUPS.find((setup) => setup.symbol === requestedSymbol) ?? SCANNER_SETUPS[0];
+  getWorkspaceView: async (setupId, symbol) => {
+    const selectedSetup = resolveWorkspaceSetup(setupId, symbol);
     const data: WorkspaceViewData | null = selectedSetup ? {
       selectedSetup,
       prints: WORKSPACE_PRINTS,
@@ -537,11 +632,16 @@ const viewApi: NexusViewApi = {
     items: [],
     resultLabels: HISTORY_RESULT_LABELS,
   }),
-  getReplayView: (sessionId) => deliver(
-    'replay view',
-    REPLAY_SESSIONS.length > 0 ? getReplaySessionViewFixture(sessionId ?? null) : null,
-    null,
-  ),
+  getReplayView: (sessionId, setupId) => {
+    const session = sessionId
+      ? REPLAY_SESSIONS.find((item) => item.id === sessionId)
+        ?? (setupId ? REPLAY_SESSIONS.find((item) => item.setupId === setupId) : null)
+        ?? null
+      : setupId
+        ? REPLAY_SESSIONS.find((item) => item.setupId === setupId) ?? null
+        : REPLAY_SESSIONS[0] ?? null;
+    return deliver('replay view', session, null);
+  },
 };
 
 export const nexusApi: NexusApi & NexusViewApi = {

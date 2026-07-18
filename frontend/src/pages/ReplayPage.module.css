@@ -812,3 +812,33 @@
     display: none;
   }
 }
+
+.resultActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.resultActions button {
+  margin-top: 0;
+}
+
+.workspaceLink {
+  display: grid;
+  min-height: 38px;
+  place-items: center;
+  border: 1px solid var(--nexus-color-border-info);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-info);
+  font-size: 11px;
+  font-weight: var(--nexus-font-weight-bold);
+  text-align: center;
+  text-decoration: none;
+  background: var(--nexus-color-bg-surface);
+}
+
+.workspaceLink:hover {
+  border-color: var(--nexus-color-info);
+  background: var(--nexus-color-info-soft);
+}

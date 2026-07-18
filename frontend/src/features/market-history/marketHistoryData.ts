@@ -45,7 +45,7 @@ export const HISTORY_RESULT_LABELS: Record<HistoryResult, string> = {
 export const MARKET_HISTORY_ITEMS: MarketHistoryItem[] = [
   {
     id: 'history-001',
-    setupId: 'setup-sol-18742',
+    setupId: 'sol-breakout',
     replayId: 'replay-sol-18742',
     symbol: 'SOLUSDT',
     exchange: 'BINANCE',
@@ -74,7 +74,7 @@ export const MARKET_HISTORY_ITEMS: MarketHistoryItem[] = [
   },
   {
     id: 'history-002',
-    setupId: 'setup-arb-0752',
+    setupId: 'arb-breakout',
     replayId: 'replay-arb-0752',
     symbol: 'ARBUSDT',
     exchange: 'BINANCE',
@@ -103,7 +103,7 @@ export const MARKET_HISTORY_ITEMS: MarketHistoryItem[] = [
   },
   {
     id: 'history-003',
-    setupId: 'setup-op-1603',
+    setupId: 'op-support-break',
     replayId: 'replay-op-1603',
     symbol: 'OPUSDT',
     exchange: 'BINANCE',
@@ -132,7 +132,7 @@ export const MARKET_HISTORY_ITEMS: MarketHistoryItem[] = [
   },
   {
     id: 'history-004',
-    setupId: 'setup-eth-3506',
+    setupId: 'eth-support-bounce',
     replayId: 'replay-eth-3506',
     symbol: 'ETHUSDT',
     exchange: 'BINANCE',
@@ -161,7 +161,7 @@ export const MARKET_HISTORY_ITEMS: MarketHistoryItem[] = [
   },
   {
     id: 'history-005',
-    setupId: 'setup-apt-0716',
+    setupId: 'apt-support-break',
     replayId: 'replay-apt-0716',
     symbol: 'APTUSDT',
     exchange: 'BINANCE',
@@ -190,7 +190,7 @@ export const MARKET_HISTORY_ITEMS: MarketHistoryItem[] = [
   },
   {
     id: 'history-006',
-    setupId: 'setup-link-1696',
+    setupId: 'link-breakout',
     replayId: 'replay-link-1696',
     symbol: 'LINKUSDT',
     exchange: 'BINANCE',
@@ -219,7 +219,7 @@ export const MARKET_HISTORY_ITEMS: MarketHistoryItem[] = [
   },
   {
     id: 'history-007',
-    setupId: 'setup-xrp-0622',
+    setupId: 'xrp-resistance-bounce',
     replayId: null,
     symbol: 'XRPUSDT',
     exchange: 'BINANCE',
@@ -248,7 +248,7 @@ export const MARKET_HISTORY_ITEMS: MarketHistoryItem[] = [
   },
   {
     id: 'history-008',
-    setupId: 'setup-doge-0144',
+    setupId: 'doge-resistance-bounce',
     replayId: 'replay-doge-0144',
     symbol: 'DOGEUSDT',
     exchange: 'BINANCE',
@@ -277,7 +277,7 @@ export const MARKET_HISTORY_ITEMS: MarketHistoryItem[] = [
   },
   {
     id: 'history-009',
-    setupId: 'setup-inj-2804',
+    setupId: 'inj-breakout',
     replayId: 'replay-inj-2804',
     symbol: 'INJUSDT',
     exchange: 'BINANCE',
@@ -306,7 +306,7 @@ export const MARKET_HISTORY_ITEMS: MarketHistoryItem[] = [
   },
   {
     id: 'history-010',
-    setupId: 'setup-sui-298',
+    setupId: 'sui-support-bounce',
     replayId: null,
     symbol: 'SUIUSDT',
     exchange: 'BINANCE',
@@ -335,7 +335,7 @@ export const MARKET_HISTORY_ITEMS: MarketHistoryItem[] = [
   },
   {
     id: 'history-011',
-    setupId: 'setup-avax-267',
+    setupId: 'avax-breakout',
     replayId: 'replay-avax-267',
     symbol: 'AVAXUSDT',
     exchange: 'BINANCE',
@@ -364,7 +364,7 @@ export const MARKET_HISTORY_ITEMS: MarketHistoryItem[] = [
   },
   {
     id: 'history-012',
-    setupId: 'setup-bnb-715',
+    setupId: 'bnb-history-715',
     replayId: 'replay-bnb-715',
     symbol: 'BNBUSDT',
     exchange: 'BINANCE',

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
+import { buildSetupSelectionUrl, buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   getReplayStageView,
   nexusApi,
@@ -365,7 +366,7 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
     <section className={styles.replayPage}>
       <header className={styles.pageHeader}>
         <div className={styles.headerIdentity}>
-          <Link className={styles.backButton} to={ROUTES.marketHistory} aria-label="Вернуться в Market History">←</Link>
+          <Link className={styles.backButton} to={buildSetupSelectionUrl(ROUTES.marketHistory, session.setupId)} aria-label="Вернуться в Market History">←</Link>
           <div>
             <p className={styles.eyebrow}>Историческое воспроизведение · тестовые данные</p>
             <div className={styles.symbolLine}>
@@ -574,13 +575,25 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
                 ? `Максимальное движение после реализации составило +${session.maxMovePct.toFixed(2)}%.`
                 : `Цена пошла против сценария на ${Math.abs(session.adverseMovePct).toFixed(2)}%.`}
             </p>
-            <button
-              type="button"
-              onClick={selectResult}
-              disabled={frameIndex === lastFrameIndex}
-            >
-              {frameIndex === lastFrameIndex ? 'Результат открыт ✓' : 'Перейти к результату →'}
-            </button>
+            <div className={styles.resultActions}>
+              <button
+                type="button"
+                onClick={selectResult}
+                disabled={frameIndex === lastFrameIndex}
+              >
+                {frameIndex === lastFrameIndex ? 'Результат открыт ✓' : 'Перейти к результату →'}
+              </button>
+              <Link
+                className={styles.workspaceLink}
+                to={buildWorkspaceUrl(ROUTES.workspace, {
+                  setupId: session.setupId,
+                  symbol: session.symbol,
+                  timeframe: session.timeframe,
+                })}
+              >
+                Открыть Workspace
+              </Link>
+            </div>
           </section>
         </aside>
       </div>
@@ -590,18 +603,31 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
 
 
 export function ReplayPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const requestedSessionId = searchParams.get('session') ?? '';
+  const requestedSetupId = searchParams.get('setupId') ?? '';
   const query = useApiQuery(
-    `replay-view:${requestedSessionId}`,
-    () => nexusApi.getReplayView(requestedSessionId),
+    `replay-view:${requestedSessionId}:${requestedSetupId}`,
+    () => nexusApi.getReplayView(requestedSessionId || null, requestedSetupId || null),
   );
+
+  useEffect(() => {
+    if (!query.data) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('session', query.data.id);
+    nextParams.set('setupId', query.data.setupId);
+    nextParams.set('symbol', query.data.symbol);
+    nextParams.set('timeframe', query.data.timeframe);
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [query.data, searchParams, setSearchParams]);
 
   if (query.status === 'loading') return <AsyncDataState state="loading" />;
   if (query.status === 'error') {
     return <AsyncDataState state="error" message={query.error?.message} onRetry={query.retry} />;
   }
-  if (!query.data) return <AsyncDataState state="empty" />;
+  if (!query.data) return <AsyncDataState state="empty" title="Replay не найден" message="Проверьте Session ID или Setup ID." />;
 
   return <ReplayPageContent session={query.data} />;
 }

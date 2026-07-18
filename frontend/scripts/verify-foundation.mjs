@@ -58,6 +58,15 @@ const requiredMarketModeMarkers = [
   'automaticScore',
 ];
 
+
+const requiredSetupContextMarkers = [
+  "params.set('setupId', context.setupId)",
+  'getSetupById(resolvedSetupId)',
+  'getWorkspaceSnapshot(resolvedSetupId)',
+  'buildWorkspaceUrl(ROUTES.workspace',
+  'buildReplayUrl(ROUTES.replay',
+];
+
 const dataPages = [
   'DashboardPage.tsx',
   'ScannerPage.tsx',
@@ -68,11 +77,25 @@ const dataPages = [
   'ReplayPage.tsx',
 ];
 
-const [tokensCss, routesSource, localeConfigSource, contractsSource, ...pageSources] = await Promise.all([
+const [
+  tokensCss,
+  routesSource,
+  localeConfigSource,
+  contractsSource,
+  setupContextSource,
+  alertsDataSource,
+  historyDataSource,
+  replayDataSource,
+  ...pageSources
+] = await Promise.all([
   readFile(resolve(root, 'src/styles/tokens.css'), 'utf8'),
   readFile(resolve(root, 'src/app/routing/routes.ts'), 'utf8'),
   readFile(resolve(root, 'src/shared/i18n/config.ts'), 'utf8'),
   readFile(resolve(root, 'src/shared/api/contracts.ts'), 'utf8'),
+  readFile(resolve(root, 'src/shared/routing/setupContext.ts'), 'utf8'),
+  readFile(resolve(root, 'src/features/alerts/alertsData.ts'), 'utf8'),
+  readFile(resolve(root, 'src/features/market-history/marketHistoryData.ts'), 'utf8'),
+  readFile(resolve(root, 'src/features/replay/replayData.ts'), 'utf8'),
   ...dataPages.map((page) => readFile(resolve(root, 'src/pages', page), 'utf8')),
 ]);
 
@@ -82,6 +105,18 @@ const missingLocales = requiredLocales.filter((locale) => !localeConfigSource.in
 const missingApiMethods = requiredApiMethods.filter((method) => !contractsSource.includes(method));
 const dashboardSource = pageSources[0];
 const missingMarketModeMarkers = requiredMarketModeMarkers.filter((marker) => !dashboardSource.includes(marker));
+const setupContextCorpus = [
+  setupContextSource,
+  alertsDataSource,
+  historyDataSource,
+  replayDataSource,
+  ...pageSources,
+].join('\n');
+const missingSetupContextMarkers = requiredSetupContextMarkers.filter((marker) => !setupContextCorpus.includes(marker));
+const setupIdMissingFromAlerts = !alertsDataSource.includes('setupId: string;');
+const legacySetupQueryPresent = pageSources
+  .filter((_, index) => index !== 0 && index !== 2)
+  .some((source) => source.includes('&setup=') || source.includes('?symbol=${'));
 let bearAssetMissing = false;
 try {
   await access(resolve(root, 'src/assets/bear-market.png'));
@@ -101,6 +136,9 @@ if (
   || missingLocales.length > 0
   || missingApiMethods.length > 0
   || missingMarketModeMarkers.length > 0
+  || missingSetupContextMarkers.length > 0
+  || setupIdMissingFromAlerts
+  || legacySetupQueryPresent
   || bearAssetMissing
   || directFixtureImports.length > 0
 ) {
@@ -109,6 +147,9 @@ if (
   if (missingLocales.length > 0) console.error(`Missing i18n configuration: ${missingLocales.join(', ')}`);
   if (missingApiMethods.length > 0) console.error(`Missing Mock API methods: ${missingApiMethods.join(', ')}`);
   if (missingMarketModeMarkers.length > 0) console.error(`Missing BTC Market Mode markers: ${missingMarketModeMarkers.join(', ')}`);
+  if (missingSetupContextMarkers.length > 0) console.error(`Missing Setup Context markers: ${missingSetupContextMarkers.join(', ')}`);
+  if (setupIdMissingFromAlerts) console.error('Alert view data does not include setupId.');
+  if (legacySetupQueryPresent) console.error('Legacy symbol-only or setup query links remain in data pages.');
   if (bearAssetMissing) console.error('Missing BTC Market Mode asset: src/assets/bear-market.png');
   if (directFixtureImports.length > 0) {
     console.error(`Data pages import fixtures directly: ${directFixtureImports.join(', ')}`);
@@ -116,4 +157,4 @@ if (
   process.exit(1);
 }
 
-console.log('NEXUS foundation verified: routes, locales, design tokens, unified Mock API and BTC Market Mode are present.');
+console.log('NEXUS foundation verified: routes, locales, design tokens, unified Mock API, BTC Market Mode and Setup Context are present.');

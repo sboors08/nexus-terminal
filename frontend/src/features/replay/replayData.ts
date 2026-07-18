@@ -104,7 +104,7 @@ const PATHS = {
 const SESSION_CONFIGS: SessionConfig[] = [
   {
     id: 'replay-sol-18742',
-    setupId: 'setup-sol-18742',
+    setupId: 'sol-breakout',
     symbol: 'SOLUSDT',
     timeframe: '5m',
     direction: 'long',
@@ -122,7 +122,7 @@ const SESSION_CONFIGS: SessionConfig[] = [
   },
   {
     id: 'replay-arb-0752',
-    setupId: 'setup-arb-0752',
+    setupId: 'arb-breakout',
     symbol: 'ARBUSDT',
     timeframe: '1m',
     direction: 'long',
@@ -140,7 +140,7 @@ const SESSION_CONFIGS: SessionConfig[] = [
   },
   {
     id: 'replay-op-1603',
-    setupId: 'setup-op-1603',
+    setupId: 'op-support-break',
     symbol: 'OPUSDT',
     timeframe: '5m',
     direction: 'short',
@@ -158,7 +158,7 @@ const SESSION_CONFIGS: SessionConfig[] = [
   },
   {
     id: 'replay-eth-3506',
-    setupId: 'setup-eth-3506',
+    setupId: 'eth-support-bounce',
     symbol: 'ETHUSDT',
     timeframe: '15m',
     direction: 'long',
@@ -176,7 +176,7 @@ const SESSION_CONFIGS: SessionConfig[] = [
   },
   {
     id: 'replay-apt-0716',
-    setupId: 'setup-apt-0716',
+    setupId: 'apt-support-break',
     symbol: 'APTUSDT',
     timeframe: '5m',
     direction: 'short',
@@ -194,7 +194,7 @@ const SESSION_CONFIGS: SessionConfig[] = [
   },
   {
     id: 'replay-link-1696',
-    setupId: 'setup-link-1696',
+    setupId: 'link-breakout',
     symbol: 'LINKUSDT',
     timeframe: '5m',
     direction: 'long',

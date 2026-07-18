@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
+import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   nexusApi,
   useApiQuery,
@@ -112,6 +113,8 @@ function numericSort(setups: ScannerSetup[], sortKey: SortKey) {
 }
 
 function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedSetupId = searchParams.get('setupId');
   const [search, setSearch] = useState('');
   const [direction, setDirection] = useState<DirectionFilter>('all');
   const [kind, setKind] = useState<KindFilter>('all');
@@ -121,7 +124,6 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
   const [touches, setTouches] = useState<TouchesFilter>('all');
   const [btcStrength, setBtcStrength] = useState<BtcStrengthFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('distance');
-  const [selectedId, setSelectedId] = useState(setups[0].id);
 
   const filteredSetups = useMemo(() => {
     const normalizedSearch = search.trim().toUpperCase();
@@ -145,11 +147,24 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
   }, [btcStrength, direction, distance, kind, search, sortKey, stage, timeframe, touches]);
 
   const selectedSetup = useMemo(() => {
-    return filteredSetups.find((setup) => setup.id === selectedId)
-      ?? setups.find((setup) => setup.id === selectedId)
+    return filteredSetups.find((setup) => setup.id === requestedSetupId)
+      ?? setups.find((setup) => setup.id === requestedSetupId)
       ?? filteredSetups[0]
       ?? setups[0];
-  }, [filteredSetups, selectedId]);
+  }, [filteredSetups, requestedSetupId, setups]);
+
+  useEffect(() => {
+    if (requestedSetupId === selectedSetup.id) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('setupId', selectedSetup.id);
+    setSearchParams(nextParams, { replace: true });
+  }, [requestedSetupId, searchParams, selectedSetup.id, setSearchParams]);
+
+  const selectSetup = (setupId: string) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('setupId', setupId);
+    setSearchParams(nextParams);
+  };
 
   useFeedbackPageContext({
     screen: 'Scanner',
@@ -317,7 +332,7 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
                     key={setup.id}
                     type="button"
                     className={`${styles.tableRow} ${selected ? styles.tableRowSelected : ''}`}
-                    onClick={() => setSelectedId(setup.id)}
+                    onClick={() => selectSetup(setup.id)}
                     aria-pressed={selected}
                   >
                     <span className={styles.instrumentCell}>
@@ -412,7 +427,11 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
           </section>
 
           <div className={styles.previewActions}>
-            <Link className={styles.primaryLink} to={`${ROUTES.workspace}?symbol=${selectedSetup.symbol}&setupId=${selectedSetup.id}&timeframe=${selectedSetup.timeframe}`}>
+            <Link className={styles.primaryLink} to={buildWorkspaceUrl(ROUTES.workspace, {
+                setupId: selectedSetup.id,
+                symbol: selectedSetup.symbol,
+                timeframe: selectedSetup.timeframe,
+              })}>
               Открыть Workspace <span aria-hidden="true">→</span>
             </Link>
             <Link className={styles.secondaryLink} to={ROUTES.alerts}>Создать алерт</Link>

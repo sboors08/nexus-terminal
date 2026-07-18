@@ -11,10 +11,10 @@ const PAGE_VERSION_LABELS: Record<string, string> = {
   [ROUTES.dashboard]: 'Dashboard v0.6',
   [ROUTES.scanner]: 'Scanner v0.1',
   [ROUTES.market]: 'Market v0.1',
-  [ROUTES.workspace]: 'Workspace v0.1',
+  [ROUTES.workspace]: 'Workspace v0.2',
   [ROUTES.alerts]: 'Alerts v0.1',
   [ROUTES.marketHistory]: 'Market History v0.1',
-  [ROUTES.replay]: 'Replay v0.1',
+  [ROUTES.replay]: 'Replay v0.2',
   [ROUTES.settings]: 'Settings v0.1',
 };
 

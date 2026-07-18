@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
+import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
+import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   nexusApi,
   useApiQuery,
@@ -57,10 +59,12 @@ function metricToneClass(tone: AlertViewItem['metrics'][number]['tone']) {
 }
 
 function AlertsPageContent({ data }: { data: AlertsViewData }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedAlertId = searchParams.get('alertId');
+  const requestedSetupId = searchParams.get('setupId');
   const { alerts: initialAlerts, rules: initialRules, eventLabels } = data;
   const [alerts, setAlerts] = useState(initialAlerts);
   const [rules, setRules] = useState(initialRules);
-  const [selectedId, setSelectedId] = useState(initialAlerts[0].id);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [eventType, setEventType] = useState<TypeFilter>('all');
@@ -87,11 +91,35 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
   }, [alerts, direction, eventType, priority, search, sortKey, status]);
 
   const selectedAlert = useMemo(() => (
-    filteredAlerts.find((alert) => alert.id === selectedId)
-      ?? alerts.find((alert) => alert.id === selectedId)
+    filteredAlerts.find((alert) => alert.id === requestedAlertId)
+      ?? alerts.find((alert) => alert.id === requestedAlertId)
+      ?? filteredAlerts.find((alert) => alert.setupId === requestedSetupId)
+      ?? alerts.find((alert) => alert.setupId === requestedSetupId)
       ?? filteredAlerts[0]
       ?? alerts[0]
-  ), [alerts, filteredAlerts, selectedId]);
+  ), [alerts, filteredAlerts, requestedAlertId, requestedSetupId]);
+
+  useEffect(() => {
+    if (requestedAlertId === selectedAlert.id && requestedSetupId === selectedAlert.setupId) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('alertId', selectedAlert.id);
+    nextParams.set('setupId', selectedAlert.setupId);
+    setSearchParams(nextParams, { replace: true });
+  }, [requestedAlertId, requestedSetupId, searchParams, selectedAlert.id, selectedAlert.setupId, setSearchParams]);
+
+  const selectAlert = (alert: AlertViewItem) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('alertId', alert.id);
+    nextParams.set('setupId', alert.setupId);
+    setSearchParams(nextParams);
+  };
+
+  useFeedbackPageContext({
+    screen: 'Alerts',
+    symbol: selectedAlert.symbol,
+    timeframe: selectedAlert.timeframe,
+    setupId: selectedAlert.setupId,
+  });
 
   const newCount = alerts.filter((alert) => alert.readStatus === 'new').length;
   const criticalCount = alerts.filter((alert) => alert.priority === 'critical').length;
@@ -259,7 +287,7 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
                     className={styles.alertMain}
                     type="button"
                     onClick={() => {
-                      setSelectedId(alert.id);
+                      selectAlert(alert);
                       markAlertViewed(alert.id);
                     }}
                     aria-pressed={isSelected}
@@ -289,7 +317,11 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
                       </span>
                     </span>
                   </button>
-                  <Link className={styles.workspaceLink} to={`${ROUTES.workspace}?symbol=${alert.symbol}`}>
+                  <Link className={styles.workspaceLink} to={buildWorkspaceUrl(ROUTES.workspace, {
+                    setupId: alert.setupId,
+                    symbol: alert.symbol,
+                    timeframe: alert.timeframe,
+                  })}>
                     Открыть Workspace →
                   </Link>
                 </article>
@@ -351,7 +383,11 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
             </div>
 
             <div className={styles.detailActions}>
-              <Link className={styles.primaryButton} to={`${ROUTES.workspace}?symbol=${selectedAlert.symbol}`}>
+              <Link className={styles.primaryButton} to={buildWorkspaceUrl(ROUTES.workspace, {
+                setupId: selectedAlert.setupId,
+                symbol: selectedAlert.symbol,
+                timeframe: selectedAlert.timeframe,
+              })}>
                 Открыть Workspace →
               </Link>
               <button

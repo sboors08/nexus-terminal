@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
+import { buildReplayUrl, buildSetupSelectionUrl, isWorkspaceTimeframe } from '@/shared/routing/setupContext';
 import {
   nexusApi,
   useApiQuery,
   type PrintSide,
+  type Setup,
+  type WorkspaceSnapshot,
   type WorkspaceViewData,
 } from '@/shared/api';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
@@ -15,6 +18,12 @@ import styles from './WorkspacePage.module.css';
 
 type Timeframe = '1m' | '5m' | '15m';
 type TapeFilter = 'all' | PrintSide;
+
+type WorkspacePageData = {
+  contractSetup: Setup;
+  snapshot: WorkspaceSnapshot;
+  view: WorkspaceViewData;
+};
 
 function WorkspaceChart({
   setupId,
@@ -117,18 +126,41 @@ function ChecklistIcon({ state }: { state: 'passed' | 'warning' | 'waiting' }) {
   return <span aria-hidden="true">·</span>;
 }
 
-function WorkspacePageContent({ data }: { data: WorkspaceViewData }) {
-  const { selectedSetup, prints, liquidity, marketDynamics, stageFlow } = data;
-  const [timeframe, setTimeframe] = useState<Timeframe>('5m');
+function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
+  const { contractSetup, view } = data;
+  const { selectedSetup, prints, liquidity, marketDynamics, stageFlow } = view;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTimeframe = searchParams.get('timeframe');
+  const defaultTimeframe: Timeframe = isWorkspaceTimeframe(selectedSetup.timeframe) ? selectedSetup.timeframe : '5m';
+  const timeframe: Timeframe = isWorkspaceTimeframe(requestedTimeframe) ? requestedTimeframe : defaultTimeframe;
   const [tapeFilter, setTapeFilter] = useState<TapeFilter>('all');
   const [alertCreated, setAlertCreated] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
 
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('setup');
+    nextParams.set('setupId', contractSetup.id);
+    nextParams.set('symbol', contractSetup.symbol);
+    nextParams.set('timeframe', timeframe);
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [contractSetup.id, contractSetup.symbol, searchParams, setSearchParams, timeframe]);
+
+  const selectTimeframe = (value: Timeframe) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('setupId', contractSetup.id);
+    nextParams.set('symbol', contractSetup.symbol);
+    nextParams.set('timeframe', value);
+    setSearchParams(nextParams);
+  };
+
   useFeedbackPageContext({
     screen: 'Workspace',
-    symbol: selectedSetup.symbol,
+    symbol: contractSetup.symbol,
     timeframe,
-    setupId: selectedSetup.id,
+    setupId: contractSetup.id,
   });
 
   const visiblePrints = prints.filter((print) => tapeFilter === 'all' || print.side === tapeFilter);
@@ -189,7 +221,7 @@ function WorkspacePageContent({ data }: { data: WorkspaceViewData }) {
     <section className={styles.workspace}>
       <header className={styles.pageHeader}>
         <div className={styles.instrumentHeader}>
-          <Link className={styles.backLink} to={ROUTES.scanner} aria-label="Вернуться в Scanner">←</Link>
+          <Link className={styles.backLink} to={buildSetupSelectionUrl(ROUTES.scanner, contractSetup.id)} aria-label="Вернуться в Scanner">←</Link>
           <div>
             <p className={styles.eyebrow}>Рабочее пространство · тестовые данные</p>
             <div className={styles.symbolRow}>
@@ -233,7 +265,7 @@ function WorkspacePageContent({ data }: { data: WorkspaceViewData }) {
                     key={value}
                     type="button"
                     className={timeframe === value ? styles.timeframeActive : ''}
-                    onClick={() => setTimeframe(value)}
+                    onClick={() => selectTimeframe(value)}
                   >
                     {value}
                   </button>
@@ -415,7 +447,11 @@ function WorkspacePageContent({ data }: { data: WorkspaceViewData }) {
             <button className={styles.primaryButton} type="button" onClick={() => setAlertCreated(true)}>
               {alertCreated ? 'Алерт активен ✓' : 'Создать алерт'}
             </button>
-            <Link className={styles.secondaryLink} to={`${ROUTES.replay}?symbol=${selectedSetup.symbol}`}>Открыть в Replay</Link>
+            <Link className={styles.secondaryLink} to={buildReplayUrl(ROUTES.replay, {
+              setupId: contractSetup.id,
+              symbol: contractSetup.symbol,
+              timeframe,
+            })}>Открыть в Replay</Link>
             <button className={styles.externalButton} type="button" title="Интеграция с внешним терминалом будет подключена отдельным этапом">
               Внешний терминал ↗
             </button>
@@ -431,17 +467,32 @@ function WorkspacePageContent({ data }: { data: WorkspaceViewData }) {
 
 export function WorkspacePage() {
   const [searchParams] = useSearchParams();
+  const requestedSetupId = searchParams.get('setupId') ?? searchParams.get('setup') ?? '';
   const requestedSymbol = searchParams.get('symbol')?.toUpperCase() ?? '';
   const query = useApiQuery(
-    `workspace-view:${requestedSymbol}`,
-    () => nexusApi.getWorkspaceView(requestedSymbol),
+    `workspace-context:${requestedSetupId}:${requestedSymbol}`,
+    async (): Promise<WorkspacePageData | null> => {
+      const view = await nexusApi.getWorkspaceView(requestedSetupId || null, requestedSymbol || null);
+      if (!view) return null;
+
+      const resolvedSetupId = requestedSetupId || view.selectedSetup.id;
+      const [contractSetup, snapshot] = await Promise.all([
+        nexusApi.getSetupById(resolvedSetupId),
+        nexusApi.getWorkspaceSnapshot(resolvedSetupId),
+      ]);
+
+      if (!contractSetup || !snapshot) return null;
+      return { contractSetup, snapshot, view };
+    },
   );
 
   if (query.status === 'loading') return <AsyncDataState state="loading" />;
   if (query.status === 'error') {
     return <AsyncDataState state="error" message={query.error?.message} onRetry={query.retry} />;
   }
-  if (!query.data) return <AsyncDataState state="empty" />;
+  if (!query.data) {
+    return <AsyncDataState state="empty" title="Сетап не найден" message="Проверьте Setup ID или вернитесь в Scanner." />;
+  }
 
   return <WorkspacePageContent data={query.data} />;
 }

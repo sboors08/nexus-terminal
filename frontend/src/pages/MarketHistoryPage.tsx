@@ -1,6 +1,8 @@
-import { useMemo, useState, type ChangeEvent } from 'react';
-import { Link } from 'react-router';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
+import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
+import { buildReplayUrl, buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   nexusApi,
   useApiQuery,
@@ -69,8 +71,10 @@ function buildPolyline(points: number[]) {
 }
 
 function MarketHistoryPageContent({ data }: { data: MarketHistoryViewData }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedHistoryId = searchParams.get('historyId');
+  const requestedSetupId = searchParams.get('setupId');
   const { items: historyItems, resultLabels } = data;
-  const [selectedId, setSelectedId] = useState(historyItems[0].id);
   const [search, setSearch] = useState('');
   const [result, setResult] = useState<ResultFilter>('all');
   const [direction, setDirection] = useState<DirectionFilter>('all');
@@ -97,11 +101,36 @@ function MarketHistoryPageContent({ data }: { data: MarketHistoryViewData }) {
   }, [direction, result, search, setupType, sortKey, timeframe]);
 
   const selectedItem = useMemo(() => (
-    filteredItems.find((item) => item.id === selectedId)
-      ?? historyItems.find((item) => item.id === selectedId)
+    filteredItems.find((item) => item.id === requestedHistoryId)
+      ?? historyItems.find((item) => item.id === requestedHistoryId)
+      ?? filteredItems.find((item) => item.setupId === requestedSetupId)
+      ?? historyItems.find((item) => item.setupId === requestedSetupId)
       ?? filteredItems[0]
       ?? historyItems[0]
-  ), [filteredItems, selectedId]);
+  ), [filteredItems, historyItems, requestedHistoryId, requestedSetupId]);
+
+  useEffect(() => {
+    if (requestedHistoryId === selectedItem.id && requestedSetupId === selectedItem.setupId) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('historyId', selectedItem.id);
+    nextParams.set('setupId', selectedItem.setupId);
+    setSearchParams(nextParams, { replace: true });
+  }, [requestedHistoryId, requestedSetupId, searchParams, selectedItem.id, selectedItem.setupId, setSearchParams]);
+
+  const selectHistoryItem = (item: MarketHistoryItem) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('historyId', item.id);
+    nextParams.set('setupId', item.setupId);
+    setSearchParams(nextParams);
+  };
+
+  useFeedbackPageContext({
+    screen: 'Market History',
+    symbol: selectedItem.symbol,
+    timeframe: selectedItem.timeframe,
+    setupId: selectedItem.setupId,
+    replayId: selectedItem.replayId,
+  });
 
   const successfulCount = historyItems.filter((item) => item.result === 'successful').length;
   const completedCount = historyItems.filter((item) => ['successful', 'failed'].includes(item.result)).length;
@@ -250,7 +279,7 @@ function MarketHistoryPageContent({ data }: { data: MarketHistoryViewData }) {
                   key={item.id}
                   type="button"
                   className={`${styles.historyRow} ${selectedItem.id === item.id ? styles.historyRowSelected : ''}`}
-                  onClick={() => setSelectedId(item.id)}
+                  onClick={() => selectHistoryItem(item)}
                 >
                   <span className={styles.instrumentCell}>
                     <span className={styles.symbolMark}>{item.symbol.slice(0, 1)}</span>
@@ -352,13 +381,22 @@ function MarketHistoryPageContent({ data }: { data: MarketHistoryViewData }) {
 
           <div className={styles.detailActions}>
             {selectedItem.replayAvailable && selectedItem.replayId ? (
-              <Link className={styles.primaryButton} to={`${ROUTES.replay}?session=${selectedItem.replayId}`}>
+              <Link className={styles.primaryButton} to={buildReplayUrl(ROUTES.replay, {
+                sessionId: selectedItem.replayId,
+                setupId: selectedItem.setupId,
+                symbol: selectedItem.symbol,
+                timeframe: selectedItem.timeframe,
+              })}>
                 Открыть Replay →
               </Link>
             ) : (
               <button className={styles.primaryButton} type="button" disabled>Replay недоступен</button>
             )}
-            <Link className={styles.secondaryButton} to={`${ROUTES.workspace}?symbol=${selectedItem.symbol}&setup=${selectedItem.setupId}`}>
+            <Link className={styles.secondaryButton} to={buildWorkspaceUrl(ROUTES.workspace, {
+              setupId: selectedItem.setupId,
+              symbol: selectedItem.symbol,
+              timeframe: selectedItem.timeframe,
+            })}>
               Workspace
             </Link>
           </div>

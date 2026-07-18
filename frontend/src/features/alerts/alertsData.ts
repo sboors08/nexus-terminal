@@ -23,6 +23,7 @@ export type AlertMetric = {
 
 export type NexusAlert = {
   id: string;
+  setupId: string;
   symbol: string;
   exchange: 'BINANCE';
   timeframe: '1m' | '5m' | '15m';
@@ -67,6 +68,7 @@ export const ALERT_EVENT_LABELS: Record<AlertEventType, string> = {
 export const ALERTS: NexusAlert[] = [
   {
     id: 'alert-sol-confirmation',
+    setupId: 'sol-breakout',
     symbol: 'SOLUSDT',
     exchange: 'BINANCE',
     timeframe: '5m',
@@ -93,6 +95,7 @@ export const ALERTS: NexusAlert[] = [
   },
   {
     id: 'alert-apt-near-level',
+    setupId: 'apt-support-break',
     symbol: 'APTUSDT',
     exchange: 'BINANCE',
     timeframe: '5m',
@@ -119,6 +122,7 @@ export const ALERTS: NexusAlert[] = [
   },
   {
     id: 'alert-eth-prints',
+    setupId: 'eth-support-bounce',
     symbol: 'ETHUSDT',
     exchange: 'BINANCE',
     timeframe: '15m',
@@ -145,6 +149,7 @@ export const ALERTS: NexusAlert[] = [
   },
   {
     id: 'alert-op-breakout',
+    setupId: 'op-support-break',
     symbol: 'OPUSDT',
     exchange: 'BINANCE',
     timeframe: '5m',
@@ -171,6 +176,7 @@ export const ALERTS: NexusAlert[] = [
   },
   {
     id: 'alert-arb-density-up',
+    setupId: 'arb-breakout',
     symbol: 'ARBUSDT',
     exchange: 'BINANCE',
     timeframe: '1m',
@@ -197,6 +203,7 @@ export const ALERTS: NexusAlert[] = [
   },
   {
     id: 'alert-xrp-density-down',
+    setupId: 'xrp-resistance-bounce',
     symbol: 'XRPUSDT',
     exchange: 'BINANCE',
     timeframe: '15m',
@@ -223,6 +230,7 @@ export const ALERTS: NexusAlert[] = [
   },
   {
     id: 'alert-inj-density-removed',
+    setupId: 'inj-breakout',
     symbol: 'INJUSDT',
     exchange: 'BINANCE',
     timeframe: '1m',
@@ -249,6 +257,7 @@ export const ALERTS: NexusAlert[] = [
   },
   {
     id: 'alert-sui-bounce',
+    setupId: 'sui-support-bounce',
     symbol: 'SUIUSDT',
     exchange: 'BINANCE',
     timeframe: '5m',
@@ -275,6 +284,7 @@ export const ALERTS: NexusAlert[] = [
   },
   {
     id: 'alert-doge-invalid',
+    setupId: 'doge-resistance-bounce',
     symbol: 'DOGEUSDT',
     exchange: 'BINANCE',
     timeframe: '1m',
