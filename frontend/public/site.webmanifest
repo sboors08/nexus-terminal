@@ -1,0 +1,17 @@
+{
+  "name": "NEXUS Trading Terminal",
+  "short_name": "NEXUS",
+  "description": "Trading setup scanner and analytical workspace for crypto traders.",
+  "start_url": "/ru",
+  "display": "standalone",
+  "background_color": "#05090d",
+  "theme_color": "#35df8d",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

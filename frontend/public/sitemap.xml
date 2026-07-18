@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>http://localhost:5173/ru</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="http://localhost:5173/ru" />
+    <xhtml:link rel="alternate" hreflang="en" href="http://localhost:5173/en" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="http://localhost:5173/zh-cn" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="http://localhost:5173/ru" />
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>http://localhost:5173/en</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="http://localhost:5173/ru" />
+    <xhtml:link rel="alternate" hreflang="en" href="http://localhost:5173/en" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="http://localhost:5173/zh-cn" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="http://localhost:5173/ru" />
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>http://localhost:5173/zh-cn</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="http://localhost:5173/ru" />
+    <xhtml:link rel="alternate" hreflang="en" href="http://localhost:5173/en" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="http://localhost:5173/zh-cn" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="http://localhost:5173/ru" />
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>

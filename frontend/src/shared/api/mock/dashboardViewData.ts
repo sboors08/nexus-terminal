@@ -16,6 +16,8 @@ export type DashboardMarketModeData = {
 
 export type DashboardHotCoin = {
   rank: number;
+  setupId: string;
+  timeframe: '1m' | '5m' | '15m';
   symbol: string;
   score: number;
   stage: string;
@@ -44,11 +46,11 @@ export type DashboardCandle = {
 };
 
 export const DASHBOARD_HOT_COINS: DashboardHotCoin[] = [
-  { rank: 1, symbol: 'SOL/USDT', score: 96, stage: 'ПОДХОД', state: 'В ИГРЕ', tone: 'green', color: '#32dc8b', icon: '≋', price: '174.20', change: '+2.81%', volume: '$4.21M', trades: '8 420', speed: '1 684/мин', btcLink: '0.42', btcStrength: '+4.82%', note: '(растёт быстрее биткоина)', spark: 'M2 29 L10 19 L16 23 L23 13 L30 18 L36 11 L42 18 L50 12 L58 20 L65 13 L74 18 L83 9 L92 15 L102 8 L113 12 L124 5 L130 9' },
-  { rank: 2, symbol: 'SUI/USDT', score: 91, stage: 'ПОДТВЕРЖДЕНИЕ', state: 'В ГОРЯЧО', tone: 'orange', color: '#ff8625', icon: '◉', price: '2.340', change: '+2.34%', volume: '$2.83M', trades: '6 101', speed: '1 220/мин', btcLink: '0.36', btcStrength: '+3.21%', note: '(растёт быстрее биткоина)', spark: 'M2 25 L10 17 L17 22 L24 11 L31 16 L39 13 L46 20 L53 15 L61 22 L68 18 L75 24 L82 17 L91 20 L99 13 L108 18 L116 11 L124 15 L130 8' },
-  { rank: 3, symbol: 'WIF/USDT', score: 88, stage: 'ПОДХОД', state: 'В ГОРЯЧО', tone: 'yellow', color: '#f6c21f', icon: '🐶', price: '3.22', change: '+3.42%', volume: '$1.94M', trades: '5 512', speed: '1 104/мин', btcLink: '0.28', btcStrength: '+2.91%', note: '(растёт быстрее биткоина)', spark: 'M2 28 L9 18 L17 22 L25 14 L33 18 L41 16 L49 20 L57 17 L65 21 L74 14 L82 18 L91 10 L100 15 L109 12 L118 16 L125 10 L130 13' },
-  { rank: 4, symbol: 'ETH/USDT', score: 84, stage: 'ПОДТВЕРЖДЕНИЕ', state: 'В АКТИВНО', tone: 'purple', color: '#aa78ef', icon: '◆', price: '3 350', change: '+1.67%', volume: '$6.12M', trades: '7 942', speed: '1 588/мин', btcLink: '0.82', btcStrength: '-0.13%', note: '(растёт медленнее биткоина)', spark: 'M2 27 L10 19 L18 23 L26 13 L34 18 L42 12 L50 17 L58 15 L66 20 L75 14 L84 18 L93 12 L102 16 L111 11 L120 15 L130 8' },
-  { rank: 5, symbol: 'PEPE/USDT', score: 78, stage: 'ПРОБОЙ', state: 'ПРОСЫПАЕТСЯ', tone: 'cyan', color: '#21d2c4', icon: '🐸', price: '0.00001234', change: '+2.06%', volume: '$1.23M', trades: '4 102', speed: '820/мин', btcLink: '0.18', btcStrength: '+1.19%', note: '(растёт быстрее биткоина)', spark: 'M2 28 L10 21 L18 23 L26 14 L34 19 L42 17 L50 21 L58 13 L66 18 L74 17 L82 23 L90 16 L98 20 L106 13 L114 17 L122 10 L130 13' },
+  { rank: 1, setupId: 'sol-breakout', timeframe: '5m', symbol: 'SOL/USDT', score: 96, stage: 'ПОДХОД', state: 'В ИГРЕ', tone: 'green', color: '#32dc8b', icon: '≋', price: '174.20', change: '+2.81%', volume: '$4.21M', trades: '8 420', speed: '1 684/мин', btcLink: '0.42', btcStrength: '+4.82%', note: '(растёт быстрее биткоина)', spark: 'M2 29 L10 19 L16 23 L23 13 L30 18 L36 11 L42 18 L50 12 L58 20 L65 13 L74 18 L83 9 L92 15 L102 8 L113 12 L124 5 L130 9' },
+  { rank: 2, setupId: 'sui-support-bounce', timeframe: '5m', symbol: 'SUI/USDT', score: 91, stage: 'ПОДТВЕРЖДЕНИЕ', state: 'В ГОРЯЧО', tone: 'orange', color: '#ff8625', icon: '◉', price: '2.340', change: '+2.34%', volume: '$2.83M', trades: '6 101', speed: '1 220/мин', btcLink: '0.36', btcStrength: '+3.21%', note: '(растёт быстрее биткоина)', spark: 'M2 25 L10 17 L17 22 L24 11 L31 16 L39 13 L46 20 L53 15 L61 22 L68 18 L75 24 L82 17 L91 20 L99 13 L108 18 L116 11 L124 15 L130 8' },
+  { rank: 3, setupId: 'wif-hot-momentum', timeframe: '1m', symbol: 'WIF/USDT', score: 88, stage: 'ПОДХОД', state: 'В ГОРЯЧО', tone: 'yellow', color: '#f6c21f', icon: '🐶', price: '3.22', change: '+3.42%', volume: '$1.94M', trades: '5 512', speed: '1 104/мин', btcLink: '0.28', btcStrength: '+2.91%', note: '(растёт быстрее биткоина)', spark: 'M2 28 L9 18 L17 22 L25 14 L33 18 L41 16 L49 20 L57 17 L65 21 L74 14 L82 18 L91 10 L100 15 L109 12 L118 16 L125 10 L130 13' },
+  { rank: 4, setupId: 'eth-support-bounce', timeframe: '15m', symbol: 'ETH/USDT', score: 84, stage: 'ПОДТВЕРЖДЕНИЕ', state: 'В АКТИВНО', tone: 'purple', color: '#aa78ef', icon: '◆', price: '3 350', change: '+1.67%', volume: '$6.12M', trades: '7 942', speed: '1 588/мин', btcLink: '0.82', btcStrength: '-0.13%', note: '(растёт медленнее биткоина)', spark: 'M2 27 L10 19 L18 23 L26 13 L34 18 L42 12 L50 17 L58 15 L66 20 L75 14 L84 18 L93 12 L102 16 L111 11 L120 15 L130 8' },
+  { rank: 5, setupId: 'pepe-hot-breakout', timeframe: '1m', symbol: 'PEPE/USDT', score: 78, stage: 'ПРОБОЙ', state: 'ПРОСЫПАЕТСЯ', tone: 'cyan', color: '#21d2c4', icon: '🐸', price: '0.00001234', change: '+2.06%', volume: '$1.23M', trades: '4 102', speed: '820/мин', btcLink: '0.18', btcStrength: '+1.19%', note: '(растёт быстрее биткоина)', spark: 'M2 28 L10 21 L18 23 L26 14 L34 19 L42 17 L50 21 L58 13 L66 18 L74 17 L82 23 L90 16 L98 20 L106 13 L114 17 L122 10 L130 13' },
 ];
 
 export const DASHBOARD_SCANNER_ROWS = [

@@ -7,6 +7,7 @@ import {
   APP_ROUTE_SEGMENTS,
   LEGACY_ROUTES,
   PUBLIC_LOCALE_ROUTE,
+  PUBLIC_ROUTES,
   ROUTES,
 } from '@/app/routing/routes';
 import { AlertsPage } from '@/pages/AlertsPage';
@@ -42,7 +43,7 @@ export function AppRoutes() {
         <Route path="*" element={<NotFoundPage />} />
       </Route>
 
-      <Route path={LEGACY_ROUTES.root} element={<Navigate to={ROUTES.dashboard} replace />} />
+      <Route path={LEGACY_ROUTES.root} element={<Navigate to={PUBLIC_ROUTES.home} replace />} />
       <Route path={LEGACY_ROUTES.dashboard} element={<Navigate to={ROUTES.dashboard} replace />} />
       <Route path={LEGACY_ROUTES.scanner} element={<Navigate to={ROUTES.scanner} replace />} />
       <Route path={LEGACY_ROUTES.market} element={<Navigate to={ROUTES.market} replace />} />

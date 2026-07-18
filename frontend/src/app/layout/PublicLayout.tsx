@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { Navigate, Outlet, useParams } from 'react-router';
-import { useRobotsMeta } from '@/app/seo/useRobotsMeta';
 import {
   buildLocalizedPath,
   DEFAULT_LOCALE,
@@ -13,12 +12,8 @@ export function PublicLayout() {
   const { locale: localeParam } = useParams();
   const locale = normalizeLocale(localeParam);
 
-  useRobotsMeta('index, follow');
-
   useEffect(() => {
-    if (!locale) {
-      return undefined;
-    }
+    if (!locale) return undefined;
 
     const localeConfig = getLocaleConfig(locale);
     const root = document.documentElement;

@@ -1,4 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react';
+import { useNavigate } from 'react-router';
 import bearMarket from '@/assets/bear-market.png';
 import bullMarket from '@/assets/bull-market.png';
 import {
@@ -11,6 +12,8 @@ import {
   type DashboardMarketModeData,
   type DashboardViewData,
 } from '@/shared/api';
+import { ROUTES } from '@/app/routing/routes';
+import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import styles from './DashboardPage.module.css';
 
@@ -182,6 +185,7 @@ function TradingChart({ candles }: { candles: DashboardCandle[] }) {
 }
 
 function DashboardPageContent({ data }: { data: DashboardViewData }) {
+  const navigate = useNavigate();
   const { marketMode: marketModeSource, hotCoins, scannerRows, insights, levels, stats, chartPeriods, activityPeriods, candles } = data;
   const [selected, setSelected] = useState(hotCoins[0].symbol);
   const [activityPeriod, setActivityPeriod] = useState<DashboardActivityPeriod>('1M');
@@ -220,7 +224,21 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
           <button type="button" className={styles.filterButton}>⌁ &nbsp; НАСТРОИТЬ ФИЛЬТРЫ</button>
         </div>
         <div className={styles.hotTitle}><div><span>🔥</span><strong>HOT LIST</strong><small>— САМЫЕ АКТИВНЫЕ МОНЕТЫ ПРЯМО СЕЙЧАС</small></div><em>5 сетапов ›</em></div>
-        <div className={styles.hotCards}>{hotCoins.map((coin) => <HotCard key={coin.symbol} coin={coin} selected={coin.symbol === selected} onSelect={() => setSelected(coin.symbol)} />)}</div>
+        <div className={styles.hotCards}>{hotCoins.map((coin) => (
+          <HotCard
+            key={coin.setupId}
+            coin={coin}
+            selected={coin.symbol === selected}
+            onSelect={() => {
+              setSelected(coin.symbol);
+              navigate(buildWorkspaceUrl(ROUTES.workspace, {
+                setupId: coin.setupId,
+                symbol: coin.symbol.replace('/', ''),
+                timeframe: coin.timeframe,
+              }));
+            }}
+          />
+        ))}</div>
       </article>
 
       <article className={`${styles.panel} ${styles.scanner}`}>

@@ -21,6 +21,13 @@ export const ROUTES = {
   settings: `${APP_ROOT}/${APP_ROUTE_SEGMENTS.settings}`,
 } as const;
 
+export const PUBLIC_ROUTES = {
+  home: '/ru',
+  ru: '/ru',
+  en: '/en',
+  zhCn: '/zh-cn',
+} as const;
+
 export const LEGACY_ROUTES = {
   root: '/',
   dashboard: '/dashboard',

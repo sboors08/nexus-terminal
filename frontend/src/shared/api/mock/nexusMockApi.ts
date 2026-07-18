@@ -248,9 +248,82 @@ function historyItemToScannerSetup(item: MarketHistoryItem): ScannerSetup {
   };
 }
 
+const HOT_LIST_ONLY_SETUPS: ScannerSetup[] = [
+  {
+    id: 'wif-hot-momentum',
+    symbol: 'WIFUSDT',
+    exchange: 'BINANCE',
+    direction: 'long',
+    kind: 'Пробой сопротивления',
+    stage: 'confirmation',
+    timeframe: '1m',
+    price: '3.22',
+    priceChange: '+3.42%',
+    level: '3.24–3.27',
+    distancePercent: 0.62,
+    distanceLabel: '0.62%',
+    touches: 3,
+    formationMinutes: 37,
+    formationLabel: '37м',
+    pullbackDepth: 'Неглубокие',
+    volumeAnomaly: 2.18,
+    tradesAnomaly: 2.42,
+    tradeSpeed: 'Высокая',
+    btcCorrelation: '0.28',
+    btcStrength: 2.91,
+    btcStrengthLabel: '+2.91%',
+    activity: 'Высокая',
+    reasons: [
+      'Количество сделок резко выросло',
+      'Три касания локального сопротивления',
+      'Монета заметно сильнее BTC',
+    ],
+    chartPath: 'M0 174 C35 164 51 148 82 153 C113 158 132 128 164 135 C196 142 214 111 245 118 C277 125 297 94 329 102 C361 110 382 76 414 85 C446 94 468 61 500 70 C532 79 555 48 587 57 C610 63 626 46 640 40',
+    areaPath: 'M0 174 C35 164 51 148 82 153 C113 158 132 128 164 135 C196 142 214 111 245 118 C277 125 297 94 329 102 C361 110 382 76 414 85 C446 94 468 61 500 70 C532 79 555 48 587 57 C610 63 626 46 640 40 L640 210 L0 210 Z',
+    levelY: 47,
+    touchPoints: [{ x: 414, y: 85 }, { x: 500, y: 70 }, { x: 587, y: 57 }],
+  },
+  {
+    id: 'pepe-hot-breakout',
+    symbol: 'PEPEUSDT',
+    exchange: 'BINANCE',
+    direction: 'long',
+    kind: 'Пробой сопротивления',
+    stage: 'approach',
+    timeframe: '1m',
+    price: '0.00001234',
+    priceChange: '+2.06%',
+    level: '0.00001248–0.00001256',
+    distancePercent: 0.94,
+    distanceLabel: '0.94%',
+    touches: 3,
+    formationMinutes: 29,
+    formationLabel: '29м',
+    pullbackDepth: 'Неглубокие',
+    volumeAnomaly: 1.76,
+    tradesAnomaly: 1.89,
+    tradeSpeed: 'Высокая',
+    btcCorrelation: '0.18',
+    btcStrength: 1.19,
+    btcStrengthLabel: '+1.19%',
+    activity: 'Высокая',
+    reasons: [
+      'Активность начала ускоряться',
+      'Откаты после касаний становятся короче',
+      'Объём выше среднего уровня',
+    ],
+    chartPath: 'M0 168 C34 160 55 170 84 149 C113 128 139 145 169 123 C199 101 225 120 255 97 C285 75 312 96 342 75 C372 54 399 77 429 59 C459 41 487 61 517 46 C547 31 577 48 607 34 C621 29 632 26 640 23',
+    areaPath: 'M0 168 C34 160 55 170 84 149 C113 128 139 145 169 123 C199 101 225 120 255 97 C285 75 312 96 342 75 C372 54 399 77 429 59 C459 41 487 61 517 46 C547 31 577 48 607 34 C621 29 632 26 640 23 L640 210 L0 210 Z',
+    levelY: 31,
+    touchPoints: [{ x: 429, y: 59 }, { x: 517, y: 46 }, { x: 607, y: 34 }],
+  },
+];
+
+const WORKSPACE_SETUPS: ScannerSetup[] = [...SCANNER_SETUPS, ...HOT_LIST_ONLY_SETUPS];
+
 function resolveWorkspaceSetup(setupId?: string | null, symbol?: string | null): ScannerSetup | null {
   if (setupId) {
-    const direct = SCANNER_SETUPS.find((setup) => setup.id === setupId);
+    const direct = WORKSPACE_SETUPS.find((setup) => setup.id === setupId);
     if (direct) return direct;
     const historyItem = MARKET_HISTORY_ITEMS.find((item) => item.setupId === setupId);
     if (historyItem) return historyItemToScannerSetup(historyItem);
@@ -259,13 +332,13 @@ function resolveWorkspaceSetup(setupId?: string | null, symbol?: string | null):
 
   const requestedSymbol = symbol?.toUpperCase();
   if (requestedSymbol) {
-    const active = SCANNER_SETUPS.find((setup) => setup.symbol === requestedSymbol);
+    const active = WORKSPACE_SETUPS.find((setup) => setup.symbol === requestedSymbol);
     if (active) return active;
     const historyItem = MARKET_HISTORY_ITEMS.find((item) => item.symbol === requestedSymbol);
     if (historyItem) return historyItemToScannerSetup(historyItem);
   }
 
-  return SCANNER_SETUPS[0] ?? null;
+  return WORKSPACE_SETUPS[0] ?? null;
 }
 
 function toContractSetup(setup: ScannerSetup, index: number): Setup {
@@ -312,7 +385,7 @@ function toContractSetup(setup: ScannerSetup, index: number): Setup {
   };
 }
 
-const activeContractSetups: Setup[] = SCANNER_SETUPS.map(toContractSetup);
+const activeContractSetups: Setup[] = WORKSPACE_SETUPS.map(toContractSetup);
 const archivedViewSetups = MARKET_HISTORY_ITEMS
   .filter((item) => !SCANNER_SETUPS.some((setup) => setup.id === item.setupId))
   .map(historyItemToScannerSetup);
