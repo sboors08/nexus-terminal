@@ -116,6 +116,14 @@
   white-space: nowrap;
 }
 
+.pageVersion {
+  max-width: 132px;
+  overflow: hidden;
+  color: #a9bab4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .live {
   display: inline-flex;
   align-items: center;
@@ -341,4 +349,300 @@
   .brandText,.navLabel { display: none; }
   .navLink { justify-content: center; padding-inline: 0; }
   .navShortLabel { width: auto; }
+}
+
+.mobilePageTitle,
+.mobileNavigation,
+.mobileBackdrop,
+.mobileMorePanel {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  .terminalShell {
+    min-width: 0;
+    min-height: 100dvh;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 54px minmax(0, 1fr);
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+
+  .terminalTopbar {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    grid-column: 1;
+    grid-row: 1;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: 54px;
+    background: rgb(4 10 14 / 96%);
+    backdrop-filter: blur(16px);
+  }
+
+  .terminalBrand {
+    gap: 7px;
+    padding: 0 10px;
+  }
+
+  .terminalBrandMark {
+    width: 28px;
+    height: 28px;
+    font-size: 21px;
+  }
+
+  .terminalBrand strong {
+    font-size: 14px;
+    letter-spacing: .09em;
+  }
+
+  .terminalBrand small,
+  .terminalNavigation,
+  .pageVersion,
+  .topIcon,
+  .terminalRail {
+    display: none;
+  }
+
+  .mobilePageTitle {
+    display: block;
+    overflow: hidden;
+    color: #7f938b;
+    font-family: var(--nexus-font-family-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .terminalStatus {
+    gap: 8px;
+    padding-right: 10px;
+  }
+
+  .terminalStatus .live {
+    font-size: 7px;
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+  }
+
+  .terminalContent {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+    padding: 10px 8px 14px;
+    overflow-x: clip;
+  }
+
+  .mobileNavigation {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 80;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    min-height: calc(62px + env(safe-area-inset-bottom));
+    padding: 5px 4px env(safe-area-inset-bottom);
+    border-top: 1px solid #173229;
+    background: rgb(4 11 15 / 97%);
+    box-shadow: 0 -12px 30px rgb(0 0 0 / 35%);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobileNavLink {
+    position: relative;
+    display: grid;
+    min-width: 0;
+    min-height: 52px;
+    place-items: center;
+    align-content: center;
+    gap: 4px;
+    padding: 3px 2px;
+    border: 0;
+    border-radius: 8px;
+    color: #7f918b;
+    text-decoration: none;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .mobileNavLink svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.55;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .mobileNavLink > span {
+    overflow: hidden;
+    max-width: 100%;
+    font-size: 9px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobileNavLinkActive {
+    color: #35df8d;
+    background: rgb(53 223 141 / 7%);
+  }
+
+  .mobileNavLinkActive::before {
+    position: absolute;
+    top: 1px;
+    width: 24px;
+    height: 2px;
+    border-radius: 999px;
+    background: #35df8d;
+    box-shadow: 0 0 10px rgb(53 223 141 / 45%);
+    content: '';
+  }
+
+  .mobileBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 85;
+    display: block;
+    border: 0;
+    background: rgb(0 0 0 / 58%);
+    backdrop-filter: blur(3px);
+  }
+
+  .mobileMorePanel {
+    position: fixed;
+    right: 10px;
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    left: 10px;
+    z-index: 90;
+    display: block;
+    padding: 12px;
+    border: 1px solid #1c3b30;
+    border-radius: 16px;
+    background:
+      radial-gradient(circle at 100% 0%, rgb(53 223 141 / 9%), transparent 35%),
+      #071116;
+    box-shadow: 0 22px 60px rgb(0 0 0 / 55%);
+  }
+
+  .mobileMorePanel > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 3px 11px;
+    border-bottom: 1px solid #153027;
+  }
+
+  .mobileMorePanel > header strong {
+    color: #e9f2ef;
+    font-size: 13px;
+  }
+
+  .mobileMorePanel > header button {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid #28463c;
+    border-radius: 50%;
+    color: #9aada6;
+    background: #09151a;
+    font-size: 20px;
+  }
+
+  .mobileMorePanel > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding-top: 10px;
+  }
+
+  .mobileMoreLink {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 62px;
+    padding: 9px;
+    border: 1px solid #153027;
+    border-radius: 10px;
+    color: #d9e5e1;
+    text-decoration: none;
+    background: #081318;
+  }
+
+  .mobileMoreLink > span:first-child {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 8px;
+    color: #35df8d;
+    background: rgb(53 223 141 / 9%);
+  }
+
+  .mobileMoreLink svg {
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .mobileMoreLink > span:nth-child(2) {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+  }
+
+  .mobileMoreLink strong {
+    font-size: 11px;
+  }
+
+  .mobileMoreLink small {
+    overflow: hidden;
+    color: #778b83;
+    font-size: 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobileMoreLink > i {
+    color: #60776e;
+    font-size: 19px;
+    font-style: normal;
+  }
+}
+
+@media (max-width: 390px) {
+  .terminalBrand > span:last-child {
+    display: none;
+  }
+
+  .mobilePageTitle {
+    text-align: left;
+  }
+
+  .mobileMorePanel > div {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 820px) {
+  .mobileMoreLinkActive {
+    border-color: rgb(53 223 141 / 48%);
+    background: rgb(53 223 141 / 8%);
+  }
 }

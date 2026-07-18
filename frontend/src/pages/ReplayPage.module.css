@@ -842,3 +842,152 @@
   border-color: var(--nexus-color-info);
   background: var(--nexus-color-info-soft);
 }
+
+@media (max-width: 820px) {
+  .replayPage {
+    width: 100%;
+    gap: 10px;
+  }
+
+  .pageHeader {
+    gap: 11px;
+  }
+
+  .headerIdentity {
+    gap: 8px;
+  }
+
+  .backButton {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+  }
+
+  .symbolLine {
+    flex-wrap: wrap;
+  }
+
+  .symbolLine h1 {
+    font-size: 23px;
+  }
+
+  .subtitle {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .headerResult {
+    min-width: 0;
+  }
+
+  .playerPanel {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .viewTabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .viewTabs button {
+    min-height: 38px;
+  }
+
+  .playbackControls {
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .playbackControls button {
+    width: 42px;
+    height: 42px;
+  }
+
+  .playbackControls .playButton {
+    width: 52px;
+  }
+
+  .timelineControl {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .speedControl {
+    justify-content: space-between;
+    overflow-x: auto;
+  }
+
+  .speedControl button {
+    min-width: 40px;
+    min-height: 34px;
+  }
+
+  .chartCanvas {
+    height: 310px;
+    margin: 6px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .chartCanvas svg {
+    min-width: 680px;
+  }
+
+  .metricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metricGrid div:nth-child(n) {
+    border-right: 1px solid var(--nexus-color-border-subtle);
+    border-top: 1px solid var(--nexus-color-border-subtle);
+  }
+
+  .metricGrid div:nth-child(-n + 2) {
+    border-top: 0;
+  }
+
+  .metricGrid div:nth-child(even) {
+    border-right: 0;
+  }
+
+  .stageFlow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .stageStep::after {
+    display: none;
+  }
+
+  .resultActions {
+    position: sticky;
+    bottom: 72px;
+    z-index: 4;
+    grid-template-columns: 1fr;
+    padding-top: 9px;
+    background: linear-gradient(180deg, transparent, var(--nexus-color-bg-surface) 24%);
+  }
+}
+
+@media (max-width: 520px) {
+  .headerResult {
+    width: 100%;
+    justify-items: start;
+  }
+
+  .chartCanvas {
+    height: 280px;
+  }
+
+  .metricGrid,
+  .stageFlow,
+  .snapshotGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .metricGrid div:nth-child(n) {
+    border-right: 0;
+  }
+}

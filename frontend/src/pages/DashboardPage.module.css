@@ -801,3 +801,352 @@
 @media (max-width: 1220px) {
   .dashboard { min-width: 1130px; }
 }
+
+@media (max-width: 820px) {
+  .dashboard {
+    display: flex;
+    min-width: 0;
+    width: 100%;
+    max-width: none;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 10px;
+  }
+
+  .panel {
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .marketMode,
+  .hotList,
+  .scanner,
+  .insights,
+  .chartPanel,
+  .marketDetails {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .marketMode {
+    height: auto;
+    padding: 13px;
+  }
+
+  .marketModeBody {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .marketMood {
+    grid-template-columns: 76px minmax(0, 1fr);
+    padding: 0 0 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .marketMood img {
+    width: 72px;
+    height: 68px;
+  }
+
+  .marketMood strong {
+    font-size: 20px;
+  }
+
+  .btcStats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .btcStats div {
+    align-content: center;
+    min-height: 54px;
+    padding: 7px;
+    border: 1px solid #143128;
+    border-radius: 6px;
+    background: #071319;
+  }
+
+  .btcStats strong {
+    font-size: 10px;
+  }
+
+  .btcStats em,
+  .btcStats small {
+    font-size: 8px;
+  }
+
+  .fearRow {
+    grid-template-columns: auto minmax(0, 1fr);
+    margin-top: 10px;
+    padding-top: 9px;
+  }
+
+  .fearGreedGauge {
+    justify-content: flex-end;
+  }
+
+  .fearGreedGauge svg {
+    width: 102px;
+    height: 55px;
+  }
+
+  .hotList {
+    min-height: 304px;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    padding: 0 9px 9px;
+  }
+
+  .activityToolbar {
+    gap: 9px;
+    padding: 8px 0;
+    overflow-x: auto;
+  }
+
+  .activityToolbar > div {
+    gap: 9px;
+  }
+
+  .activityToolbar > div > span,
+  .filterButton {
+    display: none;
+  }
+
+  .periods {
+    gap: 5px;
+  }
+
+  .periods button {
+    min-width: 44px;
+    height: 32px;
+  }
+
+  .hotTitle {
+    min-height: 38px;
+  }
+
+  .hotTitle small,
+  .hotTitle em {
+    display: none;
+  }
+
+  .hotCards {
+    display: flex;
+    gap: 9px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 2px 1px 7px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+  }
+
+  .hotCard {
+    flex: 0 0 min(78vw, 286px);
+    min-height: 218px;
+    scroll-snap-align: start;
+  }
+
+  .scanner {
+    display: grid;
+    min-height: 270px;
+    grid-template-rows: auto auto;
+  }
+
+  .sectionHeader {
+    min-height: 48px;
+    padding: 0 11px;
+  }
+
+  .sectionHeader > div {
+    gap: 8px;
+  }
+
+  .sectionHeader h2 {
+    font-size: 12px;
+  }
+
+  .search {
+    display: none;
+  }
+
+  .scannerTable {
+    padding: 0 8px 8px;
+  }
+
+  .scannerHead {
+    display: none;
+  }
+
+  .scannerRow {
+    grid-template-columns: 20px minmax(0, 1fr) 38px 57px 58px;
+    gap: 5px;
+    min-height: 48px;
+    padding: 4px 2px;
+  }
+
+  .scannerRow > :nth-child(n + 5) {
+    display: none;
+  }
+
+  .scannerRow > :nth-child(9) {
+    display: block;
+    text-align: right;
+  }
+
+  .scannerRow > strong {
+    font-size: 9px;
+  }
+
+  .activityScore {
+    text-align: center;
+  }
+
+  .insights {
+    min-height: 260px;
+    grid-template-rows: auto auto auto;
+  }
+
+  .insightList {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .insightList strong {
+    font-size: 11px;
+  }
+
+  .insightList p {
+    font-size: 9px;
+  }
+
+  .insightConclusion {
+    margin: 0 11px 11px;
+    font-size: 9px;
+  }
+
+  .chartPanel {
+    min-height: 360px;
+    grid-template-rows: auto minmax(300px, 1fr);
+  }
+
+  .chartHeader {
+    min-height: 72px;
+    flex-wrap: wrap;
+    gap: 7px;
+    padding: 8px 10px;
+  }
+
+  .chartPair {
+    flex: 1 1 120px;
+  }
+
+  .chartPeriods {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .chartPeriods button {
+    flex: 0 0 auto;
+    min-width: 38px;
+    height: 30px;
+  }
+
+  .chartQuote span,
+  .indicators {
+    display: none;
+  }
+
+  .chartCanvas {
+    min-height: 280px;
+  }
+
+  .chartCanvas > svg {
+    min-width: 700px;
+  }
+
+  .chartCanvas {
+    overflow-x: auto;
+  }
+
+  .chartTools,
+  .chartTimes {
+    position: sticky;
+    left: 6px;
+  }
+
+  .marketDetails {
+    display: grid;
+    min-height: 0;
+    grid-template-rows: auto auto;
+  }
+
+  .detailTabs {
+    min-height: 40px;
+    gap: 18px;
+    overflow-x: auto;
+  }
+
+  .detailColumns {
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: 8px;
+  }
+
+  .detailCard {
+    padding: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .marketMood {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .marketMood img {
+    width: 60px;
+    height: 58px;
+  }
+
+  .marketMood strong {
+    font-size: 17px;
+  }
+
+  .marketMood span,
+  .marketMood em {
+    font-size: 8px;
+  }
+
+  .btcStats {
+    grid-template-columns: 1fr;
+  }
+
+  .btcStats div {
+    min-height: 45px;
+  }
+
+  .fearRow {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .fearGreedGauge {
+    justify-content: center;
+  }
+
+  .hotCard {
+    flex-basis: 84vw;
+  }
+
+  .scannerRow {
+    grid-template-columns: 18px minmax(0, 1fr) 34px 52px;
+  }
+
+  .scannerRow > :nth-child(4) {
+    display: none;
+  }
+
+  .chartQuote {
+    display: none;
+  }
+}

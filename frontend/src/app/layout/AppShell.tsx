@@ -1,11 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
-import { PRIMARY_NAVIGATION } from '@/shared/config/navigation';
 import styles from './AppShell.module.css';
-
-function getNavClassName({ isActive }: { isActive: boolean }) {
-  return isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink;
-}
 
 const PAGE_VERSION_LABELS: Record<string, string> = {
   [ROUTES.dashboard]: 'Dashboard v0.6',
@@ -18,7 +14,7 @@ const PAGE_VERSION_LABELS: Record<string, string> = {
   [ROUTES.settings]: 'Settings v0.1',
 };
 
-const DASHBOARD_LINKS = [
+const TOP_NAVIGATION = [
   { label: 'DASHBOARD', path: ROUTES.dashboard, end: true },
   { label: 'SCANNER', path: ROUTES.scanner, end: false },
   { label: 'MARKET', path: ROUTES.market, end: false },
@@ -39,6 +35,20 @@ const RAIL_LINKS = [
   { label: 'Settings', path: ROUTES.settings, icon: 'settings', end: false },
 ] as const;
 
+const MOBILE_PRIMARY_LINKS = [
+  { label: 'Главная', path: ROUTES.dashboard, icon: 'pulse', end: true },
+  { label: 'Scanner', path: ROUTES.scanner, icon: 'search', end: false },
+  { label: 'Workspace', path: ROUTES.workspace, icon: 'chart', end: false },
+  { label: 'Alerts', path: ROUTES.alerts, icon: 'note', end: false },
+] as const;
+
+const MOBILE_MORE_LINKS = [
+  { label: 'Market', description: 'Обзор рынка', path: ROUTES.market, icon: 'market' },
+  { label: 'Watchlist', description: 'История сетапов', path: ROUTES.marketHistory, icon: 'star' },
+  { label: 'Replay', description: 'Воспроизведение рынка', path: ROUTES.replay, icon: 'robot' },
+  { label: 'Settings', description: 'Настройки терминала', path: ROUTES.settings, icon: 'settings' },
+] as const;
+
 type RailIconName = (typeof RAIL_LINKS)[number]['icon'];
 
 function RailIcon({ name }: { name: RailIconName }) {
@@ -54,71 +64,112 @@ function RailIcon({ name }: { name: RailIconName }) {
 
 export function AppShell() {
   const location = useLocation();
-  const isDashboard = location.pathname === ROUTES.dashboard;
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const pageVersion = PAGE_VERSION_LABELS[location.pathname] ?? 'NEXUS frontend';
+  const matchesPath = (path: string, end = false) => (
+    end ? location.pathname === path : location.pathname === path || location.pathname.startsWith(`${path}/`)
+  );
+  const mobileTitle = TOP_NAVIGATION.find((item) => matchesPath(item.path, item.end))?.label ?? 'NEXUS';
+  const moreActive = MOBILE_MORE_LINKS.some((item) => matchesPath(item.path));
 
-  if (isDashboard) {
-    return (
-      <div className={styles.terminalShell}>
-        <header className={styles.terminalTopbar}>
-          <Link className={styles.terminalBrand} to={ROUTES.dashboard} aria-label="NEXUS Terminal">
-            <span className={styles.terminalBrandMark}>N</span>
-            <span><strong>NEXUS</strong><small>TERMINAL</small></span>
-          </Link>
+  useEffect(() => {
+    setMobileMoreOpen(false);
+  }, [location.pathname]);
 
-          <nav className={styles.terminalNavigation} aria-label="Навигация Dashboard">
-            {DASHBOARD_LINKS.map((item) => (
-              <NavLink
-                key={item.label}
-                to={item.path}
-                end={item.end}
-                className={({ isActive }) => isActive ? `${styles.terminalLink} ${styles.terminalLinkActive}` : styles.terminalLink}
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
+  return (
+    <div className={styles.terminalShell}>
+      <header className={styles.terminalTopbar}>
+        <Link className={styles.terminalBrand} to={ROUTES.dashboard} aria-label="Открыть Dashboard NEXUS">
+          <span className={styles.terminalBrandMark}>N</span>
+          <span><strong>NEXUS</strong><small>TERMINAL</small></span>
+        </Link>
 
-          <div className={styles.terminalStatus}>
-            <span className={styles.live}><i />LIVE</span>
-            <time>12:45:32 UTC+3</time>
-            <span className={styles.topIcon} aria-label="Уведомления">♧</span>
-            <span className={styles.topIcon} aria-label="Помощь">?</span>
-            <span className={styles.avatar}>N</span>
-          </div>
-        </header>
+        <span className={styles.mobilePageTitle}>{mobileTitle}</span>
 
-        <aside className={styles.terminalRail} aria-label="Быстрая навигация">
-          {RAIL_LINKS.map((item) => (
+        <nav className={styles.terminalNavigation} aria-label="Основная навигация терминала">
+          {TOP_NAVIGATION.map((item) => (
             <NavLink
               key={item.label}
               to={item.path}
               end={item.end}
-              title={item.label}
-              className={({ isActive }) => isActive ? `${styles.railLink} ${styles.railLinkActive}` : styles.railLink}
+              className={({ isActive }) => isActive ? `${styles.terminalLink} ${styles.terminalLinkActive}` : styles.terminalLink}
             >
-              <RailIcon name={item.icon} />
+              {item.label}
             </NavLink>
           ))}
-          <span className={styles.railCollapse}>»</span>
-        </aside>
+        </nav>
 
-        <main className={styles.terminalContent}><Outlet /></main>
-      </div>
-    );
-  }
+        <div className={styles.terminalStatus}>
+          <span className={styles.live}><i />LIVE</span>
+          <span className={styles.pageVersion}>{pageVersion}</span>
+          <span className={styles.topIcon} aria-label="Уведомления">♧</span>
+          <span className={styles.topIcon} aria-label="Помощь">?</span>
+          <span className={styles.avatar}>N</span>
+        </div>
+      </header>
 
-  return (
-    <div className={styles.shell}>
-      <aside className={styles.sidebar} aria-label="Основная навигация">
-        <div className={styles.brand}><span className={styles.brandMark}>N</span><span className={styles.brandText}>NEXUS</span></div>
-        <nav className={styles.navigation}>{PRIMARY_NAVIGATION.map((item) => <NavLink key={item.path} to={item.path} end={item.end} className={getNavClassName} title={item.label}><span className={styles.navShortLabel}>{item.shortLabel}</span><span className={styles.navLabel}>{item.label}</span></NavLink>)}</nav>
-        <div className={styles.environment}>TEST DATA</div>
+      <aside className={styles.terminalRail} aria-label="Быстрая навигация">
+        {RAIL_LINKS.map((item) => (
+          <NavLink
+            key={item.label}
+            to={item.path}
+            end={item.end}
+            title={item.label}
+            className={({ isActive }) => isActive ? `${styles.railLink} ${styles.railLinkActive}` : styles.railLink}
+          >
+            <RailIcon name={item.icon} />
+          </NavLink>
+        ))}
+        <span className={styles.railCollapse}>»</span>
       </aside>
-      <div className={styles.mainColumn}>
-        <header className={styles.topbar}><div><p className={styles.productLabel}>Аналитический терминал</p><p className={styles.dataStatus}>Источник данных: тестовый контур</p></div><div className={styles.connectionStatus}><span className={styles.connectionDot} />{pageVersion}</div></header>
-        <main className={styles.content}><Outlet /></main>
-      </div>
+
+      <main className={styles.terminalContent}><Outlet /></main>
+
+      <nav className={styles.mobileNavigation} aria-label="Мобильная навигация">
+        {MOBILE_PRIMARY_LINKS.map((item) => (
+          <NavLink
+            key={item.label}
+            to={item.path}
+            end={item.end}
+            className={({ isActive }) => isActive ? `${styles.mobileNavLink} ${styles.mobileNavLinkActive}` : styles.mobileNavLink}
+          >
+            <RailIcon name={item.icon} />
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
+        <button
+          type="button"
+          className={`${styles.mobileNavLink} ${moreActive || mobileMoreOpen ? styles.mobileNavLinkActive : ''}`}
+          onClick={() => setMobileMoreOpen((open) => !open)}
+          aria-expanded={mobileMoreOpen}
+          aria-controls="mobile-more-navigation"
+        >
+          <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" /></svg>
+          <span>Ещё</span>
+        </button>
+      </nav>
+
+      {mobileMoreOpen && (
+        <>
+          <button className={styles.mobileBackdrop} type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Закрыть меню" />
+          <section className={styles.mobileMorePanel} id="mobile-more-navigation" aria-label="Дополнительные разделы">
+            <header><strong>Разделы NEXUS</strong><button type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Закрыть">×</button></header>
+            <div>
+              {MOBILE_MORE_LINKS.map((item) => (
+                <NavLink
+                  key={item.label}
+                  to={item.path}
+                  className={({ isActive }) => isActive ? `${styles.mobileMoreLink} ${styles.mobileMoreLinkActive}` : styles.mobileMoreLink}
+                >
+                  <span><RailIcon name={item.icon} /></span>
+                  <span><strong>{item.label}</strong><small>{item.description}</small></span>
+                  <i>›</i>
+                </NavLink>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }

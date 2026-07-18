@@ -771,3 +771,238 @@
     height: 210px;
   }
 }
+
+@media (max-width: 820px) {
+  .scanner {
+    width: 100%;
+  }
+
+  .pageHeader {
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .title {
+    font-size: 27px;
+  }
+
+  .subtitle {
+    max-width: 34rem;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .headerStatus {
+    font-size: 9px;
+  }
+
+  .filtersPanel,
+  .tablePanel,
+  .previewPanel {
+    border-radius: 10px;
+  }
+
+  .filterTopRow,
+  .filterBottomRow {
+    gap: 10px;
+  }
+
+  .filterSummary {
+    display: flex;
+    min-height: 40px;
+    justify-content: center;
+    border: 1px solid var(--nexus-color-border-subtle);
+    border-radius: var(--nexus-radius-sm);
+    background: var(--nexus-color-bg-canvas);
+  }
+
+  .resetButton {
+    width: 100%;
+  }
+
+  .scannerGrid {
+    gap: 10px;
+  }
+
+  .tableViewport {
+    overflow: visible;
+  }
+
+  .tableHeader {
+    display: none;
+  }
+
+  .tableBody {
+    gap: 8px;
+  }
+
+  .tableRow {
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto auto;
+    gap: 8px 10px;
+    padding: 11px;
+    border: 1px solid var(--nexus-color-border-subtle);
+    border-radius: 9px;
+    background: var(--nexus-color-bg-canvas);
+  }
+
+  .tableRowSelected {
+    border-color: var(--nexus-color-border-accent);
+    background:
+      linear-gradient(135deg, var(--nexus-color-bg-selected), transparent 68%),
+      var(--nexus-color-bg-canvas);
+  }
+
+  .tableRow > :nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .tableRow > :nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .tableRow > :nth-child(4) {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .tableRow > :nth-child(3) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    color: var(--nexus-color-text-secondary);
+    font-size: 10px;
+    white-space: normal;
+  }
+
+  .tableRow > :nth-child(5),
+  .tableRow > :nth-child(6),
+  .tableRow > :nth-child(9) {
+    position: relative;
+    grid-row: 3;
+    min-height: 36px;
+    display: grid;
+    align-content: end;
+    gap: 3px;
+    padding-top: 13px;
+    border-top: 1px solid var(--nexus-color-border-subtle);
+    font-size: 10px;
+  }
+
+  .tableRow > :nth-child(5)::before,
+  .tableRow > :nth-child(6)::before,
+  .tableRow > :nth-child(9)::before {
+    position: absolute;
+    top: 5px;
+    left: 0;
+    color: var(--nexus-color-text-muted);
+    font-family: var(--nexus-font-family-sans);
+    font-size: 7px;
+    font-weight: 600;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+
+  .tableRow > :nth-child(5)::before { content: 'TF'; }
+  .tableRow > :nth-child(6)::before { content: 'Уровень'; }
+  .tableRow > :nth-child(9)::before { content: 'До уровня'; }
+
+  .tableRow > :nth-child(6) {
+    grid-column: 2;
+    text-align: center;
+  }
+
+  .tableRow > :nth-child(9) {
+    grid-column: 3;
+    text-align: right;
+  }
+
+  .tableRow > :nth-child(7),
+  .tableRow > :nth-child(8),
+  .tableRow > :nth-child(10),
+  .tableRow > :nth-child(11),
+  .tableRow > :nth-child(12),
+  .tableRow > :nth-child(13) {
+    display: none;
+  }
+
+  .previewPanel {
+    order: -1;
+  }
+
+  .previewHeader {
+    gap: 10px;
+  }
+
+  .previewMetrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .previewActions {
+    position: sticky;
+    bottom: 72px;
+    z-index: 4;
+    padding-top: 8px;
+    background: linear-gradient(180deg, transparent, var(--nexus-color-bg-surface) 24%);
+  }
+}
+
+@media (max-width: 520px) {
+  .filtersPanel,
+  .tablePanel,
+  .previewPanel {
+    padding: 10px;
+  }
+
+  .directionFilter {
+    min-width: 0;
+  }
+
+  .segmentedControl {
+    width: 100%;
+  }
+
+  .segmentedControl button {
+    flex: 1;
+  }
+
+  .previewMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .previewActions {
+    grid-template-columns: 1fr;
+  }
+
+  .tableRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tableRow > :nth-child(2) {
+    grid-column: 2;
+  }
+
+  .tableRow > :nth-child(4) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .tableRow > :nth-child(3) {
+    grid-row: 3;
+  }
+
+  .tableRow > :nth-child(5),
+  .tableRow > :nth-child(6),
+  .tableRow > :nth-child(9) {
+    grid-row: 4;
+  }
+
+  .tableRow > :nth-child(5) { grid-column: 1; }
+  .tableRow > :nth-child(6) { display: none; }
+  .tableRow > :nth-child(9) { grid-column: 2; }
+}

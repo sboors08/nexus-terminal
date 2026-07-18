@@ -861,3 +861,58 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 820px) {
+  .alertsPage {
+    width: 100%;
+  }
+
+  .pageHeader {
+    gap: 11px;
+    margin-bottom: 13px;
+  }
+
+  .title {
+    font-size: 27px;
+  }
+
+  .subtitle {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .headerActions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .headerActions > * {
+    width: 100%;
+  }
+
+  .summaryGrid,
+  .contentGrid,
+  .sideColumn {
+    gap: 10px;
+  }
+
+  .filtersPanel {
+    padding: 11px;
+  }
+
+  .alertCard,
+  .detailPanel,
+  .rulesPanel {
+    border-radius: 10px;
+  }
+
+  .detailActions {
+    position: sticky;
+    bottom: 72px;
+    z-index: 4;
+    padding-top: 9px;
+    background: linear-gradient(180deg, transparent, var(--nexus-color-bg-surface) 25%);
+  }
+}

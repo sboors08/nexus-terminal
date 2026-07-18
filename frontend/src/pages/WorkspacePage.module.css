@@ -1119,3 +1119,172 @@
     display: none;
   }
 }
+
+@media (max-width: 820px) {
+  .workspace {
+    width: 100%;
+  }
+
+  .pageHeader {
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .instrumentHeader {
+    gap: 8px;
+  }
+
+  .backLink {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+  }
+
+  .symbolRow h1 {
+    font-size: 24px;
+  }
+
+  .setupDescription {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .headerRight {
+    width: 100%;
+    gap: 10px;
+  }
+
+  .priceBlock strong {
+    font-size: 21px;
+  }
+
+  .headerActions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .headerActions > * {
+    min-width: 0;
+    width: 100%;
+    min-height: 42px;
+  }
+
+  .workspaceGrid,
+  .leftColumn,
+  .lowerGrid {
+    gap: 10px;
+  }
+
+  .chartPanel,
+  .dataPanel,
+  .nexusPanel {
+    border-radius: 10px;
+  }
+
+  .panelToolbar {
+    min-height: 0;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .timeframeControl {
+    width: 100%;
+  }
+
+  .timeframeControl button {
+    flex: 1;
+    min-height: 34px;
+  }
+
+  .chartLegend {
+    width: 100%;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 8px;
+  }
+
+  .chartCanvas {
+    height: 310px;
+    margin: 6px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .chartCanvas svg {
+    min-width: 650px;
+  }
+
+  .chartMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chartMetrics > div:nth-child(n) {
+    min-height: 55px;
+    border-right: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+    border-top: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  }
+
+  .chartMetrics > div:nth-child(-n + 2) {
+    border-top: 0;
+  }
+
+  .chartMetrics > div:nth-child(even) {
+    border-right: 0;
+  }
+
+  .tapeTable,
+  .liquidityMap {
+    overflow-x: auto;
+  }
+
+  .tapeRow {
+    min-width: 540px;
+  }
+
+  .liquidityHeader,
+  .liquidityRow {
+    min-width: 440px;
+  }
+
+  .nexusPanel {
+    order: 2;
+  }
+
+  .stageFlow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .stageItem::after {
+    display: none;
+  }
+
+  .nexusActions {
+    position: sticky;
+    bottom: 72px;
+    z-index: 4;
+    padding-top: 9px;
+    background: linear-gradient(180deg, transparent, var(--nexus-color-bg-surface) 24%);
+  }
+}
+
+@media (max-width: 520px) {
+  .headerActions {
+    grid-template-columns: 1fr;
+  }
+
+  .chartCanvas {
+    height: 285px;
+  }
+
+  .chartLegend span:not(.liveIndicator) {
+    display: none;
+  }
+
+  .stageFlow,
+  .dynamicsList {
+    grid-template-columns: 1fr;
+  }
+}

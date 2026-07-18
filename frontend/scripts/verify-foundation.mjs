@@ -124,6 +124,107 @@ try {
   bearAssetMissing = true;
 }
 
+
+const [
+  publicHomeSource,
+  seoMetadataSource,
+  appLayoutSource,
+  appRoutesSource,
+  indexHtmlSource,
+  robotsSource,
+  sitemapSource,
+  packageSource,
+] = await Promise.all([
+  readFile(resolve(root, 'src/pages/PublicHomePage.tsx'), 'utf8'),
+  readFile(resolve(root, 'src/app/seo/useSeoMetadata.ts'), 'utf8'),
+  readFile(resolve(root, 'src/app/layout/AppLayout.tsx'), 'utf8'),
+  readFile(resolve(root, 'src/app/routing/AppRoutes.tsx'), 'utf8'),
+  readFile(resolve(root, 'index.html'), 'utf8'),
+  readFile(resolve(root, 'public/robots.txt'), 'utf8'),
+  readFile(resolve(root, 'public/sitemap.xml'), 'utf8'),
+  readFile(resolve(root, 'package.json'), 'utf8'),
+]);
+
+const requiredSeoMarkers = [
+  "robots: 'index, follow, max-image-preview:large'",
+  "robots: 'noindex, nofollow, noarchive, nosnippet'",
+  "appendLink('canonical'",
+  "appendLink('alternate'",
+  "appendMeta('og:title'",
+  "appendMeta('twitter:card'",
+  "'@type': 'SoftwareApplication'",
+  '<Navigate to={PUBLIC_ROUTES.home} replace />',
+  'Disallow: /app',
+  '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"',
+  '"generate:seo": "node scripts/generate-seo.mjs"',
+  '<link rel="manifest" href="/site.webmanifest" />',
+];
+
+const seoCorpus = [
+  publicHomeSource,
+  seoMetadataSource,
+  appLayoutSource,
+  appRoutesSource,
+  indexHtmlSource,
+  robotsSource,
+  sitemapSource,
+  packageSource,
+].join('\n');
+const missingSeoMarkers = requiredSeoMarkers.filter((marker) => !seoCorpus.includes(marker));
+const requiredSeoAssets = [
+  'public/favicon.svg',
+  'public/site.webmanifest',
+  'public/nexus-og.png',
+  'scripts/generate-seo.mjs',
+];
+const missingSeoAssets = [];
+for (const asset of requiredSeoAssets) {
+  try {
+    await access(resolve(root, asset));
+  } catch {
+    missingSeoAssets.push(asset);
+  }
+}
+
+
+const [
+  appShellSource,
+  appShellCss,
+  dashboardCss,
+  scannerCss,
+  workspaceCss,
+  alertsCss,
+  replayCss,
+] = await Promise.all([
+  readFile(resolve(root, 'src/app/layout/AppShell.tsx'), 'utf8'),
+  readFile(resolve(root, 'src/app/layout/AppShell.module.css'), 'utf8'),
+  readFile(resolve(root, 'src/pages/DashboardPage.module.css'), 'utf8'),
+  readFile(resolve(root, 'src/pages/ScannerPage.module.css'), 'utf8'),
+  readFile(resolve(root, 'src/pages/WorkspacePage.module.css'), 'utf8'),
+  readFile(resolve(root, 'src/pages/AlertsPage.module.css'), 'utf8'),
+  readFile(resolve(root, 'src/pages/ReplayPage.module.css'), 'utf8'),
+]);
+
+const requiredMobileMarkers = [
+  'MOBILE_PRIMARY_LINKS',
+  'mobileNavigation',
+  'mobileMorePanel',
+  '@media (max-width: 820px)',
+  'scroll-snap-type: x mandatory',
+  'grid-template-columns: minmax(0, 1fr) auto auto',
+  'bottom: 72px',
+];
+const mobileCorpus = [
+  appShellSource,
+  appShellCss,
+  dashboardCss,
+  scannerCss,
+  workspaceCss,
+  alertsCss,
+  replayCss,
+].join('\n');
+const missingMobileMarkers = requiredMobileMarkers.filter((marker) => !mobileCorpus.includes(marker));
+
 const directFixtureImports = pageSources.flatMap((source, index) => (
   source.includes("from '@/features/") && source.includes('Data')
     ? [dataPages[index]]
@@ -140,6 +241,9 @@ if (
   || setupIdMissingFromAlerts
   || legacySetupQueryPresent
   || bearAssetMissing
+  || missingSeoMarkers.length > 0
+  || missingSeoAssets.length > 0
+  || missingMobileMarkers.length > 0
   || directFixtureImports.length > 0
 ) {
   if (missingTokens.length > 0) console.error(`Missing design tokens: ${missingTokens.join(', ')}`);
@@ -151,10 +255,13 @@ if (
   if (setupIdMissingFromAlerts) console.error('Alert view data does not include setupId.');
   if (legacySetupQueryPresent) console.error('Legacy symbol-only or setup query links remain in data pages.');
   if (bearAssetMissing) console.error('Missing BTC Market Mode asset: src/assets/bear-market.png');
+  if (missingSeoMarkers.length > 0) console.error(`Missing SEO Foundation markers: ${missingSeoMarkers.join(', ')}`);
+  if (missingSeoAssets.length > 0) console.error(`Missing SEO Foundation assets: ${missingSeoAssets.join(', ')}`);
+  if (missingMobileMarkers.length > 0) console.error(`Missing Mobile Adaptation markers: ${missingMobileMarkers.join(', ')}`);
   if (directFixtureImports.length > 0) {
     console.error(`Data pages import fixtures directly: ${directFixtureImports.join(', ')}`);
   }
   process.exit(1);
 }
 
-console.log('NEXUS foundation verified: routes, locales, design tokens, unified Mock API, BTC Market Mode and Setup Context are present.');
+console.log('NEXUS foundation verified: routes, locales, design tokens, unified Mock API, BTC Market Mode, Setup Context and SEO Foundation and Mobile Adaptation are present.');
