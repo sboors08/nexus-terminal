@@ -15,6 +15,12 @@ export interface AppEnv {
   binanceRequestTimeoutMs?: number;
   binanceSymbolsLimit?: number;
   binanceCacheTtlMs?: number;
+  binanceWebSocketEnabled?: boolean;
+  binanceWebSocketBaseUrl?: string;
+  binanceWebSocketSymbols?: string[];
+  binanceWebSocketReconnectBaseDelayMs?: number;
+  binanceWebSocketReconnectMaxDelayMs?: number;
+  binanceWebSocketTradesBufferSize?: number;
 }
 
 function readEnum<T extends readonly string[]>(
@@ -35,6 +41,13 @@ function readInteger(value: string | undefined, fallback: number, name: string, 
     throw new Error(`${name} must be an integer between ${min} and ${max}`);
   }
   return parsed;
+}
+
+function readBoolean(value: string | undefined, fallback: boolean, name: string): boolean {
+  if (!value) return fallback;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new Error(`${name} must be true or false`);
 }
 
 function readPort(value: string | undefined): number {
@@ -59,6 +72,27 @@ function readHttpUrl(value: string | undefined, fallback: string, name: string):
   return parsed.toString().replace(/\/$/, '');
 }
 
+function readWebSocketUrl(value: string | undefined, fallback: string, name: string): string {
+  const candidate = value?.trim() || fallback;
+  let parsed: URL;
+  try { parsed = new URL(candidate); } catch { throw new Error(`${name} must be a valid WebSocket URL`); }
+  if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') throw new Error(`${name} must use ws or wss`);
+  return parsed.toString().replace(/\/$/, '');
+}
+
+function readSymbols(value: string | undefined): string[] {
+  const symbols = (value || 'BTCUSDT,ETHUSDT,SOLUSDT')
+    .split(',')
+    .map((symbol) => symbol.trim().toUpperCase())
+    .filter(Boolean);
+
+  if (symbols.length === 0 || symbols.some((symbol) => !/^[A-Z0-9]{5,20}$/.test(symbol))) {
+    throw new Error('BINANCE_WS_SYMBOLS must contain comma-separated Binance symbols');
+  }
+
+  return [...new Set(symbols)];
+}
+
 export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   return {
     nodeEnv: readEnum(source.NODE_ENV, NODE_ENV_VALUES, 'development', 'NODE_ENV'),
@@ -71,5 +105,11 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     binanceRequestTimeoutMs: readInteger(source.BINANCE_REQUEST_TIMEOUT_MS, 5_000, 'BINANCE_REQUEST_TIMEOUT_MS', 250, 30_000),
     binanceSymbolsLimit: readInteger(source.BINANCE_SYMBOLS_LIMIT, 100, 'BINANCE_SYMBOLS_LIMIT', 1, 500),
     binanceCacheTtlMs: readInteger(source.BINANCE_CACHE_TTL_MS, 15_000, 'BINANCE_CACHE_TTL_MS', 0, 300_000),
+    binanceWebSocketEnabled: readBoolean(source.BINANCE_WS_ENABLED, true, 'BINANCE_WS_ENABLED'),
+    binanceWebSocketBaseUrl: readWebSocketUrl(source.BINANCE_WS_BASE_URL, 'wss://data-stream.binance.vision', 'BINANCE_WS_BASE_URL'),
+    binanceWebSocketSymbols: readSymbols(source.BINANCE_WS_SYMBOLS),
+    binanceWebSocketReconnectBaseDelayMs: readInteger(source.BINANCE_WS_RECONNECT_BASE_DELAY_MS, 1_000, 'BINANCE_WS_RECONNECT_BASE_DELAY_MS', 100, 60_000),
+    binanceWebSocketReconnectMaxDelayMs: readInteger(source.BINANCE_WS_RECONNECT_MAX_DELAY_MS, 30_000, 'BINANCE_WS_RECONNECT_MAX_DELAY_MS', 1_000, 300_000),
+    binanceWebSocketTradesBufferSize: readInteger(source.BINANCE_WS_TRADES_BUFFER_SIZE, 100, 'BINANCE_WS_TRADES_BUFFER_SIZE', 1, 5_000),
   };
 }
