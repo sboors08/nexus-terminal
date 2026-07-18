@@ -7,6 +7,7 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.realtime-test.tsbuildinfo"
   },
   "include": [
-    "src/shared/realtime/realtimeClient.ts"
+    "src/shared/realtime/realtimeClient.ts",
+    "src/shared/realtime/scannerRealtime.ts"
   ]
 }

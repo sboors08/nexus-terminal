@@ -4,6 +4,14 @@ import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
+  buildScannerRealtimeMarketView,
+  formatScannerPrice,
+  formatScannerQuantity,
+  formatScannerTradeTime,
+  getScannerRealtimeConnectionLabel,
+  useRealtimeMarketData,
+} from '@/shared/realtime';
+import {
   nexusApi,
   useApiQuery,
   type ScannerSetup,
@@ -153,6 +161,23 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
       ?? setups[0];
   }, [filteredSetups, requestedSetupId, setups]);
 
+  const realtime = useRealtimeMarketData({ symbol: selectedSetup.symbol });
+  const realtimeSnapshot = realtime.snapshots[selectedSetup.symbol];
+  const realtimeMarket = useMemo(
+    () => buildScannerRealtimeMarketView(realtimeSnapshot, selectedSetup.price),
+    [realtimeSnapshot, selectedSetup.price],
+  );
+  const realtimeLabel = getScannerRealtimeConnectionLabel(
+    realtime.lifecycleState,
+    realtime.status?.state ?? null,
+  );
+  const realtimeDotClass = realtime.lifecycleState === 'open'
+    && realtime.status?.state === 'connected'
+    ? styles.liveDotConnected
+    : realtime.lifecycleState === 'error'
+      ? styles.liveDotError
+      : styles.liveDotPending;
+
   useEffect(() => {
     if (requestedSetupId === selectedSetup.id) return;
     const nextParams = new URLSearchParams(searchParams);
@@ -189,13 +214,13 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
     <section className={styles.scanner}>
       <header className={styles.pageHeader}>
         <div>
-          <p className={styles.eyebrow}>Поиск сетапов · тестовые данные</p>
+          <p className={styles.eyebrow}>Поиск сетапов · тестовые сетапы · цены realtime</p>
           <h1 className={styles.title}>Scanner</h1>
           <p className={styles.subtitle}>Полный список найденных ситуаций с фильтрацией, сортировкой и предпросмотром.</p>
         </div>
         <div className={styles.headerStatus}>
-          <span className={styles.liveDot} aria-hidden="true" />
-          Обновлено 17:32:14
+          <span className={`${styles.liveDot} ${realtimeDotClass}`} aria-hidden="true" />
+          {realtimeLabel} · {selectedSetup.symbol}
         </div>
       </header>
 
@@ -304,7 +329,7 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
               <p className={styles.panelEyebrow}>Результаты поиска</p>
               <h2>Найденные сетапы</h2>
             </div>
-            <span className={styles.testBadge}>TEST DATA</span>
+            <span className={styles.testBadge}>TEST SETUPS · LIVE MARKET</span>
           </div>
 
           <div className={styles.tableViewport}>
@@ -380,8 +405,15 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
               <p>{selectedSetup.kind}</p>
             </div>
             <div className={styles.priceBlock}>
-              <strong>{selectedSetup.price}</strong>
-              <span className={selectedSetup.direction === 'long' ? styles.positiveValue : styles.negativeValue}>{selectedSetup.priceChange}</span>
+              <strong>{realtimeMarket.priceLabel}</strong>
+              <div className={styles.priceMeta}>
+                <span className={selectedSetup.direction === 'long' ? styles.positiveValue : styles.negativeValue}>
+                  {selectedSetup.priceChange}
+                </span>
+                <span className={`${styles.priceSourceBadge} ${realtimeMarket.isLive ? styles.priceSourceLive : styles.priceSourceFallback}`}>
+                  {realtimeMarket.isLive ? 'LIVE' : 'TEST'}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -389,6 +421,31 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
             <SetupStageBadge stage={selectedSetup.stage} resultLabel={selectedSetup.kind.includes('Отскок') ? 'Отскок' : 'Пробой'} />
             <span>Зона {selectedSetup.level}</span>
           </div>
+
+          <section className={styles.realtimeStrip} aria-label={`Realtime рынок ${selectedSetup.symbol}`}>
+            <div>
+              <span>Bid</span>
+              <strong className={styles.positiveValue}>{realtimeMarket.bidLabel}</strong>
+            </div>
+            <div>
+              <span>Ask</span>
+              <strong className={styles.negativeValue}>{realtimeMarket.askLabel}</strong>
+            </div>
+            <div>
+              <span>Спред</span>
+              <strong>{realtimeMarket.spreadLabel}</strong>
+            </div>
+            <footer className={styles.realtimeStripFooter}>
+              <span>
+                {realtimeMarket.isLive
+                  ? `Обновлено ${realtimeMarket.updatedAtLabel}`
+                  : `Для ${selectedSetup.symbol} нет активной realtime-подписки`}
+              </span>
+              {realtime.error && (
+                <button type="button" onClick={realtime.reconnect}>Переподключить</button>
+              )}
+            </footer>
+          </section>
 
           <ScannerChart setup={selectedSetup} />
 
@@ -418,6 +475,35 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
               <strong className={selectedSetup.btcStrength >= 0 ? styles.positiveValue : styles.negativeValue}>{selectedSetup.btcStrengthLabel}</strong>
             </div>
           </div>
+
+          <section className={styles.tradesPanel} aria-label={`Последние сделки ${selectedSetup.symbol}`}>
+            <div className={styles.tradesHeader}>
+              <div>
+                <p className={styles.panelEyebrow}>Realtime tape</p>
+                <h3>Последние сделки</h3>
+              </div>
+              <span>{realtimeMarket.recentTrades.length > 0 ? `${realtimeMarket.recentTrades.length} последних` : 'нет данных'}</span>
+            </div>
+
+            {realtimeMarket.recentTrades.length > 0 ? (
+              <div className={styles.tradesList}>
+                {realtimeMarket.recentTrades.map((trade) => (
+                  <div className={styles.tradeRow} key={trade.id}>
+                    <time dateTime={trade.timestamp}>{formatScannerTradeTime(trade.timestamp)}</time>
+                    <span className={trade.side === 'buy' ? styles.tradeBuy : styles.tradeSell}>
+                      {trade.side === 'buy' ? 'BUY' : 'SELL'}
+                    </span>
+                    <strong>{formatScannerPrice(trade.price)}</strong>
+                    <span>{formatScannerQuantity(trade.quantity)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className={styles.tradesEmpty}>
+                Запусти backend и выбери BTCUSDT, ETHUSDT или SOLUSDT, чтобы увидеть поток сделок.
+              </p>
+            )}
+          </section>
 
           <section className={styles.reasonBlock}>
             <p className={styles.panelEyebrow}>Почему в Scanner</p>
