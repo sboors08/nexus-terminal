@@ -6,6 +6,7 @@ import { createCandles, marketSymbols } from '../src/modules/api-contract/fixtur
 import type { MarketDataProvider } from '../src/modules/market-data/market-data.provider.js';
 import { BinanceWebSocketMarketDataService } from '../src/modules/realtime-market-data/binance-websocket.service.js';
 import type {
+  RealtimeMarketDataEvent,
   RealtimeMarketDataService,
   RealtimeSocketEvent,
   RealtimeSymbolSnapshot,
@@ -76,6 +77,9 @@ test('Binance WebSocket service stores trade and bookTicker snapshots and reconn
     now: () => new Date('2026-07-18T16:00:00.000Z'),
   });
 
+  const deliveredEvents: RealtimeMarketDataEvent[] = [];
+  const unsubscribe = service.subscribe((event) => deliveredEvents.push(event), 'BTCUSDT');
+
   service.start();
   assert.equal(service.getStatus().state, 'connecting');
   assert.match(urls[0] ?? '', /btcusdt@trade\/btcusdt@bookTicker\/ethusdt@trade\/ethusdt@bookTicker/);
@@ -104,6 +108,10 @@ test('Binance WebSocket service stores trade and bookTicker snapshots and reconn
   assert.equal(snapshot?.bookTicker?.spread, 1);
   assert.equal(snapshot?.recentTrades.length, 1);
   assert.equal(service.getStatus().lastMessageAt, '2026-07-18T16:00:00.000Z');
+  assert.equal(
+    deliveredEvents.filter((event) => event.type === 'snapshot').length,
+    2,
+  );
 
   socket.emit('close', { code: 1006, reason: 'network lost' });
   assert.equal(service.getStatus().state, 'reconnecting');
@@ -111,6 +119,7 @@ test('Binance WebSocket service stores trade and bookTicker snapshots and reconn
   scheduled?.callback();
   assert.equal(sockets.length, 2);
 
+  unsubscribe();
   service.stop();
   assert.equal(service.getStatus().state, 'stopped');
   assert.equal(sockets[1]?.closeCalls[0]?.code, 1000);
@@ -140,6 +149,7 @@ test('Realtime market endpoints expose connection state and snapshots', async ()
       lastError: null,
     }),
     getSnapshots: (symbol) => symbol && symbol !== 'BTCUSDT' ? [] : snapshots,
+    subscribe: () => () => undefined,
   };
 
   const app = await buildApp({

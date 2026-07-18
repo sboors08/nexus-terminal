@@ -46,11 +46,26 @@ export interface RealtimeSymbolSnapshot {
   updatedAt: string | null;
 }
 
+export type RealtimeMarketDataEvent =
+  | {
+    type: 'status';
+    status: RealtimeConnectionStatus;
+    emittedAt: string;
+  }
+  | {
+    type: 'snapshot';
+    snapshot: RealtimeSymbolSnapshot;
+    emittedAt: string;
+  };
+
+export type RealtimeMarketDataListener = (event: RealtimeMarketDataEvent) => void;
+
 export interface RealtimeMarketDataService {
   start(): void;
   stop(): void;
   getStatus(): RealtimeConnectionStatus;
   getSnapshots(symbol?: string): RealtimeSymbolSnapshot[];
+  subscribe(listener: RealtimeMarketDataListener, symbol?: string): () => void;
 }
 
 export interface RealtimeSocketEvent {
