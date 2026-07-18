@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "./src/shared/realtime",
+    "outDir": "./node_modules/.tmp/realtime-test",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.realtime-test.tsbuildinfo"
+  },
+  "include": [
+    "src/shared/realtime/realtimeClient.ts"
+  ]
+}
