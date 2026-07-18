@@ -11,15 +11,20 @@ const requiredFiles = [
   'src/config/env.ts',
   'src/modules/index.ts',
   'src/modules/health/health.routes.ts',
+  'src/modules/realtime-market-data/realtime-market-data.types.ts',
+  'src/modules/realtime-market-data/binance-websocket.service.ts',
+  'src/modules/realtime-market-data/realtime-market-data.routes.ts',
   'test/health.test.ts',
+  'test/binance-websocket.test.ts',
 ];
 
 await Promise.all(requiredFiles.map((path) => access(resolve(root, path))));
 
-const [packageSource, appSource, serverSource] = await Promise.all([
+const [packageSource, appSource, serverSource, webSocketSource] = await Promise.all([
   readFile(resolve(root, 'package.json'), 'utf8'),
   readFile(resolve(root, 'src/app.ts'), 'utf8'),
   readFile(resolve(root, 'src/server.ts'), 'utf8'),
+  readFile(resolve(root, 'src/modules/realtime-market-data/binance-websocket.service.ts'), 'utf8'),
 ]);
 
 const packageJson = JSON.parse(packageSource);
@@ -37,11 +42,19 @@ if (!appSource.includes("prefix: env.apiPrefix")) {
   errors.push('API modules are not mounted under the configured prefix');
 }
 
+if (!appSource.includes("app.addHook('onClose'")) {
+  errors.push('Realtime market data is not attached to graceful shutdown');
+}
+
 if (!serverSource.includes("process.once('SIGTERM'")) {
   errors.push('Graceful shutdown handler is missing');
 }
 
-const sourceText = `${appSource}\n${serverSource}`;
+for (const stream of ['@trade', '@bookTicker']) {
+  if (!webSocketSource.includes(stream)) errors.push(`Missing Binance WebSocket stream: ${stream}`);
+}
+
+const sourceText = `${appSource}\n${serverSource}\n${webSocketSource}`;
 if (sourceText.includes('../frontend') || sourceText.includes('../../frontend')) {
   errors.push('Backend must not import frontend implementation files');
 }
@@ -51,4 +64,4 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log('NEXUS backend foundation verified: isolated API, config, health route and shutdown flow are present.');
+console.log('NEXUS backend verified: foundation, REST market data and Binance WebSocket Foundation v0.1 are present.');
