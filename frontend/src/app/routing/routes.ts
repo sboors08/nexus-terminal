@@ -2,6 +2,7 @@ export const APP_ROOT = '/app' as const;
 
 export const APP_ROUTE_SEGMENTS = {
   scanner: 'scanner',
+  market: 'market',
   workspace: 'workspace',
   alerts: 'alerts',
   marketHistory: 'market-history',
@@ -12,6 +13,7 @@ export const APP_ROUTE_SEGMENTS = {
 export const ROUTES = {
   dashboard: APP_ROOT,
   scanner: `${APP_ROOT}/${APP_ROUTE_SEGMENTS.scanner}`,
+  market: `${APP_ROOT}/${APP_ROUTE_SEGMENTS.market}`,
   workspace: `${APP_ROOT}/${APP_ROUTE_SEGMENTS.workspace}`,
   alerts: `${APP_ROOT}/${APP_ROUTE_SEGMENTS.alerts}`,
   marketHistory: `${APP_ROOT}/${APP_ROUTE_SEGMENTS.marketHistory}`,
@@ -23,6 +25,7 @@ export const LEGACY_ROUTES = {
   root: '/',
   dashboard: '/dashboard',
   scanner: '/scanner',
+  market: '/market',
   workspace: '/workspace',
   alerts: '/alerts',
   marketHistory: '/market-history',

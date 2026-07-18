@@ -10,6 +10,7 @@ export type NavigationItem = {
 export const PRIMARY_NAVIGATION: readonly NavigationItem[] = [
   { label: 'Dashboard', shortLabel: 'DB', path: ROUTES.dashboard, end: true },
   { label: 'Scanner', shortLabel: 'SC', path: ROUTES.scanner },
+  { label: 'Market', shortLabel: 'MK', path: ROUTES.market },
   { label: 'Workspace', shortLabel: 'WS', path: ROUTES.workspace },
   { label: 'Alerts', shortLabel: 'AL', path: ROUTES.alerts },
   { label: 'Market History', shortLabel: 'MH', path: ROUTES.marketHistory },

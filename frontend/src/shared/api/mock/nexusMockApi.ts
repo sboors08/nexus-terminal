@@ -282,17 +282,24 @@ const marketSymbols: MarketSymbol[] = MARKET_SEEDS.map(([symbol, price, change],
   updatedAt: FIXED_NOW,
 }));
 
-function createCandles(symbol: MarketSymbol, count = 48): Candle[] {
+function timeframeToMinutes(timeframe: string): number {
+  const value = timeframe.trim().toLowerCase();
+  if (value.endsWith('h')) return Math.max(1, Number.parseInt(value, 10) || 1) * 60;
+  return Math.max(1, Number.parseInt(value, 10) || 5);
+}
+
+function createCandles(symbol: MarketSymbol, count = 48, timeframe = '5m'): Candle[] {
   const start = new Date('2026-07-15T13:32:00Z').getTime();
+  const timeframeMinutes = timeframeToMinutes(timeframe);
   return Array.from({ length: count }, (_, index) => {
     const wave = Math.sin(index * 0.42) * symbol.price * 0.0025;
     const trend = symbol.price * 0.00025 * index;
     const open = symbol.price * 0.985 + trend + wave;
     const close = open + Math.sin(index * 0.91) * symbol.price * 0.0018;
-    const openTime = new Date(start + index * 5 * 60_000);
+    const openTime = new Date(start + index * timeframeMinutes * 60_000);
     return {
       openTime: openTime.toISOString(),
-      closeTime: new Date(openTime.getTime() + 5 * 60_000 - 1).toISOString(),
+      closeTime: new Date(openTime.getTime() + timeframeMinutes * 60_000 - 1).toISOString(),
       open,
       high: Math.max(open, close) + symbol.price * 0.0014,
       low: Math.min(open, close) - symbol.price * 0.0013,
@@ -463,6 +470,10 @@ function createCanonicalReplay(sessionId?: string): ReplaySession | null {
 
 const contractApi: NexusApi = {
   getMarketSymbols: () => deliver('market symbols', marketSymbols, []),
+  getMarketCandles: (symbol, timeframe) => {
+    const marketSymbol = marketSymbols.find((item) => item.symbol === symbol.toUpperCase()) ?? marketSymbols[0];
+    return deliver('market candles', marketSymbol ? createCandles(marketSymbol, 56, timeframe) : [], []);
+  },
   getSetups: () => deliver('setups', contractSetups, []),
   getSetupById: async (setupId) => {
     const setup = contractSetups.find((item) => item.id === setupId) ?? null;

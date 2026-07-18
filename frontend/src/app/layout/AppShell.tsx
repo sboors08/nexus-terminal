@@ -10,6 +10,7 @@ function getNavClassName({ isActive }: { isActive: boolean }) {
 const PAGE_VERSION_LABELS: Record<string, string> = {
   [ROUTES.dashboard]: 'Dashboard v0.6',
   [ROUTES.scanner]: 'Scanner v0.1',
+  [ROUTES.market]: 'Market v0.1',
   [ROUTES.workspace]: 'Workspace v0.1',
   [ROUTES.alerts]: 'Alerts v0.1',
   [ROUTES.marketHistory]: 'Market History v0.1',
@@ -20,6 +21,7 @@ const PAGE_VERSION_LABELS: Record<string, string> = {
 const DASHBOARD_LINKS = [
   { label: 'DASHBOARD', path: ROUTES.dashboard, end: true },
   { label: 'SCANNER', path: ROUTES.scanner, end: false },
+  { label: 'MARKET', path: ROUTES.market, end: false },
   { label: 'CHARTS', path: ROUTES.workspace, end: false },
   { label: 'AI ANALYSIS', path: ROUTES.alerts, end: false },
   { label: 'WATCHLIST', path: ROUTES.marketHistory, end: false },
@@ -29,6 +31,7 @@ const DASHBOARD_LINKS = [
 const RAIL_LINKS = [
   { label: 'Dashboard', path: ROUTES.dashboard, icon: 'pulse', end: true },
   { label: 'Scanner', path: ROUTES.scanner, icon: 'search', end: false },
+  { label: 'Market', path: ROUTES.market, icon: 'market', end: false },
   { label: 'Watchlist', path: ROUTES.marketHistory, icon: 'star', end: false },
   { label: 'Charts', path: ROUTES.workspace, icon: 'chart', end: false },
   { label: 'Alerts', path: ROUTES.alerts, icon: 'note', end: false },
@@ -41,6 +44,7 @@ type RailIconName = (typeof RAIL_LINKS)[number]['icon'];
 function RailIcon({ name }: { name: RailIconName }) {
   if (name === 'pulse') return <svg viewBox="0 0 24 24"><path d="M3 12h4l2.3-6 4.2 12 2.2-6H21" /></svg>;
   if (name === 'search') return <svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="5.5" /><path d="m14.5 14.5 5 5" /></svg>;
+  if (name === 'market') return <svg viewBox="0 0 24 24"><path d="M4 17 8.5 12.5l3 2.7L19.5 7" /><path d="M15 7h4.5v4.5" /></svg>;
   if (name === 'star') return <svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z" /></svg>;
   if (name === 'chart') return <svg viewBox="0 0 24 24"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3" /></svg>;
   if (name === 'note') return <svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>;

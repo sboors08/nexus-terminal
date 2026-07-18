@@ -226,6 +226,7 @@ export interface ApiMutationResult {
 
 export interface NexusApi {
   getMarketSymbols(): Promise<MarketSymbol[]>;
+  getMarketCandles(symbol: string, timeframe: string): Promise<Candle[]>;
   getSetups(): Promise<Setup[]>;
   getSetupById(setupId: string): Promise<Setup | null>;
   getWorkspaceSnapshot(setupId?: string): Promise<WorkspaceSnapshot | null>;

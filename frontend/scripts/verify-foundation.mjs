@@ -19,6 +19,7 @@ const requiredTokens = [
 const requiredRoutes = [
   "export const APP_ROOT = '/app'",
   "scanner: `${APP_ROOT}/${APP_ROUTE_SEGMENTS.scanner}`",
+  "market: `${APP_ROOT}/${APP_ROUTE_SEGMENTS.market}`",
   "workspace: `${APP_ROOT}/${APP_ROUTE_SEGMENTS.workspace}`",
   "alerts: `${APP_ROOT}/${APP_ROUTE_SEGMENTS.alerts}`",
   "marketHistory: `${APP_ROOT}/${APP_ROUTE_SEGMENTS.marketHistory}`",
@@ -38,6 +39,7 @@ const requiredLocales = [
 
 const requiredApiMethods = [
   'getMarketSymbols()',
+  'getMarketCandles(symbol: string, timeframe: string)',
   'getSetups()',
   'getSetupById(setupId: string)',
   'getWorkspaceSnapshot(setupId?: string)',
@@ -51,6 +53,7 @@ const requiredApiMethods = [
 const dataPages = [
   'DashboardPage.tsx',
   'ScannerPage.tsx',
+  'MarketPage.tsx',
   'WorkspacePage.tsx',
   'AlertsPage.tsx',
   'MarketHistoryPage.tsx',
