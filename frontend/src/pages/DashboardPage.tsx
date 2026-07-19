@@ -16,7 +16,9 @@ import { ROUTES } from '@/app/routing/routes';
 import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   buildDashboardRealtimeView,
+  buildDashboardScannerMetricView,
   normalizeDashboardRealtimeSymbol,
+  useDashboardScannerMetrics,
   useRealtimeMarketData,
   type DashboardRealtimeCoinView,
 } from '@/shared/realtime';
@@ -252,22 +254,76 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
     ],
   );
 
+  const scannerSymbols = useMemo(
+    () =>
+      scannerRows.map((row) =>
+        normalizeDashboardRealtimeSymbol(
+          String(row[0]),
+        ),
+      ),
+    [scannerRows],
+  );
+
   const realtimeSymbols = useMemo(
     () => [
-      ...new Set(
-        realtimeSources.map((source) =>
+      ...new Set([
+        ...realtimeSources.map((source) =>
           normalizeDashboardRealtimeSymbol(
             source.symbol,
           ),
         ),
-      ),
+        ...scannerSymbols,
+      ]),
     ],
-    [realtimeSources],
+    [realtimeSources, scannerSymbols],
   );
 
   const realtime = useRealtimeMarketData({
     symbols: realtimeSymbols,
   });
+
+  const scannerMetrics =
+    useDashboardScannerMetrics({
+      symbols: scannerSymbols,
+    });
+
+  const dashboardScannerRows = useMemo(
+    () =>
+      scannerRows.map((row) => {
+        const symbol =
+          normalizeDashboardRealtimeSymbol(
+            String(row[0]),
+          );
+
+        return {
+          row,
+          view:
+            buildDashboardScannerMetricView(
+              {
+                symbol,
+                priceChangeLabel:
+                  String(row[2]),
+                quoteVolumeLabel:
+                  String(row[3]),
+                tradesCountLabel:
+                  String(row[4]),
+                speedLabel:
+                  String(row[5]),
+              },
+              scannerMetrics.metrics[symbol],
+            ),
+        };
+      }),
+    [
+      scannerMetrics.metrics,
+      scannerRows,
+    ],
+  );
+
+  const scannerLiveCount =
+    dashboardScannerRows.filter(
+      ({ view }) => view.isLive,
+    ).length;
 
   const dashboardRealtime = useMemo(
     () =>
@@ -416,14 +472,143 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
       </article>
 
       <article className={`${styles.panel} ${styles.scanner}`}>
-        <header className={styles.sectionHeader}><div><h2>📊 &nbsp; MARKET SCANNER</h2><small>Найдено: 214 монет</small></div><div className={styles.search}>⌕ Поиск монеты...　⋮</div></header>
+
+        <header className={styles.sectionHeader}>
+          <div>
+            <h2>📊 &nbsp; MARKET SCANNER</h2>
+            <small>
+              Показано: {dashboardScannerRows.length}
+              {' · '}
+              1M LIVE: {scannerLiveCount}/
+              {dashboardScannerRows.length}
+            </small>
+          </div>
+
+          <div className={styles.search}>
+            ⌕ Поиск монеты...　⋮
+          </div>
+        </header>
         <div className={styles.scannerTable}>
-          <div className={styles.scannerHead}><span>#</span><span>МОНЕТА</span><span>АКТИВНОСТЬ</span><span>ЦЕНА 1М</span><span>ОБЪЁМ 1М</span><span>СДЕЛКИ 1М</span><span>СКОРОСТЬ</span><span>СВЯЗЬ С BTC</span><span>СИЛА ПРОТИВ BTC</span><span>ВОЛАТ.</span><span>ЛИКВИДНОСТЬ</span></div>
-          {scannerRows.map((row, index) => (
-            <div key={row[0]} className={styles.scannerRow}>
-              <span>{index + 1}</span><strong><i className={styles.coinDot} />{row[0]}</strong><em className={styles.activityScore}>{row[1]}</em><em className={styles.positive}>{row[2]}</em><span>{row[3]}</span><span>{row[4]}</span><span>{row[5]}</span><span>{row[6]}</span><em className={String(row[7]).startsWith('-') ? styles.negative : styles.positive}>{row[7]}</em><span>{row[8]}</span><span className={styles.liquidity}>{Array.from({ length: 9 }, (_, bar) => <i key={bar} className={bar < Number(row[9]) ? styles.liquidityOn : ''} />)}</span>
-            </div>
-          ))}
+          <div className={styles.scannerHead}>
+            <span>#</span>
+            <span>МОНЕТА</span>
+            <span>АКТИВНОСТЬ</span>
+            <span>ЦЕНА / 1М</span>
+            <span>ОБЪЁМ 1М</span>
+            <span>СДЕЛКИ 1М</span>
+            <span>СКОРОСТЬ</span>
+            <span>СВЯЗЬ С BTC</span>
+            <span>СИЛА ПРОТИВ BTC</span>
+            <span>ВОЛАТ.</span>
+            <span>ЛИКВИДНОСТЬ</span>
+          </div>
+
+          {dashboardScannerRows.map(
+            ({ row, view }, index) => (
+              <div
+                key={String(row[0])}
+                className={styles.scannerRow}
+                title={
+                  `${view.sourceLabel} · `
+                  + view.updatedAtLabel
+                }
+              >
+                <span>{index + 1}</span>
+
+                <strong
+                  className={styles.scannerSymbol}
+                >
+                  <i className={styles.coinDot} />
+
+                  <span>{row[0]}</span>
+
+                  <small
+                    className={
+                      view.isLive
+                        ? styles.sourceLive
+                        : styles.sourceTest
+                    }
+                  >
+                    {view.isLive
+                      ? '1M LIVE'
+                      : 'TEST'}
+                  </small>
+                </strong>
+
+                <em
+                  className={styles.activityScore}
+                >
+                  {row[1]}
+                </em>
+
+                <span
+                  className={styles.scannerPrice}
+                >
+                  <strong>
+                    {view.priceLabel}
+                  </strong>
+
+                  <em
+                    className={
+                      view.priceChangeLabel
+                        .startsWith('-')
+                        ? styles.negative
+                        : view.priceChangeLabel
+                            === 'нет данных'
+                          ? styles.neutral
+                          : styles.positive
+                    }
+                  >
+                    {view.priceChangeLabel}
+                  </em>
+                </span>
+
+                <span>
+                  {view.quoteVolumeLabel}
+                </span>
+
+                <span>
+                  {view.tradesCountLabel}
+                </span>
+
+                <span>
+                  {view.speedLabel}
+                </span>
+
+                <span>{row[6]}</span>
+
+                <em
+                  className={
+                    String(row[7]).startsWith('-')
+                      ? styles.negative
+                      : styles.positive
+                  }
+                >
+                  {row[7]}
+                </em>
+
+                <span>{row[8]}</span>
+
+                <span
+                  className={styles.liquidity}
+                >
+                  {Array.from(
+                    { length: 9 },
+                    (_, bar) => (
+                      <i
+                        key={bar}
+                        className={
+                          bar < Number(row[9])
+                            ? styles.liquidityOn
+                            : ''
+                        }
+                      />
+                    ),
+                  )}
+                </span>
+              </div>
+            ),
+          )}
         </div>
       </article>
 
