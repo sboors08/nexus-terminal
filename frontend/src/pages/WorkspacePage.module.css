@@ -1288,3 +1288,43 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+.liveIndicator_pending {
+  color: var(--nexus-color-text-muted);
+}
+
+.liveIndicator_pending i {
+  background: var(--nexus-color-info);
+  box-shadow: 0 0 0 4px var(--nexus-color-info-soft);
+}
+
+.liveIndicator_error {
+  color: var(--nexus-color-short);
+}
+
+.liveIndicator_error i {
+  background: var(--nexus-color-short);
+  box-shadow: 0 0 0 4px var(--nexus-color-short-soft);
+}
+
+.priceSourceLive,
+.priceSourceTest {
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  font-weight: var(--nexus-font-weight-semibold);
+}
+
+.priceSourceLive {
+  color: var(--nexus-color-long);
+}
+
+.priceSourceTest {
+  color: var(--nexus-color-text-muted);
+}
+
+.rangeWarning {
+  color: var(--nexus-color-short);
+  font-family: var(--nexus-font-family-mono);
+  font-weight: var(--nexus-font-weight-semibold);
+}

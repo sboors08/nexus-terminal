@@ -4,3 +4,4 @@ export * from './scannerRealtime';
 export * from './watchlistRealtime';
 export * from './marketRealtime';
 export * from './alertsRealtime';
+export * from './workspaceRealtime';
