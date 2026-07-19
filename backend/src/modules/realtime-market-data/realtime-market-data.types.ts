@@ -1,3 +1,5 @@
+import type { MarketScannerMetrics } from './market-scanner-metrics.js';
+
 export type RealtimeConnectionState =
   | 'idle'
   | 'connecting'
@@ -65,6 +67,7 @@ export interface RealtimeMarketDataService {
   stop(): void;
   getStatus(): RealtimeConnectionStatus;
   getSnapshots(symbol?: string): RealtimeSymbolSnapshot[];
+  getScannerMetrics?(symbol?: string): MarketScannerMetrics[];
   acquireSymbol(symbol: string): () => void;
   acquireSymbols?(symbols: readonly string[]): () => void;
   subscribe(listener: RealtimeMarketDataListener, symbol?: string): () => void;
