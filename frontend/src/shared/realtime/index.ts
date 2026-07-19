@@ -6,3 +6,5 @@ export * from './marketRealtime';
 export * from './alertsRealtime';
 export * from './workspaceRealtime';
 export * from './dashboardRealtime';
+export * from './dashboardScannerMetrics';
+export * from './useDashboardScannerMetrics';

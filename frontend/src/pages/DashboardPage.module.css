@@ -1205,3 +1205,42 @@
 .neutral {
   color: #91a39c !important;
 }
+
+
+.scannerRow {
+  min-height: 31px;
+}
+
+.scannerSymbol {
+  min-width: 0;
+}
+
+.scannerSymbol > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scannerSymbol small {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.scannerPrice {
+  display: grid;
+  gap: 1px;
+  align-content: center;
+}
+
+.scannerPrice strong {
+  color: #e0e8e5;
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.scannerPrice em {
+  font-family: var(--nexus-font-family-mono);
+  font-size: 7px;
+  font-style: normal;
+}
