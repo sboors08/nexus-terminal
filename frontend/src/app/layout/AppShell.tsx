@@ -9,6 +9,7 @@ const PAGE_VERSION_LABELS: Record<string, string> = {
   [ROUTES.market]: 'Market v0.1',
   [ROUTES.workspace]: 'Workspace v0.2',
   [ROUTES.alerts]: 'Alerts v0.1',
+  [ROUTES.watchlist]: 'Watchlist v0.1',
   [ROUTES.marketHistory]: 'Market History v0.1',
   [ROUTES.replay]: 'Replay v0.2',
   [ROUTES.settings]: 'Settings v0.1',
@@ -20,7 +21,7 @@ const TOP_NAVIGATION = [
   { label: 'MARKET', path: ROUTES.market, end: false },
   { label: 'CHARTS', path: ROUTES.workspace, end: false },
   { label: 'AI ANALYSIS', path: ROUTES.alerts, end: false },
-  { label: 'WATCHLIST', path: ROUTES.marketHistory, end: false },
+  { label: 'WATCHLIST', path: ROUTES.watchlist, end: false },
   { label: 'SETTINGS', path: ROUTES.settings, end: false },
 ] as const;
 
@@ -28,7 +29,7 @@ const RAIL_LINKS = [
   { label: 'Dashboard', path: ROUTES.dashboard, icon: 'pulse', end: true },
   { label: 'Scanner', path: ROUTES.scanner, icon: 'search', end: false },
   { label: 'Market', path: ROUTES.market, icon: 'market', end: false },
-  { label: 'Watchlist', path: ROUTES.marketHistory, icon: 'star', end: false },
+  { label: 'Watchlist', path: ROUTES.watchlist, icon: 'star', end: false },
   { label: 'Charts', path: ROUTES.workspace, icon: 'chart', end: false },
   { label: 'Alerts', path: ROUTES.alerts, icon: 'note', end: false },
   { label: 'Replay', path: ROUTES.replay, icon: 'robot', end: false },
@@ -44,7 +45,7 @@ const MOBILE_PRIMARY_LINKS = [
 
 const MOBILE_MORE_LINKS = [
   { label: 'Market', description: 'Обзор рынка', path: ROUTES.market, icon: 'market' },
-  { label: 'Watchlist', description: 'История сетапов', path: ROUTES.marketHistory, icon: 'star' },
+  { label: 'Watchlist', description: 'Избранные инструменты', path: ROUTES.watchlist, icon: 'star' },
   { label: 'Replay', description: 'Воспроизведение рынка', path: ROUTES.replay, icon: 'robot' },
   { label: 'Settings', description: 'Настройки терминала', path: ROUTES.settings, icon: 'settings' },
 ] as const;
