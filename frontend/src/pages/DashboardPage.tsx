@@ -311,6 +311,8 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                   String(row[5]),
                 volatilityLabel:
                   String(row[8]),
+                liquidityScore:
+                  Number(row[9]),
               },
               scannerMetrics.metrics[symbol],
             ),
@@ -593,6 +595,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
 
                 <span
                   className={styles.liquidity}
+                  title={view.liquidityTitle}
                 >
                   {Array.from(
                     { length: 9 },
@@ -600,7 +603,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                       <i
                         key={bar}
                         className={
-                          bar < Number(row[9])
+                          bar < view.liquidityScore
                             ? styles.liquidityOn
                             : ''
                         }

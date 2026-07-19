@@ -1,4 +1,5 @@
 ﻿import type {
+  RealtimeBookTicker,
   RealtimeTrade,
 } from './realtime-market-data.types.js';
 
@@ -8,6 +9,10 @@ export interface MarketScannerMetrics {
   price: number | null;
   priceChangePct: number | null;
   volatilityPct: number | null;
+  spreadPct: number | null;
+  topBookQuoteValue: number | null;
+  orderBookImbalancePct: number | null;
+  liquidityScore: number | null;
   quoteVolume: number;
   tradesCount: number;
   tradesPerMinute: number;
@@ -60,6 +65,42 @@ function resolveTimestampMs(
   return timestampMs;
 }
 
+function clamp01(value: number): number {
+  return Math.min(
+    1,
+    Math.max(0, value),
+  );
+}
+
+function calculateLiquidityScore(
+  spreadPct: number,
+  topBookQuoteValue: number,
+): number {
+  const spreadQuality = clamp01(
+    1 - spreadPct / 0.1,
+  );
+
+  const depthQuality = clamp01(
+    Math.log10(
+      topBookQuoteValue + 1,
+    ) / 6,
+  );
+
+  const combinedQuality =
+    spreadQuality * 0.65
+    + depthQuality * 0.35;
+
+  return Math.min(
+    9,
+    Math.max(
+      1,
+      Math.round(
+        combinedQuality * 8,
+      ) + 1,
+    ),
+  );
+}
+
 function validateTrade(
   trade: RealtimeTrade,
 ): number {
@@ -92,6 +133,9 @@ export class MarketScannerMetricsWindow {
   private readonly windowMs: number;
   private readonly trades: StoredTrade[] = [];
   private readonly tradeIds = new Set<string>();
+  private bookTicker:
+    | RealtimeBookTicker
+    | null = null;
   private latestTimestampMs = 0;
 
   constructor(
@@ -110,6 +154,49 @@ export class MarketScannerMetricsWindow {
         'Market scanner window must be greater than zero',
       );
     }
+  }
+
+  updateBookTicker(
+    bookTicker: RealtimeBookTicker,
+  ): void {
+    const tickerSymbol = normalizeSymbol(
+      bookTicker.symbol,
+    );
+
+    if (tickerSymbol !== this.symbol) {
+      throw new Error(
+        `Book ticker belongs to ${tickerSymbol}, expected ${this.symbol}`,
+      );
+    }
+
+    const updatedAtMs = Date.parse(
+      bookTicker.updatedAt,
+    );
+
+    if (
+      !Number.isFinite(updatedAtMs)
+      || !Number.isFinite(bookTicker.bidPrice)
+      || bookTicker.bidPrice <= 0
+      || !Number.isFinite(bookTicker.askPrice)
+      || bookTicker.askPrice <= 0
+      || !Number.isFinite(bookTicker.bidQuantity)
+      || bookTicker.bidQuantity < 0
+      || !Number.isFinite(bookTicker.askQuantity)
+      || bookTicker.askQuantity < 0
+      || !Number.isFinite(bookTicker.spread)
+      || bookTicker.spread < 0
+      || !Number.isFinite(bookTicker.spreadPct)
+      || bookTicker.spreadPct < 0
+    ) {
+      throw new Error(
+        `Invalid realtime book ticker: ${tickerSymbol}`,
+      );
+    }
+
+    this.bookTicker = {
+      ...bookTicker,
+      symbol: tickerSymbol,
+    };
   }
 
   addTrade(trade: RealtimeTrade): boolean {
@@ -222,12 +309,64 @@ export class MarketScannerMetricsWindow {
           ) * 100
         : null;
 
+    const bidQuoteValue =
+      this.bookTicker
+        ? (
+            this.bookTicker.bidPrice
+            * this.bookTicker.bidQuantity
+          )
+        : null;
+
+    const askQuoteValue =
+      this.bookTicker
+        ? (
+            this.bookTicker.askPrice
+            * this.bookTicker.askQuantity
+          )
+        : null;
+
+    const topBookQuoteValue =
+      bidQuoteValue !== null
+      && askQuoteValue !== null
+        ? bidQuoteValue + askQuoteValue
+        : null;
+
+    const orderBookImbalancePct =
+      bidQuoteValue !== null
+      && askQuoteValue !== null
+      && topBookQuoteValue !== null
+      && topBookQuoteValue > 0
+        ? (
+            (
+              bidQuoteValue
+              - askQuoteValue
+            )
+            / topBookQuoteValue
+          ) * 100
+        : null;
+
+    const liquidityScore =
+      this.bookTicker
+      && topBookQuoteValue !== null
+      && topBookQuoteValue > 0
+        ? calculateLiquidityScore(
+            this.bookTicker.spreadPct,
+            topBookQuoteValue,
+          )
+        : null;
+
     return {
       symbol: this.symbol,
       windowMs: this.windowMs,
       price: last?.trade.price ?? null,
       priceChangePct,
       volatilityPct,
+      spreadPct:
+        this.bookTicker?.spreadPct
+        ?? null,
+      topBookQuoteValue,
+      orderBookImbalancePct,
+      liquidityScore,
       quoteVolume,
       tradesCount: this.trades.length,
       tradesPerMinute:
@@ -247,6 +386,7 @@ export class MarketScannerMetricsWindow {
   clear(): void {
     this.trades.length = 0;
     this.tradeIds.clear();
+    this.bookTicker = null;
     this.latestTimestampMs = 0;
   }
 

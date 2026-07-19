@@ -12,6 +12,10 @@ export interface MarketScannerMetrics {
   price: number | null;
   priceChangePct: number | null;
   volatilityPct: number | null;
+  spreadPct: number | null;
+  topBookQuoteValue: number | null;
+  orderBookImbalancePct: number | null;
+  liquidityScore: number | null;
   quoteVolume: number;
   tradesCount: number;
   tradesPerMinute: number;
@@ -30,6 +34,7 @@ export interface DashboardScannerMetricFallback {
   tradesCountLabel: string;
   speedLabel: string;
   volatilityLabel: string;
+  liquidityScore: number;
 }
 
 export interface DashboardScannerMetricView {
@@ -44,6 +49,12 @@ export interface DashboardScannerMetricView {
   speedLabel: string;
   volatilityPct: number | null;
   volatilityLabel: string;
+  spreadPct: number | null;
+  topBookQuoteValue: number | null;
+  orderBookImbalancePct: number | null;
+  liquidityIsLive: boolean;
+  liquidityScore: number;
+  liquidityTitle: string;
   updatedAtLabel: string;
   sourceLabel: 'LIVE' | 'TEST';
 }
@@ -231,6 +242,25 @@ function parseMarketScannerMetric(
       value,
       'volatilityPct',
     ),
+    spreadPct: readNullableNumber(
+      value,
+      'spreadPct',
+    ),
+    topBookQuoteValue:
+      readNullableNumber(
+        value,
+        'topBookQuoteValue',
+      ),
+    orderBookImbalancePct:
+      readNullableNumber(
+        value,
+        'orderBookImbalancePct',
+      ),
+    liquidityScore:
+      readNullableNumber(
+        value,
+        'liquidityScore',
+      ),
     quoteVolume: readNumber(
       value,
       'quoteVolume',
@@ -355,6 +385,48 @@ function formatQuoteVolume(
   return `$${normalized.toFixed(2)}`;
 }
 
+function normalizeLiquidityScore(
+  value: number,
+): number {
+  return Math.min(
+    9,
+    Math.max(
+      1,
+      Math.round(value),
+    ),
+  );
+}
+
+function buildLiquidityTitle(
+  metric: MarketScannerMetrics,
+): string {
+  if (
+    metric.liquidityScore === null
+    || metric.spreadPct === null
+    || metric.topBookQuoteValue === null
+  ) {
+    return 'TEST · ожидание данных стакана';
+  }
+
+  const imbalanceLabel =
+    metric.orderBookImbalancePct === null
+      ? 'нет данных'
+      : formatSignedPercent(
+          metric.orderBookImbalancePct,
+        );
+
+  return (
+    'LIVE · спред '
+    + metric.spreadPct.toFixed(4)
+    + '% · верх стакана '
+    + formatQuoteVolume(
+        metric.topBookQuoteValue,
+      )
+    + ' · дисбаланс '
+    + imbalanceLabel
+  );
+}
+
 export function buildDashboardScannerMetricView(
   fallback: DashboardScannerMetricFallback,
   metric:
@@ -393,6 +465,16 @@ export function buildDashboardScannerMetricView(
       volatilityPct: null,
       volatilityLabel:
         fallback.volatilityLabel,
+      spreadPct: null,
+      topBookQuoteValue: null,
+      orderBookImbalancePct: null,
+      liquidityIsLive: false,
+      liquidityScore:
+        normalizeLiquidityScore(
+          fallback.liquidityScore,
+        ),
+      liquidityTitle:
+        'TEST · тестовая ликвидность',
       updatedAtLabel:
         '\u043e\u0436\u0438\u0434\u0430\u043d\u0438\u0435 \u0434\u0430\u043d\u043d\u044b\u0445',
       sourceLabel: 'TEST',
@@ -432,6 +514,25 @@ export function buildDashboardScannerMetricView(
       matchingMetric.volatilityPct === null
         ? '\u043d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445'
         : `${matchingMetric.volatilityPct.toFixed(2)}%`,
+    spreadPct:
+      matchingMetric.spreadPct,
+    topBookQuoteValue:
+      matchingMetric.topBookQuoteValue,
+    orderBookImbalancePct:
+      matchingMetric.orderBookImbalancePct,
+    liquidityIsLive:
+      matchingMetric.liquidityScore !== null
+      && matchingMetric.spreadPct !== null
+      && matchingMetric.topBookQuoteValue !== null,
+    liquidityScore:
+      normalizeLiquidityScore(
+        matchingMetric.liquidityScore
+        ?? fallback.liquidityScore,
+      ),
+    liquidityTitle:
+      buildLiquidityTitle(
+        matchingMetric,
+      ),
     updatedAtLabel:
       formatScannerTradeTime(
         matchingMetric.updatedAt,
