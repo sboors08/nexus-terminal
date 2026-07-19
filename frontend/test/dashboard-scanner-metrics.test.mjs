@@ -13,6 +13,11 @@ const metric = {
   price: 75.95,
   priceChangePct: 0.02634,
   volatilityPct: 0.42345,
+  spreadPct: 0.01999800019998,
+  topBookQuoteValue: 18_001.6,
+  orderBookImbalancePct:
+    11.101235445938322,
+  liquidityScore: 7,
   quoteVolume: 25_997.86,
   tradesCount: 266,
   tradesPerMinute: 266,
@@ -33,6 +38,7 @@ const fallback = {
   tradesCountLabel: '8 420',
   speedLabel: '1 684/мин',
   volatilityLabel: '3.8%',
+  liquidityScore: 6,
 };
 
 test(
@@ -102,6 +108,14 @@ test(
       result[0]?.volatilityPct,
       0.42345,
     );
+    assert.equal(
+      result[0]?.liquidityScore,
+      7,
+    );
+    assert.equal(
+      result[0]?.topBookQuoteValue,
+      18_001.6,
+    );
   },
 );
 
@@ -135,6 +149,18 @@ test(
     assert.equal(
       view.volatilityLabel,
       '0.42%',
+    );
+    assert.equal(
+      view.liquidityIsLive,
+      true,
+    );
+    assert.equal(
+      view.liquidityScore,
+      7,
+    );
+    assert.equal(
+      view.liquidityTitle,
+      'LIVE · спред 0.0200% · верх стакана $18.00K · дисбаланс +11.10%',
     );
     assert.equal(
       view.sourceLabel,
@@ -173,6 +199,18 @@ test(
     assert.equal(
       view.volatilityLabel,
       '3.8%',
+    );
+    assert.equal(
+      view.liquidityIsLive,
+      false,
+    );
+    assert.equal(
+      view.liquidityScore,
+      6,
+    );
+    assert.equal(
+      view.liquidityTitle,
+      'TEST · тестовая ликвидность',
     );
     assert.equal(
       view.sourceLabel,

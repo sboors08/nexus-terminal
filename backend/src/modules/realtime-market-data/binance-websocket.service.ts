@@ -511,6 +511,10 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       updatedAt: updatedAtMs === null ? receivedAt : new Date(updatedAtMs).toISOString(),
     };
 
+    this.scannerMetrics
+      .get(symbol)
+      ?.updateBookTicker(bookTicker);
+
     snapshot.bookTicker = bookTicker;
     snapshot.updatedAt = receivedAt;
     this.emitSnapshot(snapshot);
