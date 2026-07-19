@@ -1150,3 +1150,58 @@
     display: none;
   }
 }
+
+.panelHeaderTools {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.realtimeStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #82958d;
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.realtimeStatus i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.realtimeStatus_live {
+  color: #35df8d;
+}
+
+.realtimeStatus_pending {
+  color: #7f918a;
+}
+
+.realtimeStatus_error {
+  color: #ff6b63;
+}
+
+.sourceLive,
+.sourceTest {
+  font-family: var(--nexus-font-family-mono);
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.sourceLive {
+  color: #35df8d;
+}
+
+.sourceTest {
+  color: #82958d;
+}
+
+.neutral {
+  color: #91a39c !important;
+}

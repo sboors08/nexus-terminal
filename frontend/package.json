@@ -19,10 +19,11 @@
     "verify:scanner-realtime": "node scripts/verify-scanner-realtime.mjs",
     "verify:watchlist-realtime": "node scripts/verify-watchlist-realtime.mjs",
     "verify:market-realtime": "node scripts/verify-market-realtime.mjs",
-    "test:realtime": "tsc -p tsconfig.realtime-test.json && node --test test/realtime-client.test.mjs test/scanner-realtime.test.mjs test/watchlist-realtime.test.mjs test/market-realtime.test.mjs test/alerts-realtime.test.mjs test/workspace-realtime.test.mjs",
-    "check": "npm run verify:foundation && npm run verify:realtime && npm run verify:scanner-realtime && npm run verify:watchlist-realtime && npm run verify:market-realtime && npm run verify:alerts-realtime && npm run verify:workspace-realtime && npm run typecheck && npm run test:realtime",
+    "test:realtime": "tsc -p tsconfig.realtime-test.json && node --test test/realtime-client.test.mjs test/scanner-realtime.test.mjs test/watchlist-realtime.test.mjs test/market-realtime.test.mjs test/alerts-realtime.test.mjs test/workspace-realtime.test.mjs test/dashboard-realtime.test.mjs",
+    "check": "npm run verify:foundation && npm run verify:realtime && npm run verify:scanner-realtime && npm run verify:watchlist-realtime && npm run verify:market-realtime && npm run verify:alerts-realtime && npm run verify:workspace-realtime && npm run verify:dashboard-realtime && npm run typecheck && npm run test:realtime",
     "verify:alerts-realtime": "node scripts/verify-alerts-realtime.mjs",
-    "verify:workspace-realtime": "node scripts/verify-workspace-realtime.mjs"
+    "verify:workspace-realtime": "node scripts/verify-workspace-realtime.mjs",
+    "verify:dashboard-realtime": "node scripts/verify-dashboard-realtime.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",

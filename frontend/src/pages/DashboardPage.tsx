@@ -14,10 +14,26 @@ import {
 } from '@/shared/api';
 import { ROUTES } from '@/app/routing/routes';
 import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
+import {
+  buildDashboardRealtimeView,
+  normalizeDashboardRealtimeSymbol,
+  useRealtimeMarketData,
+  type DashboardRealtimeCoinView,
+} from '@/shared/realtime';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import styles from './DashboardPage.module.css';
 
-function HotCard({ coin, selected, onSelect }: { coin: DashboardHotCoin; selected: boolean; onSelect: () => void }) {
+function HotCard({
+  coin,
+  realtime,
+  selected,
+  onSelect,
+}: {
+  coin: DashboardHotCoin;
+  realtime: DashboardRealtimeCoinView;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   return (
     <button
       type="button"
@@ -36,14 +52,42 @@ function HotCard({ coin, selected, onSelect }: { coin: DashboardHotCoin; selecte
         <path d={`${coin.spark} L130 36 L2 36 Z`} fill="currentColor" opacity=".05" />
       </svg>
       <div className={styles.cardStats}>
-        <span>Цена <strong className={styles.positive}>{coin.change}</strong></span>
+        <span>Цена <strong>{realtime.priceLabel}</strong></span>
+        <span title="Изменение рассчитано по доступным сделкам текущего realtime-потока.">
+          Δ потока
+          <strong
+            className={
+              realtime.changePct === null
+                ? styles.neutral
+                : realtime.changePct < 0
+                  ? styles.negative
+                  : styles.positive
+            }
+          >
+            {realtime.changeLabel}
+          </strong>
+        </span>
         <span>Объём <strong>{coin.volume}</strong></span>
         <span>Сделки <strong>{coin.trades}</strong></span>
         <span>Скорость <strong>{coin.speed}</strong></span>
         <span>Связь с BTC <strong>{coin.btcLink}</strong></span>
         <span className={styles.strengthRow}>Сила против BTC <strong className={coin.btcStrength.startsWith('-') ? styles.negative : styles.positive}>{coin.btcStrength}</strong></span>
       </div>
-      <small className={styles.cardNote}>{coin.note}</small>
+      <small className={styles.cardNote}>
+        <b
+          className={
+            realtime.isLive
+              ? styles.sourceLive
+              : styles.sourceTest
+          }
+        >
+          {realtime.sourceLabel}
+        </b>
+        {' ? '}
+        {realtime.updatedAtLabel}
+        {' ? '}
+        {coin.note}
+      </small>
     </button>
   );
 }
@@ -106,13 +150,6 @@ function resolveMarketMode(source: DashboardMarketModeData): ResolvedMarketMode 
         glow: 'rgb(255 91 84 / 24%)',
         image: bearMarket,
       };
-}
-
-function formatMarketNumber(value: number, fractionDigits = 2) {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  }).format(value);
 }
 
 function formatSignedPercent(value: number) {
@@ -187,11 +224,101 @@ function TradingChart({ candles }: { candles: DashboardCandle[] }) {
 function DashboardPageContent({ data }: { data: DashboardViewData }) {
   const navigate = useNavigate();
   const { marketMode: marketModeSource, hotCoins, scannerRows, insights, levels, stats, chartPeriods, activityPeriods, candles } = data;
-  const [selected, setSelected] = useState(hotCoins[0].symbol);
-  const [activityPeriod, setActivityPeriod] = useState<DashboardActivityPeriod>('1M');
-  const [chartPeriod, setChartPeriod] = useState<DashboardChartPeriod>('1M');
-  const selectedCoin = useMemo(() => hotCoins.find((coin) => coin.symbol === selected) ?? hotCoins[0], [hotCoins, selected]);
-  const marketMode = useMemo(() => resolveMarketMode(marketModeSource), [marketModeSource]);
+  const [selected, setSelected] = useState(
+    hotCoins[0].symbol,
+  );
+  const [activityPeriod, setActivityPeriod] =
+    useState<DashboardActivityPeriod>('1M');
+  const [chartPeriod, setChartPeriod] =
+    useState<DashboardChartPeriod>('1M');
+
+  const realtimeSources = useMemo(
+    () => [
+      {
+        symbol: 'BTCUSDT',
+        fallbackPrice: marketModeSource.btcPrice,
+        fallbackChange: marketModeSource.btcChangePct,
+      },
+      ...hotCoins.map((coin) => ({
+        symbol: coin.symbol,
+        fallbackPrice: coin.price,
+        fallbackChange: coin.change,
+      })),
+    ],
+    [
+      hotCoins,
+      marketModeSource.btcChangePct,
+      marketModeSource.btcPrice,
+    ],
+  );
+
+  const realtimeSymbols = useMemo(
+    () => [
+      ...new Set(
+        realtimeSources.map((source) =>
+          normalizeDashboardRealtimeSymbol(
+            source.symbol,
+          ),
+        ),
+      ),
+    ],
+    [realtimeSources],
+  );
+
+  const realtime = useRealtimeMarketData({
+    symbols: realtimeSymbols,
+  });
+
+  const dashboardRealtime = useMemo(
+    () =>
+      buildDashboardRealtimeView(
+        realtimeSources,
+        realtime.snapshots,
+        realtime.lifecycleState,
+        realtime.status?.state ?? null,
+      ),
+    [
+      realtime.lifecycleState,
+      realtime.snapshots,
+      realtime.status?.state,
+      realtimeSources,
+    ],
+  );
+
+  const btcRealtime =
+    dashboardRealtime.coins.BTCUSDT;
+
+  const resolvedMarketModeSource = useMemo(
+    () => ({
+      ...marketModeSource,
+      btcPrice:
+        btcRealtime.priceValue
+        ?? marketModeSource.btcPrice,
+      btcChangePct:
+        btcRealtime.changePct
+        ?? marketModeSource.btcChangePct,
+    }),
+    [
+      btcRealtime.changePct,
+      btcRealtime.priceValue,
+      marketModeSource,
+    ],
+  );
+
+  const selectedCoin = useMemo(
+    () =>
+      hotCoins.find(
+        (coin) => coin.symbol === selected,
+      ) ?? hotCoins[0],
+    [hotCoins, selected],
+  );
+
+  const marketMode = useMemo(
+    () => resolveMarketMode(
+      resolvedMarketModeSource,
+    ),
+    [resolvedMarketModeSource],
+  );
   const marketModeStyle = {
     '--market-tone': marketMode.accent,
     '--market-glow': marketMode.glow,
@@ -201,8 +328,31 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
     <section className={styles.dashboard}>
       <article className={`${styles.panel} ${styles.marketMode}`} style={marketModeStyle} data-market-mode={marketMode.mode}>
         <header className={styles.panelHeader}>
-          <h2>BTC MARKET MODE <small className={styles.autoBadge}>AUTO</small></h2>
-          <span className={styles.info} title="Режим определяется автоматически по изменению BTC и индексу Fear & Greed.">i</span>
+          <h2>
+            BTC MARKET MODE
+            <small className={styles.autoBadge}>
+              AUTO
+            </small>
+          </h2>
+
+          <div className={styles.panelHeaderTools}>
+            <span
+              className={`${styles.realtimeStatus} ${styles[`realtimeStatus_${dashboardRealtime.connectionTone}`]}`}
+            >
+              <i />
+              {dashboardRealtime.connectionLabel}
+              {' ? '}
+              {dashboardRealtime.liveCount}/
+              {dashboardRealtime.totalCount}
+            </span>
+
+            <span
+              className={styles.info}
+              title="Режим определяется автоматически по изменению BTC и индексу Fear & Greed."
+            >
+              i
+            </span>
+          </div>
         </header>
         <div className={styles.marketModeBody}>
           <div className={styles.marketMood}>
@@ -210,7 +360,24 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
             <div><strong>{marketMode.title}</strong><span>{marketMode.trend}</span><em>{marketMode.risk}</em></div>
           </div>
           <div className={styles.btcStats}>
-            <div><span>BTC PRICE</span><strong>${formatMarketNumber(marketMode.btcPrice, 0)}</strong><em className={marketMode.btcChangePct >= 0 ? styles.positive : styles.negative}>{formatSignedPercent(marketMode.btcChangePct)}</em></div>
+            <div>
+              <span>BTC PRICE</span>
+              <strong>
+                {'$'}{btcRealtime.priceLabel}
+              </strong>
+              <em
+                className={
+                  btcRealtime.changePct === null
+                    ? styles.neutral
+                    : btcRealtime.changePct < 0
+                      ? styles.negative
+                      : styles.positive
+                }
+                title="Изменение рассчитано по доступным сделкам текущего realtime-потока."
+              >
+                {btcRealtime.changeLabel}
+              </em>
+            </div>
             <div><span>BTC DOMINANCE</span><strong>{marketMode.btcDominancePct.toFixed(1)}%</strong><em className={marketMode.btcDominanceChangePct >= 0 ? styles.positive : styles.negative}>{formatSignedPercent(marketMode.btcDominanceChangePct)}</em></div>
             <div><span>MARKET VOLATILITY</span><strong>{marketMode.marketVolatilityPct}%</strong><small>{marketMode.marketVolatilityLabel}</small></div>
           </div>
@@ -228,6 +395,13 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
           <HotCard
             key={coin.setupId}
             coin={coin}
+            realtime={
+              dashboardRealtime.coins[
+                normalizeDashboardRealtimeSymbol(
+                  coin.symbol,
+                )
+              ]
+            }
             selected={coin.symbol === selected}
             onSelect={() => {
               setSelected(coin.symbol);
