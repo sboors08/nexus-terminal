@@ -309,6 +309,8 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                   String(row[4]),
                 speedLabel:
                   String(row[5]),
+                volatilityLabel:
+                  String(row[8]),
               },
               scannerMetrics.metrics[symbol],
             ),
@@ -587,7 +589,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                   {row[7]}
                 </em>
 
-                <span>{row[8]}</span>
+                <span>{view.volatilityLabel}</span>
 
                 <span
                   className={styles.liquidity}

@@ -41,6 +41,7 @@ test(
     assert.equal(metrics.symbol, 'SOLUSDT');
     assert.equal(metrics.price, null);
     assert.equal(metrics.priceChangePct, null);
+    assert.equal(metrics.volatilityPct, null);
     assert.equal(metrics.quoteVolume, 0);
     assert.equal(metrics.tradesCount, 0);
     assert.equal(metrics.tradesPerMinute, 0);
@@ -82,6 +83,7 @@ test(
 
     assert.equal(metrics.price, 105);
     assert.equal(metrics.priceChangePct, 5);
+    assert.equal(metrics.volatilityPct, 5);
     assert.equal(metrics.quoteVolume, 515);
     assert.equal(metrics.tradesCount, 2);
     assert.equal(metrics.tradesPerMinute, 2);
@@ -132,6 +134,7 @@ test(
     assert.equal(metrics.price, 100);
     assert.equal(metrics.quoteVolume, 100);
     assert.equal(metrics.priceChangePct, null);
+    assert.equal(metrics.volatilityPct, null);
   },
 );
 
