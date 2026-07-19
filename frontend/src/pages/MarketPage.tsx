@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
+import {
+  buildMarketRealtimeView,
+  useRealtimeMarketData,
+} from '@/shared/realtime';
 import { nexusApi, useApiQuery, type Candle, type MarketSymbol } from '@/shared/api';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import styles from './MarketPage.module.css';
@@ -206,6 +210,36 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
   }, [filteredSymbols, selectedSymbol]);
 
   const selected = symbols.find((symbol) => symbol.symbol === selectedSymbol) ?? symbols[0];
+
+  const realtime = useRealtimeMarketData({
+    symbol: selected.symbol,
+  });
+
+  const realtimeSnapshot = realtime.snapshots[selected.symbol];
+
+  const realtimeMarket = useMemo(
+    () =>
+      buildMarketRealtimeView(
+        realtimeSnapshot,
+        formatPrice(selected.price),
+        realtime.lifecycleState,
+        realtime.status?.state ?? null,
+      ),
+    [
+      realtimeSnapshot,
+      selected.price,
+      realtime.lifecycleState,
+      realtime.status?.state,
+    ],
+  );
+
+  const realtimeDotClass =
+    realtimeMarket.connectionTone === 'live'
+      ? styles.liveDotConnected
+      : realtimeMarket.connectionTone === 'error'
+        ? styles.liveDotError
+        : styles.liveDotPending;
+
   useFeedbackPageContext({
     screen: 'Market',
     symbol: selected.symbol,
@@ -240,7 +274,13 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
           <h1>Market</h1>
           <p className={styles.subtitle}>Просматривайте динамику монет, сравнивайте активность и открывайте выбранный инструмент в Workspace.</p>
         </div>
-        <div className={styles.headerStatus}><span className={styles.liveDot} aria-hidden="true" />Обновлено {getTimeLabel(selected.updatedAt)}</div>
+        <div className={styles.headerStatus}>
+          <span
+            className={`${styles.liveDot} ${realtimeDotClass}`}
+            aria-hidden="true"
+          />
+          {realtimeMarket.connectionLabel} · {selected.symbol}
+        </div>
       </header>
 
       <section className={styles.controlPanel} aria-label="Фильтры Market">
@@ -273,8 +313,71 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
         <section className={styles.chartPanel}>
           <header className={styles.panelHeader}>
             <div className={styles.symbolTitle}><span className={styles.symbolIcon}>{selected.baseAsset.slice(0, 1)}</span><div><span className={styles.panelKicker}>График рынка</span><h2>{selected.baseAsset}<small>/{selected.quoteAsset}</small></h2></div></div>
-            <div className={styles.priceBlock}><strong>{formatPrice(selected.price)}</strong><span className={selected.priceChangePct >= 0 ? styles.positive : styles.negative}>{formatSigned(selected.priceChangePct, '%')}</span></div>
+            <div className={styles.priceBlock}>
+              <strong>{realtimeMarket.priceLabel}</strong>
+
+              <span
+                className={
+                  selected.priceChangePct >= 0
+                    ? styles.positive
+                    : styles.negative
+                }
+              >
+                {formatSigned(selected.priceChangePct, '%')}
+              </span>
+
+              <small
+                className={
+                  realtimeMarket.isLive
+                    ? styles.priceSourceLive
+                    : styles.priceSourceTest
+                }
+              >
+                {realtimeMarket.isLive ? 'LIVE' : 'TEST'}
+              </small>
+            </div>
           </header>
+
+          <section
+            className={styles.realtimeStrip}
+            aria-label={`Realtime рынок ${selected.symbol}`}
+          >
+            <article>
+              <span>Bid</span>
+              <strong className={styles.positive}>
+                {realtimeMarket.bidLabel}
+              </strong>
+            </article>
+
+            <article>
+              <span>Ask</span>
+              <strong className={styles.negative}>
+                {realtimeMarket.askLabel}
+              </strong>
+            </article>
+
+            <article>
+              <span>Спред</span>
+              <strong>{realtimeMarket.spreadLabel}</strong>
+            </article>
+
+            <footer>
+              <span>
+                {realtimeMarket.isLive
+                  ? `Обновлено ${realtimeMarket.updatedAtLabel}`
+                  : `Ожидание realtime для ${selected.symbol}`}
+              </span>
+
+              {realtime.error && (
+                <button
+                  type="button"
+                  onClick={realtime.reconnect}
+                >
+                  Переподключить
+                </button>
+              )}
+            </footer>
+          </section>
 
           <div className={styles.chartCanvas}>
             {candlesQuery.status === 'loading' && <div className={styles.chartState}>Загружаем свечи…</div>}
