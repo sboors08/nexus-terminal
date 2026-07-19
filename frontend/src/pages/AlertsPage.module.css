@@ -916,3 +916,35 @@
     background: linear-gradient(180deg, transparent, var(--nexus-color-bg-surface) 25%);
   }
 }
+
+.liveStatus_live {
+  color: var(--nexus-color-text-muted);
+}
+
+.liveStatus_pending .liveDot {
+  background: var(--nexus-color-stage-approach);
+  box-shadow: none;
+}
+
+.liveStatus_error .liveDot {
+  background: var(--nexus-color-short);
+  box-shadow: none;
+}
+
+.priceLabel,
+.alertPriceReference,
+.priceUpdatedAt {
+  color: var(--nexus-color-text-muted) !important;
+  font-size: 9px !important;
+  font-weight: 500 !important;
+}
+
+.priceLabel {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.alertPriceReference,
+.priceUpdatedAt {
+  white-space: nowrap;
+}

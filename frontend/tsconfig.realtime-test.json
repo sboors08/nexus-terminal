@@ -10,6 +10,7 @@
     "src/shared/realtime/realtimeClient.ts",
     "src/shared/realtime/scannerRealtime.ts",
     "src/shared/realtime/watchlistRealtime.ts",
-    "src/shared/realtime/marketRealtime.ts"
+    "src/shared/realtime/marketRealtime.ts",
+    "src/shared/realtime/alertsRealtime.ts"
   ]
 }
