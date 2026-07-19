@@ -136,6 +136,10 @@ test('Binance WebSocket service stores trade and bookTicker snapshots and reconn
     scannerMetrics?.buyTradesCount,
     1,
   );
+  assert.equal(
+    scannerMetrics?.volatilityPct,
+    null,
+  );
 
   currentTime =
     new Date('2026-07-18T16:01:01.000Z');
@@ -205,6 +209,7 @@ test('Realtime market endpoints expose connection state and snapshots', async ()
               windowMs: 60_000,
               price: 64_000.5,
               priceChangePct: 0.25,
+              volatilityPct: 0.4,
               quoteVolume: 250_000,
               tradesCount: 42,
               tradesPerMinute: 42,

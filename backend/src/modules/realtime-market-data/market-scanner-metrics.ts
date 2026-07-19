@@ -7,6 +7,7 @@ export interface MarketScannerMetrics {
   windowMs: number;
   price: number | null;
   priceChangePct: number | null;
+  volatilityPct: number | null;
   quoteVolume: number;
   tradesCount: number;
   tradesPerMinute: number;
@@ -169,6 +170,8 @@ export class MarketScannerMetricsWindow {
     const last = this.trades.at(-1);
 
     let quoteVolume = 0;
+    let highPrice = Number.NEGATIVE_INFINITY;
+    let lowPrice = Number.POSITIVE_INFINITY;
     let buyTradesCount = 0;
     let sellTradesCount = 0;
     let buyQuoteVolume = 0;
@@ -176,6 +179,14 @@ export class MarketScannerMetricsWindow {
 
     for (const item of this.trades) {
       quoteVolume += item.trade.quoteValue;
+      highPrice = Math.max(
+        highPrice,
+        item.trade.price,
+      );
+      lowPrice = Math.min(
+        lowPrice,
+        item.trade.price,
+      );
 
       if (item.trade.side === 'buy') {
         buyTradesCount += 1;
@@ -200,11 +211,23 @@ export class MarketScannerMetricsWindow {
           ) * 100
         : null;
 
+    const volatilityPct =
+      this.trades.length >= 2
+      && Number.isFinite(highPrice)
+      && Number.isFinite(lowPrice)
+      && lowPrice > 0
+        ? (
+            (highPrice - lowPrice)
+            / lowPrice
+          ) * 100
+        : null;
+
     return {
       symbol: this.symbol,
       windowMs: this.windowMs,
       price: last?.trade.price ?? null,
       priceChangePct,
+      volatilityPct,
       quoteVolume,
       tradesCount: this.trades.length,
       tradesPerMinute:

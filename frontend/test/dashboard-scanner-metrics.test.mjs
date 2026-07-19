@@ -12,6 +12,7 @@ const metric = {
   windowMs: 60_000,
   price: 75.95,
   priceChangePct: 0.02634,
+  volatilityPct: 0.42345,
   quoteVolume: 25_997.86,
   tradesCount: 266,
   tradesPerMinute: 266,
@@ -31,6 +32,7 @@ const fallback = {
   quoteVolumeLabel: '$4.21M',
   tradesCountLabel: '8 420',
   speedLabel: '1 684/мин',
+  volatilityLabel: '3.8%',
 };
 
 test(
@@ -96,6 +98,10 @@ test(
       result[0]?.tradesCount,
       266,
     );
+    assert.equal(
+      result[0]?.volatilityPct,
+      0.42345,
+    );
   },
 );
 
@@ -125,6 +131,10 @@ test(
     assert.equal(
       view.speedLabel,
       '266/мин',
+    );
+    assert.equal(
+      view.volatilityLabel,
+      '0.42%',
     );
     assert.equal(
       view.sourceLabel,
@@ -159,6 +169,10 @@ test(
     assert.equal(
       view.speedLabel,
       '1 684/мин',
+    );
+    assert.equal(
+      view.volatilityLabel,
+      '3.8%',
     );
     assert.equal(
       view.sourceLabel,

@@ -11,6 +11,7 @@ export interface MarketScannerMetrics {
   windowMs: number;
   price: number | null;
   priceChangePct: number | null;
+  volatilityPct: number | null;
   quoteVolume: number;
   tradesCount: number;
   tradesPerMinute: number;
@@ -28,6 +29,7 @@ export interface DashboardScannerMetricFallback {
   quoteVolumeLabel: string;
   tradesCountLabel: string;
   speedLabel: string;
+  volatilityLabel: string;
 }
 
 export interface DashboardScannerMetricView {
@@ -40,6 +42,8 @@ export interface DashboardScannerMetricView {
   quoteVolumeLabel: string;
   tradesCountLabel: string;
   speedLabel: string;
+  volatilityPct: number | null;
+  volatilityLabel: string;
   updatedAtLabel: string;
   sourceLabel: 'LIVE' | 'TEST';
 }
@@ -223,6 +227,10 @@ function parseMarketScannerMetric(
       value,
       'priceChangePct',
     ),
+    volatilityPct: readNullableNumber(
+      value,
+      'volatilityPct',
+    ),
     quoteVolume: readNumber(
       value,
       'quoteVolume',
@@ -382,6 +390,9 @@ export function buildDashboardScannerMetricView(
         fallback.tradesCountLabel,
       speedLabel:
         fallback.speedLabel,
+      volatilityPct: null,
+      volatilityLabel:
+        fallback.volatilityLabel,
       updatedAtLabel:
         '\u043e\u0436\u0438\u0434\u0430\u043d\u0438\u0435 \u0434\u0430\u043d\u043d\u044b\u0445',
       sourceLabel: 'TEST',
@@ -415,6 +426,12 @@ export function buildDashboardScannerMetricView(
       `${formatInteger(
         matchingMetric.tradesPerMinute,
       )}/\u043c\u0438\u043d`,
+    volatilityPct:
+      matchingMetric.volatilityPct,
+    volatilityLabel:
+      matchingMetric.volatilityPct === null
+        ? '\u043d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445'
+        : `${matchingMetric.volatilityPct.toFixed(2)}%`,
     updatedAtLabel:
       formatScannerTradeTime(
         matchingMetric.updatedAt,
