@@ -1,0 +1,392 @@
+.watchlistPage {
+  width: min(100%, var(--nexus-content-max-width));
+  margin: 0 auto;
+}
+
+.pageHeader,
+.headerStatus,
+.panelHeader,
+.instrumentCell,
+.connectionCell {
+  display: flex;
+  align-items: center;
+}
+
+.pageHeader {
+  justify-content: space-between;
+  gap: var(--nexus-space-3);
+  margin-bottom: var(--nexus-space-3);
+}
+
+.eyebrow,
+.panelEyebrow {
+  margin: 0;
+  color: var(--nexus-color-info);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  font-weight: var(--nexus-font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 4px 0 0;
+  color: var(--nexus-color-text-primary);
+  font-size: 32px;
+  line-height: 1.08;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: var(--nexus-color-text-secondary);
+  font-size: var(--nexus-font-size-sm);
+}
+
+.headerStatus {
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--nexus-color-text-secondary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.liveDot,
+.statusDot {
+  display: inline-block;
+  flex: 0 0 auto;
+  border-radius: var(--nexus-radius-round);
+}
+
+.liveDot {
+  width: 8px;
+  height: 8px;
+  background: var(--nexus-color-long);
+  box-shadow: 0 0 10px var(--nexus-color-long);
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--nexus-space-2);
+  margin-bottom: var(--nexus-space-2);
+}
+
+.summaryGrid article,
+.watchlistPanel {
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-lg);
+  background: var(--nexus-color-bg-surface);
+}
+
+.summaryGrid article {
+  min-height: 104px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: var(--nexus-space-2);
+}
+
+.summaryGrid span {
+  color: var(--nexus-color-text-muted);
+  font-size: 10px;
+  font-weight: var(--nexus-font-weight-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.summaryGrid strong {
+  color: var(--nexus-color-text-primary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 22px;
+}
+
+.summaryGrid small {
+  color: var(--nexus-color-text-secondary);
+  font-size: 11px;
+}
+
+.watchlistPanel {
+  min-width: 0;
+  padding: var(--nexus-space-2);
+}
+
+.panelHeader {
+  justify-content: space-between;
+  gap: var(--nexus-space-2);
+  margin-bottom: var(--nexus-space-2);
+}
+
+.panelHeader h2 {
+  margin: 3px 0 0;
+  color: var(--nexus-color-text-primary);
+  font-size: var(--nexus-font-size-md);
+}
+
+.panelHeader > span {
+  padding: 4px 8px;
+  border-radius: var(--nexus-radius-round);
+  color: var(--nexus-color-long);
+  background: var(--nexus-color-long-soft);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+  font-weight: var(--nexus-font-weight-bold);
+  letter-spacing: 0.05em;
+}
+
+.tableHeader,
+.instrumentRow {
+  min-width: 1120px;
+  display: grid;
+  grid-template-columns:
+    minmax(210px, 1.25fr)
+    minmax(120px, 0.75fr)
+    minmax(100px, 0.65fr)
+    minmax(100px, 0.65fr)
+    minmax(170px, 0.9fr)
+    minmax(220px, 1.15fr)
+    auto
+    auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.tableHeader {
+  min-height: 34px;
+  padding: 0 12px;
+  border-bottom: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+  font-weight: var(--nexus-font-weight-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tableHeader > :last-child {
+  grid-column: 7 / 9;
+}
+
+.instrumentList {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.instrumentRow {
+  min-height: 76px;
+  padding: 10px 12px;
+  border-bottom: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  color: var(--nexus-color-text-secondary);
+  background: transparent;
+}
+
+.instrumentRow:hover {
+  background: var(--nexus-color-bg-hover);
+}
+
+.instrumentRow:last-child {
+  border-bottom: 0;
+}
+
+.instrumentCell {
+  min-width: 0;
+  gap: var(--nexus-space-1);
+}
+
+.symbolMark {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--nexus-radius-round);
+  color: var(--nexus-color-info);
+  background: var(--nexus-color-info-soft);
+  font-family: var(--nexus-font-family-mono);
+  font-weight: var(--nexus-font-weight-bold);
+}
+
+.instrumentCell > span:last-child,
+.priceCell,
+.marketCell,
+.spreadCell,
+.connectionCell > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.instrumentCell strong,
+.priceCell strong,
+.marketCell strong,
+.spreadCell strong,
+.connectionCell strong {
+  overflow: hidden;
+  font-family: var(--nexus-font-family-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.instrumentCell strong,
+.priceCell strong {
+  color: var(--nexus-color-text-primary);
+  font-size: 12px;
+}
+
+.instrumentCell small,
+.priceCell small,
+.connectionCell small {
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+}
+
+.priceCell > span,
+.marketCell > span,
+.spreadCell > span {
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.marketCell strong,
+.spreadCell strong {
+  font-size: 11px;
+}
+
+.bidValue {
+  color: var(--nexus-color-long);
+}
+
+.askValue {
+  color: var(--nexus-color-short);
+}
+
+.connectionCell {
+  min-width: 0;
+  gap: 9px;
+}
+
+.connectionCell strong {
+  color: var(--nexus-color-text-primary);
+  font-size: 10px;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+}
+
+.statusLive {
+  background: var(--nexus-color-long);
+  box-shadow: 0 0 8px var(--nexus-color-long);
+}
+
+.statusPending {
+  background: var(--nexus-color-stage-approach);
+}
+
+.statusError {
+  background: var(--nexus-color-short);
+  box-shadow: 0 0 8px var(--nexus-color-short);
+}
+
+.openButton,
+.reconnectButton {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border-radius: var(--nexus-radius-sm);
+  font-size: 10px;
+  font-weight: var(--nexus-font-weight-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.openButton {
+  border: var(--nexus-border-width) solid var(--nexus-color-info);
+  color: var(--nexus-color-text-on-accent);
+  background: var(--nexus-color-info);
+}
+
+.openButton:hover {
+  filter: brightness(1.08);
+}
+
+.reconnectButton {
+  border: var(--nexus-border-width) solid var(--nexus-color-border-strong);
+  color: var(--nexus-color-text-secondary);
+  background: transparent;
+}
+
+.reconnectButton:hover {
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-hover);
+}
+
+@media (max-width: 1180px) {
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 820px) {
+  .watchlistPage {
+    width: 100%;
+  }
+
+  .pageHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .title {
+    font-size: 27px;
+  }
+
+  .subtitle {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .headerStatus {
+    justify-content: flex-start;
+  }
+
+  .tableHeader {
+    display: none;
+  }
+
+  .instrumentList {
+    display: grid;
+    gap: 8px;
+    overflow: visible;
+  }
+
+  .instrumentRow {
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    min-height: 0;
+    padding: 12px;
+    border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+    border-radius: var(--nexus-radius-md);
+    background: var(--nexus-color-bg-canvas);
+  }
+
+  .instrumentCell,
+  .connectionCell {
+    grid-column: 1 / -1;
+  }
+
+  .spreadCell {
+    grid-column: 1 / -1;
+  }
+
+  .openButton,
+  .reconnectButton {
+    width: 100%;
+  }
+}

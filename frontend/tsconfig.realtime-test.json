@@ -8,6 +8,7 @@
   },
   "include": [
     "src/shared/realtime/realtimeClient.ts",
-    "src/shared/realtime/scannerRealtime.ts"
+    "src/shared/realtime/scannerRealtime.ts",
+    "src/shared/realtime/watchlistRealtime.ts"
   ]
 }

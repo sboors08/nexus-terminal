@@ -19,6 +19,7 @@ import { PublicHomePage } from '@/pages/PublicHomePage';
 import { ReplayPage } from '@/pages/ReplayPage';
 import { ScannerPage } from '@/pages/ScannerPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { WatchlistPage } from '@/pages/WatchlistPage';
 import { WorkspacePage } from '@/pages/WorkspacePage';
 
 export function AppRoutes() {
@@ -31,6 +32,7 @@ export function AppRoutes() {
           <Route path={APP_ROUTE_SEGMENTS.market} element={<MarketPage />} />
           <Route path={APP_ROUTE_SEGMENTS.workspace} element={<WorkspacePage />} />
           <Route path={APP_ROUTE_SEGMENTS.alerts} element={<AlertsPage />} />
+          <Route path={APP_ROUTE_SEGMENTS.watchlist} element={<WatchlistPage />} />
           <Route path={APP_ROUTE_SEGMENTS.marketHistory} element={<MarketHistoryPage />} />
           <Route path={APP_ROUTE_SEGMENTS.replay} element={<ReplayPage />} />
           <Route path={APP_ROUTE_SEGMENTS.settings} element={<SettingsPage />} />
@@ -49,6 +51,7 @@ export function AppRoutes() {
       <Route path={LEGACY_ROUTES.market} element={<Navigate to={ROUTES.market} replace />} />
       <Route path={LEGACY_ROUTES.workspace} element={<Navigate to={ROUTES.workspace} replace />} />
       <Route path={LEGACY_ROUTES.alerts} element={<Navigate to={ROUTES.alerts} replace />} />
+      <Route path={LEGACY_ROUTES.watchlist} element={<Navigate to={ROUTES.watchlist} replace />} />
       <Route path={LEGACY_ROUTES.marketHistory} element={<Navigate to={ROUTES.marketHistory} replace />} />
       <Route path={LEGACY_ROUTES.replay} element={<Navigate to={ROUTES.replay} replace />} />
       <Route path={LEGACY_ROUTES.settings} element={<Navigate to={ROUTES.settings} replace />} />
