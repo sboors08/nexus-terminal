@@ -13,6 +13,7 @@ export interface MarketScannerMetrics {
   topBookQuoteValue: number | null;
   orderBookImbalancePct: number | null;
   liquidityScore: number | null;
+  activityScore: number | null;
   quoteVolume: number;
   tradesCount: number;
   tradesPerMinute: number;
@@ -98,6 +99,53 @@ function calculateLiquidityScore(
         combinedQuality * 8,
       ) + 1,
     ),
+  );
+}
+
+function calculateActivityScore(
+  quoteVolume: number,
+  tradesPerMinute: number,
+  volatilityPct: number | null,
+  liquidityScore: number | null,
+  tradesCount: number,
+): number | null {
+  if (tradesCount === 0) {
+    return null;
+  }
+
+  const volumeActivity = clamp01(
+    Math.log10(
+      quoteVolume + 1,
+    ) / 5,
+  );
+
+  const speedActivity = clamp01(
+    Math.log10(
+      tradesPerMinute + 1,
+    ) / Math.log10(301),
+  );
+
+  const volatilityActivity =
+    volatilityPct === null
+      ? 0
+      : clamp01(
+          volatilityPct / 0.25,
+        );
+
+  const liquidityActivity =
+    liquidityScore === null
+      ? 0
+      : clamp01(
+          (liquidityScore - 1) / 8,
+        );
+
+  return Math.round(
+    (
+      volumeActivity * 0.35
+      + speedActivity * 0.30
+      + volatilityActivity * 0.20
+      + liquidityActivity * 0.15
+    ) * 100,
   );
 }
 
@@ -355,6 +403,19 @@ export class MarketScannerMetricsWindow {
           )
         : null;
 
+    const tradesPerMinute =
+      this.trades.length
+      * (60_000 / this.windowMs);
+
+    const activityScore =
+      calculateActivityScore(
+        quoteVolume,
+        tradesPerMinute,
+        volatilityPct,
+        liquidityScore,
+        this.trades.length,
+      );
+
     return {
       symbol: this.symbol,
       windowMs: this.windowMs,
@@ -367,11 +428,10 @@ export class MarketScannerMetricsWindow {
       topBookQuoteValue,
       orderBookImbalancePct,
       liquidityScore,
+      activityScore,
       quoteVolume,
       tradesCount: this.trades.length,
-      tradesPerMinute:
-        this.trades.length
-        * (60_000 / this.windowMs),
+      tradesPerMinute,
       buyTradesCount,
       sellTradesCount,
       buyQuoteVolume,

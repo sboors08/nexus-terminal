@@ -16,6 +16,7 @@ export interface MarketScannerMetrics {
   topBookQuoteValue: number | null;
   orderBookImbalancePct: number | null;
   liquidityScore: number | null;
+  activityScore: number | null;
   quoteVolume: number;
   tradesCount: number;
   tradesPerMinute: number;
@@ -35,6 +36,7 @@ export interface DashboardScannerMetricFallback {
   speedLabel: string;
   volatilityLabel: string;
   liquidityScore: number;
+  activityScore: number;
 }
 
 export interface DashboardScannerMetricView {
@@ -55,6 +57,8 @@ export interface DashboardScannerMetricView {
   liquidityIsLive: boolean;
   liquidityScore: number;
   liquidityTitle: string;
+  activityScore: number;
+  activityTitle: string;
   updatedAtLabel: string;
   sourceLabel: 'LIVE' | 'TEST';
 }
@@ -261,6 +265,11 @@ function parseMarketScannerMetric(
         value,
         'liquidityScore',
       ),
+    activityScore:
+      readNullableNumber(
+        value,
+        'activityScore',
+      ),
     quoteVolume: readNumber(
       value,
       'quoteVolume',
@@ -397,6 +406,51 @@ function normalizeLiquidityScore(
   );
 }
 
+function normalizeActivityScore(
+  value: number,
+): number {
+  return Math.min(
+    100,
+    Math.max(
+      0,
+      Math.round(value),
+    ),
+  );
+}
+
+function buildActivityTitle(
+  metric: MarketScannerMetrics,
+): string {
+  if (metric.activityScore === null) {
+    return 'TEST · ожидание live-активности';
+  }
+
+  const volatilityLabel =
+    metric.volatilityPct === null
+      ? 'нет данных'
+      : `${metric.volatilityPct.toFixed(2)}%`;
+
+  const liquidityLabel =
+    metric.liquidityScore === null
+      ? 'нет данных'
+      : `${normalizeLiquidityScore(metric.liquidityScore)}/9`;
+
+  return (
+    'LIVE · объём '
+    + formatQuoteVolume(
+        metric.quoteVolume,
+      )
+    + ' · скорость '
+    + formatInteger(
+        metric.tradesPerMinute,
+      )
+    + '/мин · волатильность '
+    + volatilityLabel
+    + ' · ликвидность '
+    + liquidityLabel
+  );
+}
+
 function buildLiquidityTitle(
   metric: MarketScannerMetrics,
 ): string {
@@ -475,6 +529,12 @@ export function buildDashboardScannerMetricView(
         ),
       liquidityTitle:
         'TEST · тестовая ликвидность',
+      activityScore:
+        normalizeActivityScore(
+          fallback.activityScore,
+        ),
+      activityTitle:
+        'TEST · тестовая оценка активности',
       updatedAtLabel:
         '\u043e\u0436\u0438\u0434\u0430\u043d\u0438\u0435 \u0434\u0430\u043d\u043d\u044b\u0445',
       sourceLabel: 'TEST',
@@ -531,6 +591,15 @@ export function buildDashboardScannerMetricView(
       ),
     liquidityTitle:
       buildLiquidityTitle(
+        matchingMetric,
+      ),
+    activityScore:
+      normalizeActivityScore(
+        matchingMetric.activityScore
+        ?? fallback.activityScore,
+      ),
+    activityTitle:
+      buildActivityTitle(
         matchingMetric,
       ),
     updatedAtLabel:
