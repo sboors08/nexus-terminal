@@ -660,3 +660,136 @@
     overscroll-behavior-x: contain;
   }
 }
+
+.liveDotConnected {
+  background: var(--market-accent);
+  box-shadow: 0 0 0 4px rgb(50 213 131 / 10%);
+}
+
+.liveDotPending {
+  background: #f5b942;
+  box-shadow: 0 0 0 4px rgb(245 185 66 / 10%);
+  animation: marketRealtimePulse 1.4s ease-in-out infinite;
+}
+
+.liveDotError {
+  background: #ff6273;
+  box-shadow: 0 0 0 4px rgb(255 98 115 / 10%);
+}
+
+@keyframes marketRealtimePulse {
+  0%,
+  100% {
+    opacity: .45;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.priceSourceLive,
+.priceSourceTest {
+  padding: 3px 6px;
+  border: 1px solid;
+  border-radius: 5px;
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.priceSourceLive {
+  color: var(--market-accent);
+  border-color: rgb(50 213 131 / 30%);
+  background: rgb(50 213 131 / 8%);
+}
+
+.priceSourceTest {
+  color: #f5b942;
+  border-color: rgb(245 185 66 / 30%);
+  background: rgb(245 185 66 / 8%);
+}
+
+.realtimeStrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid var(--market-border);
+  background: #081014;
+}
+
+.realtimeStrip article {
+  display: grid;
+  gap: 5px;
+  padding: 11px 15px;
+  border-right: 1px solid var(--market-border);
+}
+
+.realtimeStrip article:last-of-type {
+  border-right: 0;
+}
+
+.realtimeStrip article span {
+  color: #71827c;
+  font-size: 9px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.realtimeStrip article strong {
+  font-family: var(--nexus-font-family-mono);
+  font-size: 12px;
+}
+
+.realtimeStrip footer {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 15px;
+  border-top: 1px solid var(--market-border);
+  color: #71827c;
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+}
+
+.realtimeStrip footer button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgb(255 98 115 / 35%);
+  border-radius: 6px;
+  color: #ff8b98;
+  background: rgb(255 98 115 / 7%);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.realtimeStrip footer button:hover {
+  color: #ffd6db;
+  border-color: rgb(255 98 115 / 65%);
+}
+
+@media (max-width: 820px) {
+  .realtimeStrip {
+    grid-template-columns: 1fr;
+  }
+
+  .realtimeStrip article {
+    border-right: 0;
+    border-bottom: 1px solid var(--market-border);
+  }
+
+  .realtimeStrip article:last-of-type {
+    border-bottom: 0;
+  }
+
+  .realtimeStrip footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .realtimeStrip footer button {
+    width: 100%;
+  }
+}
