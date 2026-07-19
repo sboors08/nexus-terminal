@@ -6,6 +6,21 @@
 export const MARKET_SCANNER_METRICS_PATH =
   '/api/v1/market/realtime/scanner-metrics';
 
+export function buildDashboardScannerWorkspaceUrl(
+  route: string,
+  symbol: string,
+): string {
+  const params = new URLSearchParams();
+
+  params.set(
+    'symbol',
+    normalizeMarketScannerSymbol(symbol),
+  );
+  params.set('timeframe', '1m');
+
+  return `${route}?${params.toString()}`;
+}
+
 export interface MarketScannerMetrics {
   symbol: string;
   windowMs: number;
