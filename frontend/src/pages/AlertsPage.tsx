@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
+import {
+  buildAlertsRealtimeView,
+  useRealtimeMarketData,
+} from '@/shared/realtime';
 import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   nexusApi,
@@ -72,6 +76,16 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
   const [priority, setPriority] = useState<PriorityFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('latest');
 
+  const realtimeSymbols = useMemo(
+    () => [...new Set(alerts.map((alert) => alert.symbol))].slice(0, 100),
+    [alerts],
+  );
+
+  const realtime = useRealtimeMarketData({
+    symbols: realtimeSymbols,
+    enabled: realtimeSymbols.length > 0,
+  });
+
   const filteredAlerts = useMemo(() => {
     const normalizedSearch = search.trim().toUpperCase();
     const result = alerts.filter((alert) => {
@@ -98,6 +112,26 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
       ?? filteredAlerts[0]
       ?? alerts[0]
   ), [alerts, filteredAlerts, requestedAlertId, requestedSetupId]);
+
+  const selectedRealtime = buildAlertsRealtimeView(
+    realtime.snapshots[selectedAlert.symbol],
+    selectedAlert.price,
+    realtime.lifecycleState,
+    realtime.status?.state ?? null,
+  );
+
+  const realtimeLiveCount = useMemo(
+    () => realtimeSymbols.reduce((count, symbol) => {
+      const snapshot = realtime.snapshots[symbol];
+
+      return count + (
+        snapshot?.lastTrade || snapshot?.bookTicker
+          ? 1
+          : 0
+      );
+    }, 0),
+    [realtime.snapshots, realtimeSymbols],
+  );
 
   useEffect(() => {
     if (requestedAlertId === selectedAlert.id && requestedSetupId === selectedAlert.setupId) return;
@@ -159,9 +193,14 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
           <p className={styles.subtitle}>Изменения, которые требуют внимания, с объяснением причины и контекста.</p>
         </div>
         <div className={styles.headerActions}>
-          <div className={styles.liveStatus}>
+          <div
+            className={[
+              styles.liveStatus,
+              styles['liveStatus_' + selectedRealtime.connectionTone],
+            ].join(' ')}
+          >
             <span className={styles.liveDot} aria-hidden="true" />
-            LIVE TEST · 17:32:26
+            {selectedRealtime.connectionLabel} ? {realtimeLiveCount}/{realtimeSymbols.length} монет
           </div>
           <button className={styles.secondaryButton} type="button" onClick={markAllViewed} disabled={newCount === 0}>
             Отметить всё прочитанным
@@ -347,9 +386,41 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
                 <p>{selectedAlert.setupKind}</p>
               </div>
               <div className={styles.priceBlock}>
-                <strong>{selectedAlert.price}</strong>
-                <span className={selectedAlert.changePercent >= 0 ? styles.positive : styles.negative}>
-                  {selectedAlert.changePercent >= 0 ? '+' : ''}{selectedAlert.changePercent}%
+                <span className={styles.priceLabel}>
+                  {selectedRealtime.isLive ? 'Текущая цена' : 'Цена алерта'}
+                </span>
+
+                <strong>{selectedRealtime.currentPriceLabel}</strong>
+
+                <span
+                  className={
+                    selectedRealtime.isLive
+                      ? (selectedRealtime.moveSinceAlertPct ?? 0) >= 0
+                        ? styles.positive
+                        : styles.negative
+                      : selectedAlert.changePercent >= 0
+                        ? styles.positive
+                        : styles.negative
+                  }
+                >
+                  {selectedRealtime.isLive ? (
+                    <>
+                      {selectedRealtime.moveSinceAlertLabel} после сигнала
+                    </>
+                  ) : (
+                    <>
+                      {selectedAlert.changePercent >= 0 ? '+' : ''}
+                      {selectedAlert.changePercent}% за 24ч
+                    </>
+                  )}
+                </span>
+
+                <span className={styles.alertPriceReference}>
+                  Сработал: {selectedRealtime.alertPriceLabel}
+                </span>
+
+                <span className={styles.priceUpdatedAt}>
+                  {selectedRealtime.updatedAtLabel}
                 </span>
               </div>
             </div>
