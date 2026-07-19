@@ -7,6 +7,7 @@ import type {
 } from './realtime-market-data.types.js';
 
 const SSE_HEARTBEAT_INTERVAL_MS = 15_000;
+const MARKET_LIST_SNAPSHOT_FLUSH_INTERVAL_MS = 1_000;
 const SSE_RETRY_INTERVAL_MS = 3_000;
 
 interface RealtimeMarketDataRoutesOptions {
@@ -28,6 +29,41 @@ function normalizeSymbol(value: string | undefined): string | null {
   if (value === undefined) return null;
   const symbol = value.trim().toUpperCase();
   return /^[A-Z0-9]{5,20}$/.test(symbol) ? symbol : '';
+}
+
+function normalizeSymbols(value: string | undefined): string[] | null {
+  if (value === undefined) return null;
+
+  const symbols = [...new Set(
+    value
+      .split(',')
+      .map((symbol) => symbol.trim().toUpperCase())
+      .filter(Boolean),
+  )];
+
+  if (
+    symbols.length === 0
+    || symbols.length > 100
+    || symbols.some((symbol) => !/^[A-Z0-9]{5,20}$/.test(symbol))
+  ) {
+    return [];
+  }
+
+  return symbols;
+}
+
+function acquireSymbols(
+  service: RealtimeMarketDataService,
+  symbols: readonly string[],
+): () => void {
+  if (service.acquireSymbols) {
+    return service.acquireSymbols(symbols);
+  }
+
+  const releases = symbols.map((symbol) => service.acquireSymbol(symbol));
+  return () => {
+    for (const release of releases) release();
+  };
 }
 
 function writeSseEvent(
@@ -66,18 +102,58 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
     },
   );
 
-  app.get<{ Querystring: { symbol?: string } }>(
+  app.get<{ Querystring: { symbol?: string; symbols?: string } }>(
     '/market/realtime/stream',
     async (request, reply) => {
       const symbol = normalizeSymbol(request.query.symbol);
+      const symbols = normalizeSymbols(request.query.symbols);
+
       if (symbol === '') {
         return sendError(request, reply, 400, 'invalid_symbol', 'Invalid symbol format');
       }
 
-      const releaseSymbol = symbol
-        ? options.realtimeMarketDataService.acquireSymbol(symbol)
+      if (symbols?.length === 0) {
+        return sendError(request, reply, 400, 'invalid_symbols', 'Invalid symbols format');
+      }
+
+      if (symbol && symbols) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'ambiguous_symbols',
+          'Use either symbol or symbols, not both',
+        );
+      }
+
+      const requestedSymbols = symbols ?? (symbol ? [symbol] : null);
+      const requestedSymbolSet = requestedSymbols
+        ? new Set(requestedSymbols)
         : null;
-      const snapshots = options.realtimeMarketDataService.getSnapshots(symbol ?? undefined);
+
+      const isMarketListStream = symbols !== null;
+
+      const releaseSymbols = requestedSymbols
+        ? acquireSymbols(options.realtimeMarketDataService, requestedSymbols)
+        : null;
+
+      const snapshots = requestedSymbolSet
+        ? options.realtimeMarketDataService
+            .getSnapshots()
+            .filter((snapshot) => requestedSymbolSet.has(snapshot.symbol))
+        : options.realtimeMarketDataService.getSnapshots();
+
+      const compactMarketListSnapshot = (
+        snapshot: (typeof snapshots)[number],
+      ): (typeof snapshots)[number] => ({
+        ...snapshot,
+        recentTrades: [],
+      });
+
+      const pendingSnapshots = new Map<
+        string,
+        (typeof snapshots)[number]
+      >();
 
       reply.hijack();
       const response = reply.raw;
@@ -100,17 +176,69 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
       );
 
       for (const snapshot of snapshots) {
-        writeSseEvent(response, nextId(), 'snapshot', snapshot);
-      }
-
-      const unsubscribe = options.realtimeMarketDataService.subscribe((event) => {
         writeSseEvent(
           response,
           nextId(),
-          event.type,
-          event.type === 'status' ? event.status : event.snapshot,
+          'snapshot',
+          isMarketListStream
+            ? compactMarketListSnapshot(snapshot)
+            : snapshot,
+        );
+      }
+
+      const unsubscribe = options.realtimeMarketDataService.subscribe((event) => {
+        if (event.type === 'status') {
+          writeSseEvent(response, nextId(), event.type, event.status);
+          return;
+        }
+
+        if (
+          requestedSymbolSet
+          && !requestedSymbolSet.has(event.snapshot.symbol)
+        ) {
+          return;
+        }
+
+        if (isMarketListStream) {
+          pendingSnapshots.set(
+            event.snapshot.symbol,
+            compactMarketListSnapshot(event.snapshot),
+          );
+          return;
+        }
+
+        writeSseEvent(
+          response,
+          nextId(),
+          'snapshot',
+          event.snapshot,
         );
       }, symbol ?? undefined);
+
+      const snapshotFlush = isMarketListStream
+        ? setInterval(() => {
+            if (
+              response.destroyed
+              || response.writableEnded
+              || pendingSnapshots.size === 0
+            ) {
+              return;
+            }
+
+            for (const snapshot of pendingSnapshots.values()) {
+              writeSseEvent(
+                response,
+                nextId(),
+                'snapshot',
+                snapshot,
+              );
+            }
+
+            pendingSnapshots.clear();
+          }, MARKET_LIST_SNAPSHOT_FLUSH_INTERVAL_MS)
+        : null;
+
+      snapshotFlush?.unref();
 
       const heartbeat = setInterval(() => {
         if (!response.destroyed && !response.writableEnded) {
@@ -124,8 +252,10 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
         if (cleanedUp) return;
         cleanedUp = true;
         clearInterval(heartbeat);
+        if (snapshotFlush) clearInterval(snapshotFlush);
+        pendingSnapshots.clear();
         unsubscribe();
-        releaseSymbol?.();
+        releaseSymbols?.();
       };
 
       response.once('close', cleanup);

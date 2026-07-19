@@ -27,9 +27,12 @@ export function useRealtimeMarketData(
   const {
     baseUrl,
     symbol,
+    symbols,
     eventSourceFactory,
     enabled = true,
   } = options;
+
+  const symbolsKey = symbols?.join(',') ?? '';
   const clientRef = useRef<RealtimeMarketDataClient | null>(null);
   const [state, setState] = useState<RealtimeClientState>(INITIAL_STATE);
 
@@ -37,6 +40,7 @@ export function useRealtimeMarketData(
     const client = new RealtimeMarketDataClient({
       baseUrl,
       symbol,
+      symbols: symbolsKey ? symbolsKey.split(',') : undefined,
       eventSourceFactory,
     });
     clientRef.current = client;
@@ -49,7 +53,7 @@ export function useRealtimeMarketData(
       client.close();
       if (clientRef.current === client) clientRef.current = null;
     };
-  }, [baseUrl, enabled, eventSourceFactory, symbol]);
+  }, [baseUrl, enabled, eventSourceFactory, symbol, symbolsKey]);
 
   const reconnect = useCallback(() => {
     clientRef.current?.reconnect();

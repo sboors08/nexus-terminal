@@ -102,6 +102,7 @@ class DynamicRouteRealtimeService implements RealtimeMarketDataService {
   private readonly snapshots = new Map<string, RealtimeSymbolSnapshot>();
   private readonly references = new Map<string, number>();
   private readonly listeners = new Set<RealtimeMarketDataListener>();
+  readonly acquiredBatches: string[][] = [];
 
   constructor() {
     this.snapshots.set('BTCUSDT', this.createSnapshot('BTCUSDT'));
@@ -153,6 +154,17 @@ class DynamicRouteRealtimeService implements RealtimeMarketDataService {
       }
       this.references.delete(symbol);
       if (symbol !== 'BTCUSDT') this.snapshots.delete(symbol);
+    };
+  }
+
+  acquireSymbols(symbols: readonly string[]): () => void {
+    const batch = [...symbols];
+    this.acquiredBatches.push(batch);
+
+    const releases = batch.map((symbol) => this.acquireSymbol(symbol));
+
+    return () => {
+      for (const release of releases) release();
     };
   }
 
@@ -250,4 +262,144 @@ test('Realtime SSE route dynamically acquires and releases a requested Scanner s
   });
 
   assert.equal(realtimeService.hasSymbol('INJUSDT'), false);
+});
+
+
+test('Binance WebSocket service batches multiple dynamic subscriptions into one restart', () => {
+  const sockets: FakeSocket[] = [];
+  const urls: string[] = [];
+
+  const service = new BinanceWebSocketMarketDataService({
+    baseUrl: 'wss://data-stream.binance.vision',
+    symbols: ['BTCUSDT'],
+    reconnectBaseDelayMs: 1_000,
+    reconnectMaxDelayMs: 30_000,
+    tradesBufferSize: 10,
+    socketFactory(url) {
+      urls.push(url);
+      const socket = new FakeSocket();
+      sockets.push(socket);
+      return socket;
+    },
+  });
+
+  service.start();
+  sockets[0]?.emit('open');
+
+  const release = service.acquireSymbols([
+    'ethusdt',
+    'SOLUSDT',
+    'ETHUSDT',
+  ]);
+
+  assert.equal(sockets.length, 2);
+  assert.match(urls[1] ?? '', /ethusdt@trade\/ethusdt@bookTicker/);
+  assert.match(urls[1] ?? '', /solusdt@trade\/solusdt@bookTicker/);
+  assert.deepEqual(
+    service.getStatus().subscribedSymbols,
+    ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
+  );
+  assert.equal(service.getStatus().streamCount, 6);
+
+  release();
+
+  assert.equal(sockets.length, 3);
+  assert.deepEqual(service.getStatus().subscribedSymbols, ['BTCUSDT']);
+  assert.equal(service.getStatus().streamCount, 2);
+
+  service.stop();
+});
+
+test('Realtime SSE route acquires and releases multiple requested Market symbols', async (t) => {
+  const realtimeService = new DynamicRouteRealtimeService();
+  const app = await buildApp({
+    env: testEnv,
+    marketDataProvider: fixtureProvider,
+    realtimeMarketDataService: realtimeService,
+  });
+
+  await app.listen({ host: '127.0.0.1', port: 0 });
+  t.after(async () => app.close());
+
+  const address = app.server.address() as AddressInfo;
+  let acquiredWhileConnected = false;
+
+  const body = await new Promise<string>((resolve, reject) => {
+    let settled = false;
+
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('Timed out waiting for multi-symbol SSE snapshots'));
+    }, 2_000);
+
+    const request = get({
+      host: '127.0.0.1',
+      port: address.port,
+      path: '/api/v1/market/realtime/stream?symbols=INJUSDT,ADAUSDT,INJUSDT',
+      headers: { accept: 'text/event-stream' },
+    }, (response) => {
+      let payload = '';
+      response.setEncoding('utf8');
+
+      response.on('data', (chunk: string) => {
+        payload += chunk;
+
+        if (
+          !settled
+          && payload.includes('"symbol":"INJUSDT"')
+          && payload.includes('"symbol":"ADAUSDT"')
+        ) {
+          settled = true;
+          acquiredWhileConnected =
+            realtimeService.hasSymbol('INJUSDT')
+            && realtimeService.hasSymbol('ADAUSDT');
+
+          clearTimeout(timeout);
+          resolve(payload);
+          response.destroy();
+        }
+      });
+    });
+
+    request.on('error', (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+
+  assert.match(body, /"symbol":"INJUSDT"/);
+  assert.match(body, /"symbol":"ADAUSDT"/);
+  assert.match(body, /"recentTrades":\[\]/);
+  assert.doesNotMatch(body, /"recentTrades":\[\{/);
+  assert.equal(acquiredWhileConnected, true);
+  assert.deepEqual(
+    realtimeService.acquiredBatches[0],
+    ['INJUSDT', 'ADAUSDT'],
+  );
+
+  await new Promise<void>((resolve, reject) => {
+    const deadline = Date.now() + 1_000;
+
+    const checkReleased = () => {
+      if (
+        !realtimeService.hasSymbol('INJUSDT')
+        && !realtimeService.hasSymbol('ADAUSDT')
+      ) {
+        resolve();
+        return;
+      }
+
+      if (Date.now() >= deadline) {
+        reject(new Error('Batch symbols were not released after SSE disconnect'));
+        return;
+      }
+
+      setTimeout(checkReleased, 10);
+    };
+
+    checkReleased();
+  });
 });

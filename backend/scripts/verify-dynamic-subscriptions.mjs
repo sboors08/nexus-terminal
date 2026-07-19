@@ -28,12 +28,19 @@ const [typesSource, serviceSource, routesSource, testSource, packageSource] = aw
 
 const requiredMarkers = [
   'acquireSymbol(symbol: string)',
+  'acquireSymbols?(symbols: readonly string[])',
+  'acquireSymbols(symbols: readonly string[])',
   'dynamicSymbolReferences',
   'restartForSubscriptionChange',
   'NEXUS subscriptions changed',
-  'realtimeMarketDataService.acquireSymbol(symbol)',
-  'releaseSymbol?.()',
-  'INJUSDT',
+  'service.acquireSymbols(symbols)',
+  'requestedSymbolSet',
+  'releaseSymbols?.()',
+  'MARKET_LIST_SNAPSHOT_FLUSH_INTERVAL_MS',
+  'compactMarketListSnapshot',
+  'pendingSnapshots',
+  'recentTrades: []',
+  'INJUSDT,ADAUSDT',
   '"verify:dynamic-subscriptions"',
   'test/dynamic-subscriptions.test.ts',
 ];

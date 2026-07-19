@@ -121,3 +121,73 @@ test('reports reconnecting and malformed payload states', () => {
   assert.equal(client.getState().lifecycleState, 'reconnecting');
   assert.match(client.getState().error?.message ?? '', /interrupted/);
 });
+
+
+test('builds and receives multiple realtime symbols through one SSE connection', () => {
+  assert.equal(
+    buildRealtimeStreamUrl({
+      baseUrl: 'http://127.0.0.1:4100/',
+      symbols: [' btcusdt ', 'ETHUSDT', 'BTCUSDT'],
+    }),
+    'http://127.0.0.1:4100/api/v1/market/realtime/stream?symbols=BTCUSDT%2CETHUSDT',
+  );
+
+  assert.throws(
+    () => buildRealtimeStreamUrl({ symbols: [] }),
+    /At least one realtime symbol is required/,
+  );
+
+  assert.throws(
+    () =>
+      buildRealtimeStreamUrl({
+        symbol: 'BTCUSDT',
+        symbols: ['ETHUSDT'],
+      }),
+    /either realtime symbol or symbols/,
+  );
+
+  let source = null;
+
+  const client = new RealtimeMarketDataClient({
+    symbols: ['BTCUSDT', 'ETHUSDT'],
+    eventSourceFactory: (url) => {
+      source = new FakeEventSource(url);
+      return source;
+    },
+  });
+
+  client.connect();
+
+  assert.equal(
+    source?.url,
+    '/api/v1/market/realtime/stream?symbols=BTCUSDT%2CETHUSDT',
+  );
+
+  source?.emit('snapshot', {
+    symbol: 'BTCUSDT',
+    lastTrade: null,
+    bookTicker: null,
+    recentTrades: [],
+    updatedAt: '2026-07-19T08:00:00.000Z',
+  });
+
+  source?.emit('snapshot', {
+    symbol: 'ETHUSDT',
+    lastTrade: null,
+    bookTicker: null,
+    recentTrades: [],
+    updatedAt: '2026-07-19T08:00:01.000Z',
+  });
+
+  assert.equal(
+    client.getState().snapshots.BTCUSDT?.symbol,
+    'BTCUSDT',
+  );
+
+  assert.equal(
+    client.getState().snapshots.ETHUSDT?.symbol,
+    'ETHUSDT',
+  );
+
+  client.close();
+});
