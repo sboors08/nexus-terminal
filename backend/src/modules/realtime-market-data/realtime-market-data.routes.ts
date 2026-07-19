@@ -103,6 +103,121 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
   );
 
   app.get<{ Querystring: { symbol?: string; symbols?: string } }>(
+    '/market/realtime/scanner-metrics',
+    async (request, reply) => {
+      const symbol =
+        normalizeSymbol(request.query.symbol);
+
+      const symbols =
+        normalizeSymbols(request.query.symbols);
+
+      if (symbol === '') {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_symbol',
+          'Invalid symbol format',
+        );
+      }
+
+      if (symbols?.length === 0) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_symbols',
+          'Invalid symbols format',
+        );
+      }
+
+      if (symbol && symbols) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'ambiguous_symbols',
+          'Use either symbol or symbols, not both',
+        );
+      }
+
+      const getScannerMetrics =
+        options.realtimeMarketDataService
+          .getScannerMetrics;
+
+      if (!getScannerMetrics) {
+        return sendError(
+          request,
+          reply,
+          503,
+          'scanner_metrics_unavailable',
+          'Market scanner metrics are unavailable',
+        );
+      }
+
+      if (symbol) {
+        const metrics = getScannerMetrics.call(
+          options.realtimeMarketDataService,
+          symbol,
+        );
+
+        if (metrics.length === 0) {
+          return sendError(
+            request,
+            reply,
+            404,
+            'symbol_not_subscribed',
+            `Symbol ${symbol} is not subscribed`,
+          );
+        }
+
+        return metrics;
+      }
+
+      const metrics = getScannerMetrics.call(
+        options.realtimeMarketDataService,
+      );
+
+      if (!symbols) {
+        return metrics;
+      }
+
+      const requestedSymbols =
+        new Set(symbols);
+
+      const filteredMetrics = metrics.filter(
+        (item) =>
+          requestedSymbols.has(item.symbol),
+      );
+
+      const availableSymbols = new Set(
+        filteredMetrics.map(
+          (item) => item.symbol,
+        ),
+      );
+
+      const missingSymbols = symbols.filter(
+        (item) =>
+          !availableSymbols.has(item),
+      );
+
+      if (missingSymbols.length > 0) {
+        return sendError(
+          request,
+          reply,
+          404,
+          'symbols_not_subscribed',
+          'Symbols '
+            + missingSymbols.join(', ')
+            + ' are not subscribed',
+        );
+      }
+
+      return filteredMetrics;
+    },
+  );
+
+  app.get<{ Querystring: { symbol?: string; symbols?: string } }>(
     '/market/realtime/stream',
     async (request, reply) => {
       const symbol = normalizeSymbol(request.query.symbol);

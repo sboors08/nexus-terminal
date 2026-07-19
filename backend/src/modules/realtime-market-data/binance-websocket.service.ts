@@ -1,3 +1,7 @@
+import {
+  MarketScannerMetricsWindow,
+  type MarketScannerMetrics,
+} from './market-scanner-metrics.js';
 import type {
   RealtimeBookTicker,
   RealtimeConnectionStatus,
@@ -85,6 +89,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
   private readonly scheduler: ReconnectScheduler;
   private readonly now: () => Date;
   private readonly snapshots = new Map<string, RealtimeSymbolSnapshot>();
+  private readonly scannerMetrics = new Map<string, MarketScannerMetricsWindow>();
   private readonly subscriptions = new Set<RealtimeSubscription>();
   private socket: RealtimeWebSocket | null = null;
   private reconnectHandle: unknown = null;
@@ -108,6 +113,11 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
         recentTrades: [],
         updatedAt: null,
       });
+
+      this.scannerMetrics.set(
+        symbol,
+        new MarketScannerMetricsWindow(symbol),
+      );
     }
 
     this.status = {
@@ -171,6 +181,40 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       .map(cloneSnapshot);
   }
 
+  getScannerMetrics(
+    symbol?: string,
+  ): MarketScannerMetrics[] {
+    const referenceTime = this.now();
+
+    if (symbol) {
+      const metricsWindow =
+        this.scannerMetrics.get(
+          symbol.toUpperCase(),
+        );
+
+      return metricsWindow
+        ? [
+            metricsWindow.getMetrics(
+              referenceTime,
+            ),
+          ]
+        : [];
+    }
+
+    return this.getActiveSymbols()
+      .map((item) =>
+        this.scannerMetrics
+          .get(item)
+          ?.getMetrics(referenceTime),
+      )
+      .filter(
+        (
+          metrics,
+        ): metrics is MarketScannerMetrics =>
+          metrics !== undefined,
+      );
+  }
+
   acquireSymbol(symbol: string): () => void {
     return this.acquireSymbols([symbol]);
   }
@@ -199,6 +243,14 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
           recentTrades: [],
           updatedAt: null,
         });
+
+        this.scannerMetrics.set(
+          normalizedSymbol,
+          new MarketScannerMetricsWindow(
+            normalizedSymbol,
+          ),
+        );
+
         subscriptionsChanged = true;
       }
     }
@@ -227,6 +279,9 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
 
         if (this.activeSymbols.delete(normalizedSymbol)) {
           this.snapshots.delete(normalizedSymbol);
+          this.scannerMetrics.delete(
+            normalizedSymbol,
+          );
           releasedSubscriptionsChanged = true;
         }
       }
@@ -422,6 +477,11 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     if (snapshot.recentTrades.length > this.options.tradesBufferSize) {
       snapshot.recentTrades.splice(0, snapshot.recentTrades.length - this.options.tradesBufferSize);
     }
+
+    this.scannerMetrics
+      .get(symbol)
+      ?.addTrade(trade);
+
     snapshot.updatedAt = receivedAt;
     this.emitSnapshot(snapshot);
   }

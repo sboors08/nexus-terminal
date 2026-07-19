@@ -61,6 +61,9 @@ test('Binance WebSocket service stores trade and bookTicker snapshots and reconn
     },
   };
 
+  let currentTime =
+    new Date('2026-07-18T16:00:00.000Z');
+
   const service = new BinanceWebSocketMarketDataService({
     baseUrl: 'wss://data-stream.binance.vision',
     symbols: ['BTCUSDT', 'ETHUSDT'],
@@ -74,7 +77,7 @@ test('Binance WebSocket service stores trade and bookTicker snapshots and reconn
       return socket;
     },
     scheduler,
-    now: () => new Date('2026-07-18T16:00:00.000Z'),
+    now: () => currentTime,
   });
 
   const deliveredEvents: RealtimeMarketDataEvent[] = [];
@@ -92,7 +95,7 @@ test('Binance WebSocket service stores trade and bookTicker snapshots and reconn
   socket.emit('message', {
     data: JSON.stringify({
       stream: 'btcusdt@trade',
-      data: { E: 1_721_278_800_000, s: 'BTCUSDT', t: 101, p: '64000.5', q: '0.25', T: 1_721_278_800_000, m: false },
+      data: { E: 1_784_390_400_000, s: 'BTCUSDT', t: 101, p: '64000.5', q: '0.25', T: 1_784_390_400_000, m: false },
     }),
   });
   socket.emit('message', {
@@ -107,6 +110,50 @@ test('Binance WebSocket service stores trade and bookTicker snapshots and reconn
   assert.equal(snapshot?.lastTrade?.quoteValue, 16_000.125);
   assert.equal(snapshot?.bookTicker?.spread, 1);
   assert.equal(snapshot?.recentTrades.length, 1);
+
+  const scannerMetrics =
+    service.getScannerMetrics(
+      'BTCUSDT',
+    )[0];
+
+  assert.equal(
+    scannerMetrics?.price,
+    64_000.5,
+  );
+  assert.equal(
+    scannerMetrics?.quoteVolume,
+    16_000.125,
+  );
+  assert.equal(
+    scannerMetrics?.tradesCount,
+    1,
+  );
+  assert.equal(
+    scannerMetrics?.tradesPerMinute,
+    1,
+  );
+  assert.equal(
+    scannerMetrics?.buyTradesCount,
+    1,
+  );
+
+  currentTime =
+    new Date('2026-07-18T16:01:01.000Z');
+
+  const expiredMetrics =
+    service.getScannerMetrics(
+      'BTCUSDT',
+    )[0];
+
+  assert.equal(
+    expiredMetrics?.tradesCount,
+    0,
+  );
+  assert.equal(
+    expiredMetrics?.quoteVolume,
+    0,
+  );
+
   assert.equal(service.getStatus().lastMessageAt, '2026-07-18T16:00:00.000Z');
   assert.equal(
     deliveredEvents.filter((event) => event.type === 'snapshot').length,
@@ -149,6 +196,28 @@ test('Realtime market endpoints expose connection state and snapshots', async ()
       lastError: null,
     }),
     getSnapshots: (symbol) => symbol && symbol !== 'BTCUSDT' ? [] : snapshots,
+    getScannerMetrics: (symbol) =>
+      symbol && symbol !== 'BTCUSDT'
+        ? []
+        : [
+            {
+              symbol: 'BTCUSDT',
+              windowMs: 60_000,
+              price: 64_000.5,
+              priceChangePct: 0.25,
+              quoteVolume: 250_000,
+              tradesCount: 42,
+              tradesPerMinute: 42,
+              buyTradesCount: 25,
+              sellTradesCount: 17,
+              buyQuoteVolume: 150_000,
+              sellQuoteVolume: 100_000,
+              windowStartedAt:
+                '2026-07-18T15:59:10.000Z',
+              updatedAt:
+                '2026-07-18T16:00:00.000Z',
+            },
+          ],
     acquireSymbol: () => () => undefined,
     subscribe: () => () => undefined,
   };
@@ -170,6 +239,50 @@ test('Realtime market endpoints expose connection state and snapshots', async ()
   });
   assert.equal(snapshot.statusCode, 200);
   assert.equal(snapshot.json()[0].symbol, 'BTCUSDT');
+
+  const scannerMetrics = await app.inject({
+    method: 'GET',
+    url:
+      '/api/v1/market/realtime/scanner-metrics'
+      + '?symbols=BTCUSDT',
+  });
+
+  assert.equal(
+    scannerMetrics.statusCode,
+    200,
+  );
+
+  assert.equal(
+    scannerMetrics.json()[0].symbol,
+    'BTCUSDT',
+  );
+
+  assert.equal(
+    scannerMetrics.json()[0].tradesCount,
+    42,
+  );
+
+  assert.equal(
+    scannerMetrics.json()[0].quoteVolume,
+    250_000,
+  );
+
+  const missingMetrics = await app.inject({
+    method: 'GET',
+    url:
+      '/api/v1/market/realtime/scanner-metrics'
+      + '?symbol=SOLUSDT',
+  });
+
+  assert.equal(
+    missingMetrics.statusCode,
+    404,
+  );
+
+  assert.equal(
+    missingMetrics.json().error,
+    'symbol_not_subscribed',
+  );
 
   await app.close();
   assert.equal(stops, 1);
