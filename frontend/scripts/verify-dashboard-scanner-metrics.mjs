@@ -48,11 +48,19 @@ const requiredMarkers = [
   'MARKET_SCANNER_METRICS_PATH',
   'fetchMarketScannerMetrics',
   'buildDashboardScannerMetricView',
+  'buildDashboardScannerWorkspaceUrl',
   'useDashboardScannerMetrics',
   'globalThis.setInterval',
   'scannerSymbols',
   'dashboardScannerRows',
   'scannerLiveCount',
+  'role="link"',
+  'tabIndex={0}',
+  "event.key !== 'Enter'",
+  "event.key !== ' '",
+  '.scannerRow:hover',
+  '.scannerRow:focus-visible',
+  'cursor: pointer',
   'view.priceLabel',
   'view.quoteVolumeLabel',
   'view.tradesCountLabel',
@@ -90,5 +98,5 @@ if (
 }
 
 console.log(
-  'NEXUS frontend verified: Dashboard Market Scanner Integration v0.1 is present.',
+  'NEXUS frontend verified: Dashboard Market Scanner Integration and Row Navigation v0.1 are present.',
 );

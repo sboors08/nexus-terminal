@@ -516,6 +516,20 @@
   color: #9baca6;
   font-family: var(--nexus-font-family-mono);
   font-size: 8px;
+  cursor: pointer;
+  transition:
+    background-color .15s ease,
+    box-shadow .15s ease;
+}
+
+.scannerRow:hover {
+  background: rgb(53 223 141 / 5%);
+}
+
+.scannerRow:focus-visible {
+  outline: none;
+  background: rgb(53 223 141 / 8%);
+  box-shadow: inset 2px 0 0 #35df8d;
 }
 
 .scannerRow > strong {

@@ -17,6 +17,7 @@ import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   buildDashboardRealtimeView,
   buildDashboardScannerMetricView,
+  buildDashboardScannerWorkspaceUrl,
   normalizeDashboardRealtimeSymbol,
   useDashboardScannerMetrics,
   useRealtimeMarketData,
@@ -514,8 +515,39 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
               <div
                 key={String(row[0])}
                 className={styles.scannerRow}
+                role="link"
+                tabIndex={0}
+                aria-label={
+                  `Открыть ${String(row[0])} в Charts / Workspace`
+                }
+                onClick={() => {
+                  navigate(
+                    buildDashboardScannerWorkspaceUrl(
+                      ROUTES.workspace,
+                      String(row[0]),
+                    ),
+                  );
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== 'Enter'
+                    && event.key !== ' '
+                  ) {
+                    return;
+                  }
+
+                  event.preventDefault();
+
+                  navigate(
+                    buildDashboardScannerWorkspaceUrl(
+                      ROUTES.workspace,
+                      String(row[0]),
+                    ),
+                  );
+                }}
                 title={
-                  `${view.sourceLabel} · `
+                  `Открыть ${String(row[0])} в Charts / Workspace · `
+                  + `${view.sourceLabel} · `
                   + view.updatedAtLabel
                 }
               >

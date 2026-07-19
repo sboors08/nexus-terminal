@@ -2,6 +2,7 @@
 import test from 'node:test';
 import {
   buildDashboardScannerMetricView,
+  buildDashboardScannerWorkspaceUrl,
   buildMarketScannerMetricsUrl,
   fetchMarketScannerMetrics,
   normalizeMarketScannerSymbol,
@@ -64,6 +65,19 @@ test(
         ],
       }),
       'http://localhost:4100/api/v1/market/realtime/scanner-metrics?symbols=SOLUSDT%2CETHUSDT',
+    );
+  },
+);
+
+test(
+  'builds a Dashboard scanner Workspace URL',
+  () => {
+    assert.equal(
+      buildDashboardScannerWorkspaceUrl(
+        '/app/workspace',
+        ' sol/usdt ',
+      ),
+      '/app/workspace?symbol=SOLUSDT&timeframe=1m',
     );
   },
 );
