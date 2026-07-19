@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
+import {
+  buildWorkspaceRealtimeView,
+  useRealtimeMarketData,
+} from '@/shared/realtime';
 import { buildReplayUrl, buildSetupSelectionUrl, isWorkspaceTimeframe } from '@/shared/routing/setupContext';
 import {
   nexusApi,
@@ -33,6 +37,9 @@ function WorkspaceChart({
   touchPoints,
   direction,
   price,
+  priceY,
+  axisLabels,
+  showCurrentPrice,
 }: {
   setupId: string;
   chartPath: string;
@@ -41,9 +48,11 @@ function WorkspaceChart({
   touchPoints: Array<{ x: number; y: number }>;
   direction: 'long' | 'short';
   price: string;
+  priceY: number;
+  axisLabels: string[];
+  showCurrentPrice: boolean;
 }) {
   const chartTone = direction === 'long' ? styles.chartLong : styles.chartShort;
-  const currentPriceY = direction === 'long' ? 91 : 292;
 
   return (
     <div className={`${styles.chartCanvas} ${chartTone}`}>
@@ -94,11 +103,24 @@ function WorkspaceChart({
           ))}
         </g>
 
-        <line className={styles.currentPriceLine} x1="0" y1={currentPriceY} x2="900" y2={currentPriceY} />
-        <g className={styles.priceMarker} transform={`translate(810 ${currentPriceY - 14})`}>
-          <rect width="84" height="28" rx="5" />
-          <text x="42" y="18">{price}</text>
-        </g>
+        {showCurrentPrice && (
+          <>
+            <line
+              className={styles.currentPriceLine}
+              x1="0"
+              y1={priceY}
+              x2="900"
+              y2={priceY}
+            />
+            <g
+              className={styles.priceMarker}
+              transform={`translate(810 ${priceY - 14})`}
+            >
+              <rect width="84" height="28" rx="5" />
+              <text x="42" y="18">{price}</text>
+            </g>
+          </>
+        )}
       </svg>
 
       <div className={styles.chartBottomAxis} aria-hidden="true">
@@ -110,11 +132,9 @@ function WorkspaceChart({
         <span>17:32</span>
       </div>
       <div className={styles.chartRightAxis} aria-hidden="true">
-        <span>188.82</span>
-        <span>188.42</span>
-        <span>187.82</span>
-        <span>187.42</span>
-        <span>186.82</span>
+        {axisLabels.map((label, index) => (
+          <span key={`${label}-${index}`}>{label}</span>
+        ))}
       </div>
     </div>
   );
@@ -127,7 +147,7 @@ function ChecklistIcon({ state }: { state: 'passed' | 'warning' | 'waiting' }) {
 }
 
 function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
-  const { contractSetup, view } = data;
+  const { contractSetup, snapshot, view } = data;
   const { selectedSetup, prints, liquidity, marketDynamics, stageFlow } = view;
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTimeframe = searchParams.get('timeframe');
@@ -136,6 +156,30 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const [tapeFilter, setTapeFilter] = useState<TapeFilter>('all');
   const [alertCreated, setAlertCreated] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+
+  const realtime = useRealtimeMarketData({
+    symbol: selectedSetup.symbol,
+  });
+
+  const realtimeSnapshot =
+    realtime.snapshots[selectedSetup.symbol];
+
+  const realtimeWorkspace = useMemo(
+    () => buildWorkspaceRealtimeView(
+      realtimeSnapshot,
+      selectedSetup.price,
+      snapshot.candles,
+      realtime.lifecycleState,
+      realtime.status?.state ?? null,
+    ),
+    [
+      realtimeSnapshot,
+      selectedSetup.price,
+      snapshot.candles,
+      realtime.lifecycleState,
+      realtime.status?.state,
+    ],
+  );
 
   useEffect(() => {
     const nextParams = new URLSearchParams(searchParams);
@@ -237,8 +281,18 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
         <div className={styles.headerRight}>
           <div className={styles.priceBlock}>
             <span>Текущая цена</span>
-            <strong>{selectedSetup.price}</strong>
-            <em className={selectedSetup.direction === 'long' ? styles.positive : styles.negative}>{selectedSetup.priceChange}</em>
+            <strong>{realtimeWorkspace.priceLabel}</strong>
+            <em
+              className={
+                realtimeWorkspace.isLive
+                  ? styles.priceSourceLive
+                  : styles.priceSourceTest
+              }
+            >
+              {realtimeWorkspace.isLive
+                ? `LIVE ? ${realtimeWorkspace.updatedAtLabel}`
+                : 'TEST DATA'}
+            </em>
           </div>
           <div className={styles.headerActions}>
             <button
@@ -273,8 +327,22 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               </div>
               <div className={styles.chartLegend}>
                 <span><i className={styles.levelLegend} /> Уровень {selectedSetup.level}</span>
-                <span><i className={styles.priceLegend} /> Цена {selectedSetup.price}</span>
-                <span className={styles.liveIndicator}><i /> LIVE TEST</span>
+                <span><i className={styles.priceLegend} /> Цена {realtimeWorkspace.priceLabel}</span>
+                <span
+                  className={[
+                    styles.liveIndicator,
+                    styles[`liveIndicator_${realtimeWorkspace.connectionTone}`],
+                  ].join(' ')}
+                >
+                  <i /> {realtimeWorkspace.connectionLabel}
+                </span>
+                {realtimeWorkspace.rangePosition !== 'inside'
+                  && realtimeWorkspace.rangePosition !== 'unknown'
+                  && (
+                    <span className={styles.rangeWarning}>
+                      LIVE-цена вне диапазона тестового графика
+                    </span>
+                  )}
               </div>
             </div>
 
@@ -285,7 +353,10 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               levelY={selectedSetup.levelY}
               touchPoints={selectedSetup.touchPoints}
               direction={selectedSetup.direction}
-              price={selectedSetup.price}
+              price={realtimeWorkspace.priceLabel}
+              priceY={realtimeWorkspace.priceY}
+              axisLabels={realtimeWorkspace.axisLabels}
+              showCurrentPrice={realtimeWorkspace.rangePosition === 'inside'}
             />
 
             <div className={styles.chartMetrics}>
