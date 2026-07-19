@@ -71,6 +71,10 @@ test(
       metrics.liquidityScore,
       null,
     );
+    assert.equal(
+      metrics.activityScore,
+      null,
+    );
     assert.equal(metrics.quoteVolume, 0);
     assert.equal(metrics.tradesCount, 0);
     assert.equal(metrics.tradesPerMinute, 0);
@@ -113,6 +117,7 @@ test(
     assert.equal(metrics.price, 105);
     assert.equal(metrics.priceChangePct, 5);
     assert.equal(metrics.volatilityPct, 5);
+    assert.equal(metrics.activityScore, 45);
     assert.equal(metrics.quoteVolume, 515);
     assert.equal(metrics.tradesCount, 2);
     assert.equal(metrics.tradesPerMinute, 2);
@@ -216,6 +221,10 @@ test(
     assert.equal(
       metrics.liquidityScore,
       7,
+    );
+    assert.equal(
+      metrics.activityScore,
+      null,
     );
   },
 );

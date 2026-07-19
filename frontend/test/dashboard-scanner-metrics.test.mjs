@@ -18,6 +18,7 @@ const metric = {
   orderBookImbalancePct:
     11.101235445938322,
   liquidityScore: 7,
+  activityScore: 92,
   quoteVolume: 25_997.86,
   tradesCount: 266,
   tradesPerMinute: 266,
@@ -39,6 +40,7 @@ const fallback = {
   speedLabel: '1 684/мин',
   volatilityLabel: '3.8%',
   liquidityScore: 6,
+  activityScore: 96,
 };
 
 test(
@@ -116,6 +118,10 @@ test(
       result[0]?.topBookQuoteValue,
       18_001.6,
     );
+    assert.equal(
+      result[0]?.activityScore,
+      92,
+    );
   },
 );
 
@@ -161,6 +167,14 @@ test(
     assert.equal(
       view.liquidityTitle,
       'LIVE · спред 0.0200% · верх стакана $18.00K · дисбаланс +11.10%',
+    );
+    assert.equal(
+      view.activityScore,
+      92,
+    );
+    assert.equal(
+      view.activityTitle,
+      'LIVE · объём $26.00K · скорость 266/мин · волатильность 0.42% · ликвидность 7/9',
     );
     assert.equal(
       view.sourceLabel,
@@ -211,6 +225,14 @@ test(
     assert.equal(
       view.liquidityTitle,
       'TEST · тестовая ликвидность',
+    );
+    assert.equal(
+      view.activityScore,
+      96,
+    );
+    assert.equal(
+      view.activityTitle,
+      'TEST · тестовая оценка активности',
     );
     assert.equal(
       view.sourceLabel,

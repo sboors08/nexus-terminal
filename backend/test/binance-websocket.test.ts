@@ -151,6 +151,10 @@ test('Binance WebSocket service stores trade and bookTicker snapshots and reconn
     scannerMetrics?.liquidityScore,
     9,
   );
+  assert.equal(
+    scannerMetrics?.activityScore,
+    48,
+  );
 
   currentTime =
     new Date('2026-07-18T16:01:01.000Z');
@@ -167,6 +171,10 @@ test('Binance WebSocket service stores trade and bookTicker snapshots and reconn
   assert.equal(
     expiredMetrics?.quoteVolume,
     0,
+  );
+  assert.equal(
+    expiredMetrics?.activityScore,
+    null,
   );
 
   assert.equal(service.getStatus().lastMessageAt, '2026-07-18T16:00:00.000Z');
@@ -227,6 +235,7 @@ test('Realtime market endpoints expose connection state and snapshots', async ()
               orderBookImbalancePct:
                 12.5,
               liquidityScore: 8,
+              activityScore: 88,
               quoteVolume: 250_000,
               tradesCount: 42,
               tradesPerMinute: 42,
@@ -287,6 +296,11 @@ test('Realtime market endpoints expose connection state and snapshots', async ()
   assert.equal(
     scannerMetrics.json()[0].quoteVolume,
     250_000,
+  );
+
+  assert.equal(
+    scannerMetrics.json()[0].activityScore,
+    88,
   );
 
   const missingMetrics = await app.inject({

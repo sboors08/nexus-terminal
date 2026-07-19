@@ -313,6 +313,8 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                   String(row[8]),
                 liquidityScore:
                   Number(row[9]),
+                activityScore:
+                  Number(row[1]),
               },
               scannerMetrics.metrics[symbol],
             ),
@@ -541,8 +543,9 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
 
                 <em
                   className={styles.activityScore}
+                  title={view.activityTitle}
                 >
-                  {row[1]}
+                  {view.activityScore}
                 </em>
 
                 <span
