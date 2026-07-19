@@ -211,11 +211,26 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
 
   const selected = symbols.find((symbol) => symbol.symbol === selectedSymbol) ?? symbols[0];
 
+  const realtimeSymbols = useMemo(
+    () => symbols.slice(0, 100).map((symbol) => symbol.symbol),
+    [symbols],
+  );
+
   const realtime = useRealtimeMarketData({
-    symbol: selected.symbol,
+    symbols: realtimeSymbols,
+    enabled: realtimeSymbols.length > 0,
   });
 
   const realtimeSnapshot = realtime.snapshots[selected.symbol];
+
+  const realtimeLiveCount = useMemo(
+    () =>
+      realtimeSymbols.reduce((count, symbol) => {
+        const snapshot = realtime.snapshots[symbol];
+        return count + (snapshot?.lastTrade || snapshot?.bookTicker ? 1 : 0);
+      }, 0),
+    [realtime.snapshots, realtimeSymbols],
+  );
 
   const realtimeMarket = useMemo(
     () =>
@@ -279,7 +294,7 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
             className={`${styles.liveDot} ${realtimeDotClass}`}
             aria-hidden="true"
           />
-          {realtimeMarket.connectionLabel} · {selected.symbol}
+          {realtimeMarket.connectionLabel} · {realtimeLiveCount}/{realtimeSymbols.length} монет · {selected.symbol}
         </div>
       </header>
 
@@ -398,7 +413,7 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
         </section>
 
         <aside className={styles.listPanel}>
-          <header className={styles.listHeader}><div><span className={styles.panelKicker}>Монеты</span><h2>{filteredSymbols.length} инструментов</h2></div><span>{timeframe}</span></header>
+          <header className={styles.listHeader}><div><span className={styles.panelKicker}>Монеты</span><h2>{filteredSymbols.length} инструментов</h2></div><span>{timeframe} · LIVE {realtimeLiveCount}/{realtimeSymbols.length}</span></header>
           <p className={styles.listHint}>Нажмите строку, чтобы сменить инструмент на графике.</p>
 
           {filteredSymbols.length === 0 ? (
@@ -407,11 +422,29 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
             <div className={styles.coinList}>
               {filteredSymbols.map((symbol, index) => {
                 const isPositive = symbol.priceChangePct >= 0;
+                const rowRealtime = buildMarketRealtimeView(
+                  realtime.snapshots[symbol.symbol],
+                  formatPrice(symbol.price),
+                  realtime.lifecycleState,
+                  realtime.status?.state ?? null,
+                );
+
                 return (
                   <button key={symbol.symbol} className={`${styles.coinRow} ${selected.symbol === symbol.symbol ? styles.coinRowSelected : ''}`} type="button" onClick={() => setSelectedSymbol(symbol.symbol)}>
                     <span className={styles.rank}>{String(index + 1).padStart(2, '0')}</span>
                     <span className={styles.coinIdentity}><i>{symbol.baseAsset.slice(0, 1)}</i><span><strong>{symbol.baseAsset}</strong><small>/{symbol.quoteAsset}</small></span></span>
-                    <span className={styles.coinPrice}><strong>{formatPrice(symbol.price)}</strong><small>{formatCompact(symbol.volumeQuote)}</small></span>
+                    <span className={styles.coinPrice}>
+                      <strong>{rowRealtime.priceLabel}</strong>
+                      <small
+                        className={
+                          rowRealtime.isLive
+                            ? styles.priceSourceLive
+                            : styles.priceSourceTest
+                        }
+                      >
+                        {rowRealtime.isLive ? 'LIVE' : 'TEST'} ? {formatCompact(symbol.volumeQuote)}
+                      </small>
+                    </span>
                     <svg className={isPositive ? styles.sparkPositive : styles.sparkNegative} viewBox="0 0 92 28" aria-hidden="true"><path d={getSparklinePath(symbol, index)} fill="none" /></svg>
                     <span className={isPositive ? styles.positive : styles.negative}>{formatSigned(symbol.priceChangePct, '%')}</span>
                     <span className={styles.rowMeta}><small>Сила {formatSigned(symbol.btcRelativeStrength)}</small><small>ρ {symbol.btcCorrelation?.toFixed(2) ?? '—'}</small><small>σ {symbol.volatilityPct.toFixed(2)}%</small></span>

@@ -67,6 +67,7 @@ export type RealtimeEventSourceFactory = (url: string) => EventSource;
 export interface RealtimeMarketDataClientOptions {
   baseUrl?: string;
   symbol?: string;
+  symbols?: readonly string[];
   eventSourceFactory?: RealtimeEventSourceFactory;
 }
 
@@ -86,12 +87,46 @@ function normalizeSymbol(symbol: string | undefined): string | undefined {
   return normalized;
 }
 
+function normalizeSymbols(
+  symbols: readonly string[] | undefined,
+): string[] | undefined {
+  if (symbols === undefined) return undefined;
+
+  const normalized = [...new Set(
+    symbols.map((symbol) => normalizeSymbol(symbol) as string),
+  )];
+
+  if (normalized.length === 0) {
+    throw new Error('At least one realtime symbol is required');
+  }
+
+  if (normalized.length > 100) {
+    throw new Error('Realtime symbols limit is 100');
+  }
+
+  return normalized;
+}
+
 export function buildRealtimeStreamUrl(
-  options: Pick<RealtimeMarketDataClientOptions, 'baseUrl' | 'symbol'> = {},
+  options: Pick<
+    RealtimeMarketDataClientOptions,
+    'baseUrl' | 'symbol' | 'symbols'
+  > = {},
 ): string {
   const baseUrl = options.baseUrl?.trim().replace(/\/+$/, '') ?? '';
   const symbol = normalizeSymbol(options.symbol);
-  const query = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
+  const symbols = normalizeSymbols(options.symbols);
+
+  if (symbol && symbols) {
+    throw new Error('Use either realtime symbol or symbols, not both');
+  }
+
+  const query = symbol
+    ? `?symbol=${encodeURIComponent(symbol)}`
+    : symbols
+      ? `?symbols=${encodeURIComponent(symbols.join(','))}`
+      : '';
+
   return `${baseUrl}${REALTIME_STREAM_PATH}${query}`;
 }
 

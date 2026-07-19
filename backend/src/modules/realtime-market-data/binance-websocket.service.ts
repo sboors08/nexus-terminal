@@ -172,23 +172,38 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
   }
 
   acquireSymbol(symbol: string): () => void {
-    const normalizedSymbol = symbol.trim().toUpperCase();
-    if (!/^[A-Z0-9]{5,20}$/.test(normalizedSymbol)) {
-      throw new Error(`Invalid realtime symbol: ${symbol}`);
+    return this.acquireSymbols([symbol]);
+  }
+
+  acquireSymbols(symbols: readonly string[]): () => void {
+    const normalizedSymbols = [...new Set(symbols.map((symbol) => {
+      const normalizedSymbol = symbol.trim().toUpperCase();
+      if (!/^[A-Z0-9]{5,20}$/.test(normalizedSymbol)) {
+        throw new Error(`Invalid realtime symbol: ${symbol}`);
+      }
+      return normalizedSymbol;
+    }))];
+
+    let subscriptionsChanged = false;
+
+    for (const normalizedSymbol of normalizedSymbols) {
+      const currentReferences = this.dynamicSymbolReferences.get(normalizedSymbol) ?? 0;
+      this.dynamicSymbolReferences.set(normalizedSymbol, currentReferences + 1);
+
+      if (!this.activeSymbols.has(normalizedSymbol)) {
+        this.activeSymbols.add(normalizedSymbol);
+        this.snapshots.set(normalizedSymbol, {
+          symbol: normalizedSymbol,
+          lastTrade: null,
+          bookTicker: null,
+          recentTrades: [],
+          updatedAt: null,
+        });
+        subscriptionsChanged = true;
+      }
     }
 
-    const currentReferences = this.dynamicSymbolReferences.get(normalizedSymbol) ?? 0;
-    this.dynamicSymbolReferences.set(normalizedSymbol, currentReferences + 1);
-
-    if (!this.activeSymbols.has(normalizedSymbol)) {
-      this.activeSymbols.add(normalizedSymbol);
-      this.snapshots.set(normalizedSymbol, {
-        symbol: normalizedSymbol,
-        lastTrade: null,
-        bookTicker: null,
-        recentTrades: [],
-        updatedAt: null,
-      });
+    if (subscriptionsChanged) {
       this.restartForSubscriptionChange();
     }
 
@@ -197,18 +212,28 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       if (released) return;
       released = true;
 
-      const references = this.dynamicSymbolReferences.get(normalizedSymbol) ?? 0;
-      if (references > 1) {
-        this.dynamicSymbolReferences.set(normalizedSymbol, references - 1);
-        return;
+      let releasedSubscriptionsChanged = false;
+
+      for (const normalizedSymbol of normalizedSymbols) {
+        const references = this.dynamicSymbolReferences.get(normalizedSymbol) ?? 0;
+
+        if (references > 1) {
+          this.dynamicSymbolReferences.set(normalizedSymbol, references - 1);
+          continue;
+        }
+
+        this.dynamicSymbolReferences.delete(normalizedSymbol);
+        if (this.initialSymbols.has(normalizedSymbol)) continue;
+
+        if (this.activeSymbols.delete(normalizedSymbol)) {
+          this.snapshots.delete(normalizedSymbol);
+          releasedSubscriptionsChanged = true;
+        }
       }
 
-      this.dynamicSymbolReferences.delete(normalizedSymbol);
-      if (this.initialSymbols.has(normalizedSymbol)) return;
-
-      this.activeSymbols.delete(normalizedSymbol);
-      this.snapshots.delete(normalizedSymbol);
-      this.restartForSubscriptionChange();
+      if (releasedSubscriptionsChanged) {
+        this.restartForSubscriptionChange();
+      }
     };
   }
 
