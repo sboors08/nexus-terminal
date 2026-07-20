@@ -49,11 +49,15 @@ const requiredMarkers = [
   'fetchMarketScannerMetrics',
   'buildDashboardScannerMetricView',
   'buildDashboardScannerWorkspaceUrl',
+  'sortDashboardScannerRows',
   'useDashboardScannerMetrics',
   'globalThis.setInterval',
   'scannerSymbols',
   'dashboardScannerRows',
   'scannerLiveCount',
+  'activityIsLive',
+  'quoteVolumeValue',
+  'ranks live scanner rows by activity and quote volume',
   'role="link"',
   'tabIndex={0}',
   "event.key !== 'Enter'",
@@ -98,5 +102,5 @@ if (
 }
 
 console.log(
-  'NEXUS frontend verified: Dashboard Market Scanner Integration and Row Navigation v0.1 are present.',
+  'NEXUS frontend verified: Dashboard Market Scanner Integration, Row Navigation and Activity Ranking v0.1 are present.',
 );

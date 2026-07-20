@@ -62,6 +62,7 @@ export interface DashboardScannerMetricView {
   priceChangePct: number | null;
   priceChangeLabel: string;
   quoteVolumeLabel: string;
+  quoteVolumeValue: number | null;
   tradesCountLabel: string;
   speedLabel: string;
   volatilityPct: number | null;
@@ -72,10 +73,70 @@ export interface DashboardScannerMetricView {
   liquidityIsLive: boolean;
   liquidityScore: number;
   liquidityTitle: string;
+  activityIsLive: boolean;
   activityScore: number;
   activityTitle: string;
   updatedAtLabel: string;
   sourceLabel: 'LIVE' | 'TEST';
+}
+
+export interface DashboardScannerRankableItem {
+  view: Pick<
+    DashboardScannerMetricView,
+    | 'activityIsLive'
+    | 'activityScore'
+    | 'quoteVolumeValue'
+  >;
+}
+
+export function sortDashboardScannerRows<
+  T extends DashboardScannerRankableItem,
+>(
+  rows: readonly T[],
+): T[] {
+  return rows
+    .map((row, originalIndex) => ({
+      row,
+      originalIndex,
+    }))
+    .sort((left, right) => {
+      if (
+        left.row.view.activityIsLive
+        !== right.row.view.activityIsLive
+      ) {
+        return left.row.view.activityIsLive
+          ? -1
+          : 1;
+      }
+
+      const activityDifference =
+        right.row.view.activityScore
+        - left.row.view.activityScore;
+
+      if (activityDifference !== 0) {
+        return activityDifference;
+      }
+
+      const volumeDifference =
+        (
+          right.row.view.quoteVolumeValue
+          ?? 0
+        )
+        - (
+          left.row.view.quoteVolumeValue
+          ?? 0
+        );
+
+      if (volumeDifference !== 0) {
+        return volumeDifference;
+      }
+
+      return (
+        left.originalIndex
+        - right.originalIndex
+      );
+    })
+    .map(({ row }) => row);
 }
 
 export type MarketScannerFetch = (
@@ -527,6 +588,7 @@ export function buildDashboardScannerMetricView(
         fallback.priceChangeLabel,
       quoteVolumeLabel:
         fallback.quoteVolumeLabel,
+      quoteVolumeValue: null,
       tradesCountLabel:
         fallback.tradesCountLabel,
       speedLabel:
@@ -544,6 +606,7 @@ export function buildDashboardScannerMetricView(
         ),
       liquidityTitle:
         'TEST · тестовая ликвидность',
+      activityIsLive: false,
       activityScore:
         normalizeActivityScore(
           fallback.activityScore,
@@ -575,6 +638,8 @@ export function buildDashboardScannerMetricView(
       formatQuoteVolume(
         matchingMetric.quoteVolume,
       ),
+    quoteVolumeValue:
+      matchingMetric.quoteVolume,
     tradesCountLabel:
       formatInteger(
         matchingMetric.tradesCount,
@@ -608,6 +673,8 @@ export function buildDashboardScannerMetricView(
       buildLiquidityTitle(
         matchingMetric,
       ),
+    activityIsLive:
+      matchingMetric.activityScore !== null,
     activityScore:
       normalizeActivityScore(
         matchingMetric.activityScore

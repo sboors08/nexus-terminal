@@ -6,6 +6,7 @@ import {
   buildMarketScannerMetricsUrl,
   fetchMarketScannerMetrics,
   normalizeMarketScannerSymbol,
+  sortDashboardScannerRows,
 } from '../node_modules/.tmp/realtime-test/dashboardScannerMetrics.js';
 
 const metric = {
@@ -159,6 +160,10 @@ test(
       '$26.00K',
     );
     assert.equal(
+      view.quoteVolumeValue,
+      25_997.86,
+    );
+    assert.equal(
       view.tradesCountLabel,
       '266',
     );
@@ -181,6 +186,10 @@ test(
     assert.equal(
       view.liquidityTitle,
       'LIVE · спред 0.0200% · верх стакана $18.00K · дисбаланс +11.10%',
+    );
+    assert.equal(
+      view.activityIsLive,
+      true,
     );
     assert.equal(
       view.activityScore,
@@ -217,6 +226,10 @@ test(
       '$4.21M',
     );
     assert.equal(
+      view.quoteVolumeValue,
+      null,
+    );
+    assert.equal(
       view.tradesCountLabel,
       '8 420',
     );
@@ -241,6 +254,10 @@ test(
       'TEST · тестовая ликвидность',
     );
     assert.equal(
+      view.activityIsLive,
+      false,
+    );
+    assert.equal(
       view.activityScore,
       96,
     );
@@ -251,6 +268,57 @@ test(
     assert.equal(
       view.sourceLabel,
       'TEST',
+    );
+  },
+);
+
+test(
+  'ranks live scanner rows by activity and quote volume',
+  () => {
+    const ranked =
+      sortDashboardScannerRows([
+        {
+          symbol: 'TESTUSDT',
+          view: {
+            activityIsLive: false,
+            activityScore: 99,
+            quoteVolumeValue: null,
+          },
+        },
+        {
+          symbol: 'LOWVOLUMEUSDT',
+          view: {
+            activityIsLive: true,
+            activityScore: 80,
+            quoteVolumeValue: 1_000,
+          },
+        },
+        {
+          symbol: 'TOPUSDT',
+          view: {
+            activityIsLive: true,
+            activityScore: 90,
+            quoteVolumeValue: 500,
+          },
+        },
+        {
+          symbol: 'HIGHVOLUMEUSDT',
+          view: {
+            activityIsLive: true,
+            activityScore: 80,
+            quoteVolumeValue: 5_000,
+          },
+        },
+      ]);
+
+    assert.deepEqual(
+      ranked.map(({ symbol }) => symbol),
+      [
+        'TOPUSDT',
+        'HIGHVOLUMEUSDT',
+        'LOWVOLUMEUSDT',
+        'TESTUSDT',
+      ],
     );
   },
 );
