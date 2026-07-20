@@ -19,6 +19,7 @@ import {
   buildDashboardScannerMetricView,
   buildDashboardScannerWorkspaceUrl,
   normalizeDashboardRealtimeSymbol,
+  sortDashboardScannerRows,
   useDashboardScannerMetrics,
   useRealtimeMarketData,
   type DashboardRealtimeCoinView,
@@ -290,7 +291,8 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
 
   const dashboardScannerRows = useMemo(
     () =>
-      scannerRows.map((row) => {
+      sortDashboardScannerRows(
+        scannerRows.map((row) => {
         const symbol =
           normalizeDashboardRealtimeSymbol(
             String(row[0]),
@@ -321,6 +323,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
             ),
         };
       }),
+      ),
     [
       scannerMetrics.metrics,
       scannerRows,
