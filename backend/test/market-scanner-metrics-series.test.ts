@@ -141,3 +141,94 @@ test(
     );
   },
 );
+
+
+test(
+  'returns price samples for BTC comparison',
+  () => {
+    const series =
+      new MarketScannerMetricsSeries(
+        'SOLUSDT',
+      );
+
+    series.addTrade(
+      trade(
+        'sample-1',
+        '2026-07-19T12:00:01.000Z',
+        100,
+        1,
+        'buy',
+      ),
+    );
+
+    series.addTrade(
+      trade(
+        'sample-2',
+        '2026-07-19T12:00:09.000Z',
+        101,
+        1,
+        'buy',
+      ),
+    );
+
+    series.addTrade(
+      trade(
+        'sample-3',
+        '2026-07-19T12:00:11.000Z',
+        102,
+        1,
+        'sell',
+      ),
+    );
+
+    series.addTrade(
+      trade(
+        'sample-4',
+        '2026-07-19T12:01:05.000Z',
+        103,
+        1,
+        'buy',
+      ),
+    );
+
+    series.addTrade(
+      trade(
+        'sample-5',
+        '2026-07-19T12:02:05.000Z',
+        104,
+        1,
+        'sell',
+      ),
+    );
+
+    const shortSamples =
+      series.getPriceSamples(
+        '3m',
+        new Date(
+          '2026-07-19T12:02:30.000Z',
+        ),
+      );
+
+    assert.deepEqual(
+      shortSamples.map(
+        (sample) => sample.closePrice,
+      ),
+      [101, 102, 103, 104],
+    );
+
+    const longSamples =
+      series.getPriceSamples(
+        '5m',
+        new Date(
+          '2026-07-19T12:02:30.000Z',
+        ),
+      );
+
+    assert.deepEqual(
+      longSamples.map(
+        (sample) => sample.closePrice,
+      ),
+      [102, 103, 104],
+    );
+  },
+);

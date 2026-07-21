@@ -15,6 +15,8 @@ const metric = {
   windowMs: 60_000,
   price: 75.95,
   priceChangePct: 0.02634,
+  btcCorrelation: 0.87654,
+  relativeStrengthPct: 1.23456,
   volatilityPct: 0.42345,
   spreadPct: 0.01999800019998,
   topBookQuoteValue: 18_001.6,
@@ -128,6 +130,16 @@ test(
       result[0]?.volatilityPct,
       0.42345,
     );
+
+    assert.equal(
+      result[0]?.btcCorrelation,
+      0.87654,
+    );
+
+    assert.equal(
+      result[0]?.relativeStrengthPct,
+      1.23456,
+    );
     assert.equal(
       result[0]?.liquidityScore,
       7,
@@ -177,6 +189,26 @@ test(
     assert.equal(
       view.volatilityLabel,
       '0.42%',
+    );
+
+    assert.equal(
+      view.btcCorrelation,
+      0.87654,
+    );
+
+    assert.equal(
+      view.btcCorrelationLabel,
+      '0.88',
+    );
+
+    assert.equal(
+      view.relativeStrengthPct,
+      1.23456,
+    );
+
+    assert.equal(
+      view.relativeStrengthLabel,
+      '+1.23%',
     );
     assert.equal(
       view.liquidityIsLive,
@@ -345,6 +377,42 @@ test(
             ),
         }),
       /request failed: 503/,
+    );
+  },
+);
+
+
+test(
+  'shows no BTC comparison before enough history is collected',
+  () => {
+    const view =
+      buildDashboardScannerMetricView(
+        fallback,
+        {
+          ...metric,
+          btcCorrelation: null,
+          relativeStrengthPct: null,
+        },
+      );
+
+    assert.equal(
+      view.btcCorrelation,
+      null,
+    );
+
+    assert.equal(
+      view.btcCorrelationLabel,
+      'нет данных',
+    );
+
+    assert.equal(
+      view.relativeStrengthPct,
+      null,
+    );
+
+    assert.equal(
+      view.relativeStrengthLabel,
+      'нет данных',
     );
   },
 );

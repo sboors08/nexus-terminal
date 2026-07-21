@@ -4,8 +4,13 @@ import type {
 import {
   MarketScannerMetricsSeries,
 } from './market-scanner-metrics-series.js';
-import type {
-  MarketScannerWindowId,
+import {
+  calculateScannerBtcCorrelation,
+  calculateScannerRelativeStrengthPct,
+} from './scanner-btc-comparison.js';
+import {
+  DEFAULT_MARKET_SCANNER_WINDOW,
+  type MarketScannerWindowId,
 } from './scanner-windows.js';
 import type {
   RealtimeBookTicker,
@@ -192,6 +197,62 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
   ): MarketScannerMetrics[] {
     const referenceTime = this.now();
 
+    const resolvedScannerWindow =
+      scannerWindow
+      ?? DEFAULT_MARKET_SCANNER_WINDOW;
+
+    const btcSeries =
+      this.scannerMetrics.get(
+        'BTCUSDT',
+      );
+
+    const btcMetrics =
+      btcSeries?.getMetrics(
+        resolvedScannerWindow,
+        referenceTime,
+      ) ?? null;
+
+    const btcPriceSamples =
+      btcSeries?.getPriceSamples(
+        resolvedScannerWindow,
+        referenceTime,
+      ) ?? [];
+
+    const buildMetrics = (
+      metricsSeries:
+        MarketScannerMetricsSeries,
+    ): MarketScannerMetrics => {
+      const metrics =
+        metricsSeries.getMetrics(
+          resolvedScannerWindow,
+          referenceTime,
+        );
+
+      const btcCorrelation =
+        btcSeries
+          ? calculateScannerBtcCorrelation(
+              metricsSeries.getPriceSamples(
+                resolvedScannerWindow,
+                referenceTime,
+              ),
+              btcPriceSamples,
+            )
+          : null;
+
+      const relativeStrengthPct =
+        calculateScannerRelativeStrengthPct(
+          metrics.priceChangePct,
+          btcMetrics?.priceChangePct
+          ?? null,
+        );
+
+      return {
+        ...metrics,
+        btcCorrelation,
+        relativeStrengthPct,
+      };
+    };
+
     if (symbol) {
       const metricsSeries =
         this.scannerMetrics.get(
@@ -199,30 +260,23 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
         );
 
       return metricsSeries
-        ? [
-            metricsSeries.getMetrics(
-              scannerWindow,
-              referenceTime,
-            ),
-          ]
+        ? [buildMetrics(metricsSeries)]
         : [];
     }
 
     return this.getActiveSymbols()
-      .map((item) =>
-        this.scannerMetrics
-          .get(item)
-          ?.getMetrics(
-            scannerWindow,
-            referenceTime,
-          ),
+      .map(
+        (item) =>
+          this.scannerMetrics.get(item),
       )
       .filter(
         (
-          metrics,
-        ): metrics is MarketScannerMetrics =>
-          metrics !== undefined,
-      );
+          metricsSeries,
+        ): metricsSeries is
+          MarketScannerMetricsSeries =>
+          metricsSeries !== undefined,
+      )
+      .map(buildMetrics);
   }
 
   acquireSymbol(symbol: string): () => void {

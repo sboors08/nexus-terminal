@@ -69,6 +69,11 @@ const requiredMarkers = [
   'view.quoteVolumeLabel',
   'view.tradesCountLabel',
   'view.speedLabel',
+  'view.btcCorrelationLabel',
+  'view.relativeStrengthLabel',
+  'btcCorrelation',
+  'relativeStrengthPct',
+  'shows no BTC comparison before enough history is collected',
   "export * from './dashboardScannerMetrics'",
   "export * from './useDashboardScannerMetrics'",
   'dashboard-scanner-metrics.test.mjs',
@@ -102,5 +107,5 @@ if (
 }
 
 console.log(
-  'NEXUS frontend verified: Dashboard Market Scanner Integration, Row Navigation and Activity Ranking v0.1 are present.',
+  'NEXUS frontend verified: Dashboard Market Scanner Integration, Row Navigation, Activity Ranking and BTC Comparison v0.1 are present.',
 );

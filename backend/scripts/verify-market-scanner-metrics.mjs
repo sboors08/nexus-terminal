@@ -10,6 +10,7 @@ const root = process.cwd();
 
 const requiredFiles = [
   'src/modules/realtime-market-data/scanner-windows.ts',
+  'src/modules/realtime-market-data/scanner-btc-comparison.ts',
   'src/modules/realtime-market-data/market-scanner-metrics.ts',
   'src/modules/realtime-market-data/market-scanner-metrics-series.ts',
   'src/modules/realtime-market-data/realtime-market-data.types.ts',
@@ -18,6 +19,7 @@ const requiredFiles = [
   'test/market-scanner-metrics.test.ts',
   'test/market-scanner-metrics-series.test.ts',
   'test/scanner-window-route.test.ts',
+  'test/scanner-btc-comparison.test.ts',
   'test/binance-websocket.test.ts',
 ];
 
@@ -57,6 +59,11 @@ const requiredMarkers = [
   'MARKET_SCANNER_WINDOW_MS',
   'export class MarketScannerMetricsWindow',
   'export class MarketScannerMetricsSeries',
+  'calculateScannerBtcCorrelation',
+  'calculateScannerRelativeStrengthPct',
+  'btcCorrelation: number | null',
+  'relativeStrengthPct: number | null',
+  'getPriceSamples(',
   'scannerWindow: MarketScannerWindowId',
   'getScannerMetrics?(',
   'scannerWindow?: MarketScannerWindowId',
@@ -67,6 +74,9 @@ const requiredMarkers = [
   'aggregates multiple scanner windows from one trade stream',
   'uses the configured scanner window duration',
   'scanner metrics route forwards and validates scannerWindow',
+  'calculates BTC correlation and relative strength in scanner metrics',
+  'calculates perfect positive BTC correlation',
+  'calculates relative strength against BTC',
   '"verify:market-scanner-metrics"',
   'test/market-scanner-metrics-series.test.ts',
   'test/scanner-window-route.test.ts',
@@ -89,5 +99,5 @@ if (missingMarkers.length > 0) {
 }
 
 console.log(
-  'NEXUS backend verified: Scanner Windows and Multi-Window Metrics v0.1 are present.',
+  'NEXUS backend verified: Scanner Windows, Multi-Window Metrics and BTC Comparison v0.1 are present.',
 );

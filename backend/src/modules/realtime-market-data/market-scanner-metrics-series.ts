@@ -2,6 +2,9 @@
   RealtimeBookTicker,
   RealtimeTrade,
 } from './realtime-market-data.types.js';
+import type {
+  ScannerPriceSample,
+} from './scanner-btc-comparison.js';
 import {
   calculateMarketScannerActivityScore,
   calculateMarketScannerLiquidityScore,
@@ -33,7 +36,18 @@ interface MarketScannerMetricsMinuteBucket {
   sellQuoteVolume: number;
 }
 
+interface MarketScannerMetricsPriceBucket {
+  bucketStartedAtMs: number;
+  lastTimestampMs: number;
+  closePrice: number;
+}
+
 const MARKET_SCANNER_MINUTE_BUCKET_MS = 60_000;
+
+const MARKET_SCANNER_PRICE_BUCKET_MS = 10_000;
+
+const MARKET_SCANNER_SHORT_SAMPLE_RETENTION_MS =
+  getMarketScannerWindowMs('3m');
 
 const MAX_MARKET_SCANNER_WINDOW_MS =
   getMarketScannerWindowMs('3d');
@@ -48,6 +62,9 @@ export class MarketScannerMetricsSeries {
 
   private readonly minuteBuckets:
     MarketScannerMetricsMinuteBucket[] = [];
+
+  private readonly tenSecondPriceBuckets:
+    MarketScannerMetricsPriceBucket[] = [];
 
   private readonly recentTradeIds =
     new Set<string>();
@@ -160,6 +177,11 @@ export class MarketScannerMetricsSeries {
       }
     }
 
+    this.updatePriceBucket(
+      normalizedTrade,
+      timestampMs,
+    );
+
     this.latestTimestampMs = Math.max(
       this.latestTimestampMs,
       timestampMs,
@@ -168,6 +190,66 @@ export class MarketScannerMetricsSeries {
     this.prune(this.latestTimestampMs);
 
     return true;
+  }
+
+  getPriceSamples(
+    scannerWindow:
+      MarketScannerWindowId =
+        DEFAULT_MARKET_SCANNER_WINDOW,
+    at: Date | number = Date.now(),
+  ): ScannerPriceSample[] {
+    const referenceTimeMs =
+      resolveMarketScannerTimestampMs(at);
+
+    this.prune(referenceTimeMs);
+
+    const windowMs =
+      getMarketScannerWindowMs(
+        scannerWindow,
+      );
+
+    const cutoff =
+      referenceTimeMs - windowMs;
+
+    const samples =
+      windowMs <=
+        MARKET_SCANNER_SHORT_SAMPLE_RETENTION_MS
+        ? this.tenSecondPriceBuckets.map(
+            (bucket) => ({
+              timestampMs:
+                bucket.bucketStartedAtMs,
+              lastTimestampMs:
+                bucket.lastTimestampMs,
+              closePrice:
+                bucket.closePrice,
+            }),
+          )
+        : this.minuteBuckets.map(
+            (bucket) => ({
+              timestampMs:
+                bucket.minuteStartedAtMs,
+              lastTimestampMs:
+                bucket.lastTimestampMs,
+              closePrice:
+                bucket.lastTrade.price,
+            }),
+          );
+
+    return samples
+      .filter(
+        (sample) =>
+          sample.lastTimestampMs >= cutoff
+          && sample.timestampMs
+            <= referenceTimeMs,
+      )
+      .map(
+        (sample) => ({
+          timestampMs:
+            sample.timestampMs,
+          closePrice:
+            sample.closePrice,
+        }),
+      );
   }
 
   getMetrics(
@@ -351,6 +433,8 @@ export class MarketScannerMetricsSeries {
       windowMs,
       price: lastTrade?.price ?? null,
       priceChangePct,
+      btcCorrelation: null,
+      relativeStrengthPct: null,
       volatilityPct,
       spreadPct:
         this.bookTicker?.spreadPct
@@ -376,6 +460,7 @@ export class MarketScannerMetricsSeries {
   clear(): void {
     this.oneMinuteWindow.clear();
     this.minuteBuckets.length = 0;
+    this.tenSecondPriceBuckets.length = 0;
     this.recentTradeIds.clear();
     this.recentTradeIdQueue.length = 0;
     this.bookTicker = null;
@@ -400,6 +485,69 @@ export class MarketScannerMetricsSeries {
           removedId,
         );
       }
+    }
+  }
+
+  private updatePriceBucket(
+    trade: RealtimeTrade,
+    timestampMs: number,
+  ): void {
+    const bucketStartedAtMs =
+      Math.floor(
+        timestampMs
+        / MARKET_SCANNER_PRICE_BUCKET_MS,
+      )
+      * MARKET_SCANNER_PRICE_BUCKET_MS;
+
+    const existingIndex =
+      this.tenSecondPriceBuckets.findIndex(
+        (bucket) =>
+          bucket.bucketStartedAtMs
+          >= bucketStartedAtMs,
+      );
+
+    const existingBucket =
+      existingIndex >= 0
+        ? this.tenSecondPriceBuckets[
+            existingIndex
+          ]
+        : undefined;
+
+    if (
+      existingBucket
+      && existingBucket.bucketStartedAtMs
+        === bucketStartedAtMs
+    ) {
+      if (
+        timestampMs
+        >= existingBucket.lastTimestampMs
+      ) {
+        existingBucket.lastTimestampMs =
+          timestampMs;
+
+        existingBucket.closePrice =
+          trade.price;
+      }
+
+      return;
+    }
+
+    const bucket = {
+      bucketStartedAtMs,
+      lastTimestampMs: timestampMs,
+      closePrice: trade.price,
+    };
+
+    if (existingIndex === -1) {
+      this.tenSecondPriceBuckets.push(
+        bucket,
+      );
+    } else {
+      this.tenSecondPriceBuckets.splice(
+        existingIndex,
+        0,
+        bucket,
+      );
     }
   }
 
@@ -500,6 +648,30 @@ export class MarketScannerMetricsSeries {
       this.minuteBuckets.splice(
         0,
         removeCount,
+      );
+    }
+
+    const shortSampleCutoff =
+      referenceTimeMs
+      - MARKET_SCANNER_SHORT_SAMPLE_RETENTION_MS;
+
+    let shortRemoveCount = 0;
+
+    while (
+      shortRemoveCount
+        < this.tenSecondPriceBuckets.length
+      && this.tenSecondPriceBuckets[
+        shortRemoveCount
+      ]!.lastTimestampMs
+        < shortSampleCutoff
+    ) {
+      shortRemoveCount += 1;
+    }
+
+    if (shortRemoveCount > 0) {
+      this.tenSecondPriceBuckets.splice(
+        0,
+        shortRemoveCount,
       );
     }
   }
