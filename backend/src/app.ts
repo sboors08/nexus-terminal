@@ -5,12 +5,14 @@ import { apiModules } from './modules/index.js';
 import { BinanceMarketDataClient } from './modules/market-data/binance-market-data.client.js';
 import type { MarketDataProvider } from './modules/market-data/market-data.provider.js';
 import { BinanceWebSocketMarketDataService } from './modules/realtime-market-data/binance-websocket.service.js';
+import { BinanceSymbolUniverseService } from './modules/realtime-market-data/binance-symbol-universe.service.js';
 import type { RealtimeMarketDataService } from './modules/realtime-market-data/realtime-market-data.types.js';
 
 export interface BuildAppOptions {
   env?: AppEnv;
   marketDataProvider?: MarketDataProvider;
   realtimeMarketDataService?: RealtimeMarketDataService | null;
+  binanceSymbolUniverseService?: BinanceSymbolUniverseService | null;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -34,6 +36,34 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : null
     : options.realtimeMarketDataService;
 
+  const symbolUniverseEnabled =
+    env.binanceSymbolUniverseEnabled
+    ?? env.nodeEnv !== 'test';
+
+  const binanceSymbolUniverseService =
+    options.binanceSymbolUniverseService
+    === undefined
+      ? symbolUniverseEnabled
+        ? new BinanceSymbolUniverseService({
+            baseUrl:
+              env.binanceBaseUrl
+              ?? 'https://data-api.binance.vision',
+            quoteAsset:
+              env.binanceSymbolUniverseQuoteAsset
+              ?? 'USDT',
+            refreshIntervalMs:
+              env.binanceSymbolUniverseRefreshIntervalMs
+              ?? 60_000,
+            requestTimeoutMs:
+              env.binanceRequestTimeoutMs
+              ?? 5_000,
+            collectingDurationMs:
+              env.binanceSymbolUniverseCollectingDurationMs
+              ?? 15 * 60 * 1000,
+          })
+        : null
+      : options.binanceSymbolUniverseService;
+
   const app = Fastify({
     logger: env.nodeEnv === 'test' ? false : { level: env.logLevel },
     trustProxy: true,
@@ -53,11 +83,30 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     app.addHook('onClose', async () => realtimeMarketDataService.stop());
   }
 
+  if (binanceSymbolUniverseService) {
+    app.addHook(
+      'onReady',
+      async () => {
+        await binanceSymbolUniverseService.start();
+      },
+    );
+
+    app.addHook(
+      'onClose',
+      async () => {
+        binanceSymbolUniverseService.stop();
+      },
+    );
+  }
+
   app.get('/', async () => ({ service: 'nexus-backend', version: '0.1.0', apiPrefix: env.apiPrefix }));
   await app.register(apiModules, {
     prefix: env.apiPrefix,
     marketDataProvider,
     ...(realtimeMarketDataService ? { realtimeMarketDataService } : {}),
+    ...(binanceSymbolUniverseService
+      ? { binanceSymbolUniverseService }
+      : {}),
   });
 
   app.setNotFoundHandler((request, reply) => reply.status(404).send({ error: 'not_found', message: `Route ${request.method} ${request.url} was not found`, requestId: request.id }));

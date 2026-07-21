@@ -1,4 +1,4 @@
-﻿import {
+import {
   formatScannerPrice,
   formatScannerTradeTime,
 } from './scannerRealtime.js';
@@ -90,7 +90,11 @@ export interface DashboardScannerMetricView {
   activityScore: number;
   activityTitle: string;
   updatedAtLabel: string;
-  sourceLabel: 'LIVE' | 'TEST';
+  sourceLabel:
+    | 'LIVE'
+    | 'TEST'
+    | 'BINANCE'
+    | 'NEW';
 }
 
 export interface DashboardScannerRankableItem {

@@ -16,6 +16,7 @@ import { ROUTES } from '@/app/routing/routes';
 import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   buildDashboardRealtimeView,
+  buildDashboardScannerUniverseRows,
   countActiveScannerFilters,
   createDefaultScannerFilterState,
   filterAndSortScannerRows,
@@ -23,6 +24,7 @@ import {
   buildDashboardScannerWorkspaceUrl,
   normalizeDashboardRealtimeSymbol,
   sortDashboardScannerRows,
+  useBinanceSymbolUniverse,
   useDashboardScannerMetrics,
   useRealtimeMarketData,
   type DashboardRealtimeCoinView,
@@ -252,6 +254,26 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
   const [scannerFiltersOpen, setScannerFiltersOpen] =
     useState(false);
 
+  const symbolUniverse =
+    useBinanceSymbolUniverse({
+      intervalMs: 60_000,
+    });
+
+  const scannerUniverseEntries =
+    symbolUniverse.snapshot?.entries;
+
+  const scannerUniverseRows = useMemo(
+    () =>
+      buildDashboardScannerUniverseRows(
+        scannerRows,
+        scannerUniverseEntries ?? [],
+      ),
+    [
+      scannerRows,
+      scannerUniverseEntries,
+    ],
+  );
+
   const realtimeSources = useMemo(
     () => [
       {
@@ -308,41 +330,56 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
   const dashboardScannerRows = useMemo(
     () =>
       sortDashboardScannerRows(
-        scannerRows.map((row) => {
+        scannerUniverseRows.map((item) => {
+        const row = item.row;
         const symbol =
           normalizeDashboardRealtimeSymbol(
             String(row[0]),
           );
 
+        const metricView =
+          buildDashboardScannerMetricView(
+            {
+              symbol,
+              priceChangeLabel:
+                String(row[2]),
+              quoteVolumeLabel:
+                String(row[3]),
+              tradesCountLabel:
+                String(row[4]),
+              speedLabel:
+                String(row[5]),
+              volatilityLabel:
+                String(row[8]),
+              liquidityScore:
+                Number(row[9]),
+              activityScore:
+                Number(row[1]),
+            },
+            scannerMetrics.metrics[symbol],
+          );
+
         return {
-          row,
-          view:
-            buildDashboardScannerMetricView(
-              {
-                symbol,
-                priceChangeLabel:
-                  String(row[2]),
-                quoteVolumeLabel:
-                  String(row[3]),
-                tradesCountLabel:
-                  String(row[4]),
-                speedLabel:
-                  String(row[5]),
-                volatilityLabel:
-                  String(row[8]),
-                liquidityScore:
-                  Number(row[9]),
-                activityScore:
-                  Number(row[1]),
-              },
-              scannerMetrics.metrics[symbol],
-            ),
+          ...item,
+          view: {
+            ...metricView,
+            sourceLabel:
+              metricView.isLive
+                ? 'LIVE'
+                : item.source
+                    === 'collecting'
+                  ? 'NEW'
+                  : item.source
+                      === 'registry'
+                    ? 'BINANCE'
+                    : 'TEST',
+          },
         };
       }),
       ),
     [
       scannerMetrics.metrics,
-      scannerRows,
+      scannerUniverseRows,
     ],
   );
 
@@ -680,12 +717,21 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                     className={
                       view.isLive
                         ? styles.sourceLive
-                        : styles.sourceTest
+                        : view.sourceLabel
+                            === 'NEW'
+                          ? styles.sourceCollecting
+                          : view.sourceLabel
+                              === 'BINANCE'
+                            ? styles.sourceRegistry
+                            : styles.sourceTest
                     }
                   >
                     {view.isLive
                       ? '1M LIVE'
-                      : 'TEST'}
+                      : view.sourceLabel
+                          === 'NEW'
+                        ? 'NEW · СБОР'
+                        : view.sourceLabel}
                   </small>
                 </strong>
 
