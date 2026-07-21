@@ -31,6 +31,8 @@ export interface MarketScannerMetrics {
   windowMs: number;
   price: number | null;
   priceChangePct: number | null;
+  btcCorrelation: number | null;
+  relativeStrengthPct: number | null;
   volatilityPct: number | null;
   spreadPct: number | null;
   topBookQuoteValue: number | null;
@@ -66,6 +68,10 @@ export interface DashboardScannerMetricView {
   priceLabel: string;
   priceChangePct: number | null;
   priceChangeLabel: string;
+  btcCorrelation: number | null;
+  btcCorrelationLabel: string;
+  relativeStrengthPct: number | null;
+  relativeStrengthLabel: string;
   quoteVolumeLabel: string;
   quoteVolumeValue: number | null;
   tradesCountLabel: string;
@@ -340,6 +346,15 @@ function parseMarketScannerMetric(
       value,
       'priceChangePct',
     ),
+    btcCorrelation: readNullableNumber(
+      value,
+      'btcCorrelation',
+    ),
+    relativeStrengthPct:
+      readNullableNumber(
+        value,
+        'relativeStrengthPct',
+      ),
     volatilityPct: readNullableNumber(
       value,
       'volatilityPct',
@@ -459,6 +474,17 @@ function formatSignedPercent(
     `${value > 0 ? '+' : ''}`
     + `${value.toFixed(2)}%`
   );
+}
+
+function formatBtcCorrelation(
+  value: number,
+): string {
+  const normalized =
+    Math.abs(value) < 0.005
+      ? 0
+      : value;
+
+  return normalized.toFixed(2);
 }
 
 function formatInteger(
@@ -608,6 +634,12 @@ export function buildDashboardScannerMetricView(
       priceChangePct: null,
       priceChangeLabel:
         fallback.priceChangeLabel,
+      btcCorrelation: null,
+      btcCorrelationLabel:
+        'нет данных',
+      relativeStrengthPct: null,
+      relativeStrengthLabel:
+        'нет данных',
       quoteVolumeLabel:
         fallback.quoteVolumeLabel,
       quoteVolumeValue: null,
@@ -655,6 +687,22 @@ export function buildDashboardScannerMetricView(
         ? '\u043d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445'
         : formatSignedPercent(
             matchingMetric.priceChangePct,
+          ),
+    btcCorrelation:
+      matchingMetric.btcCorrelation,
+    btcCorrelationLabel:
+      matchingMetric.btcCorrelation === null
+        ? 'нет данных'
+        : formatBtcCorrelation(
+            matchingMetric.btcCorrelation,
+          ),
+    relativeStrengthPct:
+      matchingMetric.relativeStrengthPct,
+    relativeStrengthLabel:
+      matchingMetric.relativeStrengthPct === null
+        ? 'нет данных'
+        : formatSignedPercent(
+            matchingMetric.relativeStrengthPct,
           ),
     quoteVolumeLabel:
       formatQuoteVolume(

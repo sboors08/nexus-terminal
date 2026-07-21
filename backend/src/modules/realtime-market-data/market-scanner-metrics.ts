@@ -14,6 +14,8 @@ export interface MarketScannerMetrics {
   windowMs: number;
   price: number | null;
   priceChangePct: number | null;
+  btcCorrelation: number | null;
+  relativeStrengthPct: number | null;
   volatilityPct: number | null;
   spreadPct: number | null;
   topBookQuoteValue: number | null;
@@ -432,6 +434,8 @@ export class MarketScannerMetricsWindow {
       windowMs: this.windowMs,
       price: last?.trade.price ?? null,
       priceChangePct,
+      btcCorrelation: null,
+      relativeStrengthPct: null,
       volatilityPct,
       spreadPct:
         this.bookTicker?.spreadPct

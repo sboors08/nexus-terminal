@@ -617,16 +617,30 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                   {view.speedLabel}
                 </span>
 
-                <span>{row[6]}</span>
+                <span
+                  className={
+                    view.btcCorrelation === null
+                      ? styles.neutral
+                      : undefined
+                  }
+                  title=
+                    "Корреляция доходностей монеты и BTC от -1 до 1 за окно 1M"
+                >
+                  {view.btcCorrelationLabel}
+                </span>
 
                 <em
                   className={
-                    String(row[7]).startsWith('-')
-                      ? styles.negative
-                      : styles.positive
+                    view.relativeStrengthPct === null
+                      ? styles.neutral
+                      : view.relativeStrengthPct < 0
+                        ? styles.negative
+                        : styles.positive
                   }
+                  title=
+                    "Изменение монеты минус изменение BTC за окно 1M"
                 >
-                  {row[7]}
+                  {view.relativeStrengthLabel}
                 </em>
 
                 <span>{view.volatilityLabel}</span>

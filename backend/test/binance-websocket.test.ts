@@ -324,3 +324,165 @@ test('Realtime market endpoints expose connection state and snapshots', async ()
   await app.close();
   assert.equal(stops, 1);
 });
+
+test(
+  'calculates BTC correlation and relative strength in scanner metrics',
+  () => {
+    const sockets: FakeSocket[] = [];
+
+    const currentTime =
+      new Date(
+        '2026-07-21T12:00:40.000Z',
+      );
+
+    const service =
+      new BinanceWebSocketMarketDataService({
+        baseUrl:
+          'wss://data-stream.binance.vision',
+        symbols: [
+          'BTCUSDT',
+          'SOLUSDT',
+        ],
+        reconnectBaseDelayMs: 1_000,
+        reconnectMaxDelayMs: 30_000,
+        tradesBufferSize: 100,
+        socketFactory() {
+          const socket = new FakeSocket();
+
+          sockets.push(socket);
+
+          return socket;
+        },
+        now: () => currentTime,
+      });
+
+    service.start();
+
+    const socket = sockets[0];
+
+    assert.ok(socket);
+
+    socket.emit('open');
+
+    const emitTrade = (
+      symbol: string,
+      tradeId: number,
+      timestamp: string,
+      price: number,
+    ): void => {
+      const timestampMs =
+        Date.parse(timestamp);
+
+      socket.emit('message', {
+        data: JSON.stringify({
+          stream:
+            `${symbol.toLowerCase()}@trade`,
+          data: {
+            E: timestampMs,
+            s: symbol,
+            t: tradeId,
+            p: String(price),
+            q: '1',
+            T: timestampMs,
+            m: false,
+          },
+        }),
+      });
+    };
+
+    const timestamps = [
+      '2026-07-21T12:00:01.000Z',
+      '2026-07-21T12:00:11.000Z',
+      '2026-07-21T12:00:21.000Z',
+      '2026-07-21T12:00:31.000Z',
+    ];
+
+    const btcPrices = [
+      100,
+      110,
+      104.5,
+      125.4,
+    ];
+
+    const solPrices = [
+      200,
+      220,
+      209,
+      250.8,
+    ];
+
+    for (
+      let index = 0;
+      index < timestamps.length;
+      index += 1
+    ) {
+      emitTrade(
+        'BTCUSDT',
+        1_000 + index,
+        timestamps[index]!,
+        btcPrices[index]!,
+      );
+
+      emitTrade(
+        'SOLUSDT',
+        2_000 + index,
+        timestamps[index]!,
+        solPrices[index]!,
+      );
+    }
+
+    const solMetrics =
+      service.getScannerMetrics(
+        'SOLUSDT',
+        '1m',
+      )[0];
+
+    assert.ok(solMetrics);
+
+    assert.ok(
+      solMetrics.btcCorrelation !== null,
+    );
+
+    assert.ok(
+      Math.abs(
+        solMetrics.btcCorrelation - 1,
+      ) < 1e-12,
+    );
+
+    assert.ok(
+      solMetrics.relativeStrengthPct
+      !== null,
+    );
+
+    assert.ok(
+      Math.abs(
+        solMetrics.relativeStrengthPct,
+      ) < 1e-12,
+    );
+
+    const btcMetrics =
+      service.getScannerMetrics(
+        'BTCUSDT',
+        '1m',
+      )[0];
+
+    assert.ok(btcMetrics);
+
+    assert.ok(
+      btcMetrics.btcCorrelation !== null,
+    );
+
+    assert.ok(
+      Math.abs(
+        btcMetrics.btcCorrelation - 1,
+      ) < 1e-12,
+    );
+
+    assert.equal(
+      btcMetrics.relativeStrengthPct,
+      0,
+    );
+
+    service.stop();
+  },
+);
