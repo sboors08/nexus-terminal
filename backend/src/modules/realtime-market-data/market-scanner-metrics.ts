@@ -1,10 +1,16 @@
-﻿import type {
+import type {
   RealtimeBookTicker,
   RealtimeTrade,
 } from './realtime-market-data.types.js';
+import {
+  DEFAULT_MARKET_SCANNER_WINDOW,
+  getMarketScannerWindowMs,
+  type MarketScannerWindowId,
+} from './scanner-windows.js';
 
 export interface MarketScannerMetrics {
   symbol: string;
+  scannerWindow: MarketScannerWindowId;
   windowMs: number;
   price: number | null;
   priceChangePct: number | null;
@@ -26,7 +32,7 @@ export interface MarketScannerMetrics {
 }
 
 export interface MarketScannerMetricsWindowOptions {
-  windowMs?: number;
+  scannerWindow?: MarketScannerWindowId;
 }
 
 interface StoredTrade {
@@ -34,10 +40,9 @@ interface StoredTrade {
   timestampMs: number;
 }
 
-const DEFAULT_WINDOW_MS = 60_000;
 const SYMBOL_PATTERN = /^[A-Z0-9]{5,20}$/;
 
-function normalizeSymbol(symbol: string): string {
+export function normalizeMarketScannerSymbol(symbol: string): string {
   const normalized = symbol.trim().toUpperCase();
 
   if (!SYMBOL_PATTERN.test(normalized)) {
@@ -49,7 +54,7 @@ function normalizeSymbol(symbol: string): string {
   return normalized;
 }
 
-function resolveTimestampMs(
+export function resolveMarketScannerTimestampMs(
   value: Date | number,
 ): number {
   const timestampMs =
@@ -73,7 +78,7 @@ function clamp01(value: number): number {
   );
 }
 
-function calculateLiquidityScore(
+export function calculateMarketScannerLiquidityScore(
   spreadPct: number,
   topBookQuoteValue: number,
 ): number {
@@ -102,7 +107,7 @@ function calculateLiquidityScore(
   );
 }
 
-function calculateActivityScore(
+export function calculateMarketScannerActivityScore(
   quoteVolume: number,
   tradesPerMinute: number,
   volatilityPct: number | null,
@@ -149,7 +154,7 @@ function calculateActivityScore(
   );
 }
 
-function validateTrade(
+export function validateMarketScannerTrade(
   trade: RealtimeTrade,
 ): number {
   const timestampMs = Date.parse(trade.timestamp);
@@ -178,6 +183,7 @@ function validateTrade(
 
 export class MarketScannerMetricsWindow {
   private readonly symbol: string;
+  private readonly scannerWindow: MarketScannerWindowId;
   private readonly windowMs: number;
   private readonly trades: StoredTrade[] = [];
   private readonly tradeIds = new Set<string>();
@@ -190,9 +196,13 @@ export class MarketScannerMetricsWindow {
     symbol: string,
     options: MarketScannerMetricsWindowOptions = {},
   ) {
-    this.symbol = normalizeSymbol(symbol);
-    this.windowMs =
-      options.windowMs ?? DEFAULT_WINDOW_MS;
+    this.symbol = normalizeMarketScannerSymbol(symbol);
+    this.scannerWindow =
+      options.scannerWindow
+      ?? DEFAULT_MARKET_SCANNER_WINDOW;
+    this.windowMs = getMarketScannerWindowMs(
+      this.scannerWindow,
+    );
 
     if (
       !Number.isFinite(this.windowMs)
@@ -207,7 +217,7 @@ export class MarketScannerMetricsWindow {
   updateBookTicker(
     bookTicker: RealtimeBookTicker,
   ): void {
-    const tickerSymbol = normalizeSymbol(
+    const tickerSymbol = normalizeMarketScannerSymbol(
       bookTicker.symbol,
     );
 
@@ -248,7 +258,7 @@ export class MarketScannerMetricsWindow {
   }
 
   addTrade(trade: RealtimeTrade): boolean {
-    const tradeSymbol = normalizeSymbol(
+    const tradeSymbol = normalizeMarketScannerSymbol(
       trade.symbol,
     );
 
@@ -262,7 +272,7 @@ export class MarketScannerMetricsWindow {
       return false;
     }
 
-    const timestampMs = validateTrade(trade);
+    const timestampMs = validateMarketScannerTrade(trade);
     const storedTrade: StoredTrade = {
       trade: { ...trade, symbol: tradeSymbol },
       timestampMs,
@@ -297,7 +307,7 @@ export class MarketScannerMetricsWindow {
     at: Date | number = Date.now(),
   ): MarketScannerMetrics {
     const referenceTimeMs =
-      resolveTimestampMs(at);
+      resolveMarketScannerTimestampMs(at);
 
     this.prune(referenceTimeMs);
 
@@ -397,7 +407,7 @@ export class MarketScannerMetricsWindow {
       this.bookTicker
       && topBookQuoteValue !== null
       && topBookQuoteValue > 0
-        ? calculateLiquidityScore(
+        ? calculateMarketScannerLiquidityScore(
             this.bookTicker.spreadPct,
             topBookQuoteValue,
           )
@@ -408,7 +418,7 @@ export class MarketScannerMetricsWindow {
       * (60_000 / this.windowMs);
 
     const activityScore =
-      calculateActivityScore(
+      calculateMarketScannerActivityScore(
         quoteVolume,
         tradesPerMinute,
         volatilityPct,
@@ -418,6 +428,7 @@ export class MarketScannerMetricsWindow {
 
     return {
       symbol: this.symbol,
+      scannerWindow: this.scannerWindow,
       windowMs: this.windowMs,
       price: last?.trade.price ?? null,
       priceChangePct,

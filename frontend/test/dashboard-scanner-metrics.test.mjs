@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildDashboardScannerMetricView,
@@ -7,10 +7,11 @@ import {
   fetchMarketScannerMetrics,
   normalizeMarketScannerSymbol,
   sortDashboardScannerRows,
-} from '../node_modules/.tmp/realtime-test/dashboardScannerMetrics.js';
+} from '../node_modules/.tmp/realtime-test/realtime/dashboardScannerMetrics.js';
 
 const metric = {
   symbol: 'SOLUSDT',
+  scannerWindow: '1m',
   windowMs: 60_000,
   price: 75.95,
   priceChangePct: 0.02634,
@@ -64,8 +65,9 @@ test(
           'ethusdt',
           'SOLUSDT',
         ],
+        scannerWindow: '1m',
       }),
-      'http://localhost:4100/api/v1/market/realtime/scanner-metrics?symbols=SOLUSDT%2CETHUSDT',
+      'http://localhost:4100/api/v1/market/realtime/scanner-metrics?symbols=SOLUSDT%2CETHUSDT&scannerWindow=1m',
     );
   },
 );
@@ -91,6 +93,7 @@ test(
     const result =
       await fetchMarketScannerMetrics({
         symbols: ['SOLUSDT'],
+        scannerWindow: '1m',
         fetcher: async (url) => {
           requestedUrl = url;
 
@@ -109,7 +112,7 @@ test(
 
     assert.match(
       requestedUrl,
-      /scanner-metrics\?symbols=SOLUSDT$/,
+      /scanner-metrics\?symbols=SOLUSDT&scannerWindow=1m$/,
     );
 
     assert.equal(

@@ -1,8 +1,8 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildWatchlistRealtimeView,
-} from '../node_modules/.tmp/realtime-test/watchlistRealtime.js';
+} from '../node_modules/.tmp/realtime-test/realtime/watchlistRealtime.js';
 
 test('builds a pending Watchlist row without a snapshot', () => {
   const view = buildWatchlistRealtimeView(

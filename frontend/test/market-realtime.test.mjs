@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildMarketRealtimeView,
-} from '../node_modules/.tmp/realtime-test/marketRealtime.js';
+} from '../node_modules/.tmp/realtime-test/realtime/marketRealtime.js';
 
 test('uses the Market fallback price while realtime is pending', () => {
   const view = buildMarketRealtimeView(

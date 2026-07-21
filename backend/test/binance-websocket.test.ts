@@ -225,6 +225,7 @@ test('Realtime market endpoints expose connection state and snapshots', async ()
         : [
             {
               symbol: 'BTCUSDT',
+              scannerWindow: '1m',
               windowMs: 60_000,
               price: 64_000.5,
               priceChangePct: 0.25,

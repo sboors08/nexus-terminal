@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
   buildRealtimeStreamUrl,
   RealtimeMarketDataClient,
-} from '../node_modules/.tmp/realtime-test/realtimeClient.js';
+} from '../node_modules/.tmp/realtime-test/realtime/realtimeClient.js';
 
 class FakeEventSource {
   constructor(url) {

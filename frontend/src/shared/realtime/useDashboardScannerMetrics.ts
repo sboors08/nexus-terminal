@@ -115,6 +115,7 @@ export function useDashboardScannerMetrics(
           await fetchMarketScannerMetrics({
             baseUrl,
             symbols: normalizedSymbols,
+            scannerWindow: '1m',
           });
 
         if (cancelled) return;

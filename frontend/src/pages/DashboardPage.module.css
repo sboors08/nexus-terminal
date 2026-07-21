@@ -6,7 +6,7 @@
   --muted: #71847d;
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-template-rows: 300px 264px 248px;
+  grid-template-rows: 300px 288px 248px;
   gap: 11px;
   width: 100%;
   max-width: 1600px;
@@ -796,7 +796,7 @@
 
 @media (max-width: 1450px) {
   .dashboard {
-    grid-template-rows: 290px 252px 242px;
+    grid-template-rows: 290px 288px 242px;
     gap: 9px;
   }
   .marketMode { height: 242px; padding: 13px; }

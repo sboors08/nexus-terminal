@@ -21,6 +21,15 @@ import {
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { DirectionBadge, type TradeDirection } from '@/shared/ui/DirectionBadge';
 import { SetupStageBadge, type SetupStage } from '@/shared/ui/SetupStageBadge';
+import {
+  TRADING_PRESET_IDS,
+  TRADING_PRESETS,
+  isScannerWindow,
+  isTradingPreset,
+  type ScannerWindow,
+  type TradingPresetDefinition,
+  type TradingPreset,
+} from '@/shared/config/tradingPresets';
 import styles from './ScannerPage.module.css';
 
 type DirectionFilter = 'all' | TradeDirection;
@@ -123,6 +132,17 @@ function numericSort(setups: ScannerSetup[], sortKey: SortKey) {
 function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSetupId = searchParams.get('setupId');
+  const requestedPreset = searchParams.get('preset');
+  const preset: TradingPreset = isTradingPreset(requestedPreset)
+    ? requestedPreset
+    : 'scalping';
+  const presetDefinition: TradingPresetDefinition = TRADING_PRESETS[preset];
+  const requestedScannerWindow = searchParams.get('scannerWindow');
+  const scannerWindow: ScannerWindow =
+    isScannerWindow(requestedScannerWindow)
+    && presetDefinition.scannerWindows.includes(requestedScannerWindow)
+      ? requestedScannerWindow
+      : presetDefinition.defaultScannerWindow;
   const [search, setSearch] = useState('');
   const [direction, setDirection] = useState<DirectionFilter>('all');
   const [kind, setKind] = useState<KindFilter>('all');
@@ -179,15 +199,35 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
       : styles.liveDotPending;
 
   useEffect(() => {
-    if (requestedSetupId === selectedSetup.id) return;
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set('setupId', selectedSetup.id);
-    setSearchParams(nextParams, { replace: true });
-  }, [requestedSetupId, searchParams, selectedSetup.id, setSearchParams]);
+    nextParams.set('preset', preset);
+    nextParams.set('scannerWindow', scannerWindow);
+
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [preset, scannerWindow, searchParams, selectedSetup.id, setSearchParams]);
 
   const selectSetup = (setupId: string) => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set('setupId', setupId);
+    setSearchParams(nextParams);
+  };
+
+  const selectPreset = (value: TradingPreset) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('setupId', selectedSetup.id);
+    nextParams.set('preset', value);
+    nextParams.set('scannerWindow', TRADING_PRESETS[value].defaultScannerWindow);
+    setSearchParams(nextParams);
+  };
+
+  const selectScannerWindow = (value: ScannerWindow) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('setupId', selectedSetup.id);
+    nextParams.set('preset', preset);
+    nextParams.set('scannerWindow', value);
     setSearchParams(nextParams);
   };
 
@@ -225,6 +265,43 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
       </header>
 
       <section className={styles.filtersPanel} aria-label="Фильтры Scanner">
+        <div className={styles.presetFilter}>
+          <span className={styles.controlLabel}>Торговый пресет</span>
+          <div
+            className={`${styles.segmentedControl} ${styles.presetControl}`}
+            aria-label="Торговый пресет Scanner"
+          >
+            {TRADING_PRESET_IDS.map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={preset === value ? styles.segmentActive : ''}
+                onClick={() => selectPreset(value)}
+                aria-pressed={preset === value}
+              >
+                {TRADING_PRESETS[value].label}
+              </button>
+            ))}
+          </div>
+          <span className={styles.controlLabel}>Период анализа</span>
+          <div
+            className={`${styles.segmentedControl} ${styles.scannerWindowControl}`}
+            aria-label="Период анализа Scanner"
+          >
+            {presetDefinition.scannerWindows.map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={scannerWindow === value ? styles.segmentActive : ''}
+                onClick={() => selectScannerWindow(value)}
+                aria-pressed={scannerWindow === value}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className={styles.filterTopRow}>
           <label className={styles.searchField}>
             <span>Поиск инструмента</span>
@@ -516,6 +593,8 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
             <Link className={styles.primaryLink} to={buildWorkspaceUrl(ROUTES.workspace, {
                 setupId: selectedSetup.id,
                 symbol: selectedSetup.symbol,
+                preset,
+                scannerWindow,
                 timeframe: selectedSetup.timeframe,
               })}>
               Открыть Workspace <span aria-hidden="true">→</span>

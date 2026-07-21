@@ -1,7 +1,12 @@
-import {
-  MarketScannerMetricsWindow,
-  type MarketScannerMetrics,
+import type {
+  MarketScannerMetrics,
 } from './market-scanner-metrics.js';
+import {
+  MarketScannerMetricsSeries,
+} from './market-scanner-metrics-series.js';
+import type {
+  MarketScannerWindowId,
+} from './scanner-windows.js';
 import type {
   RealtimeBookTicker,
   RealtimeConnectionStatus,
@@ -89,7 +94,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
   private readonly scheduler: ReconnectScheduler;
   private readonly now: () => Date;
   private readonly snapshots = new Map<string, RealtimeSymbolSnapshot>();
-  private readonly scannerMetrics = new Map<string, MarketScannerMetricsWindow>();
+  private readonly scannerMetrics = new Map<string, MarketScannerMetricsSeries>();
   private readonly subscriptions = new Set<RealtimeSubscription>();
   private socket: RealtimeWebSocket | null = null;
   private reconnectHandle: unknown = null;
@@ -116,7 +121,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
 
       this.scannerMetrics.set(
         symbol,
-        new MarketScannerMetricsWindow(symbol),
+        new MarketScannerMetricsSeries(symbol),
       );
     }
 
@@ -181,20 +186,22 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       .map(cloneSnapshot);
   }
 
-  getScannerMetrics(
+    getScannerMetrics(
     symbol?: string,
+    scannerWindow?: MarketScannerWindowId,
   ): MarketScannerMetrics[] {
     const referenceTime = this.now();
 
     if (symbol) {
-      const metricsWindow =
+      const metricsSeries =
         this.scannerMetrics.get(
           symbol.toUpperCase(),
         );
 
-      return metricsWindow
+      return metricsSeries
         ? [
-            metricsWindow.getMetrics(
+            metricsSeries.getMetrics(
+              scannerWindow,
               referenceTime,
             ),
           ]
@@ -205,7 +212,10 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       .map((item) =>
         this.scannerMetrics
           .get(item)
-          ?.getMetrics(referenceTime),
+          ?.getMetrics(
+            scannerWindow,
+            referenceTime,
+          ),
       )
       .filter(
         (
@@ -246,7 +256,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
 
         this.scannerMetrics.set(
           normalizedSymbol,
-          new MarketScannerMetricsWindow(
+          new MarketScannerMetricsSeries(
             normalizedSymbol,
           ),
         );

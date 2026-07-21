@@ -78,6 +78,24 @@
   margin-bottom: var(--nexus-space-2);
 }
 
+.presetFilter {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) minmax(300px, 440px);
+  align-items: center;
+  gap: var(--nexus-space-2);
+  margin-bottom: var(--nexus-space-2);
+  padding-bottom: var(--nexus-space-2);
+  border-bottom: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+}
+
+.presetControl {
+  grid-template-columns: repeat(3, minmax(90px, 1fr));
+}
+
+.scannerWindowControl {
+  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
+}
+
 .filterTopRow {
   display: grid;
   grid-template-columns: minmax(220px, 1.25fr) auto minmax(190px, 1fr) minmax(170px, 0.8fr) minmax(120px, 0.55fr);
@@ -729,6 +747,14 @@
 }
 
 @media (max-width: 780px) {
+  .presetFilter {
+    grid-template-columns: 1fr;
+  }
+
+  .presetControl {
+    width: 100%;
+  }
+
   .pageHeader {
     align-items: flex-start;
     flex-direction: column;

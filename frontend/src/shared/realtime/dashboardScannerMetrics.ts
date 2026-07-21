@@ -2,6 +2,10 @@
   formatScannerPrice,
   formatScannerTradeTime,
 } from './scannerRealtime.js';
+import {
+  isScannerWindow,
+  type ScannerWindow,
+} from '../config/tradingPresets.js';
 
 export const MARKET_SCANNER_METRICS_PATH =
   '/api/v1/market/realtime/scanner-metrics';
@@ -23,6 +27,7 @@ export function buildDashboardScannerWorkspaceUrl(
 
 export interface MarketScannerMetrics {
   symbol: string;
+  scannerWindow: ScannerWindow;
   windowMs: number;
   price: number | null;
   priceChangePct: number | null;
@@ -147,6 +152,7 @@ export type MarketScannerFetch = (
 export interface FetchMarketScannerMetricsOptions {
   baseUrl?: string;
   symbols: readonly string[];
+  scannerWindow: ScannerWindow;
   fetcher?: MarketScannerFetch;
 }
 
@@ -263,7 +269,7 @@ function normalizeMarketScannerSymbols(
 export function buildMarketScannerMetricsUrl(
   options: Pick<
     FetchMarketScannerMetricsOptions,
-    'baseUrl' | 'symbols'
+    'baseUrl' | 'symbols' | 'scannerWindow'
   >,
 ): string {
   const baseUrl =
@@ -284,6 +290,9 @@ export function buildMarketScannerMetricsUrl(
   return (
     `${baseUrl}${MARKET_SCANNER_METRICS_PATH}`
     + `?symbols=${query}`
+    + `&scannerWindow=${encodeURIComponent(
+      options.scannerWindow,
+    )}`
   );
 }
 
@@ -302,10 +311,23 @@ function parseMarketScannerMetric(
     );
   }
 
+  if (
+    typeof value.scannerWindow !== 'string'
+    || !isScannerWindow(
+      value.scannerWindow,
+    )
+  ) {
+    throw new Error(
+      'Invalid market scanner metric: scannerWindow',
+    );
+  }
+
   return {
     symbol: normalizeMarketScannerSymbol(
       value.symbol,
     ),
+    scannerWindow:
+      value.scannerWindow,
     windowMs: readNumber(
       value,
       'windowMs',
