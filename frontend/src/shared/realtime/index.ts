@@ -8,3 +8,4 @@ export * from './workspaceRealtime';
 export * from './dashboardRealtime';
 export * from './dashboardScannerMetrics';
 export * from './useDashboardScannerMetrics';
+export * from './scannerFilters';

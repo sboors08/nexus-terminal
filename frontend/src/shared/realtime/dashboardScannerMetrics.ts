@@ -75,7 +75,9 @@ export interface DashboardScannerMetricView {
   quoteVolumeLabel: string;
   quoteVolumeValue: number | null;
   tradesCountLabel: string;
+  tradesCountValue: number | null;
   speedLabel: string;
+  tradesPerMinuteValue: number | null;
   volatilityPct: number | null;
   volatilityLabel: string;
   spreadPct: number | null;
@@ -645,8 +647,10 @@ export function buildDashboardScannerMetricView(
       quoteVolumeValue: null,
       tradesCountLabel:
         fallback.tradesCountLabel,
+      tradesCountValue: null,
       speedLabel:
         fallback.speedLabel,
+      tradesPerMinuteValue: null,
       volatilityPct: null,
       volatilityLabel:
         fallback.volatilityLabel,
@@ -714,10 +718,14 @@ export function buildDashboardScannerMetricView(
       formatInteger(
         matchingMetric.tradesCount,
       ),
+    tradesCountValue:
+      matchingMetric.tradesCount,
     speedLabel:
       `${formatInteger(
         matchingMetric.tradesPerMinute,
-      )}/\u043c\u0438\u043d`,
+      )}/мин`,
+    tradesPerMinuteValue:
+      matchingMetric.tradesPerMinute,
     volatilityPct:
       matchingMetric.volatilityPct,
     volatilityLabel:

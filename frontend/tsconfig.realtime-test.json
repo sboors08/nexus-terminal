@@ -14,6 +14,7 @@
     "src/shared/realtime/alertsRealtime.ts",
     "src/shared/realtime/workspaceRealtime.ts",
     "src/shared/realtime/dashboardRealtime.ts",
-    "src/shared/realtime/dashboardScannerMetrics.ts"
-  ]
+    "src/shared/realtime/dashboardScannerMetrics.ts",
+    "src/shared/realtime/scannerFilters.ts"
+]
 }
