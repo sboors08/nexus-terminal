@@ -493,7 +493,13 @@
   font-size: 8px;
 }
 
-.scannerTable { padding: 0 10px; }
+.scannerTable {
+  min-height: 0;
+  padding: 0 10px;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #24483a #071116;
+}
 
 .scannerHead,
 .scannerRow {
@@ -1202,7 +1208,9 @@
 }
 
 .sourceLive,
-.sourceTest {
+.sourceTest,
+.sourceRegistry,
+.sourceCollecting {
   font-family: var(--nexus-font-family-mono);
   font-size: 7px;
   font-weight: 800;
@@ -1214,6 +1222,16 @@
 
 .sourceTest {
   color: #82958d;
+}
+
+.sourceRegistry {
+  color: #50b8ff;
+}
+
+.sourceCollecting {
+  color: #f6c21f;
+  text-shadow:
+    0 0 8px rgb(246 194 31 / 35%);
 }
 
 .neutral {

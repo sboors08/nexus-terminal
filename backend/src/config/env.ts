@@ -21,6 +21,10 @@ export interface AppEnv {
   binanceWebSocketReconnectBaseDelayMs?: number;
   binanceWebSocketReconnectMaxDelayMs?: number;
   binanceWebSocketTradesBufferSize?: number;
+  binanceSymbolUniverseEnabled?: boolean;
+  binanceSymbolUniverseQuoteAsset?: string;
+  binanceSymbolUniverseRefreshIntervalMs?: number;
+  binanceSymbolUniverseCollectingDurationMs?: number;
 }
 
 function readEnum<T extends readonly string[]>(
@@ -93,6 +97,27 @@ function readSymbols(value: string | undefined): string[] {
   return [...new Set(symbols)];
 }
 
+function readQuoteAsset(
+  value: string | undefined,
+): string {
+  const quoteAsset =
+    (value || 'USDT')
+      .trim()
+      .toUpperCase();
+
+  if (
+    !/^[A-Z0-9]{2,20}$/.test(
+      quoteAsset,
+    )
+  ) {
+    throw new Error(
+      'BINANCE_SYMBOL_UNIVERSE_QUOTE_ASSET must contain a valid Binance asset',
+    );
+  }
+
+  return quoteAsset;
+}
+
 export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   return {
     nodeEnv: readEnum(source.NODE_ENV, NODE_ENV_VALUES, 'development', 'NODE_ENV'),
@@ -111,5 +136,27 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     binanceWebSocketReconnectBaseDelayMs: readInteger(source.BINANCE_WS_RECONNECT_BASE_DELAY_MS, 1_000, 'BINANCE_WS_RECONNECT_BASE_DELAY_MS', 100, 60_000),
     binanceWebSocketReconnectMaxDelayMs: readInteger(source.BINANCE_WS_RECONNECT_MAX_DELAY_MS, 30_000, 'BINANCE_WS_RECONNECT_MAX_DELAY_MS', 1_000, 300_000),
     binanceWebSocketTradesBufferSize: readInteger(source.BINANCE_WS_TRADES_BUFFER_SIZE, 100, 'BINANCE_WS_TRADES_BUFFER_SIZE', 1, 5_000),
+    binanceSymbolUniverseEnabled: readBoolean(
+      source.BINANCE_SYMBOL_UNIVERSE_ENABLED,
+      source.NODE_ENV !== 'test',
+      'BINANCE_SYMBOL_UNIVERSE_ENABLED',
+    ),
+    binanceSymbolUniverseQuoteAsset: readQuoteAsset(
+      source.BINANCE_SYMBOL_UNIVERSE_QUOTE_ASSET,
+    ),
+    binanceSymbolUniverseRefreshIntervalMs: readInteger(
+      source.BINANCE_SYMBOL_UNIVERSE_REFRESH_INTERVAL_MS,
+      60_000,
+      'BINANCE_SYMBOL_UNIVERSE_REFRESH_INTERVAL_MS',
+      10_000,
+      3_600_000,
+    ),
+    binanceSymbolUniverseCollectingDurationMs: readInteger(
+      source.BINANCE_SYMBOL_UNIVERSE_COLLECTING_DURATION_MS,
+      15 * 60 * 1000,
+      'BINANCE_SYMBOL_UNIVERSE_COLLECTING_DURATION_MS',
+      0,
+      86_400_000,
+    ),
   };
 }
