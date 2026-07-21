@@ -25,7 +25,7 @@ import {
   normalizeDashboardRealtimeSymbol,
   sortDashboardScannerRows,
   useBinanceSymbolUniverse,
-  useDashboardScannerMetrics,
+  useMarketWideScannerMetrics,
   useRealtimeMarketData,
   type DashboardRealtimeCoinView,
   type ScannerFilterState,
@@ -323,8 +323,8 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
   });
 
   const scannerMetrics =
-    useDashboardScannerMetrics({
-      symbols: scannerSymbols,
+    useMarketWideScannerMetrics({
+      intervalMs: 2_000,
     });
 
   const dashboardScannerRows = useMemo(
@@ -364,11 +364,11 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
           view: {
             ...metricView,
             sourceLabel:
-              metricView.isLive
-                ? 'LIVE'
-                : item.source
-                    === 'collecting'
-                  ? 'NEW'
+              item.source
+                === 'collecting'
+                ? 'NEW'
+                : metricView.isLive
+                  ? 'LIVE'
                   : item.source
                       === 'registry'
                     ? 'BINANCE'
@@ -715,22 +715,22 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
 
                   <small
                     className={
-                      view.isLive
-                        ? styles.sourceLive
-                        : view.sourceLabel
-                            === 'NEW'
-                          ? styles.sourceCollecting
+                      view.sourceLabel
+                        === 'NEW'
+                        ? styles.sourceCollecting
+                        : view.isLive
+                          ? styles.sourceLive
                           : view.sourceLabel
                               === 'BINANCE'
                             ? styles.sourceRegistry
                             : styles.sourceTest
                     }
                   >
-                    {view.isLive
-                      ? '1M LIVE'
-                      : view.sourceLabel
-                          === 'NEW'
-                        ? 'NEW · СБОР'
+                    {view.sourceLabel
+                      === 'NEW'
+                      ? 'NEW · СБОР'
+                      : view.isLive
+                        ? '1M LIVE'
                         : view.sourceLabel}
                   </small>
                 </strong>

@@ -308,7 +308,7 @@ export function buildMarketScannerMetricsUrl(
   );
 }
 
-function parseMarketScannerMetric(
+export function parseMarketScannerMetric(
   value: unknown,
 ): MarketScannerMetrics {
   if (!isRecord(value)) {

@@ -6,6 +6,8 @@ import { BinanceMarketDataClient } from './modules/market-data/binance-market-da
 import type { MarketDataProvider } from './modules/market-data/market-data.provider.js';
 import { BinanceWebSocketMarketDataService } from './modules/realtime-market-data/binance-websocket.service.js';
 import { BinanceSymbolUniverseService } from './modules/realtime-market-data/binance-symbol-universe.service.js';
+import { MarketWideRealtimeService } from './modules/realtime-market-data/market-wide-realtime.service.js';
+import { MarketWideRuntimeCoordinator } from './modules/realtime-market-data/market-wide-runtime-coordinator.js';
 import type { RealtimeMarketDataService } from './modules/realtime-market-data/realtime-market-data.types.js';
 
 export interface BuildAppOptions {
@@ -13,6 +15,7 @@ export interface BuildAppOptions {
   marketDataProvider?: MarketDataProvider;
   realtimeMarketDataService?: RealtimeMarketDataService | null;
   binanceSymbolUniverseService?: BinanceSymbolUniverseService | null;
+  marketWideRealtimeService?: MarketWideRealtimeService | null;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -64,6 +67,41 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         : null
       : options.binanceSymbolUniverseService;
 
+  const marketWideRealtimeEnabled =
+    env.binanceMarketWideRealtimeEnabled
+    ?? env.nodeEnv !== 'test';
+
+  const marketWideRealtimeService =
+    options.marketWideRealtimeService
+    === undefined
+      ? marketWideRealtimeEnabled
+        ? new MarketWideRealtimeService({
+            baseUrl:
+              env.binanceMarketWideWebSocketBaseUrl
+              ?? 'wss://stream.binance.com:9443',
+            symbols: [],
+            maxStreamsPerSocket:
+              env.binanceMarketWideMaxStreamsPerSocket
+              ?? 800,
+            reconnectBaseDelayMs:
+              env.binanceMarketWideReconnectBaseDelayMs
+              ?? 1_000,
+            reconnectMaxDelayMs:
+              env.binanceMarketWideReconnectMaxDelayMs
+              ?? 30_000,
+          })
+        : null
+      : options.marketWideRealtimeService;
+
+  const marketWideRuntimeCoordinator =
+    binanceSymbolUniverseService
+    && marketWideRealtimeService
+      ? new MarketWideRuntimeCoordinator(
+          binanceSymbolUniverseService,
+          marketWideRealtimeService,
+        )
+      : null;
+
   const app = Fastify({
     logger: env.nodeEnv === 'test' ? false : { level: env.logLevel },
     trustProxy: true,
@@ -83,7 +121,21 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     app.addHook('onClose', async () => realtimeMarketDataService.stop());
   }
 
-  if (binanceSymbolUniverseService) {
+  if (marketWideRuntimeCoordinator) {
+    app.addHook(
+      'onReady',
+      async () => {
+        await marketWideRuntimeCoordinator.start();
+      },
+    );
+
+    app.addHook(
+      'onClose',
+      async () => {
+        marketWideRuntimeCoordinator.stop();
+      },
+    );
+  } else if (binanceSymbolUniverseService) {
     app.addHook(
       'onReady',
       async () => {
@@ -106,6 +158,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     ...(realtimeMarketDataService ? { realtimeMarketDataService } : {}),
     ...(binanceSymbolUniverseService
       ? { binanceSymbolUniverseService }
+      : {}),
+    ...(marketWideRealtimeService
+      ? { marketWideRealtimeService }
       : {}),
   });
 

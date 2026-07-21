@@ -25,6 +25,11 @@ export interface AppEnv {
   binanceSymbolUniverseQuoteAsset?: string;
   binanceSymbolUniverseRefreshIntervalMs?: number;
   binanceSymbolUniverseCollectingDurationMs?: number;
+  binanceMarketWideRealtimeEnabled?: boolean;
+  binanceMarketWideWebSocketBaseUrl?: string;
+  binanceMarketWideMaxStreamsPerSocket?: number;
+  binanceMarketWideReconnectBaseDelayMs?: number;
+  binanceMarketWideReconnectMaxDelayMs?: number;
 }
 
 function readEnum<T extends readonly string[]>(
@@ -157,6 +162,37 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       'BINANCE_SYMBOL_UNIVERSE_COLLECTING_DURATION_MS',
       0,
       86_400_000,
+    ),
+    binanceMarketWideRealtimeEnabled: readBoolean(
+      source.BINANCE_MARKET_WIDE_ENABLED,
+      source.NODE_ENV !== 'test',
+      'BINANCE_MARKET_WIDE_ENABLED',
+    ),
+    binanceMarketWideWebSocketBaseUrl: readWebSocketUrl(
+      source.BINANCE_MARKET_WIDE_WS_BASE_URL,
+      'wss://stream.binance.com:9443',
+      'BINANCE_MARKET_WIDE_WS_BASE_URL',
+    ),
+    binanceMarketWideMaxStreamsPerSocket: readInteger(
+      source.BINANCE_MARKET_WIDE_MAX_STREAMS_PER_SOCKET,
+      800,
+      'BINANCE_MARKET_WIDE_MAX_STREAMS_PER_SOCKET',
+      2,
+      1_000,
+    ),
+    binanceMarketWideReconnectBaseDelayMs: readInteger(
+      source.BINANCE_MARKET_WIDE_RECONNECT_BASE_DELAY_MS,
+      1_000,
+      'BINANCE_MARKET_WIDE_RECONNECT_BASE_DELAY_MS',
+      100,
+      60_000,
+    ),
+    binanceMarketWideReconnectMaxDelayMs: readInteger(
+      source.BINANCE_MARKET_WIDE_RECONNECT_MAX_DELAY_MS,
+      30_000,
+      'BINANCE_MARKET_WIDE_RECONNECT_MAX_DELAY_MS',
+      1_000,
+      300_000,
     ),
   };
 }

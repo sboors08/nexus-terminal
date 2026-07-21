@@ -12,3 +12,5 @@ export * from './scannerFilters';
 export * from './binanceSymbolUniverse';
 export * from './useBinanceSymbolUniverse';
 export * from './dashboardScannerUniverse';
+export * from './marketWideScannerMetrics';
+export * from './useMarketWideScannerMetrics';
