@@ -8,6 +8,14 @@ import {
 } from '@/shared/realtime';
 import { buildReplayUrl, buildSetupSelectionUrl, isWorkspaceTimeframe } from '@/shared/routing/setupContext';
 import {
+  TRADING_PRESETS,
+  isScannerWindow,
+  isTradingPreset,
+  type ScannerWindow,
+  type TradingPreset,
+  type TradingPresetDefinition,
+} from '@/shared/config/tradingPresets';
+import {
   nexusApi,
   useApiQuery,
   type PrintSide,
@@ -150,6 +158,17 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const { contractSetup, snapshot, view } = data;
   const { selectedSetup, prints, liquidity, marketDynamics, stageFlow } = view;
   const [searchParams, setSearchParams] = useSearchParams();
+  const requestedPreset = searchParams.get('preset');
+  const preset: TradingPreset = isTradingPreset(requestedPreset)
+    ? requestedPreset
+    : 'scalping';
+  const presetDefinition: TradingPresetDefinition = TRADING_PRESETS[preset];
+  const requestedScannerWindow = searchParams.get('scannerWindow');
+  const scannerWindow: ScannerWindow =
+    isScannerWindow(requestedScannerWindow)
+    && presetDefinition.scannerWindows.includes(requestedScannerWindow)
+      ? requestedScannerWindow
+      : presetDefinition.defaultScannerWindow;
   const requestedTimeframe = searchParams.get('timeframe');
   const defaultTimeframe: Timeframe = isWorkspaceTimeframe(selectedSetup.timeframe) ? selectedSetup.timeframe : '5m';
   const timeframe: Timeframe = isWorkspaceTimeframe(requestedTimeframe) ? requestedTimeframe : defaultTimeframe;
@@ -186,11 +205,13 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     nextParams.delete('setup');
     nextParams.set('setupId', contractSetup.id);
     nextParams.set('symbol', contractSetup.symbol);
+    nextParams.set('preset', preset);
+    nextParams.set('scannerWindow', scannerWindow);
     nextParams.set('timeframe', timeframe);
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
     }
-  }, [contractSetup.id, contractSetup.symbol, searchParams, setSearchParams, timeframe]);
+  }, [contractSetup.id, contractSetup.symbol, preset, scannerWindow, searchParams, setSearchParams, timeframe]);
 
   const selectTimeframe = (value: Timeframe) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -265,7 +286,18 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     <section className={styles.workspace}>
       <header className={styles.pageHeader}>
         <div className={styles.instrumentHeader}>
-          <Link className={styles.backLink} to={buildSetupSelectionUrl(ROUTES.scanner, contractSetup.id)} aria-label="Вернуться в Scanner">←</Link>
+          <Link
+            className={styles.backLink}
+            to={buildSetupSelectionUrl(ROUTES.scanner, contractSetup.id, {
+              symbol: contractSetup.symbol,
+              preset,
+              scannerWindow,
+              timeframe,
+            })}
+            aria-label="Вернуться в Scanner"
+          >
+            ←
+          </Link>
           <div>
             <p className={styles.eyebrow}>Рабочее пространство · тестовые данные</p>
             <div className={styles.symbolRow}>
@@ -521,6 +553,8 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             <Link className={styles.secondaryLink} to={buildReplayUrl(ROUTES.replay, {
               setupId: contractSetup.id,
               symbol: contractSetup.symbol,
+              preset,
+              scannerWindow,
               timeframe,
             })}>Открыть в Replay</Link>
             <button className={styles.externalButton} type="button" title="Интеграция с внешним терминалом будет подключена отдельным этапом">

@@ -5,7 +5,7 @@ import {
   formatScannerPrice,
   formatScannerQuantity,
   getScannerRealtimeConnectionLabel,
-} from '../node_modules/.tmp/realtime-test/scannerRealtime.js';
+} from '../node_modules/.tmp/realtime-test/realtime/scannerRealtime.js';
 
 test('formats realtime prices and quantities for Scanner', () => {
   assert.equal(formatScannerPrice(64292.81), '64 292.81');

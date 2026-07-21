@@ -4,7 +4,7 @@ import {
   buildDashboardRealtimeCoinView,
   buildDashboardRealtimeView,
   normalizeDashboardRealtimeSymbol,
-} from '../node_modules/.tmp/realtime-test/dashboardRealtime.js';
+} from '../node_modules/.tmp/realtime-test/realtime/dashboardRealtime.js';
 
 function trade(id, symbol, price, timestamp) {
   return {

@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   MarketScannerMetricsWindow,
@@ -254,5 +254,78 @@ test(
 
     assert.equal(metrics.tradesCount, 1);
     assert.equal(metrics.quoteVolume, 100);
+  },
+);
+test(
+  'uses the configured scanner window duration',
+  () => {
+    const window =
+      new MarketScannerMetricsWindow(
+        'SOLUSDT',
+        {
+          scannerWindow: '3m',
+        },
+      );
+
+    window.addTrade(
+      trade(
+        'SOLUSDT-expired-3m',
+        '2026-07-19T11:57:59.000Z',
+        90,
+        1,
+        'buy',
+      ),
+    );
+
+    window.addTrade(
+      trade(
+        'SOLUSDT-first-3m',
+        '2026-07-19T11:58:30.000Z',
+        100,
+        1,
+        'buy',
+      ),
+    );
+
+    window.addTrade(
+      trade(
+        'SOLUSDT-last-3m',
+        '2026-07-19T12:00:30.000Z',
+        110,
+        1,
+        'sell',
+      ),
+    );
+
+    const metrics = window.getMetrics(
+      new Date('2026-07-19T12:01:00.000Z'),
+    );
+
+    assert.equal(
+      metrics.scannerWindow,
+      '3m',
+    );
+    assert.equal(
+      metrics.windowMs,
+      180_000,
+    );
+    assert.equal(
+      metrics.tradesCount,
+      2,
+    );
+    assert.equal(
+      metrics.quoteVolume,
+      210,
+    );
+    assert.ok(
+      Math.abs(
+        metrics.tradesPerMinute
+        - 2 / 3,
+      ) < 0.000000001,
+    );
+    assert.equal(
+      metrics.windowStartedAt,
+      '2026-07-19T11:58:30.000Z',
+    );
   },
 );

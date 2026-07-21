@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildAlertsRealtimeView,
-} from '../node_modules/.tmp/realtime-test/alertsRealtime.js';
+} from '../node_modules/.tmp/realtime-test/realtime/alertsRealtime.js';
 
 test('preserves the alert price while Alerts realtime is pending', () => {
   const view = buildAlertsRealtimeView(

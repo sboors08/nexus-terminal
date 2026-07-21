@@ -5,6 +5,9 @@ import type {
   RealtimeMarketDataEvent,
   RealtimeMarketDataService,
 } from './realtime-market-data.types.js';
+import {
+  isMarketScannerWindowId,
+} from './scanner-windows.js';
 
 const SSE_HEARTBEAT_INTERVAL_MS = 15_000;
 const MARKET_LIST_SNAPSHOT_FLUSH_INTERVAL_MS = 1_000;
@@ -102,7 +105,13 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
     },
   );
 
-  app.get<{ Querystring: { symbol?: string; symbols?: string } }>(
+  app.get<{
+    Querystring: {
+      symbol?: string;
+      symbols?: string;
+      scannerWindow?: string;
+    };
+  }>(
     '/market/realtime/scanner-metrics',
     async (request, reply) => {
       const symbol =
@@ -110,6 +119,24 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
 
       const symbols =
         normalizeSymbols(request.query.symbols);
+
+      const scannerWindow =
+        request.query.scannerWindow;
+
+      if (
+        scannerWindow !== undefined
+        && !isMarketScannerWindowId(
+          scannerWindow,
+        )
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_scanner_window',
+          'Invalid scanner window',
+        );
+      }
 
       if (symbol === '') {
         return sendError(
@@ -159,6 +186,7 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
         const metrics = getScannerMetrics.call(
           options.realtimeMarketDataService,
           symbol,
+          scannerWindow,
         );
 
         if (metrics.length === 0) {
@@ -176,6 +204,8 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
 
       const metrics = getScannerMetrics.call(
         options.realtimeMarketDataService,
+        undefined,
+        scannerWindow,
       );
 
       if (!symbols) {

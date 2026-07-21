@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildWorkspaceRealtimeView,
-} from '../node_modules/.tmp/realtime-test/workspaceRealtime.js';
+} from '../node_modules/.tmp/realtime-test/realtime/workspaceRealtime.js';
 
 const candles = [
   {
