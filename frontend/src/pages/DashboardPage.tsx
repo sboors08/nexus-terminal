@@ -16,6 +16,9 @@ import { ROUTES } from '@/app/routing/routes';
 import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   buildDashboardRealtimeView,
+  countActiveScannerFilters,
+  createDefaultScannerFilterState,
+  filterAndSortScannerRows,
   buildDashboardScannerMetricView,
   buildDashboardScannerWorkspaceUrl,
   normalizeDashboardRealtimeSymbol,
@@ -23,8 +26,11 @@ import {
   useDashboardScannerMetrics,
   useRealtimeMarketData,
   type DashboardRealtimeCoinView,
+  type ScannerFilterState,
 } from '@/shared/realtime';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
+import { DashboardScannerFilters } from './DashboardScannerFilters';
+import filterStyles from './DashboardScannerFilters.module.css';
 import styles from './DashboardPage.module.css';
 
 function HotCard({
@@ -235,6 +241,16 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
     useState<DashboardActivityPeriod>('1M');
   const [chartPeriod, setChartPeriod] =
     useState<DashboardChartPeriod>('1M');
+  const [scannerFilters, setScannerFilters] =
+    useState<ScannerFilterState>(() =>
+      createDefaultScannerFilterState(),
+    );
+  const [scannerFilterDraft, setScannerFilterDraft] =
+    useState<ScannerFilterState>(() =>
+      createDefaultScannerFilterState(),
+    );
+  const [scannerFiltersOpen, setScannerFiltersOpen] =
+    useState(false);
 
   const realtimeSources = useMemo(
     () => [
@@ -330,10 +346,27 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
     ],
   );
 
+  const filteredDashboardScannerRows = useMemo(
+    () =>
+      filterAndSortScannerRows(
+        dashboardScannerRows,
+        scannerFilters,
+      ),
+    [
+      dashboardScannerRows,
+      scannerFilters,
+    ],
+  );
+
   const scannerLiveCount =
-    dashboardScannerRows.filter(
+    filteredDashboardScannerRows.filter(
       ({ view }) => view.isLive,
     ).length;
+
+  const activeScannerFilterCount =
+    countActiveScannerFilters(
+      scannerFilters,
+    );
 
   const dashboardRealtime = useMemo(
     () =>
@@ -454,7 +487,22 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
       <article className={`${styles.panel} ${styles.hotList}`}>
         <div className={styles.activityToolbar}>
           <div><span>ПЕРИОД АКТИВНОСТИ</span><div className={styles.periods}>{activityPeriods.map((period) => <button key={period} type="button" className={activityPeriod === period ? styles.periodActive : ''} onClick={() => setActivityPeriod(period)}>{period}</button>)}</div></div>
-          <button type="button" className={styles.filterButton}>⌁ &nbsp; НАСТРОИТЬ ФИЛЬТРЫ</button>
+          <button
+            type="button"
+            className={`${styles.filterButton} ${activeScannerFilterCount > 0 ? filterStyles.filterButtonActive : ''}`}
+            aria-expanded={scannerFiltersOpen}
+            onClick={() => {
+              setScannerFilterDraft({
+                ...scannerFilters,
+              });
+              setScannerFiltersOpen(true);
+            }}
+          >
+            ⌁ &nbsp; НАСТРОИТЬ ФИЛЬТРЫ
+            {activeScannerFilterCount > 0
+              ? ` · ${activeScannerFilterCount}`
+              : ''}
+          </button>
         </div>
         <div className={styles.hotTitle}><div><span>🔥</span><strong>HOT LIST</strong><small>— САМЫЕ АКТИВНЫЕ МОНЕТЫ ПРЯМО СЕЙЧАС</small></div><em>5 сетапов ›</em></div>
         <div className={styles.hotCards}>{hotCoins.map((coin) => (
@@ -481,22 +529,87 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
         ))}</div>
       </article>
 
+      <DashboardScannerFilters
+        open={scannerFiltersOpen}
+        value={scannerFilterDraft}
+        onChange={setScannerFilterDraft}
+        onApply={() => {
+          setScannerFilters({
+            ...scannerFilterDraft,
+          });
+          setScannerFiltersOpen(false);
+        }}
+        onReset={() => {
+          const nextFilters =
+            createDefaultScannerFilterState();
+
+          setScannerFilterDraft(nextFilters);
+          setScannerFilters(nextFilters);
+        }}
+        onClose={() => {
+          setScannerFiltersOpen(false);
+        }}
+      />
+
       <article className={`${styles.panel} ${styles.scanner}`}>
 
         <header className={styles.sectionHeader}>
           <div>
             <h2>📊 &nbsp; MARKET SCANNER</h2>
             <small>
-              Показано: {dashboardScannerRows.length}
+              Показано: {filteredDashboardScannerRows.length}/
+              {dashboardScannerRows.length}
               {' · '}
               1M LIVE: {scannerLiveCount}/
-              {dashboardScannerRows.length}
+              {filteredDashboardScannerRows.length}
             </small>
           </div>
 
-          <div className={styles.search}>
-            ⌕ Поиск монеты...　⋮
-          </div>
+          <label className={filterStyles.searchField}>
+            <span aria-hidden="true">⌕</span>
+
+            <input
+              type="search"
+              value={scannerFilters.query}
+              placeholder="Поиск монеты..."
+              aria-label="Поиск монеты в Market Scanner"
+              onChange={(event) => {
+                const query =
+                  event.currentTarget.value;
+
+                setScannerFilters((current) => ({
+                  ...current,
+                  query,
+                }));
+
+                setScannerFilterDraft((current) => ({
+                  ...current,
+                  query,
+                }));
+              }}
+            />
+
+            {scannerFilters.query ? (
+              <button
+                type="button"
+                className={filterStyles.clearSearch}
+                aria-label="Очистить поиск"
+                onClick={() => {
+                  setScannerFilters((current) => ({
+                    ...current,
+                    query: '',
+                  }));
+
+                  setScannerFilterDraft((current) => ({
+                    ...current,
+                    query: '',
+                  }));
+                }}
+              >
+                ×
+              </button>
+            ) : null}
+          </label>
         </header>
         <div className={styles.scannerTable}>
           <div className={styles.scannerHead}>
@@ -513,7 +626,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
             <span>ЛИКВИДНОСТЬ</span>
           </div>
 
-          {dashboardScannerRows.map(
+          {filteredDashboardScannerRows.map(
             ({ row, view }, index) => (
               <div
                 key={String(row[0])}

@@ -182,9 +182,19 @@ test(
       view.tradesCountLabel,
       '266',
     );
+
+    assert.equal(
+      view.tradesCountValue,
+      266,
+    );
     assert.equal(
       view.speedLabel,
       '266/мин',
+    );
+
+    assert.equal(
+      view.tradesPerMinuteValue,
+      266,
     );
     assert.equal(
       view.volatilityLabel,
@@ -268,9 +278,19 @@ test(
       view.tradesCountLabel,
       '8 420',
     );
+
+    assert.equal(
+      view.tradesCountValue,
+      null,
+    );
     assert.equal(
       view.speedLabel,
       '1 684/мин',
+    );
+
+    assert.equal(
+      view.tradesPerMinuteValue,
+      null,
     );
     assert.equal(
       view.volatilityLabel,
