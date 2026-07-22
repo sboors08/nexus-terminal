@@ -518,6 +518,24 @@ test(
       metric.windowStartedAt,
       '2024-07-20T12:00:00.000Z',
     );
+
+    const partialHourMetric =
+      store.getMetrics(
+        'SOLUSDT',
+        '1h',
+      )[0];
+
+    assert.ok(partialHourMetric);
+
+    assert.equal(
+      partialHourMetric.tradesCount,
+      60,
+    );
+
+    assert.equal(
+      partialHourMetric.tradesPerMinute,
+      20,
+    );
   },
 );
 
