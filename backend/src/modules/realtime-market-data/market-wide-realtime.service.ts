@@ -1,6 +1,9 @@
 import type {
   MarketScannerMetrics,
 } from './market-scanner-metrics.js';
+import type {
+  MarketScannerWindowId,
+} from './scanner-windows.js';
 import {
   MarketWideOneMinuteMetricsStore,
   parseBinanceOneMinuteKlineEvent,
@@ -442,9 +445,12 @@ export class MarketWideRealtimeService {
 
   getMetrics(
     symbol?: string,
+    scannerWindow:
+      MarketScannerWindowId = '1m',
   ): MarketScannerMetrics[] {
     return this.metricsStore.getMetrics(
       symbol,
+      scannerWindow,
     );
   }
 

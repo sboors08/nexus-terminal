@@ -179,3 +179,17 @@ test(
     );
   },
 );
+test(
+  'builds a requested multi-window market-wide URL',
+  () => {
+    assert.equal(
+      buildMarketWideScannerMetricsUrl({
+        baseUrl:
+          'http://localhost:4100/',
+        scannerWindow:
+          '5m',
+      }),
+      'http://localhost:4100/api/v1/market/realtime/market-wide/scanner-metrics?scannerWindow=5m',
+    );
+  },
+);

@@ -9,6 +9,10 @@ import type {
 import type {
   MarketScannerMetrics,
 } from './market-scanner-metrics.js';
+import {
+  isMarketScannerWindowId,
+  type MarketScannerWindowId,
+} from './scanner-windows.js';
 import type {
   MarketWideRealtimeStatus,
 } from './market-wide-realtime.service.js';
@@ -19,6 +23,8 @@ export interface MarketWideRealtimeRouteService {
 
   getMetrics(
     symbol?: string,
+    scannerWindow?:
+      MarketScannerWindowId,
   ): MarketScannerMetrics[];
 }
 
@@ -111,14 +117,16 @@ FastifyPluginAsync<
 
       if (
         scannerWindow !== undefined
-        && scannerWindow !== '1m'
+        && !isMarketScannerWindowId(
+          scannerWindow,
+        )
       ) {
         return sendError(
           request,
           reply,
           400,
-          'unsupported_market_wide_scanner_window',
-          'Market-wide realtime metrics currently support only the 1m scanner window',
+          'invalid_market_wide_scanner_window',
+          'Invalid market-wide scanner window',
         );
       }
 
@@ -127,6 +135,7 @@ FastifyPluginAsync<
           .marketWideRealtimeService
           .getMetrics(
             symbol ?? undefined,
+            scannerWindow,
           );
 
       if (

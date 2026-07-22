@@ -5,6 +5,10 @@ import type {
   MarketScannerMetrics,
 } from '../src/modules/realtime-market-data/market-scanner-metrics.js';
 import {
+  getMarketScannerWindowMs,
+  type MarketScannerWindowId,
+} from '../src/modules/realtime-market-data/scanner-windows.js';
+import {
   marketWideRealtimeRoutes,
   type MarketWideRealtimeRouteService,
 } from '../src/modules/realtime-market-data/market-wide-realtime.routes.js';
@@ -71,18 +75,28 @@ implements MarketWideRealtimeRouteService {
 
   getMetrics(
     symbol?: string,
+    scannerWindow:
+      MarketScannerWindowId = '1m',
   ): MarketScannerMetrics[] {
-    return symbol
-      ? this.metrics.filter(
-          (metric) =>
-            metric.symbol
-            === symbol,
-        )
-      : this.metrics.map(
-          (metric) => ({
-            ...metric,
-          }),
-        );
+    const metrics =
+      symbol
+        ? this.metrics.filter(
+            (metric) =>
+              metric.symbol
+              === symbol,
+          )
+        : this.metrics;
+
+    return metrics.map(
+      (metric) => ({
+        ...metric,
+        scannerWindow,
+        windowMs:
+          getMarketScannerWindowMs(
+            scannerWindow,
+          ),
+      }),
+    );
   }
 }
 
@@ -255,7 +269,7 @@ test(
       'market_wide_symbol_not_found',
     );
 
-    const unsupportedWindow =
+    const supportedWindow =
       await app.inject({
         method: 'GET',
         url:
@@ -263,15 +277,41 @@ test(
       });
 
     assert.equal(
-      unsupportedWindow.statusCode,
+      supportedWindow.statusCode,
+      200,
+    );
+
+    assert.equal(
+      supportedWindow
+        .json()[0]
+        .scannerWindow,
+      '5m',
+    );
+
+    assert.equal(
+      supportedWindow
+        .json()[0]
+        .windowMs,
+      300_000,
+    );
+
+    const invalidWindow =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/scanner-metrics?scannerWindow=2m',
+      });
+
+    assert.equal(
+      invalidWindow.statusCode,
       400,
     );
 
     assert.equal(
-      unsupportedWindow
+      invalidWindow
         .json()
         .error,
-      'unsupported_market_wide_scanner_window',
+      'invalid_market_wide_scanner_window',
     );
 
     await app.close();

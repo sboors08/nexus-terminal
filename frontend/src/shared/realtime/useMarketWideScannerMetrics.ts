@@ -10,6 +10,9 @@ import {
 import type {
   MarketScannerMetrics,
 } from './dashboardScannerMetrics.js';
+import type {
+  ScannerWindow,
+} from '../config/tradingPresets.js';
 
 export type MarketWideScannerMetricsStatus =
   | 'idle'
@@ -21,6 +24,7 @@ export interface UseMarketWideScannerMetricsOptions {
   baseUrl?: string;
   enabled?: boolean;
   intervalMs?: number;
+  scannerWindow?: ScannerWindow;
 }
 
 export interface UseMarketWideScannerMetricsResult {
@@ -45,6 +49,7 @@ export function useMarketWideScannerMetrics(
     baseUrl,
     enabled = true,
     intervalMs = 2_000,
+    scannerWindow = '1m',
   } = options;
 
   const [metrics, setMetrics] =
@@ -120,6 +125,7 @@ export function useMarketWideScannerMetrics(
         const response =
           await fetchMarketWideScannerMetrics({
             baseUrl,
+            scannerWindow,
           });
 
         if (cancelled) {
@@ -187,6 +193,7 @@ export function useMarketWideScannerMetrics(
     enabled,
     intervalMs,
     retryToken,
+    scannerWindow,
   ]);
 
   return {

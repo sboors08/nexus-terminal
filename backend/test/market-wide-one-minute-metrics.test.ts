@@ -366,3 +366,324 @@ test(
     );
   },
 );
+test(
+  'aggregates consecutive one-minute klines into a three-minute scanner window',
+  () => {
+    const store =
+      new MarketWideOneMinuteMetricsStore([
+        'SOLUSDT',
+      ]);
+
+    const minutes = [
+      {
+        openTime:
+          '2024-07-20T12:00:00.000Z',
+        open: '100',
+        high: '102',
+        low: '99',
+        close: '101',
+        quoteVolume: '1000',
+        tradesCount: 10,
+        takerBuyQuoteVolume: '600',
+      },
+      {
+        openTime:
+          '2024-07-20T12:01:00.000Z',
+        open: '101',
+        high: '104',
+        low: '100',
+        close: '103',
+        quoteVolume: '2000',
+        tradesCount: 20,
+        takerBuyQuoteVolume: '1200',
+      },
+      {
+        openTime:
+          '2024-07-20T12:02:00.000Z',
+        open: '103',
+        high: '105',
+        low: '102',
+        close: '104',
+        quoteVolume: '3000',
+        tradesCount: 30,
+        takerBuyQuoteVolume: '1700',
+      },
+    ];
+
+    for (
+      const [
+        index,
+        minute,
+      ] of minutes.entries()
+    ) {
+      const openTimeMs =
+        Date.parse(
+          minute.openTime,
+        );
+
+      const update =
+        parseBinanceOneMinuteKlineEvent(
+          klinePayload({
+            E:
+              openTimeMs
+              + 59_000,
+            k: {
+              t: openTimeMs,
+              T:
+                openTimeMs
+                + 59_999,
+              o: minute.open,
+              h: minute.high,
+              l: minute.low,
+              c: minute.close,
+              q:
+                minute.quoteVolume,
+              n:
+                minute.tradesCount,
+              Q:
+                minute
+                  .takerBuyQuoteVolume,
+              x:
+                index
+                < minutes.length - 1,
+            },
+          }),
+        );
+
+      assert.equal(
+        store.applyKline(update),
+        true,
+      );
+    }
+
+    const metric =
+      store.getMetrics(
+        'SOLUSDT',
+        '3m',
+      )[0];
+
+    assert.ok(metric);
+
+    assert.equal(
+      metric.scannerWindow,
+      '3m',
+    );
+
+    assert.equal(
+      metric.windowMs,
+      180_000,
+    );
+
+    assert.equal(
+      metric.price,
+      104,
+    );
+
+    assert.equal(
+      metric.priceChangePct,
+      4,
+    );
+
+    assert.equal(
+      metric.volatilityPct,
+      6,
+    );
+
+    assert.equal(
+      metric.quoteVolume,
+      6000,
+    );
+
+    assert.equal(
+      metric.tradesCount,
+      60,
+    );
+
+    assert.equal(
+      metric.tradesPerMinute,
+      20,
+    );
+
+    assert.equal(
+      metric.buyQuoteVolume,
+      3500,
+    );
+
+    assert.equal(
+      metric.sellQuoteVolume,
+      2500,
+    );
+
+    assert.equal(
+      metric.windowStartedAt,
+      '2024-07-20T12:00:00.000Z',
+    );
+  },
+);
+
+test(
+  'calculates BTC correlation from aligned retained kline history',
+  () => {
+    const store =
+      new MarketWideOneMinuteMetricsStore([
+        'BTCUSDT',
+        'SOLUSDT',
+      ]);
+
+    const startTime =
+      1_721_577_840_000;
+
+    const btcPrices = [
+      100,
+      110,
+      105,
+      120,
+    ];
+
+    const solPrices = [
+      200,
+      220,
+      210,
+      240,
+    ];
+
+    for (
+      let index = 0;
+      index < btcPrices.length;
+      index += 1
+    ) {
+      const openTime =
+        startTime
+        + index * 60_000;
+
+      store.applyKline(
+        parseBinanceOneMinuteKlineEvent(
+          klinePayload({
+            E:
+              openTime + 59_000,
+            s: 'BTCUSDT',
+            k: {
+              t: openTime,
+              T:
+                openTime + 59_999,
+              s: 'BTCUSDT',
+              o:
+                String(
+                  btcPrices[
+                    Math.max(
+                      0,
+                      index - 1,
+                    )
+                  ],
+                ),
+              h:
+                String(
+                  Math.max(
+                    btcPrices[index],
+                    btcPrices[
+                      Math.max(
+                        0,
+                        index - 1,
+                      )
+                    ],
+                  ),
+                ),
+              l:
+                String(
+                  Math.min(
+                    btcPrices[index],
+                    btcPrices[
+                      Math.max(
+                        0,
+                        index - 1,
+                      )
+                    ],
+                  ),
+                ),
+              c:
+                String(
+                  btcPrices[index],
+                ),
+            },
+          }),
+        ),
+      );
+
+      store.applyKline(
+        parseBinanceOneMinuteKlineEvent(
+          klinePayload({
+            E:
+              openTime + 59_000,
+            k: {
+              t: openTime,
+              T:
+                openTime + 59_999,
+              o:
+                String(
+                  solPrices[
+                    Math.max(
+                      0,
+                      index - 1,
+                    )
+                  ],
+                ),
+              h:
+                String(
+                  Math.max(
+                    solPrices[index],
+                    solPrices[
+                      Math.max(
+                        0,
+                        index - 1,
+                      )
+                    ],
+                  ),
+                ),
+              l:
+                String(
+                  Math.min(
+                    solPrices[index],
+                    solPrices[
+                      Math.max(
+                        0,
+                        index - 1,
+                      )
+                    ],
+                  ),
+                ),
+              c:
+                String(
+                  solPrices[index],
+                ),
+            },
+          }),
+        ),
+      );
+    }
+
+    const sol =
+      store
+        .getMetrics(
+          undefined,
+          '5m',
+        )
+        .find(
+          (metric) =>
+            metric.symbol
+            === 'SOLUSDT',
+        );
+
+    assert.ok(sol);
+
+    assert.ok(
+      sol.btcCorrelation
+      !== null,
+    );
+
+    assert.ok(
+      Math.abs(
+        sol.btcCorrelation - 1,
+      ) < 0.000_000_001,
+    );
+  },
+);
