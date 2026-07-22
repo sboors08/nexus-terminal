@@ -163,8 +163,9 @@ function bookTickerMessage(
   });
 }
 
+
 test(
-  'splits market-wide symbols into bounded stream shards',
+  'splits Futures market and public streams into separate bounded shards',
   () => {
     const shards =
       buildMarketWideStreamShards(
@@ -178,38 +179,57 @@ test(
         4,
       );
 
+    const marketShards =
+      shards.filter(
+        (shard) =>
+          shard.route === 'market',
+      );
+
+    const publicShards =
+      shards.filter(
+        (shard) =>
+          shard.route === 'public',
+      );
+
     assert.equal(
       shards.length,
-      3,
+      4,
     );
 
-    assert.deepEqual(
-      shards.map(
-        (shard) =>
-          shard.symbols.length,
-      ),
-      [
-        2,
-        2,
-        1,
-      ],
+    assert.equal(
+      marketShards.length,
+      2,
+    );
+
+    assert.equal(
+      publicShards.length,
+      2,
     );
 
     assert.ok(
       shards.every(
         (shard) =>
-          shard.streams.length
-          <= 4,
+          shard.streams.length <= 4,
       ),
     );
 
     assert.deepEqual(
-      shards[0]?.streams,
+      marketShards[0]?.streams,
       [
         'adausdt@kline_1m',
-        'adausdt@bookTicker',
         'btcusdt@kline_1m',
+        'ethusdt@kline_1m',
+        'solusdt@kline_1m',
+      ],
+    );
+
+    assert.deepEqual(
+      publicShards[0]?.streams,
+      [
+        'adausdt@bookTicker',
         'btcusdt@bookTicker',
+        'ethusdt@bookTicker',
+        'solusdt@bookTicker',
       ],
     );
   },
@@ -252,8 +272,9 @@ test(
   },
 );
 
+
 test(
-  'connects all shards and builds real scanner metrics',
+  'connects Futures market and public shards and builds scanner metrics',
   () => {
     const sockets:
       TestSocket[] = [];
@@ -264,7 +285,7 @@ test(
     const service =
       new MarketWideRealtimeService({
         baseUrl:
-          'wss://stream.binance.com:9443',
+          'wss://fstream.binance.com',
         symbols: [
           'BTCUSDT',
           'SOLUSDT',
@@ -304,13 +325,30 @@ test(
       2,
     );
 
-    assert.ok(
-      urls.every(
+    const marketSocketIndex =
+      urls.findIndex(
         (url) =>
           url.startsWith(
-            'wss://stream.binance.com:9443/stream?streams=',
+            'wss://fstream.binance.com/market/stream?streams=',
           ),
-      ),
+      );
+
+    const publicSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.startsWith(
+            'wss://fstream.binance.com/public/stream?streams=',
+          ),
+      );
+
+    assert.notEqual(
+      marketSocketIndex,
+      -1,
+    );
+
+    assert.notEqual(
+      publicSocketIndex,
+      -1,
     );
 
     for (const socket of sockets) {
@@ -322,25 +360,16 @@ test(
       'connected',
     );
 
-    const solShardIndex =
-      urls.findIndex(
-        (url) =>
-          url.includes(
-            'solusdt@kline_1m',
-          ),
-      );
+    const marketSocket =
+      sockets[marketSocketIndex];
 
-    assert.notEqual(
-      solShardIndex,
-      -1,
-    );
+    const publicSocket =
+      sockets[publicSocketIndex];
 
-    const solSocket =
-      sockets[solShardIndex];
+    assert.ok(marketSocket);
+    assert.ok(publicSocket);
 
-    assert.ok(solSocket);
-
-    solSocket.emit(
+    marketSocket.emit(
       'message',
       {
         data:
@@ -350,7 +379,7 @@ test(
       },
     );
 
-    solSocket.emit(
+    publicSocket.emit(
       'message',
       {
         data:
@@ -404,16 +433,20 @@ test(
   },
 );
 
+
 test(
-  'rebuilds market-wide sockets when the symbol universe changes',
+  'rebuilds Futures market and public sockets when the universe changes',
   () => {
     const sockets:
       TestSocket[] = [];
 
+    const urls:
+      string[] = [];
+
     const service =
       new MarketWideRealtimeService({
         baseUrl:
-          'wss://stream.binance.com:9443',
+          'wss://fstream.binance.com',
         symbols: [
           'BTCUSDT',
         ],
@@ -422,7 +455,9 @@ test(
           100,
         reconnectMaxDelayMs:
           1_000,
-        socketFactory: () => {
+        socketFactory: (url) => {
+          urls.push(url);
+
           const socket =
             new TestSocket();
 
@@ -436,11 +471,11 @@ test(
 
     assert.equal(
       sockets.length,
-      1,
+      2,
     );
 
-    const firstSocket =
-      sockets[0];
+    const initialSockets =
+      [...sockets];
 
     const changes =
       service.replaceSymbols([
@@ -457,9 +492,11 @@ test(
       ],
     );
 
-    assert.equal(
-      firstSocket?.closed,
-      true,
+    assert.ok(
+      initialSockets.every(
+        (socket) =>
+          socket.closed,
+      ),
     );
 
     assert.equal(
@@ -473,12 +510,31 @@ test(
       2,
     );
 
+    assert.ok(
+      urls.some(
+        (url) =>
+          url.includes(
+            '/market/stream?streams=',
+          ),
+      ),
+    );
+
+    assert.ok(
+      urls.some(
+        (url) =>
+          url.includes(
+            '/public/stream?streams=',
+          ),
+      ),
+    );
+
     service.stop();
   },
 );
 
+
 test(
-  'reconnects a failed market-wide shard with exponential delay',
+  'reconnects only the failed Futures shard with exponential delay',
   () => {
     const scheduler =
       new TestScheduler();
@@ -486,10 +542,13 @@ test(
     const sockets:
       TestSocket[] = [];
 
+    const urls:
+      string[] = [];
+
     const service =
       new MarketWideRealtimeService({
         baseUrl:
-          'wss://stream.binance.com:9443',
+          'wss://fstream.binance.com',
         symbols: [
           'BTCUSDT',
         ],
@@ -499,7 +558,9 @@ test(
         reconnectMaxDelayMs:
           2_000,
         scheduler,
-        socketFactory: () => {
+        socketFactory: (url) => {
+          urls.push(url);
+
           const socket =
             new TestSocket();
 
@@ -511,7 +572,25 @@ test(
 
     service.start();
 
-    sockets[0]?.emit(
+    assert.equal(
+      sockets.length,
+      2,
+    );
+
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/market/stream?streams=',
+          ),
+      );
+
+    assert.notEqual(
+      marketSocketIndex,
+      -1,
+    );
+
+    sockets[marketSocketIndex]?.emit(
       'close',
       {
         code: 1006,
@@ -541,7 +620,7 @@ test(
 
     assert.equal(
       sockets.length,
-      2,
+      3,
     );
 
     service.stop();

@@ -131,12 +131,12 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     apiPrefix: readApiPrefix(source.API_PREFIX),
     corsOrigins: readCorsOrigins(source.CORS_ORIGIN),
     logLevel: readEnum(source.LOG_LEVEL, LOG_LEVEL_VALUES, 'info', 'LOG_LEVEL'),
-    binanceBaseUrl: readHttpUrl(source.BINANCE_BASE_URL, 'https://data-api.binance.vision', 'BINANCE_BASE_URL'),
+    binanceBaseUrl: readHttpUrl(source.BINANCE_BASE_URL, 'https://fapi.binance.com', 'BINANCE_BASE_URL'),
     binanceRequestTimeoutMs: readInteger(source.BINANCE_REQUEST_TIMEOUT_MS, 5_000, 'BINANCE_REQUEST_TIMEOUT_MS', 250, 30_000),
     binanceSymbolsLimit: readInteger(source.BINANCE_SYMBOLS_LIMIT, 100, 'BINANCE_SYMBOLS_LIMIT', 1, 500),
     binanceCacheTtlMs: readInteger(source.BINANCE_CACHE_TTL_MS, 15_000, 'BINANCE_CACHE_TTL_MS', 0, 300_000),
     binanceWebSocketEnabled: readBoolean(source.BINANCE_WS_ENABLED, true, 'BINANCE_WS_ENABLED'),
-    binanceWebSocketBaseUrl: readWebSocketUrl(source.BINANCE_WS_BASE_URL, 'wss://data-stream.binance.vision', 'BINANCE_WS_BASE_URL'),
+    binanceWebSocketBaseUrl: readWebSocketUrl(source.BINANCE_WS_BASE_URL, 'wss://fstream.binance.com', 'BINANCE_WS_BASE_URL'),
     binanceWebSocketSymbols: readSymbols(source.BINANCE_WS_SYMBOLS),
     binanceWebSocketReconnectBaseDelayMs: readInteger(source.BINANCE_WS_RECONNECT_BASE_DELAY_MS, 1_000, 'BINANCE_WS_RECONNECT_BASE_DELAY_MS', 100, 60_000),
     binanceWebSocketReconnectMaxDelayMs: readInteger(source.BINANCE_WS_RECONNECT_MAX_DELAY_MS, 30_000, 'BINANCE_WS_RECONNECT_MAX_DELAY_MS', 1_000, 300_000),
@@ -170,7 +170,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     ),
     binanceMarketWideWebSocketBaseUrl: readWebSocketUrl(
       source.BINANCE_MARKET_WIDE_WS_BASE_URL,
-      'wss://stream.binance.com:9443',
+      'wss://fstream.binance.com',
       'BINANCE_MARKET_WIDE_WS_BASE_URL',
     ),
     binanceMarketWideMaxStreamsPerSocket: readInteger(

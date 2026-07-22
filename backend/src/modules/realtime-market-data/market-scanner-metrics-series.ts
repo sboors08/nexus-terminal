@@ -11,6 +11,7 @@ import {
   MarketScannerMetricsWindow,
   normalizeMarketScannerSymbol,
   resolveMarketScannerTimestampMs,
+  resolveMarketScannerTradeCount,
   validateMarketScannerTrade,
   type MarketScannerMetrics,
 } from './market-scanner-metrics.js';
@@ -124,6 +125,10 @@ export class MarketScannerMetricsSeries {
       symbol:
         normalizeMarketScannerSymbol(
           trade.symbol,
+        ),
+      tradesCount:
+        resolveMarketScannerTradeCount(
+          trade,
         ),
     };
 
@@ -558,6 +563,11 @@ export class MarketScannerMetricsSeries {
   ): MarketScannerMetricsMinuteBucket {
     const isBuy = trade.side === 'buy';
 
+    const tradesCount =
+      resolveMarketScannerTradeCount(
+        trade,
+      );
+
     return {
       minuteStartedAtMs,
       firstTimestampMs: timestampMs,
@@ -567,9 +577,11 @@ export class MarketScannerMetricsSeries {
       highPrice: trade.price,
       lowPrice: trade.price,
       quoteVolume: trade.quoteValue,
-      tradesCount: 1,
-      buyTradesCount: isBuy ? 1 : 0,
-      sellTradesCount: isBuy ? 0 : 1,
+      tradesCount,
+      buyTradesCount:
+        isBuy ? tradesCount : 0,
+      sellTradesCount:
+        isBuy ? 0 : tradesCount,
       buyQuoteVolume:
         isBuy ? trade.quoteValue : 0,
       sellQuoteVolume:
@@ -611,15 +623,23 @@ export class MarketScannerMetricsSeries {
       trade.price,
     );
 
+    const tradesCount =
+      resolveMarketScannerTradeCount(
+        trade,
+      );
+
     bucket.quoteVolume += trade.quoteValue;
-    bucket.tradesCount += 1;
+    bucket.tradesCount +=
+      tradesCount;
 
     if (trade.side === 'buy') {
-      bucket.buyTradesCount += 1;
+      bucket.buyTradesCount +=
+        tradesCount;
       bucket.buyQuoteVolume +=
         trade.quoteValue;
     } else {
-      bucket.sellTradesCount += 1;
+      bucket.sellTradesCount +=
+        tradesCount;
       bucket.sellQuoteVolume +=
         trade.quoteValue;
     }

@@ -19,11 +19,8 @@ function exchangeInfo(
             '',
           ),
         quoteAsset: 'USDT',
-        isSpotTradingAllowed:
-          true,
-        permissionSets: [
-          ['SPOT'],
-        ],
+        contractType:
+          'PERPETUAL',
       })),
   };
 }
@@ -87,7 +84,7 @@ test(
     const service =
       new BinanceSymbolUniverseService({
         baseUrl:
-          'https://data-api.binance.vision',
+          'https://fapi.binance.com',
         quoteAsset: 'USDT',
         refreshIntervalMs:
           60_000,
@@ -157,7 +154,7 @@ test(
 );
 
 test(
-  'detects new listings and removed pairs during refresh',
+  'detects new listings and removed contracts during refresh',
   async () => {
     let requestIndex = 0;
 
@@ -178,7 +175,7 @@ test(
     const service =
       new BinanceSymbolUniverseService({
         baseUrl:
-          'https://data-api.binance.vision',
+          'https://fapi.binance.com',
         quoteAsset: 'USDT',
         refreshIntervalMs:
           60_000,
@@ -265,7 +262,7 @@ test(
     const service =
       new BinanceSymbolUniverseService({
         baseUrl:
-          'https://data-api.binance.vision',
+          'https://fapi.binance.com',
         quoteAsset: 'USDT',
         refreshIntervalMs:
           60_000,
@@ -340,7 +337,7 @@ test(
     const service =
       new BinanceSymbolUniverseService({
         baseUrl:
-          'https://data-api.binance.vision',
+          'https://fapi.binance.com',
         quoteAsset: 'USDT',
         refreshIntervalMs:
           45_000,

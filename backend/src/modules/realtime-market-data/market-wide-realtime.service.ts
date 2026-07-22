@@ -33,8 +33,13 @@ export interface MarketWideRealtimeStatus {
   lastError: string | null;
 }
 
+export type MarketWideStreamRoute =
+  | 'market'
+  | 'public';
+
 export interface MarketWideStreamShard {
   id: number;
+  route: MarketWideStreamRoute;
   symbols: string[];
   streams: string[];
 }
@@ -160,46 +165,50 @@ export function buildMarketWideStreamShards(
   const normalizedSymbols =
     normalizeSymbols(symbols);
 
-  const symbolsPerSocket =
-    Math.max(
-      1,
-      Math.floor(
-        maxStreamsPerSocket / 2,
-      ),
-    );
-
   const shards:
     MarketWideStreamShard[] = [];
 
-  for (
-    let index = 0;
-    index < normalizedSymbols.length;
-    index += symbolsPerSocket
-  ) {
-    const shardSymbols =
-      normalizedSymbols.slice(
-        index,
-        index + symbolsPerSocket,
-      );
+  const routes:
+    Array<{
+      route: MarketWideStreamRoute;
+      streamSuffix: string;
+    }> = [
+      {
+        route: 'market',
+        streamSuffix: '@kline_1m',
+      },
+      {
+        route: 'public',
+        streamSuffix: '@bookTicker',
+      },
+    ];
 
-    const streams =
-      shardSymbols.flatMap(
-        (symbol) => {
-          const normalized =
-            symbol.toLowerCase();
+  for (const definition of routes) {
+    for (
+      let index = 0;
+      index < normalizedSymbols.length;
+      index += maxStreamsPerSocket
+    ) {
+      const shardSymbols =
+        normalizedSymbols.slice(
+          index,
+          index + maxStreamsPerSocket,
+        );
 
-          return [
-            `${normalized}@kline_1m`,
-            `${normalized}@bookTicker`,
-          ];
-        },
-      );
+      const streams =
+        shardSymbols.map(
+          (symbol) =>
+            symbol.toLowerCase()
+            + definition.streamSuffix,
+        );
 
-    shards.push({
-      id: shards.length,
-      symbols: shardSymbols,
-      streams,
-    });
+      shards.push({
+        id: shards.length,
+        route: definition.route,
+        symbols: shardSymbols,
+        streams,
+      });
+    }
   }
 
   return shards;
@@ -508,6 +517,7 @@ export class MarketWideRealtimeService {
     return this.shards.map(
       (shard) => ({
         id: shard.id,
+        route: shard.route,
         symbols:
           [...shard.symbols],
         streams:
@@ -711,7 +721,7 @@ export class MarketWideRealtimeService {
       MarketWideStreamShard,
   ): string {
     return (
-      `${this.baseUrl}/stream?streams=`
+      `${this.baseUrl}/${shard.route}/stream?streams=`
       + shard.streams.join('/')
     );
   }

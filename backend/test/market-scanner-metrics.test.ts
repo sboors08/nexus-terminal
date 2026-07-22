@@ -329,3 +329,59 @@ test(
     );
   },
 );
+test(
+  'counts executions inside an aggregated Futures trade',
+  () => {
+    const window =
+      new MarketScannerMetricsWindow(
+        'SOLUSDT',
+      );
+
+    window.addTrade({
+      ...trade(
+        'SOLUSDT-aggregated-1',
+        '2026-07-19T12:00:30.000Z',
+        100,
+        2,
+        'buy',
+      ),
+      tradesCount: 4,
+    });
+
+    const metrics = window.getMetrics(
+      new Date(
+        '2026-07-19T12:01:00.000Z',
+      ),
+    );
+
+    assert.equal(
+      metrics.quoteVolume,
+      200,
+    );
+
+    assert.equal(
+      metrics.tradesCount,
+      4,
+    );
+
+    assert.equal(
+      metrics.tradesPerMinute,
+      4,
+    );
+
+    assert.equal(
+      metrics.buyTradesCount,
+      4,
+    );
+
+    assert.equal(
+      metrics.sellTradesCount,
+      0,
+    );
+
+    assert.equal(
+      metrics.buyQuoteVolume,
+      200,
+    );
+  },
+);

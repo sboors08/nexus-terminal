@@ -47,153 +47,382 @@ const fixtureProvider: MarketDataProvider = {
   getCandles: async (symbol, timeframe) => createCandles(symbol, timeframe),
 };
 
-test('Binance WebSocket service stores trade and bookTicker snapshots and reconnects', () => {
-  const sockets: FakeSocket[] = [];
-  const urls: string[] = [];
-  let scheduled: { callback: () => void; delayMs: number } | null = null;
-  const scheduler: ReconnectScheduler = {
-    schedule(callback, delayMs) {
-      scheduled = { callback, delayMs };
-      return scheduled;
-    },
-    cancel() {
-      scheduled = null;
-    },
-  };
+test(
+  'Binance Futures WebSocket service joins aggTrade and bookTicker and reconnects one route',
+  () => {
+    const sockets: FakeSocket[] = [];
+    const urls: string[] = [];
 
-  let currentTime =
-    new Date('2026-07-18T16:00:00.000Z');
+    const scheduled:
+      Array<{
+        callback: () => void;
+        delayMs: number;
+      }> = [];
 
-  const service = new BinanceWebSocketMarketDataService({
-    baseUrl: 'wss://data-stream.binance.vision',
-    symbols: ['BTCUSDT', 'ETHUSDT'],
-    reconnectBaseDelayMs: 1_000,
-    reconnectMaxDelayMs: 30_000,
-    tradesBufferSize: 2,
-    socketFactory(url) {
-      urls.push(url);
-      const socket = new FakeSocket();
-      sockets.push(socket);
-      return socket;
-    },
-    scheduler,
-    now: () => currentTime,
-  });
+    const scheduler: ReconnectScheduler = {
+      schedule(callback, delayMs) {
+        const handle = {
+          callback,
+          delayMs,
+        };
 
-  const deliveredEvents: RealtimeMarketDataEvent[] = [];
-  const unsubscribe = service.subscribe((event) => deliveredEvents.push(event), 'BTCUSDT');
+        scheduled.push(handle);
 
-  service.start();
-  assert.equal(service.getStatus().state, 'connecting');
-  assert.match(urls[0] ?? '', /btcusdt@trade\/btcusdt@bookTicker\/ethusdt@trade\/ethusdt@bookTicker/);
+        return handle;
+      },
 
-  const socket = sockets[0];
-  assert.ok(socket);
-  socket.emit('open');
-  assert.equal(service.getStatus().state, 'connected');
+      cancel(handle) {
+        const index =
+          scheduled.indexOf(
+            handle as {
+              callback: () => void;
+              delayMs: number;
+            },
+          );
 
-  socket.emit('message', {
-    data: JSON.stringify({
-      stream: 'btcusdt@trade',
-      data: { E: 1_784_390_400_000, s: 'BTCUSDT', t: 101, p: '64000.5', q: '0.25', T: 1_784_390_400_000, m: false },
-    }),
-  });
-  socket.emit('message', {
-    data: JSON.stringify({
-      stream: 'btcusdt@bookTicker',
-      data: { s: 'BTCUSDT', b: '64000.0', B: '1.2', a: '64001.0', A: '0.8' },
-    }),
-  });
+        if (index >= 0) {
+          scheduled.splice(index, 1);
+        }
+      },
+    };
 
-  const snapshot = service.getSnapshots('BTCUSDT')[0];
-  assert.equal(snapshot?.lastTrade?.side, 'buy');
-  assert.equal(snapshot?.lastTrade?.quoteValue, 16_000.125);
-  assert.equal(snapshot?.bookTicker?.spread, 1);
-  assert.equal(snapshot?.recentTrades.length, 1);
+    let currentTime =
+      new Date(
+        '2026-07-18T16:00:00.000Z',
+      );
 
-  const scannerMetrics =
-    service.getScannerMetrics(
-      'BTCUSDT',
-    )[0];
+    const service =
+      new BinanceWebSocketMarketDataService({
+        baseUrl:
+          'wss://fstream.binance.com',
+        symbols: [
+          'BTCUSDT',
+          'ETHUSDT',
+        ],
+        reconnectBaseDelayMs: 1_000,
+        reconnectMaxDelayMs: 30_000,
+        tradesBufferSize: 2,
 
-  assert.equal(
-    scannerMetrics?.price,
-    64_000.5,
-  );
-  assert.equal(
-    scannerMetrics?.quoteVolume,
-    16_000.125,
-  );
-  assert.equal(
-    scannerMetrics?.tradesCount,
-    1,
-  );
-  assert.equal(
-    scannerMetrics?.tradesPerMinute,
-    1,
-  );
-  assert.equal(
-    scannerMetrics?.buyTradesCount,
-    1,
-  );
-  assert.equal(
-    scannerMetrics?.volatilityPct,
-    null,
-  );
-  assert.ok(
-    scannerMetrics?.spreadPct !== null,
-  );
-  assert.equal(
-    scannerMetrics?.topBookQuoteValue,
-    128_000.8,
-  );
-  assert.equal(
-    scannerMetrics?.liquidityScore,
-    9,
-  );
-  assert.equal(
-    scannerMetrics?.activityScore,
-    48,
-  );
+        socketFactory(url) {
+          urls.push(url);
 
-  currentTime =
-    new Date('2026-07-18T16:01:01.000Z');
+          const socket =
+            new FakeSocket();
 
-  const expiredMetrics =
-    service.getScannerMetrics(
-      'BTCUSDT',
-    )[0];
+          sockets.push(socket);
 
-  assert.equal(
-    expiredMetrics?.tradesCount,
-    0,
-  );
-  assert.equal(
-    expiredMetrics?.quoteVolume,
-    0,
-  );
-  assert.equal(
-    expiredMetrics?.activityScore,
-    null,
-  );
+          return socket;
+        },
 
-  assert.equal(service.getStatus().lastMessageAt, '2026-07-18T16:00:00.000Z');
-  assert.equal(
-    deliveredEvents.filter((event) => event.type === 'snapshot').length,
-    2,
-  );
+        scheduler,
+        now: () => currentTime,
+      });
 
-  socket.emit('close', { code: 1006, reason: 'network lost' });
-  assert.equal(service.getStatus().state, 'reconnecting');
-  assert.equal(scheduled?.delayMs, 1_000);
-  scheduled?.callback();
-  assert.equal(sockets.length, 2);
+    const deliveredEvents:
+      RealtimeMarketDataEvent[] = [];
 
-  unsubscribe();
-  service.stop();
-  assert.equal(service.getStatus().state, 'stopped');
-  assert.equal(sockets[1]?.closeCalls[0]?.code, 1000);
-});
+    const unsubscribe =
+      service.subscribe(
+        (event) =>
+          deliveredEvents.push(event),
+        'BTCUSDT',
+      );
+
+    service.start();
+
+    assert.equal(
+      service.getStatus().state,
+      'connecting',
+    );
+
+    assert.equal(
+      sockets.length,
+      2,
+    );
+
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.startsWith(
+            'wss://fstream.binance.com/market/stream?streams=',
+          ),
+      );
+
+    const publicSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.startsWith(
+            'wss://fstream.binance.com/public/stream?streams=',
+          ),
+      );
+
+    assert.notEqual(
+      marketSocketIndex,
+      -1,
+    );
+
+    assert.notEqual(
+      publicSocketIndex,
+      -1,
+    );
+
+    assert.match(
+      urls[marketSocketIndex] ?? '',
+      /btcusdt@aggTrade\/ethusdt@aggTrade/,
+    );
+
+    assert.match(
+      urls[publicSocketIndex] ?? '',
+      /btcusdt@bookTicker\/ethusdt@bookTicker/,
+    );
+
+    const marketSocket =
+      sockets[marketSocketIndex];
+
+    const publicSocket =
+      sockets[publicSocketIndex];
+
+    assert.ok(marketSocket);
+    assert.ok(publicSocket);
+
+    marketSocket.emit('open');
+
+    assert.equal(
+      service.getStatus().state,
+      'connecting',
+    );
+
+    publicSocket.emit('open');
+
+    assert.equal(
+      service.getStatus().state,
+      'connected',
+    );
+
+    marketSocket.emit('message', {
+      data: JSON.stringify({
+        stream:
+          'btcusdt@aggTrade',
+        data: {
+          E: 1_784_390_400_000,
+          s: 'BTCUSDT',
+          a: 101,
+          p: '64000.5',
+          q: '0.25',
+          f: 201,
+          l: 204,
+          T: 1_784_390_400_000,
+          m: false,
+        },
+      }),
+    });
+
+    publicSocket.emit('message', {
+      data: JSON.stringify({
+        stream:
+          'btcusdt@bookTicker',
+        data: {
+          E: 1_784_390_400_000,
+          s: 'BTCUSDT',
+          b: '64000.0',
+          B: '1.2',
+          a: '64001.0',
+          A: '0.8',
+        },
+      }),
+    });
+
+    const snapshot =
+      service.getSnapshots(
+        'BTCUSDT',
+      )[0];
+
+    assert.equal(
+      snapshot?.lastTrade?.side,
+      'buy',
+    );
+
+    assert.equal(
+      snapshot?.lastTrade?.quoteValue,
+      16_000.125,
+    );
+
+    assert.equal(
+      snapshot?.lastTrade?.tradesCount,
+      4,
+    );
+
+    assert.equal(
+      snapshot?.bookTicker?.spread,
+      1,
+    );
+
+    assert.equal(
+      snapshot?.recentTrades.length,
+      1,
+    );
+
+    const scannerMetrics =
+      service.getScannerMetrics(
+        'BTCUSDT',
+      )[0];
+
+    assert.equal(
+      scannerMetrics?.price,
+      64_000.5,
+    );
+
+    assert.equal(
+      scannerMetrics?.quoteVolume,
+      16_000.125,
+    );
+
+    assert.equal(
+      scannerMetrics?.tradesCount,
+      4,
+    );
+
+    assert.equal(
+      scannerMetrics?.tradesPerMinute,
+      4,
+    );
+
+    assert.equal(
+      scannerMetrics?.buyTradesCount,
+      4,
+    );
+
+    assert.equal(
+      scannerMetrics?.volatilityPct,
+      null,
+    );
+
+    assert.ok(
+      scannerMetrics?.spreadPct
+      !== null,
+    );
+
+    assert.equal(
+      scannerMetrics?.topBookQuoteValue,
+      128_000.8,
+    );
+
+    currentTime =
+      new Date(
+        '2026-07-18T16:01:01.000Z',
+      );
+
+    const expiredMetrics =
+      service.getScannerMetrics(
+        'BTCUSDT',
+      )[0];
+
+    assert.equal(
+      expiredMetrics?.tradesCount,
+      0,
+    );
+
+    assert.equal(
+      expiredMetrics?.quoteVolume,
+      0,
+    );
+
+    assert.equal(
+      service.getStatus().lastMessageAt,
+      '2026-07-18T16:00:00.000Z',
+    );
+
+    assert.equal(
+      deliveredEvents.filter(
+        (event) =>
+          event.type === 'snapshot',
+      ).length,
+      2,
+    );
+
+    marketSocket.emit(
+      'close',
+      {
+        code: 1006,
+        reason: 'network lost',
+      },
+    );
+
+    assert.equal(
+      service.getStatus().state,
+      'reconnecting',
+    );
+
+    assert.equal(
+      scheduled.length,
+      1,
+    );
+
+    assert.equal(
+      scheduled[0]?.delayMs,
+      1_000,
+    );
+
+    assert.equal(
+      publicSocket.closeCalls.length,
+      0,
+    );
+
+    const reconnect =
+      scheduled.shift();
+
+    assert.ok(reconnect);
+
+    reconnect.callback();
+
+    assert.equal(
+      sockets.length,
+      3,
+    );
+
+    assert.ok(
+      (urls[2] ?? '').startsWith(
+        'wss://fstream.binance.com/market/stream?streams=',
+      ),
+    );
+
+    const reconnectedMarketSocket =
+      sockets[2];
+
+    assert.ok(
+      reconnectedMarketSocket,
+    );
+
+    reconnectedMarketSocket.emit(
+      'open',
+    );
+
+    assert.equal(
+      service.getStatus().state,
+      'connected',
+    );
+
+    unsubscribe();
+    service.stop();
+
+    assert.equal(
+      service.getStatus().state,
+      'stopped',
+    );
+
+    assert.equal(
+      publicSocket.closeCalls[0]?.code,
+      1000,
+    );
+
+    assert.equal(
+      reconnectedMarketSocket
+        .closeCalls[0]
+        ?.code,
+      1000,
+    );
+  },
+);
 
 test('Realtime market endpoints expose connection state and snapshots', async () => {
   let starts = 0;
@@ -329,6 +558,7 @@ test(
   'calculates BTC correlation and relative strength in scanner metrics',
   () => {
     const sockets: FakeSocket[] = [];
+    const urls: string[] = [];
 
     const currentTime =
       new Date(
@@ -338,7 +568,7 @@ test(
     const service =
       new BinanceWebSocketMarketDataService({
         baseUrl:
-          'wss://data-stream.binance.vision',
+          'wss://fstream.binance.com',
         symbols: [
           'BTCUSDT',
           'SOLUSDT',
@@ -346,7 +576,9 @@ test(
         reconnectBaseDelayMs: 1_000,
         reconnectMaxDelayMs: 30_000,
         tradesBufferSize: 100,
-        socketFactory() {
+        socketFactory(url) {
+          urls.push(url);
+
           const socket = new FakeSocket();
 
           sockets.push(socket);
@@ -358,11 +590,43 @@ test(
 
     service.start();
 
-    const socket = sockets[0];
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.startsWith(
+            'wss://fstream.binance.com/market/stream?streams=',
+          ),
+      );
 
-    assert.ok(socket);
+    const publicSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.startsWith(
+            'wss://fstream.binance.com/public/stream?streams=',
+          ),
+      );
 
-    socket.emit('open');
+    assert.notEqual(
+      marketSocketIndex,
+      -1,
+    );
+
+    assert.notEqual(
+      publicSocketIndex,
+      -1,
+    );
+
+    const marketSocket =
+      sockets[marketSocketIndex];
+
+    const publicSocket =
+      sockets[publicSocketIndex];
+
+    assert.ok(marketSocket);
+    assert.ok(publicSocket);
+
+    marketSocket.emit('open');
+    publicSocket.emit('open');
 
     const emitTrade = (
       symbol: string,
@@ -373,16 +637,18 @@ test(
       const timestampMs =
         Date.parse(timestamp);
 
-      socket.emit('message', {
+      marketSocket.emit('message', {
         data: JSON.stringify({
           stream:
-            `${symbol.toLowerCase()}@trade`,
+            `${symbol.toLowerCase()}@aggTrade`,
           data: {
             E: timestampMs,
             s: symbol,
-            t: tradeId,
+            a: tradeId,
             p: String(price),
             q: '1',
+            f: tradeId,
+            l: tradeId,
             T: timestampMs,
             m: false,
           },

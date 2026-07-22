@@ -52,7 +52,7 @@ if (!serverSource.includes("process.once('SIGTERM'")) {
   errors.push('Graceful shutdown handler is missing');
 }
 
-for (const stream of ['@trade', '@bookTicker']) {
+for (const stream of ['@aggTrade', '@bookTicker']) {
   if (!webSocketSource.includes(stream)) errors.push(`Missing Binance WebSocket stream: ${stream}`);
 }
 
