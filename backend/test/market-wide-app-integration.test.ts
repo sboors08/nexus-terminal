@@ -101,22 +101,16 @@ Response {
           status: 'TRADING',
           baseAsset: 'BTC',
           quoteAsset: 'USDT',
-          isSpotTradingAllowed:
-            true,
-          permissionSets: [
-            ['SPOT'],
-          ],
+          contractType:
+            'PERPETUAL',
         },
         {
           symbol: 'SOLUSDT',
           status: 'TRADING',
           baseAsset: 'SOL',
           quoteAsset: 'USDT',
-          isSpotTradingAllowed:
-            true,
-          permissionSets: [
-            ['SPOT'],
-          ],
+          contractType:
+            'PERPETUAL',
         },
       ],
     }),
@@ -179,10 +173,13 @@ test(
     const sockets:
       TestSocket[] = [];
 
+    const urls:
+      string[] = [];
+
     const universe =
       new BinanceSymbolUniverseService({
         baseUrl:
-          'https://data-api.binance.vision',
+          'https://fapi.binance.com',
         quoteAsset: 'USDT',
         refreshIntervalMs:
           60_000,
@@ -201,7 +198,7 @@ test(
     const marketWide =
       new MarketWideRealtimeService({
         baseUrl:
-          'wss://stream.binance.com:9443',
+          'wss://fstream.binance.com',
         symbols: [],
         maxStreamsPerSocket:
           800,
@@ -209,7 +206,9 @@ test(
           1_000,
         reconnectMaxDelayMs:
           30_000,
-        socketFactory: () => {
+        socketFactory: (url) => {
+          urls.push(url);
+
           const socket =
             new TestSocket();
 
@@ -248,7 +247,7 @@ test(
 
     assert.equal(
       sockets.length,
-      1,
+      2,
     );
 
     assert.equal(
@@ -265,14 +264,53 @@ test(
       4,
     );
 
-    const socket =
-      sockets[0];
+    assert.equal(
+      initialStatus
+        .json()
+        .socketCount,
+      2,
+    );
 
-    assert.ok(socket);
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.startsWith(
+            'wss://fstream.binance.com/market/stream?streams=',
+          ),
+      );
 
-    socket.emit('open');
+    const publicSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.startsWith(
+            'wss://fstream.binance.com/public/stream?streams=',
+          ),
+      );
 
-    socket.emit(
+    assert.notEqual(
+      marketSocketIndex,
+      -1,
+    );
+
+    assert.notEqual(
+      publicSocketIndex,
+      -1,
+    );
+
+    const marketSocket =
+      sockets[marketSocketIndex];
+
+    const publicSocket =
+      sockets[publicSocketIndex];
+
+    assert.ok(marketSocket);
+    assert.ok(publicSocket);
+
+    for (const socket of sockets) {
+      socket.emit('open');
+    }
+
+    marketSocket.emit(
       'message',
       {
         data:
@@ -280,7 +318,7 @@ test(
       },
     );
 
-    socket.emit(
+    publicSocket.emit(
       'message',
       {
         data:
@@ -349,9 +387,11 @@ test(
 
     await app.close();
 
-    assert.equal(
-      socket.closed,
-      true,
+    assert.ok(
+      sockets.every(
+        (socket) =>
+          socket.closed,
+      ),
     );
 
     assert.equal(

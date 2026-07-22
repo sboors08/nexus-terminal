@@ -2,14 +2,14 @@ export type BinanceSymbolUniverseStatus =
   | 'collecting'
   | 'active';
 
-export interface BinanceSpotSymbol {
+export interface BinanceUsdMPerpetualSymbol {
   symbol: string;
   baseAsset: string;
   quoteAsset: string;
 }
 
 export interface BinanceSymbolUniverseEntry
-  extends BinanceSpotSymbol {
+  extends BinanceUsdMPerpetualSymbol {
   status: BinanceSymbolUniverseStatus;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -78,69 +78,10 @@ function normalizeObservedAt(
   return date.toISOString();
 }
 
-function collectPermissions(
-  value: UnknownRecord,
-): string[] {
-  const permissions: string[] = [];
-
-  if (
-    Array.isArray(
-      value.permissions,
-    )
-  ) {
-    for (
-      const permission
-      of value.permissions
-    ) {
-      const normalized =
-        uppercaseString(permission);
-
-      if (normalized) {
-        permissions.push(normalized);
-      }
-    }
-  }
-
-  if (
-    Array.isArray(
-      value.permissionSets,
-    )
-  ) {
-    for (
-      const permissionSet
-      of value.permissionSets
-    ) {
-      if (
-        !Array.isArray(
-          permissionSet,
-        )
-      ) {
-        continue;
-      }
-
-      for (
-        const permission
-        of permissionSet
-      ) {
-        const normalized =
-          uppercaseString(permission);
-
-        if (normalized) {
-          permissions.push(normalized);
-        }
-      }
-    }
-  }
-
-  return [
-    ...new Set(permissions),
-  ];
-}
-
-function normalizeSpotSymbol(
+function normalizeUsdMPerpetualSymbol(
   value: unknown,
   targetQuoteAsset: string,
-): BinanceSpotSymbol | null {
+): BinanceUsdMPerpetualSymbol | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -157,10 +98,14 @@ function normalizeSpotSymbol(
   const quoteAsset =
     uppercaseString(value.quoteAsset);
 
+  const contractType =
+    uppercaseString(value.contractType);
+
   if (
     !symbol
     || !baseAsset
     || !quoteAsset
+    || !contractType
   ) {
     return null;
   }
@@ -196,18 +141,8 @@ function normalizeSpotSymbol(
   }
 
   if (
-    value.isSpotTradingAllowed
-    === false
-  ) {
-    return null;
-  }
-
-  const permissions =
-    collectPermissions(value);
-
-  if (
-    permissions.length > 0
-    && !permissions.includes('SPOT')
+    contractType
+    !== 'PERPETUAL'
   ) {
     return null;
   }
@@ -221,12 +156,12 @@ function normalizeSpotSymbol(
 
 function deduplicateSymbols(
   symbols:
-    readonly BinanceSpotSymbol[],
-): BinanceSpotSymbol[] {
+    readonly BinanceUsdMPerpetualSymbol[],
+): BinanceUsdMPerpetualSymbol[] {
   const symbolsById =
     new Map<
       string,
-      BinanceSpotSymbol
+      BinanceUsdMPerpetualSymbol
     >();
 
   for (const symbol of symbols) {
@@ -292,10 +227,10 @@ function buildSnapshot(
   };
 }
 
-export function parseBinanceSpotSymbolUniverse(
+export function parseBinanceUsdMPerpetualSymbolUniverse(
   payload: unknown,
   quoteAsset = 'USDT',
-): BinanceSpotSymbol[] {
+): BinanceUsdMPerpetualSymbol[] {
   if (
     !isRecord(payload)
     || !Array.isArray(
@@ -325,7 +260,7 @@ export function parseBinanceSpotSymbolUniverse(
     payload.symbols
       .map(
         (symbol) =>
-          normalizeSpotSymbol(
+          normalizeUsdMPerpetualSymbol(
             symbol,
             normalizedQuoteAsset,
           ),
@@ -333,7 +268,7 @@ export function parseBinanceSpotSymbolUniverse(
       .filter(
         (
           symbol,
-        ): symbol is BinanceSpotSymbol =>
+        ): symbol is BinanceUsdMPerpetualSymbol =>
           symbol !== null,
       );
 
@@ -342,7 +277,7 @@ export function parseBinanceSpotSymbolUniverse(
 
 export function createInitialBinanceSymbolUniverse(
   symbols:
-    readonly BinanceSpotSymbol[],
+    readonly BinanceUsdMPerpetualSymbol[],
   observedAt: Date | string,
 ): BinanceSymbolUniverseSnapshot {
   const updatedAt =
@@ -375,7 +310,7 @@ export function reconcileBinanceSymbolUniverse(
   previousEntries:
     readonly BinanceSymbolUniverseEntry[],
   nextSymbols:
-    readonly BinanceSpotSymbol[],
+    readonly BinanceUsdMPerpetualSymbol[],
   observedAt: Date | string,
   options:
     ReconcileBinanceSymbolUniverseOptions = {},

@@ -56,6 +56,24 @@ export function normalizeMarketScannerSymbol(symbol: string): string {
   return normalized;
 }
 
+export function resolveMarketScannerTradeCount(
+  trade: RealtimeTrade,
+): number {
+  const tradesCount =
+    trade.tradesCount ?? 1;
+
+  if (
+    !Number.isSafeInteger(tradesCount)
+    || tradesCount < 1
+  ) {
+    throw new Error(
+      `Invalid realtime trade count: ${trade.id}`,
+    );
+  }
+
+  return tradesCount;
+}
+
 export function resolveMarketScannerTimestampMs(
   value: Date | number,
 ): number {
@@ -274,9 +292,20 @@ export class MarketScannerMetricsWindow {
       return false;
     }
 
-    const timestampMs = validateMarketScannerTrade(trade);
+    const tradesCount =
+      resolveMarketScannerTradeCount(
+        trade,
+      );
+
+    const timestampMs =
+      validateMarketScannerTrade(trade);
+
     const storedTrade: StoredTrade = {
-      trade: { ...trade, symbol: tradeSymbol },
+      trade: {
+        ...trade,
+        symbol: tradeSymbol,
+        tradesCount,
+      },
       timestampMs,
     };
 
@@ -317,6 +346,7 @@ export class MarketScannerMetricsWindow {
     const last = this.trades.at(-1);
 
     let quoteVolume = 0;
+    let tradesCount = 0;
     let highPrice = Number.NEGATIVE_INFINITY;
     let lowPrice = Number.POSITIVE_INFINITY;
     let buyTradesCount = 0;
@@ -326,6 +356,14 @@ export class MarketScannerMetricsWindow {
 
     for (const item of this.trades) {
       quoteVolume += item.trade.quoteValue;
+
+      const itemTradesCount =
+        resolveMarketScannerTradeCount(
+          item.trade,
+        );
+
+      tradesCount +=
+        itemTradesCount;
       highPrice = Math.max(
         highPrice,
         item.trade.price,
@@ -336,10 +374,12 @@ export class MarketScannerMetricsWindow {
       );
 
       if (item.trade.side === 'buy') {
-        buyTradesCount += 1;
+        buyTradesCount +=
+          itemTradesCount;
         buyQuoteVolume += item.trade.quoteValue;
       } else {
-        sellTradesCount += 1;
+        sellTradesCount +=
+          itemTradesCount;
         sellQuoteVolume += item.trade.quoteValue;
       }
     }
@@ -416,7 +456,7 @@ export class MarketScannerMetricsWindow {
         : null;
 
     const tradesPerMinute =
-      this.trades.length
+      tradesCount
       * (60_000 / this.windowMs);
 
     const activityScore =
@@ -425,7 +465,7 @@ export class MarketScannerMetricsWindow {
         tradesPerMinute,
         volatilityPct,
         liquidityScore,
-        this.trades.length,
+        tradesCount,
       );
 
     return {
@@ -445,7 +485,7 @@ export class MarketScannerMetricsWindow {
       liquidityScore,
       activityScore,
       quoteVolume,
-      tradesCount: this.trades.length,
+      tradesCount,
       tradesPerMinute,
       buyTradesCount,
       sellTradesCount,

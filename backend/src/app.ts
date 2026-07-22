@@ -21,7 +21,7 @@ export interface BuildAppOptions {
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const env = options.env ?? readEnv();
   const marketDataProvider = options.marketDataProvider ?? new BinanceMarketDataClient({
-    baseUrl: env.binanceBaseUrl ?? 'https://data-api.binance.vision',
+    baseUrl: env.binanceBaseUrl ?? 'https://fapi.binance.com',
     requestTimeoutMs: env.binanceRequestTimeoutMs ?? 5_000,
     symbolsLimit: env.binanceSymbolsLimit ?? 100,
     cacheTtlMs: env.binanceCacheTtlMs ?? 15_000,
@@ -30,7 +30,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const realtimeMarketDataService = options.realtimeMarketDataService === undefined
     ? webSocketEnabled
       ? new BinanceWebSocketMarketDataService({
-        baseUrl: env.binanceWebSocketBaseUrl ?? 'wss://data-stream.binance.vision',
+        baseUrl: env.binanceWebSocketBaseUrl ?? 'wss://fstream.binance.com',
         symbols: env.binanceWebSocketSymbols ?? ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
         reconnectBaseDelayMs: env.binanceWebSocketReconnectBaseDelayMs ?? 1_000,
         reconnectMaxDelayMs: env.binanceWebSocketReconnectMaxDelayMs ?? 30_000,
@@ -50,7 +50,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         ? new BinanceSymbolUniverseService({
             baseUrl:
               env.binanceBaseUrl
-              ?? 'https://data-api.binance.vision',
+              ?? 'https://fapi.binance.com',
             quoteAsset:
               env.binanceSymbolUniverseQuoteAsset
               ?? 'USDT',
@@ -78,7 +78,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         ? new MarketWideRealtimeService({
             baseUrl:
               env.binanceMarketWideWebSocketBaseUrl
-              ?? 'wss://stream.binance.com:9443',
+              ?? 'wss://fstream.binance.com',
             symbols: [],
             maxStreamsPerSocket:
               env.binanceMarketWideMaxStreamsPerSocket

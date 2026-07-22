@@ -59,7 +59,7 @@ test('Binance WebSocket service adds and removes dynamic symbols with reference 
   const urls: string[] = [];
 
   const service = new BinanceWebSocketMarketDataService({
-    baseUrl: 'wss://data-stream.binance.vision',
+    baseUrl: 'wss://fstream.binance.com',
     symbols: ['BTCUSDT'],
     reconnectBaseDelayMs: 1_000,
     reconnectMaxDelayMs: 30_000,
@@ -75,23 +75,60 @@ test('Binance WebSocket service adds and removes dynamic symbols with reference 
 
   service.start();
   sockets[0]?.emit('open');
+  sockets[1]?.emit('open');
   assert.deepEqual(service.getStatus().subscribedSymbols, ['BTCUSDT']);
 
   const releaseFirst = service.acquireSymbol('injusdt');
-  assert.equal(sockets.length, 2);
-  assert.ok((urls[1] ?? '').includes('injusdt@trade/injusdt@bookTicker'));
-  assert.equal(sockets[0]?.closeCalls[0]?.reason, 'NEXUS subscriptions changed');
+
+  assert.equal(
+    sockets.length,
+    4,
+  );
+
+  assert.ok(
+    (urls[2] ?? '').startsWith(
+      'wss://fstream.binance.com/market/stream?streams=',
+    ),
+  );
+
+  assert.ok(
+    (urls[2] ?? '').includes(
+      'injusdt@aggTrade',
+    ),
+  );
+
+  assert.ok(
+    (urls[3] ?? '').startsWith(
+      'wss://fstream.binance.com/public/stream?streams=',
+    ),
+  );
+
+  assert.ok(
+    (urls[3] ?? '').includes(
+      'injusdt@bookTicker',
+    ),
+  );
+
+  assert.equal(
+    sockets[0]?.closeCalls[0]?.reason,
+    'NEXUS subscriptions changed',
+  );
+
+  assert.equal(
+    sockets[1]?.closeCalls[0]?.reason,
+    'NEXUS subscriptions changed',
+  );
   assert.deepEqual(service.getStatus().subscribedSymbols, ['BTCUSDT', 'INJUSDT']);
   assert.equal(service.getStatus().streamCount, 4);
   assert.equal(service.getSnapshots('INJUSDT')[0]?.symbol, 'INJUSDT');
 
   const releaseSecond = service.acquireSymbol('INJUSDT');
   releaseFirst();
-  assert.equal(sockets.length, 2);
+  assert.equal(sockets.length, 4);
   assert.ok(service.getSnapshots('INJUSDT')[0]);
 
   releaseSecond();
-  assert.equal(sockets.length, 3);
+  assert.equal(sockets.length, 6);
   assert.deepEqual(service.getStatus().subscribedSymbols, ['BTCUSDT']);
   assert.equal(service.getSnapshots('INJUSDT').length, 0);
 
@@ -270,7 +307,7 @@ test('Binance WebSocket service batches multiple dynamic subscriptions into one 
   const urls: string[] = [];
 
   const service = new BinanceWebSocketMarketDataService({
-    baseUrl: 'wss://data-stream.binance.vision',
+    baseUrl: 'wss://fstream.binance.com',
     symbols: ['BTCUSDT'],
     reconnectBaseDelayMs: 1_000,
     reconnectMaxDelayMs: 30_000,
@@ -285,6 +322,7 @@ test('Binance WebSocket service batches multiple dynamic subscriptions into one 
 
   service.start();
   sockets[0]?.emit('open');
+  sockets[1]?.emit('open');
 
   const release = service.acquireSymbols([
     'ethusdt',
@@ -292,9 +330,34 @@ test('Binance WebSocket service batches multiple dynamic subscriptions into one 
     'ETHUSDT',
   ]);
 
-  assert.equal(sockets.length, 2);
-  assert.match(urls[1] ?? '', /ethusdt@trade\/ethusdt@bookTicker/);
-  assert.match(urls[1] ?? '', /solusdt@trade\/solusdt@bookTicker/);
+  assert.equal(
+    sockets.length,
+    4,
+  );
+
+  assert.ok(
+    (urls[2] ?? '').includes(
+      'ethusdt@aggTrade',
+    ),
+  );
+
+  assert.ok(
+    (urls[2] ?? '').includes(
+      'solusdt@aggTrade',
+    ),
+  );
+
+  assert.ok(
+    (urls[3] ?? '').includes(
+      'ethusdt@bookTicker',
+    ),
+  );
+
+  assert.ok(
+    (urls[3] ?? '').includes(
+      'solusdt@bookTicker',
+    ),
+  );
   assert.deepEqual(
     service.getStatus().subscribedSymbols,
     ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
@@ -303,7 +366,7 @@ test('Binance WebSocket service batches multiple dynamic subscriptions into one 
 
   release();
 
-  assert.equal(sockets.length, 3);
+  assert.equal(sockets.length, 6);
   assert.deepEqual(service.getStatus().subscribedSymbols, ['BTCUSDT']);
   assert.equal(service.getStatus().streamCount, 2);
 

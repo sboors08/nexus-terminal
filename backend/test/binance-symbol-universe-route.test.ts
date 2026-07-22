@@ -20,14 +20,14 @@ const testEnv: AppEnv = {
 };
 
 test(
-  'symbol universe route exposes all active Binance USDT pairs',
+  'symbol universe route exposes active Binance USD-M USDT perpetual contracts',
   async () => {
     let requestCount = 0;
 
     const service =
       new BinanceSymbolUniverseService({
         baseUrl:
-          'https://data-api.binance.vision',
+          'https://fapi.binance.com',
         quoteAsset: 'USDT',
         refreshIntervalMs:
           60_000,
@@ -46,44 +46,32 @@ test(
                   status: 'TRADING',
                   baseAsset: 'BTC',
                   quoteAsset: 'USDT',
-                  isSpotTradingAllowed:
-                    true,
-                  permissionSets: [
-                    ['SPOT'],
-                  ],
+                  contractType:
+                    'PERPETUAL',
                 },
                 {
                   symbol: 'ETHUSDT',
                   status: 'TRADING',
                   baseAsset: 'ETH',
                   quoteAsset: 'USDT',
-                  isSpotTradingAllowed:
-                    true,
-                  permissionSets: [
-                    ['SPOT'],
-                  ],
+                  contractType:
+                    'PERPETUAL',
                 },
                 {
                   symbol: 'SOLFDUSD',
                   status: 'TRADING',
                   baseAsset: 'SOL',
                   quoteAsset: 'FDUSD',
-                  isSpotTradingAllowed:
-                    true,
-                  permissionSets: [
-                    ['SPOT'],
-                  ],
+                  contractType:
+                    'PERPETUAL',
                 },
                 {
                   symbol: 'OLDUSDT',
                   status: 'BREAK',
                   baseAsset: 'OLD',
                   quoteAsset: 'USDT',
-                  isSpotTradingAllowed:
-                    true,
-                  permissionSets: [
-                    ['SPOT'],
-                  ],
+                  contractType:
+                    'PERPETUAL',
                 },
               ],
             }),

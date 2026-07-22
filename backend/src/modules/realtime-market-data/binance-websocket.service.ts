@@ -47,12 +47,24 @@ interface RealtimeSubscription {
   symbol?: string;
 }
 
-interface BinanceTradeEvent {
+type BinanceWebSocketRoute =
+  | 'market'
+  | 'public';
+
+const BINANCE_WEBSOCKET_ROUTES:
+  readonly BinanceWebSocketRoute[] = [
+    'market',
+    'public',
+  ];
+
+interface BinanceAggregateTradeEvent {
   E?: number;
   s?: string;
-  t?: number;
+  a?: number;
   p?: string;
   q?: string;
+  f?: number;
+  l?: number;
   T?: number;
   m?: boolean;
 }
@@ -101,9 +113,35 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
   private readonly snapshots = new Map<string, RealtimeSymbolSnapshot>();
   private readonly scannerMetrics = new Map<string, MarketScannerMetricsSeries>();
   private readonly subscriptions = new Set<RealtimeSubscription>();
-  private socket: RealtimeWebSocket | null = null;
-  private reconnectHandle: unknown = null;
-  private generation = 0;
+  private readonly sockets =
+    new Map<
+      BinanceWebSocketRoute,
+      RealtimeWebSocket
+    >();
+
+  private readonly reconnectHandles =
+    new Map<
+      BinanceWebSocketRoute,
+      unknown
+    >();
+
+  private readonly routeGenerations =
+    new Map<
+      BinanceWebSocketRoute,
+      number
+    >();
+
+  private readonly openRoutes =
+    new Set<
+      BinanceWebSocketRoute
+    >();
+
+  private readonly routeReconnectAttempts =
+    new Map<
+      BinanceWebSocketRoute,
+      number
+    >();
+
   private manuallyStopped = false;
   private status: RealtimeConnectionStatus;
 
@@ -143,32 +181,67 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
   }
 
   start(): void {
-    if (this.status.state === 'connecting' || this.status.state === 'connected' || this.status.state === 'reconnecting') {
+    if (
+      this.status.state === 'connecting'
+      || this.status.state === 'connected'
+      || this.status.state === 'reconnecting'
+    ) {
       return;
     }
 
     this.manuallyStopped = false;
-    this.connect();
+
+    for (
+      const route
+      of BINANCE_WEBSOCKET_ROUTES
+    ) {
+      this.connectRoute(route);
+    }
   }
 
   stop(): void {
     this.manuallyStopped = true;
-    this.generation += 1;
 
-    if (this.reconnectHandle !== null) {
-      this.scheduler.cancel(this.reconnectHandle);
-      this.reconnectHandle = null;
+    for (
+      const route
+      of BINANCE_WEBSOCKET_ROUTES
+    ) {
+      this.incrementRouteGeneration(
+        route,
+      );
     }
 
-    const socket = this.socket;
-    this.socket = null;
-    socket?.close(1000, 'NEXUS backend shutdown');
+    for (
+      const handle
+      of this.reconnectHandles.values()
+    ) {
+      this.scheduler.cancel(handle);
+    }
+
+    this.reconnectHandles.clear();
+
+    for (
+      const socket
+      of this.sockets.values()
+    ) {
+      socket.close(
+        1000,
+        'NEXUS backend shutdown',
+      );
+    }
+
+    this.sockets.clear();
+    this.openRoutes.clear();
+    this.routeReconnectAttempts.clear();
 
     this.status = {
       ...this.status,
       state: 'stopped',
-      disconnectedAt: this.now().toISOString(),
+      disconnectedAt:
+        this.now().toISOString(),
+      reconnectAttempts: 0,
     };
+
     this.emitStatus();
   }
 
@@ -368,43 +441,159 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     };
   }
 
-  private connect(): void {
+  private connectRoute(
+    route: BinanceWebSocketRoute,
+  ): void {
     if (this.manuallyStopped) return;
 
-    const generation = ++this.generation;
+    const generation =
+      this.incrementRouteGeneration(
+        route,
+      );
+
+    this.openRoutes.delete(route);
+
+    const reconnectAttempts =
+      this.getMaxReconnectAttempts();
+
     this.status = {
       ...this.status,
-      state: this.status.reconnectAttempts > 0 ? 'reconnecting' : 'connecting',
+      state:
+        reconnectAttempts > 0
+          ? 'reconnecting'
+          : 'connecting',
+      reconnectAttempts,
     };
+
     this.emitStatus();
 
     let socket: RealtimeWebSocket;
+
     try {
-      socket = this.socketFactory(this.buildUrl());
+      socket =
+        this.socketFactory(
+          this.buildUrl(route),
+        );
     } catch (error) {
       this.status = {
         ...this.status,
-        lastError: error instanceof Error ? error.message : 'Unable to create Binance WebSocket',
+        lastError:
+          error instanceof Error
+            ? error.message
+            : 'Unable to create Binance WebSocket',
       };
+
       this.emitStatus();
-      this.scheduleReconnect();
+      this.scheduleReconnect(route);
       return;
     }
 
-    this.socket = socket;
-    socket.addEventListener('open', () => this.handleOpen(generation));
-    socket.addEventListener('message', (event) => this.handleMessage(generation, event));
-    socket.addEventListener('error', () => this.handleError(generation));
-    socket.addEventListener('close', (event) => this.handleClose(generation, event));
+    this.sockets.set(
+      route,
+      socket,
+    );
+
+    socket.addEventListener(
+      'open',
+      () =>
+        this.handleOpen(
+          route,
+          generation,
+        ),
+    );
+
+    socket.addEventListener(
+      'message',
+      (event) =>
+        this.handleMessage(
+          route,
+          generation,
+          event,
+        ),
+    );
+
+    socket.addEventListener(
+      'error',
+      () =>
+        this.handleError(
+          route,
+          generation,
+        ),
+    );
+
+    socket.addEventListener(
+      'close',
+      (event) =>
+        this.handleClose(
+          route,
+          generation,
+          event,
+        ),
+    );
   }
 
-  private buildUrl(): string {
-    const streams = this.getActiveSymbols().flatMap((symbol) => {
-      const normalized = symbol.toLowerCase();
-      return [`${normalized}@trade`, `${normalized}@bookTicker`];
-    });
+  private buildUrl(
+    route: BinanceWebSocketRoute,
+  ): string {
+    const streamSuffix =
+      route === 'market'
+        ? '@aggTrade'
+        : '@bookTicker';
 
-    return `${this.baseUrl}/stream?streams=${streams.join('/')}`;
+    const streams =
+      this.getActiveSymbols()
+        .map(
+          (symbol) =>
+            `${symbol.toLowerCase()}${streamSuffix}`,
+        );
+
+    return (
+      `${this.baseUrl}/${route}/stream?streams=`
+      + streams.join('/')
+    );
+  }
+
+  private getRouteGeneration(
+    route: BinanceWebSocketRoute,
+  ): number {
+    return (
+      this.routeGenerations.get(route)
+      ?? 0
+    );
+  }
+
+  private incrementRouteGeneration(
+    route: BinanceWebSocketRoute,
+  ): number {
+    const generation =
+      this.getRouteGeneration(route)
+      + 1;
+
+    this.routeGenerations.set(
+      route,
+      generation,
+    );
+
+    return generation;
+  }
+
+  private isCurrentRouteGeneration(
+    route: BinanceWebSocketRoute,
+    generation: number,
+  ): boolean {
+    return (
+      generation
+      === this.getRouteGeneration(route)
+    );
+  }
+
+  private getMaxReconnectAttempts():
+    number {
+    return Math.max(
+      0,
+      ...this.routeReconnectAttempts
+        .values(),
+    );
   }
 
   private getActiveSymbols(): string[] {
@@ -431,61 +620,168 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       return;
     }
 
-    if (this.reconnectHandle !== null) {
-      this.scheduler.cancel(this.reconnectHandle);
-      this.reconnectHandle = null;
+    for (
+      const handle
+      of this.reconnectHandles.values()
+    ) {
+      this.scheduler.cancel(handle);
     }
 
-    const socket = this.socket;
-    this.socket = null;
-    this.generation += 1;
-    socket?.close(1000, 'NEXUS subscriptions changed');
+    this.reconnectHandles.clear();
+
+    for (
+      const route
+      of BINANCE_WEBSOCKET_ROUTES
+    ) {
+      this.incrementRouteGeneration(
+        route,
+      );
+    }
+
+    for (
+      const socket
+      of this.sockets.values()
+    ) {
+      socket.close(
+        1000,
+        'NEXUS subscriptions changed',
+      );
+    }
+
+    this.sockets.clear();
+    this.openRoutes.clear();
+    this.routeReconnectAttempts.clear();
 
     this.status = {
       ...this.status,
       reconnectAttempts: 0,
     };
-    this.connect();
+
+    for (
+      const route
+      of BINANCE_WEBSOCKET_ROUTES
+    ) {
+      this.connectRoute(route);
+    }
   }
 
-  private handleOpen(generation: number): void {
-    if (generation !== this.generation || this.manuallyStopped) return;
+  private handleOpen(
+    route: BinanceWebSocketRoute,
+    generation: number,
+  ): void {
+    if (
+      !this.isCurrentRouteGeneration(
+        route,
+        generation,
+      )
+      || this.manuallyStopped
+    ) {
+      return;
+    }
+
+    this.openRoutes.add(route);
+
+    this.routeReconnectAttempts.set(
+      route,
+      0,
+    );
+
+    const allConnected =
+      BINANCE_WEBSOCKET_ROUTES.every(
+        (item) =>
+          this.openRoutes.has(item),
+      );
+
+    const reconnectAttempts =
+      this.getMaxReconnectAttempts();
 
     this.status = {
       ...this.status,
-      state: 'connected',
-      connectedAt: this.now().toISOString(),
-      disconnectedAt: null,
-      reconnectAttempts: 0,
-      lastError: null,
+      state:
+        allConnected
+          ? 'connected'
+          : reconnectAttempts > 0
+            ? 'reconnecting'
+            : 'connecting',
+      connectedAt:
+        allConnected
+          ? this.now().toISOString()
+          : this.status.connectedAt,
+      disconnectedAt:
+        allConnected
+          ? null
+          : this.status.disconnectedAt,
+      reconnectAttempts,
+      lastError:
+        allConnected
+          ? null
+          : this.status.lastError,
     };
+
     this.emitStatus();
   }
 
-  private handleMessage(generation: number, event: RealtimeSocketEvent): void {
-    if (generation !== this.generation || this.manuallyStopped) return;
+  private handleMessage(
+    route: BinanceWebSocketRoute,
+    generation: number,
+    event: RealtimeSocketEvent,
+  ): void {
+    if (
+      !this.isCurrentRouteGeneration(
+        route,
+        generation,
+      )
+      || this.manuallyStopped
+    ) {
+      return;
+    }
 
     const data = event.data;
+
     if (typeof data === 'string') {
       this.processTextMessage(data);
       return;
     }
 
     if (data instanceof ArrayBuffer) {
-      this.processTextMessage(new TextDecoder().decode(data));
+      this.processTextMessage(
+        new TextDecoder().decode(data),
+      );
       return;
     }
 
     if (ArrayBuffer.isView(data)) {
-      const bytes = new Uint8Array(data.byteLength);
-      bytes.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
-      this.processTextMessage(new TextDecoder().decode(bytes));
+      const bytes =
+        new Uint8Array(
+          data.byteLength,
+        );
+
+      bytes.set(
+        new Uint8Array(
+          data.buffer,
+          data.byteOffset,
+          data.byteLength,
+        ),
+      );
+
+      this.processTextMessage(
+        new TextDecoder().decode(bytes),
+      );
+
       return;
     }
 
     if (data instanceof Blob) {
       void data.text().then((text) => {
-        if (generation === this.generation && !this.manuallyStopped) this.processTextMessage(text);
+        if (
+          this.isCurrentRouteGeneration(
+            route,
+            generation,
+          )
+          && !this.manuallyStopped
+        ) {
+          this.processTextMessage(text);
+        }
       });
     }
   }
@@ -506,40 +802,122 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     this.status = { ...this.status, lastMessageAt: receivedAt };
     const stream = payload.stream.toLowerCase();
 
-    if (stream.endsWith('@trade')) {
-      this.applyTrade(payload.data as BinanceTradeEvent, receivedAt);
+    if (stream.endsWith('@aggtrade')) {
+      this.applyTrade(
+        payload.data as BinanceAggregateTradeEvent,
+        receivedAt,
+      );
     } else if (stream.endsWith('@bookticker')) {
       this.applyBookTicker(payload.data as BinanceBookTickerEvent, receivedAt);
     }
   }
 
-  private applyTrade(event: BinanceTradeEvent, receivedAt: string): void {
-    const symbol = event.s?.toUpperCase();
-    const price = numberValue(event.p);
-    const quantity = numberValue(event.q);
-    const tradeId = numberValue(event.t);
+  private applyTrade(
+    event: BinanceAggregateTradeEvent,
+    receivedAt: string,
+  ): void {
+    const symbol =
+      event.s?.toUpperCase();
 
-    if (!symbol || price === null || quantity === null || tradeId === null) return;
-    const snapshot = this.snapshots.get(symbol);
+    const price =
+      numberValue(event.p);
+
+    const quantity =
+      numberValue(event.q);
+
+    const aggregateTradeId =
+      numberValue(event.a);
+
+    const firstTradeId =
+      numberValue(event.f);
+
+    const lastTradeId =
+      numberValue(event.l);
+
+    if (
+      !symbol
+      || price === null
+      || quantity === null
+      || aggregateTradeId === null
+      || firstTradeId === null
+      || lastTradeId === null
+    ) {
+      return;
+    }
+
+    const normalizedAggregateTradeId =
+      Math.trunc(aggregateTradeId);
+
+    const normalizedFirstTradeId =
+      Math.trunc(firstTradeId);
+
+    const normalizedLastTradeId =
+      Math.trunc(lastTradeId);
+
+    if (
+      !Number.isSafeInteger(
+        normalizedAggregateTradeId,
+      )
+      || !Number.isSafeInteger(
+        normalizedFirstTradeId,
+      )
+      || !Number.isSafeInteger(
+        normalizedLastTradeId,
+      )
+      || normalizedLastTradeId
+        < normalizedFirstTradeId
+    ) {
+      return;
+    }
+
+    const snapshot =
+      this.snapshots.get(symbol);
+
     if (!snapshot) return;
 
-    const timestampMs = numberValue(event.T) ?? numberValue(event.E) ?? this.now().getTime();
-    const isBuyerMaker = event.m === true;
+    const timestampMs =
+      numberValue(event.T)
+      ?? numberValue(event.E)
+      ?? this.now().getTime();
+
+    const isBuyerMaker =
+      event.m === true;
+
     const trade: RealtimeTrade = {
-      id: `${symbol}-${Math.trunc(tradeId)}`,
+      id:
+        `${symbol}-${normalizedAggregateTradeId}`,
       symbol,
-      timestamp: new Date(timestampMs).toISOString(),
+      timestamp:
+        new Date(
+          timestampMs,
+        ).toISOString(),
       price,
       quantity,
-      quoteValue: price * quantity,
-      side: isBuyerMaker ? 'sell' : 'buy',
+      quoteValue:
+        price * quantity,
+      tradesCount:
+        normalizedLastTradeId
+        - normalizedFirstTradeId
+        + 1,
+      side:
+        isBuyerMaker
+          ? 'sell'
+          : 'buy',
       isBuyerMaker,
     };
 
     snapshot.lastTrade = trade;
     snapshot.recentTrades.push(trade);
-    if (snapshot.recentTrades.length > this.options.tradesBufferSize) {
-      snapshot.recentTrades.splice(0, snapshot.recentTrades.length - this.options.tradesBufferSize);
+
+    if (
+      snapshot.recentTrades.length
+      > this.options.tradesBufferSize
+    ) {
+      snapshot.recentTrades.splice(
+        0,
+        snapshot.recentTrades.length
+        - this.options.tradesBufferSize,
+      );
     }
 
     this.scannerMetrics
@@ -584,27 +962,73 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     this.emitSnapshot(snapshot);
   }
 
-  private handleError(generation: number): void {
-    if (generation !== this.generation || this.manuallyStopped) return;
-    this.status = { ...this.status, lastError: 'Binance WebSocket connection error' };
-    this.emitStatus();
-  }
-
-  private handleClose(generation: number, event: RealtimeSocketEvent): void {
-    if (generation !== this.generation || this.manuallyStopped) return;
-
-    this.socket = null;
-    const closeDetails = event.code
-      ? `Binance WebSocket closed with code ${event.code}${event.reason ? `: ${event.reason}` : ''}`
-      : 'Binance WebSocket connection closed';
+  private handleError(
+    route: BinanceWebSocketRoute,
+    generation: number,
+  ): void {
+    if (
+      !this.isCurrentRouteGeneration(
+        route,
+        generation,
+      )
+      || this.manuallyStopped
+    ) {
+      return;
+    }
 
     this.status = {
       ...this.status,
-      disconnectedAt: this.now().toISOString(),
-      lastError: event.code === 1000 ? this.status.lastError : closeDetails,
+      lastError:
+        `Binance Futures ${route} WebSocket connection error`,
     };
+
     this.emitStatus();
-    this.scheduleReconnect();
+  }
+
+  private handleClose(
+    route: BinanceWebSocketRoute,
+    generation: number,
+    event: RealtimeSocketEvent,
+  ): void {
+    if (
+      !this.isCurrentRouteGeneration(
+        route,
+        generation,
+      )
+      || this.manuallyStopped
+    ) {
+      return;
+    }
+
+    this.sockets.delete(route);
+    this.openRoutes.delete(route);
+
+    const closeDetails =
+      event.code
+        ? (
+            `Binance Futures ${route} WebSocket closed with code `
+            + `${event.code}`
+            + (
+              event.reason
+                ? `: ${event.reason}`
+                : ''
+            )
+          )
+        : (
+            `Binance Futures ${route} WebSocket connection closed`
+          );
+
+    this.status = {
+      ...this.status,
+      disconnectedAt:
+        this.now().toISOString(),
+      lastError:
+        event.code === 1000
+          ? this.status.lastError
+          : closeDetails,
+    };
+
+    this.scheduleReconnect(route);
   }
 
   private emitStatus(): void {
@@ -637,25 +1061,64 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     }
   }
 
-  private scheduleReconnect(): void {
-    if (this.manuallyStopped || this.reconnectHandle !== null) return;
+  private scheduleReconnect(
+    route: BinanceWebSocketRoute,
+  ): void {
+    if (
+      this.manuallyStopped
+      || this.reconnectHandles.has(
+        route,
+      )
+    ) {
+      return;
+    }
 
-    const attempt = this.status.reconnectAttempts + 1;
-    const delayMs = Math.min(
-      this.options.reconnectBaseDelayMs * 2 ** (attempt - 1),
-      this.options.reconnectMaxDelayMs,
+    const attempt =
+      (
+        this.routeReconnectAttempts
+          .get(route)
+        ?? 0
+      )
+      + 1;
+
+    const delayMs =
+      Math.min(
+        this.options
+          .reconnectBaseDelayMs
+        * 2 ** (attempt - 1),
+        this.options
+          .reconnectMaxDelayMs,
+      );
+
+    this.routeReconnectAttempts.set(
+      route,
+      attempt,
     );
 
     this.status = {
       ...this.status,
       state: 'reconnecting',
-      reconnectAttempts: attempt,
+      reconnectAttempts:
+        this.getMaxReconnectAttempts(),
     };
+
     this.emitStatus();
 
-    this.reconnectHandle = this.scheduler.schedule(() => {
-      this.reconnectHandle = null;
-      this.connect();
-    }, delayMs);
+    const handle =
+      this.scheduler.schedule(
+        () => {
+          this.reconnectHandles.delete(
+            route,
+          );
+
+          this.connectRoute(route);
+        },
+        delayMs,
+      );
+
+    this.reconnectHandles.set(
+      route,
+      handle,
+    );
   }
 }

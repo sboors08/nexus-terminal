@@ -1,6 +1,6 @@
 import {
   createInitialBinanceSymbolUniverse,
-  parseBinanceSpotSymbolUniverse,
+  parseBinanceUsdMPerpetualSymbolUniverse,
   reconcileBinanceSymbolUniverse,
   type BinanceSymbolUniverseSnapshot,
 } from './binance-symbol-universe.js';
@@ -325,7 +325,7 @@ export class BinanceSymbolUniverseService {
         await this.requestExchangeInfo();
 
       const symbols =
-        parseBinanceSpotSymbolUniverse(
+        parseBinanceUsdMPerpetualSymbolUniverse(
           payload,
           this.quoteAsset,
         );
@@ -463,7 +463,7 @@ export class BinanceSymbolUniverseService {
     try {
       const response =
         await this.fetchImpl(
-          `${this.baseUrl}/api/v3/exchangeInfo`,
+          `${this.baseUrl}/fapi/v1/exchangeInfo`,
           {
             headers: {
               accept:

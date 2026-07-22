@@ -2,66 +2,63 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createInitialBinanceSymbolUniverse,
-  parseBinanceSpotSymbolUniverse,
+  parseBinanceUsdMPerpetualSymbolUniverse,
   reconcileBinanceSymbolUniverse,
 } from '../src/modules/realtime-market-data/binance-symbol-universe.js';
 
 test(
-  'parses active Binance Spot USDT symbols',
+  'parses active Binance USD-M USDT perpetual symbols',
   () => {
     const symbols =
-      parseBinanceSpotSymbolUniverse({
+      parseBinanceUsdMPerpetualSymbolUniverse({
         symbols: [
           {
             symbol: 'BTCUSDT',
             status: 'TRADING',
             baseAsset: 'BTC',
             quoteAsset: 'USDT',
-            isSpotTradingAllowed: true,
-            permissionSets: [
-              ['SPOT'],
-            ],
+            contractType: 'PERPETUAL',
           },
           {
             symbol: 'SOLUSDT',
             status: 'TRADING',
             baseAsset: 'SOL',
             quoteAsset: 'USDT',
-            permissions: ['SPOT'],
+            contractType: 'PERPETUAL',
           },
           {
             symbol: 'ETHUSDT',
             status: 'BREAK',
             baseAsset: 'ETH',
             quoteAsset: 'USDT',
-            permissions: ['SPOT'],
+            contractType: 'PERPETUAL',
           },
           {
             symbol: 'BTCFDUSD',
             status: 'TRADING',
             baseAsset: 'BTC',
             quoteAsset: 'FDUSD',
-            permissions: ['SPOT'],
+            contractType: 'PERPETUAL',
           },
           {
-            symbol: 'MARGINUSDT',
+            symbol: 'BTCUSDT260925',
             status: 'TRADING',
-            baseAsset: 'MARGIN',
+            baseAsset: 'BTC',
             quoteAsset: 'USDT',
-            permissions: ['MARGIN'],
+            contractType: 'CURRENT_QUARTER',
           },
           {
-            symbol: 'DISABLEDUSDT',
+            symbol: 'MISSINGTYPEUSDT',
             status: 'TRADING',
-            baseAsset: 'DISABLED',
+            baseAsset: 'MISSINGTYPE',
             quoteAsset: 'USDT',
-            isSpotTradingAllowed: false,
           },
           {
             symbol: '',
             status: 'TRADING',
             baseAsset: 'BAD',
             quoteAsset: 'USDT',
+            contractType: 'PERPETUAL',
           },
         ],
       });
@@ -78,7 +75,6 @@ test(
     );
   },
 );
-
 test(
   'creates the initial universe without announcing every existing symbol as new',
   () => {
@@ -279,7 +275,7 @@ test(
   () => {
     assert.throws(
       () =>
-        parseBinanceSpotSymbolUniverse({
+        parseBinanceUsdMPerpetualSymbolUniverse({
           serverTime: 1,
         }),
       /does not contain symbols/,

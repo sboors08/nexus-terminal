@@ -13,7 +13,7 @@ export interface BinanceMarketDataClientOptions {
 }
 
 interface ExchangeInfo { symbols?: ExchangeSymbol[]; }
-interface ExchangeSymbol { symbol?: string; status?: string; baseAsset?: string; quoteAsset?: string; isSpotTradingAllowed?: boolean; }
+interface ExchangeSymbol { symbol?: string; status?: string; baseAsset?: string; quoteAsset?: string; contractType?: string; }
 interface Ticker24h { symbol?: string; lastPrice?: string; priceChangePercent?: string; openPrice?: string; highPrice?: string; lowPrice?: string; quoteVolume?: string; count?: number; closeTime?: number; }
 type Kline = [number, string, string, string, string, string, number, string, number, ...unknown[]];
 interface ErrorPayload { code?: number; msg?: string; }
@@ -40,14 +40,14 @@ export class BinanceMarketDataClient implements MarketDataProvider {
     if (this.cache && this.cache.expiresAt > nowMs) return this.cache.value.map((item) => ({ ...item }));
 
     const [exchangeInfo, tickers] = await Promise.all([
-      this.requestJson<ExchangeInfo>('/api/v3/exchangeInfo'),
-      this.requestJson<Ticker24h[]>('/api/v3/ticker/24hr'),
+      this.requestJson<ExchangeInfo>('/fapi/v1/exchangeInfo'),
+      this.requestJson<Ticker24h[]>('/fapi/v1/ticker/24hr'),
     ]);
     if (!Array.isArray(exchangeInfo.symbols) || !Array.isArray(tickers)) {
       throw new MarketDataUnavailableError('Binance returned an unexpected market response');
     }
 
-    const active = new Map(exchangeInfo.symbols.filter((item) => item.status === 'TRADING' && item.quoteAsset === 'USDT' && item.isSpotTradingAllowed !== false && item.symbol && item.baseAsset).map((item) => [item.symbol as string, item]));
+    const active = new Map(exchangeInfo.symbols.filter((item) => item.status === 'TRADING' && item.quoteAsset === 'USDT' && item.contractType === 'PERPETUAL' && item.symbol && item.baseAsset).map((item) => [item.symbol as string, item]));
     const btcChange = numberValue(tickers.find((item) => item.symbol === 'BTCUSDT')?.priceChangePercent);
 
     const symbols = tickers.flatMap((ticker): MarketSymbol[] => {
@@ -81,7 +81,7 @@ export class BinanceMarketDataClient implements MarketDataProvider {
 
   async getCandles(symbol: string, timeframe: string): Promise<Candle[]> {
     const query = new URLSearchParams({ symbol, interval: timeframe, limit: '200' });
-    const payload = await this.requestJson<unknown>(`/api/v3/klines?${query.toString()}`, symbol);
+    const payload = await this.requestJson<unknown>(`/fapi/v1/klines?${query.toString()}`, symbol);
     if (!Array.isArray(payload)) throw new MarketDataUnavailableError('Binance returned an unexpected candles response');
 
     return payload.map((row) => {
