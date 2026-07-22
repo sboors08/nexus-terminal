@@ -548,6 +548,91 @@ function normalizeActivityScore(
   );
 }
 
+function resolveCollectedWindowMinutes(
+  metric: MarketScannerMetrics,
+): number {
+  if (
+    !metric.windowStartedAt
+    || !metric.updatedAt
+  ) {
+    return 0;
+  }
+
+  const startedAtMs =
+    Date.parse(
+      metric.windowStartedAt,
+    );
+
+  const updatedAtMs =
+    Date.parse(
+      metric.updatedAt,
+    );
+
+  if (
+    !Number.isFinite(startedAtMs)
+    || !Number.isFinite(updatedAtMs)
+  ) {
+    return 0;
+  }
+
+  const latestMinuteStartedAtMs =
+    Math.floor(
+      updatedAtMs / 60_000,
+    ) * 60_000;
+
+  return Math.max(
+    0,
+    Math.floor(
+      (
+        latestMinuteStartedAtMs
+        - startedAtMs
+      ) / 60_000,
+    ) + 1,
+  );
+}
+
+function resolveExpectedWindowMinutes(
+  metric: MarketScannerMetrics,
+): number {
+  return Math.max(
+    1,
+    Math.round(
+      metric.windowMs / 60_000,
+    ),
+  );
+}
+
+function isMetricWindowComplete(
+  metric: MarketScannerMetrics,
+): boolean {
+  return (
+    resolveCollectedWindowMinutes(metric)
+    >= resolveExpectedWindowMinutes(metric)
+  );
+}
+
+function formatWindowCollectionProgress(
+  metric: MarketScannerMetrics,
+): string {
+  const expectedMinutes =
+    resolveExpectedWindowMinutes(
+      metric,
+    );
+
+  const collectedMinutes =
+    Math.min(
+      expectedMinutes,
+      resolveCollectedWindowMinutes(
+        metric,
+      ),
+    );
+
+  return (
+    `собрано ${collectedMinutes}`
+    + ` из ${expectedMinutes} мин`
+  );
+}
+
 function buildActivityTitle(
   metric: MarketScannerMetrics,
 ): string {
@@ -611,11 +696,37 @@ function buildLiquidityTitle(
   );
 }
 
+function resolveScannerWindowMinutes(
+  scannerWindow: ScannerWindow,
+): number {
+  const windowMinutes:
+  Record<ScannerWindow, number> = {
+    '1m': 1,
+    '3m': 3,
+    '5m': 5,
+    '15m': 15,
+    '30m': 30,
+    '1h': 60,
+    '4h': 240,
+    '12h': 720,
+    '1d': 1_440,
+    '3d': 4_320,
+  };
+
+  return windowMinutes[scannerWindow];
+}
+
+export interface BuildDashboardScannerMetricViewOptions {
+  collectingWindow?: ScannerWindow;
+}
+
 export function buildDashboardScannerMetricView(
   fallback: DashboardScannerMetricFallback,
   metric:
     | MarketScannerMetrics
     | undefined,
+  options:
+    BuildDashboardScannerMetricViewOptions = {},
 ): DashboardScannerMetricView {
   const symbol =
     normalizeMarketScannerSymbol(
@@ -626,6 +737,58 @@ export function buildDashboardScannerMetricView(
     metric?.symbol === symbol
       ? metric
       : undefined;
+
+  if (
+    (
+      !matchingMetric
+      || matchingMetric.price === null
+      || matchingMetric.updatedAt === null
+    )
+    && options.collectingWindow
+  ) {
+    const expectedMinutes =
+      resolveScannerWindowMinutes(
+        options.collectingWindow,
+      );
+
+    const collectionProgressLabel =
+      `собрано 0 из ${expectedMinutes} мин`;
+
+    return {
+      symbol,
+      isLive: false,
+      priceValue: null,
+      priceLabel: '—',
+      priceChangePct: null,
+      priceChangeLabel: 'сбор данных',
+      btcCorrelation: null,
+      btcCorrelationLabel: 'сбор данных',
+      relativeStrengthPct: null,
+      relativeStrengthLabel: 'сбор данных',
+      quoteVolumeLabel: 'сбор данных',
+      quoteVolumeValue: null,
+      tradesCountLabel: 'сбор данных',
+      tradesCountValue: null,
+      speedLabel: 'сбор данных',
+      tradesPerMinuteValue: null,
+      volatilityPct: null,
+      volatilityLabel: 'сбор данных',
+      spreadPct: null,
+      topBookQuoteValue: null,
+      orderBookImbalancePct: null,
+      liquidityIsLive: false,
+      liquidityScore: 0,
+      liquidityTitle:
+        'СБОР · ожидание данных стакана',
+      activityIsLive: false,
+      activityScore: 0,
+      activityTitle:
+        `СБОР · ${collectionProgressLabel}`,
+      updatedAtLabel:
+        collectionProgressLabel,
+      sourceLabel: 'NEW',
+    };
+  }
 
   if (
     !matchingMetric
@@ -681,7 +844,18 @@ export function buildDashboardScannerMetricView(
     };
   }
 
-  return {
+  const windowIsComplete =
+    isMetricWindowComplete(
+      matchingMetric,
+    );
+
+  const collectionProgressLabel =
+    formatWindowCollectionProgress(
+      matchingMetric,
+    );
+
+  const liveView:
+  DashboardScannerMetricView = {
     symbol,
     isLive: true,
     priceValue: matchingMetric.price,
@@ -771,5 +945,42 @@ export function buildDashboardScannerMetricView(
         matchingMetric.updatedAt,
       ),
     sourceLabel: 'LIVE',
+  };
+
+  if (windowIsComplete) {
+    return liveView;
+  }
+
+  return {
+    ...liveView,
+    isLive: false,
+    priceChangePct: null,
+    priceChangeLabel:
+      'сбор данных',
+    btcCorrelation: null,
+    btcCorrelationLabel:
+      'сбор данных',
+    relativeStrengthPct: null,
+    relativeStrengthLabel:
+      'сбор данных',
+    quoteVolumeLabel:
+      'сбор данных',
+    quoteVolumeValue: null,
+    tradesCountLabel:
+      'сбор данных',
+    tradesCountValue: null,
+    speedLabel:
+      'сбор данных',
+    tradesPerMinuteValue: null,
+    volatilityPct: null,
+    volatilityLabel:
+      'сбор данных',
+    activityIsLive: false,
+    activityScore: 0,
+    activityTitle:
+      `СБОР · ${collectionProgressLabel}`,
+    updatedAtLabel:
+      collectionProgressLabel,
+    sourceLabel: 'NEW',
   };
 }

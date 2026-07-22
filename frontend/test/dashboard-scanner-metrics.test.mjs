@@ -252,6 +252,149 @@ test(
 );
 
 test(
+  'marks an incomplete scanner window as collecting',
+  () => {
+    const view =
+      buildDashboardScannerMetricView(
+        fallback,
+        {
+          ...metric,
+          scannerWindow: '1h',
+          windowMs: 3_600_000,
+          windowStartedAt:
+            '2026-07-19T13:00:00.000Z',
+          updatedAt:
+            '2026-07-19T13:12:49.000Z',
+        },
+      );
+
+    assert.equal(
+      view.isLive,
+      false,
+    );
+
+    assert.equal(
+      view.priceLabel,
+      '75.95',
+    );
+
+    assert.equal(
+      view.priceChangeLabel,
+      'сбор данных',
+    );
+
+    assert.equal(
+      view.quoteVolumeLabel,
+      'сбор данных',
+    );
+
+    assert.equal(
+      view.tradesCountLabel,
+      'сбор данных',
+    );
+
+    assert.equal(
+      view.speedLabel,
+      'сбор данных',
+    );
+
+    assert.equal(
+      view.activityIsLive,
+      false,
+    );
+
+    assert.equal(
+      view.activityScore,
+      0,
+    );
+
+    assert.equal(
+      view.activityTitle,
+      'СБОР · собрано 13 из 60 мин',
+    );
+
+    assert.equal(
+      view.updatedAtLabel,
+      'собрано 13 из 60 мин',
+    );
+
+    assert.equal(
+      view.sourceLabel,
+      'NEW',
+    );
+
+    assert.equal(
+      view.liquidityIsLive,
+      true,
+    );
+  },
+);
+
+test(
+  'marks a missing live metric as collecting',
+  () => {
+    const view =
+      buildDashboardScannerMetricView(
+        fallback,
+        undefined,
+        {
+          collectingWindow: '1h',
+        },
+      );
+
+    assert.equal(
+      view.isLive,
+      false,
+    );
+
+    assert.equal(
+      view.sourceLabel,
+      'NEW',
+    );
+
+    assert.equal(
+      view.priceLabel,
+      '—',
+    );
+
+    assert.equal(
+      view.priceChangeLabel,
+      'сбор данных',
+    );
+
+    assert.equal(
+      view.quoteVolumeLabel,
+      'сбор данных',
+    );
+
+    assert.equal(
+      view.tradesCountLabel,
+      'сбор данных',
+    );
+
+    assert.equal(
+      view.speedLabel,
+      'сбор данных',
+    );
+
+    assert.equal(
+      view.activityScore,
+      0,
+    );
+
+    assert.equal(
+      view.liquidityScore,
+      0,
+    );
+
+    assert.equal(
+      view.updatedAtLabel,
+      'собрано 0 из 60 мин',
+    );
+  },
+);
+
+test(
   'keeps Dashboard scanner fallback values without metrics',
   () => {
     const view =

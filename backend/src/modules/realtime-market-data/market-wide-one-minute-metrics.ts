@@ -878,9 +878,6 @@ export class MarketWideOneMinuteMetricsStore {
         scannerWindow,
       );
 
-    const windowMinutes =
-      windowMs / 60_000;
-
     const bidQuoteValue =
       bookTicker
         ? (
@@ -1014,9 +1011,15 @@ export class MarketWideOneMinuteMetricsStore {
         0,
       );
 
+    const collectedMinutes =
+      Math.max(
+        1,
+        klines.length,
+      );
+
     const tradesPerMinute =
       tradesCount
-      / windowMinutes;
+      / collectedMinutes;
 
     const buyQuoteVolume =
       klines.reduce(

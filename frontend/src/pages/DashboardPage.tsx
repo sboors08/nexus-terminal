@@ -379,6 +379,13 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                 Number(row[1]),
             },
             scannerMetrics.metrics[symbol],
+            {
+              collectingWindow:
+                scannerUniverseEntries
+                  !== undefined
+                  ? scannerWindow
+                  : undefined,
+            },
           );
 
         return {
@@ -388,6 +395,8 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
             sourceLabel:
               item.source
                 === 'collecting'
+              || metricView.sourceLabel
+                === 'NEW'
                 ? 'NEW'
                 : metricView.isLive
                   ? 'LIVE'
@@ -402,7 +411,9 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
     [
       activityPeriod,
       scannerMetrics.metrics,
+      scannerUniverseEntries,
       scannerUniverseRows,
+      scannerWindow,
     ],
   );
 
@@ -777,8 +788,12 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                       view.priceChangeLabel
                         .startsWith('-')
                         ? styles.negative
-                        : view.priceChangeLabel
-                            === 'нет данных'
+                        : (
+                            view.priceChangeLabel
+                              === 'нет данных'
+                            || view.priceChangeLabel
+                              === 'сбор данных'
+                          )
                           ? styles.neutral
                           : styles.positive
                     }
