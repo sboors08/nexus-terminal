@@ -4,6 +4,9 @@ import {
   type MarketScannerMetrics,
   type MarketScannerFetch,
 } from './dashboardScannerMetrics.js';
+import type {
+  ScannerWindow,
+} from '../config/tradingPresets.js';
 
 export const MARKET_WIDE_SCANNER_METRICS_PATH =
   '/api/v1/market/realtime/market-wide/scanner-metrics';
@@ -11,6 +14,7 @@ export const MARKET_WIDE_SCANNER_METRICS_PATH =
 export interface FetchMarketWideScannerMetricsOptions {
   baseUrl?: string;
   symbol?: string;
+  scannerWindow?: ScannerWindow;
   fetcher?: MarketScannerFetch;
 }
 
@@ -33,6 +37,7 @@ export function buildMarketWideScannerMetricsUrl(
       FetchMarketWideScannerMetricsOptions,
       | 'baseUrl'
       | 'symbol'
+      | 'scannerWindow'
     > = {},
 ): string {
   const params =
@@ -40,7 +45,8 @@ export function buildMarketWideScannerMetricsUrl(
 
   params.set(
     'scannerWindow',
-    '1m',
+    options.scannerWindow
+    ?? '1m',
   );
 
   if (options.symbol) {

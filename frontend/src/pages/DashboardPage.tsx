@@ -13,6 +13,9 @@ import {
   type DashboardViewData,
 } from '@/shared/api';
 import { ROUTES } from '@/app/routing/routes';
+import type {
+  ScannerWindow,
+} from '@/shared/config/tradingPresets';
 import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   buildDashboardRealtimeView,
@@ -105,6 +108,19 @@ function HotCard({
 }
 
 type MarketMode = 'bullish' | 'bearish';
+
+const DASHBOARD_ACTIVITY_PERIOD_TO_SCANNER_WINDOW:
+Record<
+  DashboardActivityPeriod,
+  ScannerWindow
+> = {
+  '1M': '1m',
+  '5M': '5m',
+  '15M': '15m',
+  '1H': '1h',
+  '4H': '4h',
+  '24H': '1d',
+};
 
 type ResolvedMarketMode = DashboardMarketModeData & {
   mode: MarketMode;
@@ -322,9 +338,15 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
     symbols: realtimeSymbols,
   });
 
+  const scannerWindow =
+    DASHBOARD_ACTIVITY_PERIOD_TO_SCANNER_WINDOW[
+      activityPeriod
+    ];
+
   const scannerMetrics =
     useMarketWideScannerMetrics({
       intervalMs: 2_000,
+      scannerWindow,
     });
 
   const dashboardScannerRows = useMemo(
@@ -378,6 +400,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
       }),
       ),
     [
+      activityPeriod,
       scannerMetrics.metrics,
       scannerUniverseRows,
     ],
@@ -597,7 +620,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
               Показано: {filteredDashboardScannerRows.length}/
               {dashboardScannerRows.length}
               {' · '}
-              1M LIVE: {scannerLiveCount}/
+              {activityPeriod} LIVE: {scannerLiveCount}/
               {filteredDashboardScannerRows.length}
             </small>
           </div>
@@ -653,9 +676,9 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
             <span>#</span>
             <span>МОНЕТА</span>
             <span>АКТИВНОСТЬ</span>
-            <span>ЦЕНА / 1М</span>
-            <span>ОБЪЁМ 1М</span>
-            <span>СДЕЛКИ 1М</span>
+            <span>ЦЕНА / {activityPeriod}</span>
+            <span>ОБЪЁМ {activityPeriod}</span>
+            <span>СДЕЛКИ {activityPeriod}</span>
             <span>СКОРОСТЬ</span>
             <span>СВЯЗЬ С BTC</span>
             <span>СИЛА ПРОТИВ BTC</span>
@@ -730,7 +753,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                       === 'NEW'
                       ? 'NEW · СБОР'
                       : view.isLive
-                        ? '1M LIVE'
+                        ? `${activityPeriod} LIVE`
                         : view.sourceLabel}
                   </small>
                 </strong>

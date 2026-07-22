@@ -4,8 +4,15 @@ import {
   type MarketScannerMetrics,
 } from './market-scanner-metrics.js';
 import {
+  calculateScannerBtcCorrelation,
   calculateScannerRelativeStrengthPct,
+  type ScannerPriceSample,
 } from './scanner-btc-comparison.js';
+import {
+  DEFAULT_MARKET_SCANNER_WINDOW,
+  getMarketScannerWindowMs,
+  type MarketScannerWindowId,
+} from './scanner-windows.js';
 import type {
   RealtimeBookTicker,
 } from './realtime-market-data.types.js';
@@ -31,9 +38,8 @@ export interface MarketWideSymbolChange {
 }
 
 interface MarketWideSymbolState {
-  kline:
-    BinanceOneMinuteKlineUpdate
-    | null;
+  klines:
+    BinanceOneMinuteKlineUpdate[];
   bookTicker:
     RealtimeBookTicker
     | null;
@@ -44,6 +50,11 @@ type UnknownRecord =
 
 const SYMBOL_PATTERN =
   /^[A-Z0-9]{5,30}$/;
+
+const MAX_MARKET_WIDE_KLINES =
+  getMarketScannerWindowMs(
+    '3d',
+  ) / 60_000;
 
 function isRecord(
   value: unknown,
@@ -203,7 +214,7 @@ function cloneBookTicker(
 function createEmptyState():
 MarketWideSymbolState {
   return {
-    kline: null,
+    klines: [],
     bookTicker: null,
   };
 }
@@ -492,47 +503,89 @@ export class MarketWideOneMinuteMetricsStore {
       return false;
     }
 
-    const current =
-      state.kline;
+    const nextOpenTime =
+      Date.parse(
+        update.openTime,
+      );
 
-    if (current) {
-      const currentOpenTime =
+    const nextEventTime =
+      Date.parse(
+        update.eventTime,
+      );
+
+    if (
+      !Number.isFinite(
+        nextOpenTime,
+      )
+      || !Number.isFinite(
+        nextEventTime,
+      )
+    ) {
+      throw new Error(
+        `Invalid market-wide kline timestamp: ${symbol}`,
+      );
+    }
+
+    const latest =
+      state.klines.at(-1);
+
+    if (latest) {
+      const latestOpenTime =
         Date.parse(
-          current.openTime,
+          latest.openTime,
         );
 
-      const nextOpenTime =
+      const latestEventTime =
         Date.parse(
-          update.openTime,
-        );
-
-      const currentEventTime =
-        Date.parse(
-          current.eventTime,
-        );
-
-      const nextEventTime =
-        Date.parse(
-          update.eventTime,
+          latest.eventTime,
         );
 
       if (
-        nextOpenTime < currentOpenTime
-        || (
-          nextOpenTime
-            === currentOpenTime
-          && nextEventTime
-            < currentEventTime
-        )
+        nextOpenTime
+        < latestOpenTime
+      ) {
+        return false;
+      }
+
+      if (
+        nextOpenTime
+          === latestOpenTime
+        && nextEventTime
+          < latestEventTime
       ) {
         return false;
       }
     }
 
-    state.kline = {
+    const normalizedUpdate = {
       ...update,
       symbol,
     };
+
+    if (
+      latest
+      && latest.openTime
+        === normalizedUpdate.openTime
+    ) {
+      state.klines[
+        state.klines.length - 1
+      ] = normalizedUpdate;
+    } else {
+      state.klines.push(
+        normalizedUpdate,
+      );
+    }
+
+    if (
+      state.klines.length
+      > MAX_MARKET_WIDE_KLINES
+    ) {
+      state.klines.splice(
+        0,
+        state.klines.length
+          - MAX_MARKET_WIDE_KLINES,
+      );
+    }
 
     return true;
   }
@@ -628,61 +681,94 @@ export class MarketWideOneMinuteMetricsStore {
 
   getMetrics(
     symbol?: string,
+    scannerWindow:
+      MarketScannerWindowId =
+        DEFAULT_MARKET_SCANNER_WINDOW,
   ): MarketScannerMetrics[] {
-    if (symbol) {
-      const normalizedSymbol =
-        normalizeSymbol(symbol);
-
-      const state =
-        this.states.get(
-          normalizedSymbol,
-        );
-
-      return state
+    const symbols =
+      symbol
         ? [
-            this.buildMetrics(
-              normalizedSymbol,
-              state,
+            normalizeSymbol(
+              symbol,
             ),
           ]
-        : [];
-    }
+        : this.getSymbols();
 
     const baseMetrics =
-      this.getSymbols()
+      symbols
         .map((item) => {
           const state =
             this.states.get(item);
 
-          if (!state) {
-            throw new Error(
-              `Missing market-wide state: ${item}`,
-            );
-          }
+          return state
+            ? this.buildMetrics(
+                item,
+                state,
+                scannerWindow,
+              )
+            : null;
+        })
+        .filter(
+          (
+            metric,
+          ): metric is
+          MarketScannerMetrics =>
+            metric !== null,
+        );
 
-          return this.buildMetrics(
-            item,
-            state,
-          );
-        });
+    const btcState =
+      this.states.get(
+        'BTCUSDT',
+      );
 
-    const btcChange =
-      baseMetrics.find(
-        (metric) =>
-          metric.symbol
-          === 'BTCUSDT',
-      )?.priceChangePct
-      ?? null;
+    const btcMetric =
+      btcState
+        ? this.buildMetrics(
+            'BTCUSDT',
+            btcState,
+            scannerWindow,
+          )
+        : null;
+
+    const btcSamples =
+      btcState
+        ? this.getPriceSamples(
+            btcState,
+            scannerWindow,
+          )
+        : [];
 
     return baseMetrics.map(
-      (metric) => ({
-        ...metric,
-        relativeStrengthPct:
-          calculateScannerRelativeStrengthPct(
-            metric.priceChangePct,
-            btcChange,
-          ),
-      }),
+      (metric) => {
+        const metricState =
+          this.states.get(
+            metric.symbol,
+          );
+
+        const btcCorrelation =
+          metric.symbol === 'BTCUSDT'
+          || !metricState
+            ? null
+            : calculateScannerBtcCorrelation(
+                this.getPriceSamples(
+                  metricState,
+                  scannerWindow,
+                ),
+                btcSamples,
+              );
+
+        return {
+          ...metric,
+          btcCorrelation,
+          relativeStrengthPct:
+            calculateScannerRelativeStrengthPct(
+              metric.priceChangePct,
+              btcMetric
+                ?.priceChangePct
+              ?? null,
+            ),
+        };
+      },
     );
   }
 
@@ -704,11 +790,17 @@ export class MarketWideOneMinuteMetricsStore {
         normalizedSymbol,
       );
 
+    const latestKline =
+      state
+        ?.klines
+        .at(-1)
+      ?? null;
+
     return state
       ? {
           kline:
             cloneKline(
-              state.kline,
+              latestKline,
             ),
           bookTicker:
             cloneBookTicker(
@@ -718,16 +810,76 @@ export class MarketWideOneMinuteMetricsStore {
       : null;
   }
 
+  private getWindowKlines(
+    state:
+      MarketWideSymbolState,
+    scannerWindow:
+      MarketScannerWindowId,
+  ): BinanceOneMinuteKlineUpdate[] {
+    const windowMinutes =
+      getMarketScannerWindowMs(
+        scannerWindow,
+      ) / 60_000;
+
+    return state
+      .klines
+      .slice(
+        -windowMinutes,
+      );
+  }
+
+  private getPriceSamples(
+    state:
+      MarketWideSymbolState,
+    scannerWindow:
+      MarketScannerWindowId,
+  ): ScannerPriceSample[] {
+    return this
+      .getWindowKlines(
+        state,
+        scannerWindow,
+      )
+      .map((kline) => ({
+        timestampMs:
+          Date.parse(
+            kline.openTime,
+          ),
+        closePrice:
+          kline.close,
+      }));
+  }
+
   private buildMetrics(
     symbol: string,
     state:
       MarketWideSymbolState,
+    scannerWindow:
+      MarketScannerWindowId,
   ): MarketScannerMetrics {
-    const kline =
-      state.kline;
+    const klines =
+      this.getWindowKlines(
+        state,
+        scannerWindow,
+      );
+
+    const firstKline =
+      klines[0]
+      ?? null;
+
+    const latestKline =
+      klines.at(-1)
+      ?? null;
 
     const bookTicker =
       state.bookTicker;
+
+    const windowMs =
+      getMarketScannerWindowMs(
+        scannerWindow,
+      );
+
+    const windowMinutes =
+      windowMs / 60_000;
 
     const bidQuoteValue =
       bookTicker
@@ -785,7 +937,7 @@ export class MarketWideOneMinuteMetricsStore {
         : null;
 
     const price =
-      kline?.close
+      latestKline?.close
       ?? (
         bookTicker
           ? (
@@ -796,39 +948,87 @@ export class MarketWideOneMinuteMetricsStore {
       );
 
     const priceChangePct =
-      kline
+      firstKline
+      && latestKline
         ? (
             (
-              kline.close
-              - kline.open
+              latestKline.close
+              - firstKline.open
             )
-            / kline.open
+            / firstKline.open
           ) * 100
         : null;
 
+    const highestPrice =
+      klines.length > 0
+        ? Math.max(
+            ...klines.map(
+              (kline) =>
+                kline.high,
+            ),
+          )
+        : null;
+
+    const lowestPrice =
+      klines.length > 0
+        ? Math.min(
+            ...klines.map(
+              (kline) =>
+                kline.low,
+            ),
+          )
+        : null;
+
     const volatilityPct =
-      kline
+      firstKline
+      && highestPrice !== null
+      && lowestPrice !== null
         ? (
             (
-              kline.high
-              - kline.low
+              highestPrice
+              - lowestPrice
             )
-            / kline.open
+            / firstKline.open
           ) * 100
         : null;
 
     const quoteVolume =
-      kline?.quoteVolume
-      ?? 0;
+      klines.reduce(
+        (
+          total,
+          kline,
+        ) =>
+          total
+          + kline.quoteVolume,
+        0,
+      );
 
     const tradesCount =
-      kline?.tradesCount
-      ?? 0;
+      klines.reduce(
+        (
+          total,
+          kline,
+        ) =>
+          total
+          + kline.tradesCount,
+        0,
+      );
+
+    const tradesPerMinute =
+      tradesCount
+      / windowMinutes;
 
     const buyQuoteVolume =
-      kline
-        ?.takerBuyQuoteVolume
-      ?? 0;
+      klines.reduce(
+        (
+          total,
+          kline,
+        ) =>
+          total
+          + kline
+              .takerBuyQuoteVolume,
+        0,
+      );
 
     const sellQuoteVolume =
       Math.max(
@@ -843,13 +1043,13 @@ export class MarketWideOneMinuteMetricsStore {
         tradesCount,
         volatilityPct,
         liquidityScore,
-        tradesCount,
+        tradesPerMinute,
       );
 
     return {
       symbol,
-      scannerWindow: '1m',
-      windowMs: 60_000,
+      scannerWindow,
+      windowMs,
       price,
       priceChangePct,
       btcCorrelation: null,
@@ -864,20 +1064,20 @@ export class MarketWideOneMinuteMetricsStore {
       activityScore,
       quoteVolume,
       tradesCount,
-      tradesPerMinute:
-        tradesCount,
+      tradesPerMinute,
       buyTradesCount: 0,
       sellTradesCount: 0,
       buyQuoteVolume,
       sellQuoteVolume,
       windowStartedAt:
-        kline?.openTime
+        firstKline?.openTime
         ?? null,
       updatedAt:
         latestTimestamp([
-          kline?.eventTime,
+          latestKline?.eventTime,
           bookTicker?.updatedAt,
         ]),
     };
   }
+
 }
