@@ -29,8 +29,10 @@ import {
   sortDashboardScannerRows,
   useBinanceSymbolUniverse,
   useMarketWideScannerMetrics,
+  useMarketVolumeSpikes,
   useRealtimeMarketData,
   type DashboardRealtimeCoinView,
+  type MarketVolumeSpikeStatus,
   type ScannerFilterState,
 } from '@/shared/realtime';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
@@ -182,6 +184,49 @@ function resolveMarketMode(source: DashboardMarketModeData): ResolvedMarketMode 
 
 function formatSignedPercent(value: number) {
   return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+}
+
+
+/* Dashboard Volume Spikes v0.1 */
+const DASHBOARD_VOLUME_SPIKE_STATUS_LABELS:
+Record<MarketVolumeSpikeStatus, string> = {
+  new: 'НОВЫЙ ВСПЛЕСК',
+  growing: 'УСКОРЕНИЕ',
+  stable: 'ВЫШЕ СРЕДНЕГО',
+  fading: 'ЗАТУХАЕТ',
+};
+
+function formatDashboardVolumeSpikeVolume(
+  value: number,
+): string {
+  const absolute = Math.abs(value);
+
+  if (absolute >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(2)}B`;
+  }
+
+  if (absolute >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(2)}M`;
+  }
+
+  if (absolute >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}K`;
+  }
+
+  return Math.round(value).toLocaleString('ru-RU');
+}
+
+function buildDashboardVolumeSpikesScannerUrl(
+  symbol?: string,
+): string {
+  if (!symbol) {
+    return ROUTES.scanner;
+  }
+
+  const params = new URLSearchParams();
+  params.set('symbol', symbol);
+
+  return `${ROUTES.scanner}?${params.toString()}`;
 }
 
 function FearGreed({ value, label, tone }: { value: number; label: string; tone: string }) {
@@ -348,6 +393,13 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
       intervalMs: 2_000,
       scannerWindow,
     });
+  const dashboardVolumeSpikes =
+    useMarketVolumeSpikes({
+      intervalMs: 5_000,
+      limit: 5,
+    });
+
+
 
   const dashboardScannerRows = useMemo(
     () =>
@@ -683,6 +735,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
           </label>
         </header>
         <div className={styles.scannerTable}>
+
           <div className={styles.scannerHead}>
             <span>#</span>
             <span>МОНЕТА</span>
@@ -866,11 +919,352 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
         </div>
       </article>
 
+
+
+
+      <div className={styles.dashboardSidebar}>
       <article className={`${styles.panel} ${styles.insights}`}>
+
         <header className={styles.sectionHeader}><div><h2>🤖 &nbsp; NEXUS AI INSIGHTS</h2><small>Почему эти монеты в топе?</small></div><time>12:45</time></header>
+
         <div className={styles.insightList}>{insights.map(([icon, title, text]) => <div key={title}><span>{icon}</span><div><strong>{title}</strong><p>{text}</p></div></div>)}</div>
+
         <div className={styles.insightConclusion}><strong>Вывод:</strong> Рынок в режиме RISK ON. Активность высокая.<br />Ищем импульсные сделки по топовым монетам.</div>
+
       </article>
+
+
+      {/* Dashboard Volume Spikes Reference Layout v0.1 */}
+
+      <article
+
+        className={
+
+          `${styles.panel} ${styles.dashboardVolumeSpikes}`
+
+        }
+
+      >
+
+        <header className={styles.dashboardVolumeSpikesHeader}>
+
+          <div>
+
+            <h2>⚡ &nbsp; ВСПЛЕСКИ ОБЪЁМА</h2>
+
+            <small>
+
+              МОНЕТЫ С АНОМАЛЬНЫМ РОСТОМ ОБЪЁМА
+
+            </small>
+
+          </div>
+
+
+
+          <span
+
+            className={
+
+              dashboardVolumeSpikes.status === 'ready'
+
+                ? styles.dashboardVolumeSpikesLive
+
+                : dashboardVolumeSpikes.status === 'error'
+
+                  ? styles.dashboardVolumeSpikesError
+
+                  : styles.dashboardVolumeSpikesPending
+
+            }
+
+          >
+
+            <i />
+
+            {dashboardVolumeSpikes.status === 'ready'
+
+              ? 'LIVE'
+
+              : dashboardVolumeSpikes.status === 'error'
+
+                ? 'ОШИБКА'
+
+                : 'ЗАГРУЗКА'}
+
+          </span>
+
+        </header>
+
+
+
+        {dashboardVolumeSpikes.status === 'loading' ? (
+
+          <div className={styles.dashboardVolumeSpikesState}>
+
+            Получаем всплески рынка…
+
+          </div>
+
+        ) : dashboardVolumeSpikes.status === 'error' ? (
+
+          <div
+
+            className={
+
+              `${styles.dashboardVolumeSpikesState} `
+
+              + styles.dashboardVolumeSpikesStateError
+
+            }
+
+          >
+
+            <span>
+
+              {dashboardVolumeSpikes.error?.message
+
+                ?? 'Не удалось загрузить всплески'}
+
+            </span>
+
+
+
+            <button
+
+              type="button"
+
+              onClick={dashboardVolumeSpikes.retry}
+
+            >
+
+              Повторить
+
+            </button>
+
+          </div>
+
+        ) : dashboardVolumeSpikes.spikes.length === 0 ? (
+
+          <div className={styles.dashboardVolumeSpikesState}>
+
+            Активных всплесков сейчас нет
+
+          </div>
+
+        ) : (
+
+          <div className={styles.dashboardVolumeSpikesTable}>
+
+            <div className={styles.dashboardVolumeSpikesHead}>
+
+              <span>#</span>
+
+              <span>МОНЕТА</span>
+
+              <span>СИЛА ОБЪЁМА</span>
+
+              <span>ОБЪЁМ (СЕЙЧАС)</span>
+
+              <span>СТАТУС</span>
+
+            </div>
+
+
+
+            {dashboardVolumeSpikes.spikes
+
+              .slice(0, 5)
+
+              .map((spike, index) => {
+
+const barCount =
+
+                  Math.min(
+
+                    8,
+
+                    Math.max(
+
+                      2,
+
+                      Math.round(
+
+                        spike.volumeRatio * 2,
+
+                      ),
+
+                    ),
+
+                  );
+
+
+
+                return (
+
+                  <button
+
+                    key={spike.symbol}
+
+                    type="button"
+
+                    className={
+
+                      `${styles.dashboardVolumeSpikeRow} `
+
+                      + styles[
+
+                        `dashboardVolumeSpike_${spike.status}`
+
+                      ]
+
+                    }
+
+                    title={
+
+                      `Открыть ${spike.symbol} в Market Scanner`
+
+                    }
+
+                    onClick={() => {
+
+                      navigate(
+
+                        buildDashboardVolumeSpikesScannerUrl(
+
+                          spike.symbol,
+
+                        ),
+
+                      );
+
+                    }}
+
+                  >
+
+                    <span>{index + 1}</span>
+
+
+
+                    <strong>
+
+                      <i />
+
+                      {spike.symbol}
+
+                    </strong>
+
+
+
+                    <span
+
+                      className={
+
+                        styles.dashboardVolumeSpikeGrowth
+
+                      }
+
+                    >
+
+                      <span
+
+                        className={
+
+                          styles.dashboardVolumeSpikeBars
+
+                        }
+
+                        aria-hidden="true"
+
+                      >
+
+                        {Array.from(
+
+                          { length: 8 },
+
+                          (_, bar) => (
+
+                            <i
+
+                              key={bar}
+
+                              className={
+
+                                bar < barCount
+
+                                  ? styles.dashboardVolumeSpikeBarOn
+
+                                  : ''
+
+                              }
+
+                            />
+
+                          ),
+
+                        )}
+
+                      </span>
+
+
+
+                      <em>{spike.volumeRatio.toFixed(2)}×</em>
+
+                    </span>
+
+
+
+                    <span>
+
+                      {
+
+                        formatDashboardVolumeSpikeVolume(
+
+                          spike.currentQuoteVolume,
+
+                        )
+
+                      }
+
+                    </span>
+
+
+
+                    <em>
+
+                      {
+
+                        DASHBOARD_VOLUME_SPIKE_STATUS_LABELS[
+
+                          spike.status
+
+                        ]
+
+                      }
+
+                    </em>
+
+                  </button>
+
+                );
+
+              })}
+
+          </div>
+
+        )}
+
+      </article>
+
+
+        <aside className={styles.marketDetails}>
+          <div className={styles.detailTabs}><strong>УРОВНИ</strong><span>СДЕЛКИ</span><span>ПОТОК ОРДЕРОВ</span></div>
+          <div className={styles.detailColumns}>
+            <article className={styles.detailCard}><h3>КЛЮЧЕВЫЕ УРОВНИ</h3>{levels.map(([label, value, tone]) => <div key={label} className={styles[`level_${tone}`]}><span>{label}</span><strong>{value}</strong></div>)}</article>
+            <article className={styles.detailCard}><h3>БЫСТРАЯ СТАТИСТИКА</h3>{stats.map(([label, value]) => <div key={label}><span>{label}</span><strong className={label === 'Ликвидность' || label.includes('Изменение') ? styles.positive : ''}>{value}</strong></div>)}</article>
+          </div>
+        </aside>
+      </div>
 
       <article className={`${styles.panel} ${styles.chartPanel}`}>
         <div className={styles.chartHeader}>
@@ -882,13 +1276,6 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
         <TradingChart candles={candles} />
       </article>
 
-      <aside className={styles.marketDetails}>
-        <div className={styles.detailTabs}><strong>УРОВНИ</strong><span>СДЕЛКИ</span><span>ПОТОК ОРДЕРОВ</span></div>
-        <div className={styles.detailColumns}>
-          <article className={styles.detailCard}><h3>КЛЮЧЕВЫЕ УРОВНИ</h3>{levels.map(([label, value, tone]) => <div key={label} className={styles[`level_${tone}`]}><span>{label}</span><strong>{value}</strong></div>)}</article>
-          <article className={styles.detailCard}><h3>БЫСТРАЯ СТАТИСТИКА</h3>{stats.map(([label, value]) => <div key={label}><span>{label}</span><strong className={label === 'Ликвидность' || label.includes('Изменение') ? styles.positive : ''}>{value}</strong></div>)}</article>
-        </div>
-      </aside>
     </section>
   );
 }
