@@ -9,8 +9,11 @@ import type {
 import type {
   MarketScannerMetrics,
 } from './market-scanner-metrics.js';
-import type {
-  MarketVolumeSpike,
+import {
+  DEFAULT_MARKET_VOLUME_SPIKE_OPTIONS,
+  type MarketVolumeSpike,
+  type MarketVolumeSpikeOptions,
+  type MarketVolumeSpikeStatus,
 } from './market-volume-spikes.js';
 import {
   isMarketScannerWindowId,
@@ -39,6 +42,7 @@ export interface MarketWideRealtimeRouteService {
   ): MarketScannerMetrics[];
   getVolumeSpikes(
     symbol?: string,
+    options?: MarketVolumeSpikeOptions,
   ): MarketVolumeSpike[];
 }
 
@@ -85,6 +89,107 @@ function normalizeSymbol(
     .test(symbol)
       ? symbol
       : '';
+}
+
+const MARKET_VOLUME_SPIKE_PERIOD_MINUTES:
+readonly number[] = [
+  1,
+  3,
+  5,
+  15,
+];
+
+const MARKET_VOLUME_SPIKE_STATUSES:
+readonly MarketVolumeSpikeStatus[] = [
+  'new',
+  'growing',
+  'stable',
+  'fading',
+];
+
+function parseFiniteQueryNumber(
+  value: string | undefined,
+): number | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value.trim().length === 0) {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : null;
+}
+
+function parseIntegerQueryNumber(
+  value: string | undefined,
+): number | null | undefined {
+  const parsed =
+    parseFiniteQueryNumber(value);
+
+  if (
+    parsed === undefined
+    || parsed === null
+  ) {
+    return parsed;
+  }
+
+  return Number.isInteger(parsed)
+    ? parsed
+    : null;
+}
+
+function isMarketVolumeSpikeStatus(
+  value: string,
+): value is MarketVolumeSpikeStatus {
+  return MARKET_VOLUME_SPIKE_STATUSES
+    .includes(
+      value as MarketVolumeSpikeStatus,
+    );
+}
+
+function parseVolumeSpikeStatuses(
+  value: string | undefined,
+):
+  MarketVolumeSpikeStatus[]
+  | null
+  | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const statuses:
+    MarketVolumeSpikeStatus[] = [];
+
+  for (
+    const item
+    of value.split(',')
+  ) {
+    const status = item.trim();
+
+    if (
+      status.length === 0
+      || !isMarketVolumeSpikeStatus(
+        status,
+      )
+    ) {
+      return null;
+    }
+
+    if (
+      !statuses.includes(status)
+    ) {
+      statuses.push(status);
+    }
+  }
+
+  return statuses.length > 0
+    ? statuses
+    : null;
 }
 
 export const marketWideRealtimeRoutes:
@@ -181,6 +286,12 @@ FastifyPluginAsync<
     Querystring: {
       symbol?: string;
       limit?: string;
+      periodMinutes?: string;
+      baselinePeriods?: string;
+      minVolumeRatio?: string;
+      minTradesRatio?: string;
+      minCurrentQuoteVolume?: string;
+      statuses?: string;
     };
   }>(
     '/market/realtime/market-wide/volume-spikes',
@@ -204,37 +315,213 @@ FastifyPluginAsync<
       }
 
       const requestedLimit =
-        request.query.limit;
-
-      let limit = 20;
+        parseIntegerQueryNumber(
+          request.query.limit,
+        );
 
       if (
-        requestedLimit !== undefined
+        requestedLimit === null
+        || (
+          requestedLimit !== undefined
+          && (
+            requestedLimit < 1
+            || requestedLimit > 100
+          )
+        )
       ) {
-        const parsedLimit =
-          Number(requestedLimit);
-
-        if (
-          !Number.isInteger(parsedLimit)
-          || parsedLimit < 1
-          || parsedLimit > 100
-        ) {
-          return sendError(
-            request,
-            reply,
-            400,
-            'invalid_volume_spike_limit',
-            'Volume spike limit must be an integer from 1 to 100',
-          );
-        }
-
-        limit = parsedLimit;
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_volume_spike_limit',
+          'Volume spike limit must be an integer from 1 to 100',
+        );
       }
+
+      const requestedPeriodMinutes =
+        parseIntegerQueryNumber(
+          request.query.periodMinutes,
+        );
+
+      if (
+        requestedPeriodMinutes === null
+        || (
+          requestedPeriodMinutes !== undefined
+          && !MARKET_VOLUME_SPIKE_PERIOD_MINUTES
+            .includes(
+              requestedPeriodMinutes,
+            )
+        )
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_volume_spike_period_minutes',
+          'Volume spike periodMinutes must be one of: 1, 3, 5, 15',
+        );
+      }
+
+      const requestedBaselinePeriods =
+        parseIntegerQueryNumber(
+          request.query.baselinePeriods,
+        );
+
+      if (
+        requestedBaselinePeriods === null
+        || (
+          requestedBaselinePeriods !== undefined
+          && (
+            requestedBaselinePeriods < 3
+            || requestedBaselinePeriods > 48
+          )
+        )
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_volume_spike_baseline_periods',
+          'Volume spike baselinePeriods must be an integer from 3 to 48',
+        );
+      }
+
+      const requestedMinVolumeRatio =
+        parseFiniteQueryNumber(
+          request.query.minVolumeRatio,
+        );
+
+      if (
+        requestedMinVolumeRatio === null
+        || (
+          requestedMinVolumeRatio !== undefined
+          && (
+            requestedMinVolumeRatio < 1
+            || requestedMinVolumeRatio > 100
+          )
+        )
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_volume_spike_min_volume_ratio',
+          'Volume spike minVolumeRatio must be from 1 to 100',
+        );
+      }
+
+      const requestedMinTradesRatio =
+        parseFiniteQueryNumber(
+          request.query.minTradesRatio,
+        );
+
+      if (
+        requestedMinTradesRatio === null
+        || (
+          requestedMinTradesRatio !== undefined
+          && (
+            requestedMinTradesRatio < 0.1
+            || requestedMinTradesRatio > 100
+          )
+        )
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_volume_spike_min_trades_ratio',
+          'Volume spike minTradesRatio must be from 0.1 to 100',
+        );
+      }
+
+      const requestedMinCurrentQuoteVolume =
+        parseFiniteQueryNumber(
+          request.query.minCurrentQuoteVolume,
+        );
+
+      if (
+        requestedMinCurrentQuoteVolume === null
+        || (
+          requestedMinCurrentQuoteVolume !== undefined
+          && (
+            requestedMinCurrentQuoteVolume < 0
+            || requestedMinCurrentQuoteVolume
+              > 1_000_000_000_000
+          )
+        )
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_volume_spike_min_current_quote_volume',
+          'Volume spike minCurrentQuoteVolume must be from 0 to 1000000000000',
+        );
+      }
+
+      const requestedStatuses =
+        parseVolumeSpikeStatuses(
+          request.query.statuses,
+        );
+
+      if (requestedStatuses === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_volume_spike_statuses',
+          'Volume spike statuses must contain only: new, growing, stable, fading',
+        );
+      }
+
+      const limit =
+        requestedLimit
+        ?? 20;
+
+      const volumeSpikeOptions:
+        MarketVolumeSpikeOptions = {
+          ...DEFAULT_MARKET_VOLUME_SPIKE_OPTIONS,
+          periodMinutes:
+            requestedPeriodMinutes
+            ?? DEFAULT_MARKET_VOLUME_SPIKE_OPTIONS
+              .periodMinutes,
+          baselinePeriods:
+            requestedBaselinePeriods
+            ?? DEFAULT_MARKET_VOLUME_SPIKE_OPTIONS
+              .baselinePeriods,
+          minVolumeRatio:
+            requestedMinVolumeRatio
+            ?? DEFAULT_MARKET_VOLUME_SPIKE_OPTIONS
+              .minVolumeRatio,
+          minTradesRatio:
+            requestedMinTradesRatio
+            ?? DEFAULT_MARKET_VOLUME_SPIKE_OPTIONS
+              .minTradesRatio,
+          minCurrentQuoteVolume:
+            requestedMinCurrentQuoteVolume
+            ?? DEFAULT_MARKET_VOLUME_SPIKE_OPTIONS
+              .minCurrentQuoteVolume,
+        };
+
+      const allowedStatuses =
+        requestedStatuses === undefined
+          ? null
+          : new Set(
+              requestedStatuses,
+            );
 
       return options
         .marketWideRealtimeService
         .getVolumeSpikes(
           symbol ?? undefined,
+          volumeSpikeOptions,
+        )
+        .filter(
+          (spike) =>
+            allowedStatuses === null
+            || allowedStatuses.has(
+              spike.status,
+            ),
         )
         .slice(
           0,

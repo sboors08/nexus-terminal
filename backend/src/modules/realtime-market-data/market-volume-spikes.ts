@@ -164,7 +164,6 @@ function validateOptions(
     options.minVolumeRatio,
     options.minTradesRatio,
     options.fadingVolumeRatio,
-    options.minCurrentQuoteVolume,
   ];
 
   if (
@@ -176,6 +175,15 @@ function validateOptions(
   ) {
     throw new Error(
       'Volume spike thresholds must be positive numbers',
+    );
+  }
+
+  if (
+    !Number.isFinite(options.minCurrentQuoteVolume)
+    || options.minCurrentQuoteVolume < 0
+  ) {
+    throw new Error(
+      'Volume spike minimum current quote volume must be a non-negative number',
     );
   }
 
