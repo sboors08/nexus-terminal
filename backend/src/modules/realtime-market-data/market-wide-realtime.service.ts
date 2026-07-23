@@ -1,6 +1,10 @@
-import type {
+﻿import type {
   MarketScannerMetrics,
 } from './market-scanner-metrics.js';
+import type {
+  MarketVolumeSpike,
+  MarketVolumeSpikeOptions,
+} from './market-volume-spikes.js';
 import type {
   MarketScannerWindowId,
 } from './scanner-windows.js';
@@ -454,6 +458,15 @@ export class MarketWideRealtimeService {
     );
   }
 
+  getVolumeSpikes(
+    symbol?: string,
+    options?: MarketVolumeSpikeOptions,
+  ): MarketVolumeSpike[] {
+    return this.metricsStore.getVolumeSpikes(
+      symbol,
+      options,
+    );
+  }
   getStatus():
   MarketWideRealtimeStatus {
     const connectedSockets =
