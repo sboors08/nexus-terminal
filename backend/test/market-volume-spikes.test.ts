@@ -369,3 +369,30 @@ test(
     );
   },
 );
+
+test(
+  'accepts zero minimum current quote volume',
+  () => {
+    const result =
+      calculateMarketVolumeSpike(
+        'DOGEUSDT',
+        buildSeries(
+          10_000,
+          25_000,
+          100,
+          200,
+        ),
+        {
+          ...options,
+          minVolumeRatio: 0.2,
+          minCurrentQuoteVolume: 0,
+        },
+      );
+
+    assert.ok(result);
+    assert.equal(
+      result.currentQuoteVolume,
+      25_000,
+    );
+  },
+);
