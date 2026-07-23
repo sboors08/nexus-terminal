@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   FastifyPluginAsync,
   FastifyReply,
   FastifyRequest,
@@ -9,6 +9,9 @@ import type {
 import type {
   MarketScannerMetrics,
 } from './market-scanner-metrics.js';
+import type {
+  MarketVolumeSpike,
+} from './market-volume-spikes.js';
 import {
   isMarketScannerWindowId,
   type MarketScannerWindowId,
@@ -26,6 +29,9 @@ export interface MarketWideRealtimeRouteService {
     scannerWindow?:
       MarketScannerWindowId,
   ): MarketScannerMetrics[];
+  getVolumeSpikes(
+    symbol?: string,
+  ): MarketVolumeSpike[];
 }
 
 interface MarketWideRealtimeRoutesOptions {
@@ -152,6 +158,71 @@ FastifyPluginAsync<
       }
 
       return metrics;
+    },
+  );
+  app.get<{
+    Querystring: {
+      symbol?: string;
+      limit?: string;
+    };
+  }>(
+    '/market/realtime/market-wide/volume-spikes',
+    async (
+      request,
+      reply,
+    ) => {
+      const symbol =
+        normalizeSymbol(
+          request.query.symbol,
+        );
+
+      if (symbol === '') {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_symbol',
+          'Invalid symbol format',
+        );
+      }
+
+      const requestedLimit =
+        request.query.limit;
+
+      let limit = 20;
+
+      if (
+        requestedLimit !== undefined
+      ) {
+        const parsedLimit =
+          Number(requestedLimit);
+
+        if (
+          !Number.isInteger(parsedLimit)
+          || parsedLimit < 1
+          || parsedLimit > 100
+        ) {
+          return sendError(
+            request,
+            reply,
+            400,
+            'invalid_volume_spike_limit',
+            'Volume spike limit must be an integer from 1 to 100',
+          );
+        }
+
+        limit = parsedLimit;
+      }
+
+      return options
+        .marketWideRealtimeService
+        .getVolumeSpikes(
+          symbol ?? undefined,
+        )
+        .slice(
+          0,
+          limit,
+        );
     },
   );
 };

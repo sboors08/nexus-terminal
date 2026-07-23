@@ -1,4 +1,4 @@
-import {
+﻿import {
   calculateMarketScannerActivityScore,
   calculateMarketScannerLiquidityScore,
   type MarketScannerMetrics,
@@ -8,6 +8,12 @@ import {
   calculateScannerRelativeStrengthPct,
   type ScannerPriceSample,
 } from './scanner-btc-comparison.js';
+import {
+  calculateMarketVolumeSpike,
+  DEFAULT_MARKET_VOLUME_SPIKE_OPTIONS,
+  type MarketVolumeSpike,
+  type MarketVolumeSpikeOptions,
+} from './market-volume-spikes.js';
 import {
   DEFAULT_MARKET_SCANNER_WINDOW,
   getMarketScannerWindowMs,
@@ -772,6 +778,53 @@ export class MarketWideOneMinuteMetricsStore {
     );
   }
 
+  getVolumeSpikes(
+    symbol?: string,
+    options:
+      MarketVolumeSpikeOptions =
+        DEFAULT_MARKET_VOLUME_SPIKE_OPTIONS,
+  ): MarketVolumeSpike[] {
+    const symbols =
+      symbol
+        ? [
+            normalizeSymbol(
+              symbol,
+            ),
+          ]
+        : this.getSymbols();
+
+    return symbols
+      .map((item) => {
+        const state =
+          this.states.get(item);
+
+        return state
+          ? calculateMarketVolumeSpike(
+              item,
+              state.klines,
+              options,
+            )
+          : null;
+      })
+      .filter(
+        (
+          spike,
+        ): spike is MarketVolumeSpike =>
+          spike !== null,
+      )
+      .sort(
+        (left, right) => {
+          const ratioDifference =
+            right.volumeRatio
+            - left.volumeRatio;
+
+          return ratioDifference !== 0
+            ? ratioDifference
+            : right.currentQuoteVolume
+              - left.currentQuoteVolume;
+        },
+      );
+  }
   getState(
     symbol: string,
   ): {
