@@ -9,6 +9,7 @@ import type {
 } from '../src/modules/realtime-market-data/market-wide-one-minute-metrics.js';
 import {
   MarketWideRuntimeCoordinator,
+  type MarketWideHistoryWarmupTarget,
   type MarketWideRealtimeTarget,
   type MarketWideSymbolUniverseSource,
 } from '../src/modules/realtime-market-data/market-wide-runtime-coordinator.js';
@@ -193,6 +194,45 @@ implements MarketWideRealtimeTarget {
   }
 }
 
+
+class TestHistoryWarmup
+implements MarketWideHistoryWarmupTarget {
+  startCount = 0;
+  stopCount = 0;
+
+  readonly starts:
+    string[][] = [];
+
+  private resolveStart:
+    (() => void)
+    | null = null;
+
+  start(
+    symbols: readonly string[],
+  ): Promise<void> {
+    this.startCount += 1;
+
+    this.starts.push(
+      [...symbols],
+    );
+
+    return new Promise<void>(
+      (resolve) => {
+        this.resolveStart =
+          resolve;
+      },
+    );
+  }
+
+  stop(): void {
+    this.stopCount += 1;
+  }
+
+  complete(): void {
+    this.resolveStart?.();
+    this.resolveStart = null;
+  }
+}
 test(
   'starts market-wide realtime with active and collecting universe symbols',
   async () => {
@@ -380,5 +420,73 @@ test(
       realtime.startCount,
       1,
     );
+  },
+);
+test(
+  'starts history warm-up in the background',
+  async () => {
+    const universe =
+      new TestSymbolUniverse(
+        createSnapshot([
+          {
+            symbol: 'BTCUSDT',
+            status: 'active',
+          },
+          {
+            symbol: 'SOLUSDT',
+            status: 'active',
+          },
+        ]),
+      );
+
+    const realtime =
+      new TestMarketWideRealtime();
+
+    const warmup =
+      new TestHistoryWarmup();
+
+    const coordinator =
+      new MarketWideRuntimeCoordinator(
+        universe,
+        realtime,
+        warmup,
+      );
+
+    await coordinator.start();
+
+    assert.equal(
+      realtime.startCount,
+      1,
+    );
+
+    assert.equal(
+      warmup.startCount,
+      1,
+    );
+
+    assert.deepEqual(
+      warmup.starts,
+      [
+        [
+          'BTCUSDT',
+          'SOLUSDT',
+        ],
+      ],
+    );
+
+    assert.equal(
+      coordinator.getStatus()
+        .started,
+      true,
+    );
+
+    coordinator.stop();
+
+    assert.equal(
+      warmup.stopCount,
+      1,
+    );
+
+    warmup.complete();
   },
 );

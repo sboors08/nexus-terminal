@@ -10,6 +10,7 @@ import {
 } from '../src/modules/realtime-market-data/scanner-windows.js';
 import {
   marketWideRealtimeRoutes,
+  type MarketWideHistoryWarmupRouteService,
   type MarketWideRealtimeRouteService,
 } from '../src/modules/realtime-market-data/market-wide-realtime.routes.js';
 
@@ -100,6 +101,29 @@ implements MarketWideRealtimeRouteService {
   }
 }
 
+
+class TestHistoryWarmupService
+implements MarketWideHistoryWarmupRouteService {
+  getStatus() {
+    return {
+      state:
+        'running' as const,
+      totalSymbols: 2,
+      processedSymbols: 1,
+      successfulSymbols: 1,
+      failedSymbols: 0,
+      appliedKlines: 60,
+      currentSymbol:
+        'SOLUSDT',
+      lastError: null,
+      currentStageIndex: 1,
+      totalStages: 5,
+      completedStages: 0,
+      currentStageTargetMinutes:
+        60,
+    };
+  }
+}
 async function createApp() {
   const app = Fastify({
     logger: false,
@@ -111,6 +135,8 @@ async function createApp() {
       prefix: '/api/v1',
       marketWideRealtimeService:
         new TestMarketWideService(),
+      marketWideHistoryWarmupService:
+        new TestHistoryWarmupService(),
     },
   );
 
@@ -147,6 +173,22 @@ test(
           '2026-07-21T12:00:30.000Z',
         reconnectAttempts: 0,
         lastError: null,
+        historyWarmup: {
+          state: 'running',
+          totalSymbols: 2,
+          processedSymbols: 1,
+          successfulSymbols: 1,
+          failedSymbols: 0,
+          appliedKlines: 60,
+          currentSymbol:
+            'SOLUSDT',
+          lastError: null,
+          currentStageIndex: 1,
+          totalStages: 5,
+          completedStages: 0,
+          currentStageTargetMinutes:
+            60,
+        },
       },
     );
 

@@ -30,6 +30,9 @@ export interface AppEnv {
   binanceMarketWideMaxStreamsPerSocket?: number;
   binanceMarketWideReconnectBaseDelayMs?: number;
   binanceMarketWideReconnectMaxDelayMs?: number;
+  binanceMarketWideHistoryWarmupEnabled?: boolean;
+  binanceMarketWideHistoryWarmupMinutesPerSymbol?: number;
+  binanceMarketWideHistoryWarmupRequestDelayMs?: number;
 }
 
 function readEnum<T extends readonly string[]>(
@@ -193,6 +196,25 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       'BINANCE_MARKET_WIDE_RECONNECT_MAX_DELAY_MS',
       1_000,
       300_000,
+    ),
+    binanceMarketWideHistoryWarmupEnabled: readBoolean(
+      source.BINANCE_MARKET_WIDE_HISTORY_WARMUP_ENABLED,
+      source.NODE_ENV !== 'test',
+      'BINANCE_MARKET_WIDE_HISTORY_WARMUP_ENABLED',
+    ),
+    binanceMarketWideHistoryWarmupMinutesPerSymbol: readInteger(
+      source.BINANCE_MARKET_WIDE_HISTORY_WARMUP_MINUTES_PER_SYMBOL,
+      4_320,
+      'BINANCE_MARKET_WIDE_HISTORY_WARMUP_MINUTES_PER_SYMBOL',
+      1,
+      4_320,
+    ),
+    binanceMarketWideHistoryWarmupRequestDelayMs: readInteger(
+      source.BINANCE_MARKET_WIDE_HISTORY_WARMUP_REQUEST_DELAY_MS,
+      250,
+      'BINANCE_MARKET_WIDE_HISTORY_WARMUP_REQUEST_DELAY_MS',
+      0,
+      60_000,
     ),
   };
 }

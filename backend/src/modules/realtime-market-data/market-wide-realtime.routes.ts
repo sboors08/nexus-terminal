@@ -17,8 +17,16 @@ import {
   type MarketScannerWindowId,
 } from './scanner-windows.js';
 import type {
+  MarketWideHistoryWarmupStatus,
+} from './market-wide-history-warmup.service.js';
+import type {
   MarketWideRealtimeStatus,
 } from './market-wide-realtime.service.js';
+
+export interface MarketWideHistoryWarmupRouteService {
+  getStatus():
+    MarketWideHistoryWarmupStatus;
+}
 
 export interface MarketWideRealtimeRouteService {
   getStatus():
@@ -37,6 +45,9 @@ export interface MarketWideRealtimeRouteService {
 interface MarketWideRealtimeRoutesOptions {
   marketWideRealtimeService:
     MarketWideRealtimeRouteService;
+
+  marketWideHistoryWarmupService?:
+    MarketWideHistoryWarmupRouteService;
 }
 
 function sendError(
@@ -85,10 +96,16 @@ FastifyPluginAsync<
 ) => {
   app.get(
     '/market/realtime/market-wide/status',
-    async () =>
-      options
+    async () => ({
+      ...options
         .marketWideRealtimeService
         .getStatus(),
+      historyWarmup:
+        options
+          .marketWideHistoryWarmupService
+          ?.getStatus()
+        ?? null,
+    }),
   );
 
   app.get<{

@@ -32,6 +32,14 @@ export interface MarketWideRealtimeTarget {
   getSymbols(): string[];
 }
 
+export interface MarketWideHistoryWarmupTarget {
+  start(
+    symbols: readonly string[],
+  ): Promise<void>;
+
+  stop(): void;
+}
+
 export interface MarketWideRuntimeCoordinatorStatus {
   started: boolean;
   symbolsCount: number;
@@ -53,6 +61,8 @@ export class MarketWideRuntimeCoordinator {
       MarketWideSymbolUniverseSource,
     private readonly marketWideRealtime:
       MarketWideRealtimeTarget,
+    private readonly historyWarmup?:
+      MarketWideHistoryWarmupTarget,
   ) {}
 
   start(): Promise<void> {
@@ -79,6 +89,7 @@ export class MarketWideRuntimeCoordinator {
     this.unsubscribeUniverse?.();
     this.unsubscribeUniverse = null;
 
+    this.historyWarmup?.stop();
     this.marketWideRealtime.stop();
     this.symbolUniverse.stop();
 
@@ -115,6 +126,15 @@ export class MarketWideRuntimeCoordinator {
       this.marketWideRealtime.start();
 
       this.started = true;
+
+      if (this.historyWarmup) {
+        void this.historyWarmup
+          .start(
+            this.marketWideRealtime
+              .getSymbols(),
+          )
+          .catch(() => {});
+      }
     } catch (error) {
       this.unsubscribeUniverse?.();
       this.unsubscribeUniverse = null;
