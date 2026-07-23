@@ -626,3 +626,128 @@ test(
     service.stop();
   },
 );
+test(
+  'accepts historical candles before realtime starts',
+  () => {
+    const service =
+      new MarketWideRealtimeService({
+        baseUrl:
+          'wss://fstream.binance.com',
+        symbols: [
+          'SOLUSDT',
+        ],
+        maxStreamsPerSocket: 4,
+        reconnectBaseDelayMs:
+          100,
+        reconnectMaxDelayMs:
+          1_000,
+      });
+
+    const firstOpenTime =
+      Date.parse(
+        '2024-07-20T12:00:00.000Z',
+      );
+
+    const buildHistoricalKline = (
+      minute: number,
+      close: number,
+      quoteVolume: number,
+      tradesCount: number,
+    ) => {
+      const openTime =
+        firstOpenTime
+        + minute * 60_000;
+
+      const closeTime =
+        openTime + 59_999;
+
+      return {
+        symbol: 'SOLUSDT',
+        eventTime:
+          new Date(
+            closeTime,
+          ).toISOString(),
+        openTime:
+          new Date(
+            openTime,
+          ).toISOString(),
+        closeTime:
+          new Date(
+            closeTime,
+          ).toISOString(),
+        open:
+          close - 1,
+        high:
+          close + 1,
+        low:
+          close - 2,
+        close,
+        quoteVolume,
+        tradesCount,
+        takerBuyQuoteVolume:
+          quoteVolume / 2,
+        isClosed: true,
+      };
+    };
+
+    const appliedCount =
+      service.applyHistoricalKlines([
+        buildHistoricalKline(
+          0,
+          101,
+          1_000,
+          10,
+        ),
+        buildHistoricalKline(
+          1,
+          103,
+          2_000,
+          20,
+        ),
+        buildHistoricalKline(
+          2,
+          104,
+          3_000,
+          30,
+        ),
+      ]);
+
+    assert.equal(
+      appliedCount,
+      3,
+    );
+
+    const metric =
+      service.getMetrics(
+        'SOLUSDT',
+        '3m',
+      )[0];
+
+    assert.ok(metric);
+
+    assert.equal(
+      metric.price,
+      104,
+    );
+
+    assert.equal(
+      metric.quoteVolume,
+      6_000,
+    );
+
+    assert.equal(
+      metric.tradesCount,
+      60,
+    );
+
+    assert.equal(
+      metric.tradesPerMinute,
+      20,
+    );
+
+    assert.equal(
+      metric.windowStartedAt,
+      '2024-07-20T12:00:00.000Z',
+    );
+  },
+);

@@ -705,3 +705,148 @@ test(
     );
   },
 );
+
+test(
+  'merges older historical candles without overwriting newer live updates',
+  () => {
+    const store =
+      new MarketWideOneMinuteMetricsStore([
+        'SOLUSDT',
+      ]);
+
+    const baseTime =
+      Date.parse(
+        '2024-07-20T12:00:00.000Z',
+      );
+
+    const buildUpdate = (
+      minute: number,
+      quoteVolume: number,
+      tradesCount: number,
+      close: number,
+      eventOffsetMs = 59_000,
+    ) => {
+      const openTime =
+        baseTime
+        + minute * 60_000;
+
+      return parseBinanceOneMinuteKlineEvent(
+        klinePayload({
+          E:
+            openTime
+            + eventOffsetMs,
+          k: {
+            t: openTime,
+            T:
+              openTime
+              + 59_999,
+            o:
+              String(
+                close - 1,
+              ),
+            h:
+              String(
+                close + 1,
+              ),
+            l:
+              String(
+                close - 2,
+              ),
+            c:
+              String(close),
+            q:
+              String(
+                quoteVolume,
+              ),
+            n:
+              tradesCount,
+            Q:
+              String(
+                quoteVolume / 2,
+              ),
+            x: true,
+          },
+        }),
+      );
+    };
+
+    const liveUpdate =
+      buildUpdate(
+        2,
+        3_000,
+        30,
+        104,
+        59_500,
+      );
+
+    assert.equal(
+      store.applyKline(
+        liveUpdate,
+      ),
+      true,
+    );
+
+    const appliedCount =
+      store.applyHistoricalKlines([
+        buildUpdate(
+          0,
+          1_000,
+          10,
+          101,
+          59_999,
+        ),
+        buildUpdate(
+          1,
+          2_000,
+          20,
+          103,
+          59_999,
+        ),
+        buildUpdate(
+          2,
+          9_999,
+          999,
+          103,
+          30_000,
+        ),
+      ]);
+
+    assert.equal(
+      appliedCount,
+      2,
+    );
+
+    const metric =
+      store.getMetrics(
+        'SOLUSDT',
+        '3m',
+      )[0];
+
+    assert.ok(metric);
+
+    assert.equal(
+      metric.price,
+      104,
+    );
+
+    assert.equal(
+      metric.quoteVolume,
+      6_000,
+    );
+
+    assert.equal(
+      metric.tradesCount,
+      60,
+    );
+
+    assert.equal(
+      metric.tradesPerMinute,
+      20,
+    );
+
+    assert.equal(
+      metric.windowStartedAt,
+      '2024-07-20T12:00:00.000Z',
+    );
+  },
+);

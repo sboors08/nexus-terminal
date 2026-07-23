@@ -5,7 +5,9 @@ import { apiModules } from './modules/index.js';
 import { BinanceMarketDataClient } from './modules/market-data/binance-market-data.client.js';
 import type { MarketDataProvider } from './modules/market-data/market-data.provider.js';
 import { BinanceWebSocketMarketDataService } from './modules/realtime-market-data/binance-websocket.service.js';
+import { BinanceMarketHistoryClient } from './modules/realtime-market-data/binance-market-history.client.js';
 import { BinanceSymbolUniverseService } from './modules/realtime-market-data/binance-symbol-universe.service.js';
+import { MarketWideHistoryWarmupService } from './modules/realtime-market-data/market-wide-history-warmup.service.js';
 import { MarketWideRealtimeService } from './modules/realtime-market-data/market-wide-realtime.service.js';
 import { MarketWideRuntimeCoordinator } from './modules/realtime-market-data/market-wide-runtime-coordinator.js';
 import type { RealtimeMarketDataService } from './modules/realtime-market-data/realtime-market-data.types.js';
@@ -16,6 +18,7 @@ export interface BuildAppOptions {
   realtimeMarketDataService?: RealtimeMarketDataService | null;
   binanceSymbolUniverseService?: BinanceSymbolUniverseService | null;
   marketWideRealtimeService?: MarketWideRealtimeService | null;
+  marketWideHistoryWarmupService?: MarketWideHistoryWarmupService | null;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -93,12 +96,45 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         : null
       : options.marketWideRealtimeService;
 
+  const marketWideHistoryWarmupEnabled =
+    env.binanceMarketWideHistoryWarmupEnabled
+    ?? env.nodeEnv !== 'test';
+
+  const marketWideHistoryWarmupService =
+    options.marketWideHistoryWarmupService
+    === undefined
+      ? marketWideHistoryWarmupEnabled
+        && marketWideRealtimeService
+          ? new MarketWideHistoryWarmupService({
+              historySource:
+                new BinanceMarketHistoryClient({
+                  baseUrl:
+                    env.binanceBaseUrl
+                    ?? 'https://fapi.binance.com',
+                  requestTimeoutMs:
+                    env.binanceRequestTimeoutMs
+                    ?? 5_000,
+                }),
+              target:
+                marketWideRealtimeService,
+              minutesPerSymbol:
+                env.binanceMarketWideHistoryWarmupMinutesPerSymbol
+                ?? 4_320,
+              requestDelayMs:
+                env.binanceMarketWideHistoryWarmupRequestDelayMs
+                ?? 250,
+            })
+          : null
+      : options.marketWideHistoryWarmupService;
+
   const marketWideRuntimeCoordinator =
     binanceSymbolUniverseService
     && marketWideRealtimeService
       ? new MarketWideRuntimeCoordinator(
           binanceSymbolUniverseService,
           marketWideRealtimeService,
+          marketWideHistoryWarmupService
+          ?? undefined,
         )
       : null;
 
@@ -161,6 +197,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : {}),
     ...(marketWideRealtimeService
       ? { marketWideRealtimeService }
+      : {}),
+    ...(marketWideHistoryWarmupService
+      ? { marketWideHistoryWarmupService }
       : {}),
   });
 

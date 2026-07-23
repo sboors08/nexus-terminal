@@ -4,6 +4,7 @@ import { healthRoutes } from './health/health.routes.js';
 import type { MarketDataProvider } from './market-data/market-data.provider.js';
 import { binanceSymbolUniverseRoutes } from './realtime-market-data/binance-symbol-universe.routes.js';
 import type { BinanceSymbolUniverseService } from './realtime-market-data/binance-symbol-universe.service.js';
+import type { MarketWideHistoryWarmupService } from './realtime-market-data/market-wide-history-warmup.service.js';
 import { marketWideRealtimeRoutes } from './realtime-market-data/market-wide-realtime.routes.js';
 import type { MarketWideRealtimeService } from './realtime-market-data/market-wide-realtime.service.js';
 import { realtimeMarketDataRoutes } from './realtime-market-data/realtime-market-data.routes.js';
@@ -14,6 +15,7 @@ interface ApiModulesOptions {
   realtimeMarketDataService?: RealtimeMarketDataService;
   binanceSymbolUniverseService?: BinanceSymbolUniverseService;
   marketWideRealtimeService?: MarketWideRealtimeService;
+  marketWideHistoryWarmupService?: MarketWideHistoryWarmupService;
 }
 
 export const apiModules: FastifyPluginAsync<ApiModulesOptions> = async (app, options) => {
@@ -42,6 +44,14 @@ export const apiModules: FastifyPluginAsync<ApiModulesOptions> = async (app, opt
       {
         marketWideRealtimeService:
           options.marketWideRealtimeService,
+        ...(
+          options.marketWideHistoryWarmupService
+            ? {
+                marketWideHistoryWarmupService:
+                  options.marketWideHistoryWarmupService,
+              }
+            : {}
+        ),
       },
     );
   }

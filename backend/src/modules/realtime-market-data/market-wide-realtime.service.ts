@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   MarketScannerMetrics,
 } from './market-scanner-metrics.js';
 import type {
@@ -11,6 +11,7 @@ import type {
 import {
   MarketWideOneMinuteMetricsStore,
   parseBinanceOneMinuteKlineEvent,
+  type BinanceOneMinuteKlineUpdate,
   type MarketWideSymbolChange,
 } from './market-wide-one-minute-metrics.js';
 import type {
@@ -466,6 +467,16 @@ export class MarketWideRealtimeService {
       symbol,
       options,
     );
+  }
+
+  applyHistoricalKlines(
+    updates:
+      readonly BinanceOneMinuteKlineUpdate[],
+  ): number {
+    return this.metricsStore
+      .applyHistoricalKlines(
+        updates,
+      );
   }
   getStatus():
   MarketWideRealtimeStatus {

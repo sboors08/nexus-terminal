@@ -596,6 +596,156 @@ export class MarketWideOneMinuteMetricsStore {
     return true;
   }
 
+  applyHistoricalKlines(
+    updates:
+      readonly BinanceOneMinuteKlineUpdate[],
+  ): number {
+    const updatesBySymbol =
+      new Map<
+        string,
+        BinanceOneMinuteKlineUpdate[]
+      >();
+
+    for (const update of updates) {
+      if (!update.isClosed) {
+        continue;
+      }
+
+      const symbol =
+        normalizeSymbol(
+          update.symbol,
+        );
+
+      if (!this.states.has(symbol)) {
+        continue;
+      }
+
+      const openTime =
+        Date.parse(
+          update.openTime,
+        );
+
+      const eventTime =
+        Date.parse(
+          update.eventTime,
+        );
+
+      if (
+        !Number.isFinite(openTime)
+        || !Number.isFinite(eventTime)
+      ) {
+        throw new Error(
+          `Invalid market-wide historical kline timestamp: ${symbol}`,
+        );
+      }
+
+      const symbolUpdates =
+        updatesBySymbol.get(symbol)
+        ?? [];
+
+      symbolUpdates.push({
+        ...update,
+        symbol,
+      });
+
+      updatesBySymbol.set(
+        symbol,
+        symbolUpdates,
+      );
+    }
+
+    let appliedCount = 0;
+
+    for (
+      const [
+        symbol,
+        symbolUpdates,
+      ]
+      of updatesBySymbol
+    ) {
+      const state =
+        this.states.get(symbol);
+
+      if (!state) {
+        continue;
+      }
+
+      const klinesByOpenTime =
+        new Map(
+          state.klines.map(
+            (kline) => [
+              kline.openTime,
+              kline,
+            ],
+          ),
+        );
+
+      for (
+        const update
+        of symbolUpdates
+      ) {
+        const existing =
+          klinesByOpenTime.get(
+            update.openTime,
+          );
+
+        if (!existing) {
+          klinesByOpenTime.set(
+            update.openTime,
+            update,
+          );
+
+          appliedCount += 1;
+          continue;
+        }
+
+        const existingEventTime =
+          Date.parse(
+            existing.eventTime,
+          );
+
+        const nextEventTime =
+          Date.parse(
+            update.eventTime,
+          );
+
+        if (
+          nextEventTime
+          > existingEventTime
+        ) {
+          klinesByOpenTime.set(
+            update.openTime,
+            update,
+          );
+
+          appliedCount += 1;
+        }
+      }
+
+      state.klines =
+        [
+          ...klinesByOpenTime.values(),
+        ].sort(
+          (left, right) =>
+            Date.parse(left.openTime)
+            - Date.parse(right.openTime),
+        );
+
+      if (
+        state.klines.length
+        > MAX_MARKET_WIDE_KLINES
+      ) {
+        state.klines.splice(
+          0,
+          state.klines.length
+            - MAX_MARKET_WIDE_KLINES,
+        );
+      }
+    }
+
+    return appliedCount;
+  }
+
   applyBookTicker(
     ticker:
       RealtimeBookTicker,
