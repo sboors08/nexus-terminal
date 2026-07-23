@@ -9,7 +9,10 @@ import {
   formatScannerQuantity,
   formatScannerTradeTime,
   getScannerRealtimeConnectionLabel,
+  useMarketVolumeSpikes,
   useRealtimeMarketData,
+  type MarketVolumeSpike,
+  type MarketVolumeSpikeStatus,
 } from '@/shared/realtime';
 import {
   nexusApi,
@@ -64,6 +67,44 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: 'trades', label: 'Аномалия сделок' },
   { value: 'formation', label: 'Дольше формируется' },
 ];
+
+const VOLUME_SPIKE_STATUS_LABELS: Record<MarketVolumeSpikeStatus, string> = {
+  new: 'НОВЫЙ',
+  growing: 'РАСТЁТ',
+  stable: 'СТАБИЛЬНЫЙ',
+  fading: 'ЗАТУХАЕТ',
+};
+
+function getVolumeSpikeStatusClass(status: MarketVolumeSpikeStatus): string {
+  if (status === 'new') return styles.volumeSpikeNew;
+  if (status === 'growing') return styles.volumeSpikeGrowing;
+  if (status === 'stable') return styles.volumeSpikeStable;
+  return styles.volumeSpikeFading;
+}
+
+function formatVolumeSpikeQuoteVolume(value: number): string {
+  return `${new Intl.NumberFormat('ru-RU', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value)} USDT`;
+}
+
+function formatVolumeSpikePriceChange(value: number | null): string {
+  if (value === null) return '—';
+  return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+}
+
+function formatVolumeSpikeUpdatedAt(value: string | null): string {
+  if (!value) return 'ожидание данных';
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return 'обновлено';
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(timestamp);
+}
 
 function InfoHint({ label }: { label: string }) {
   return (
@@ -198,6 +239,11 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
       ? styles.liveDotError
       : styles.liveDotPending;
 
+  const volumeSpikes = useMarketVolumeSpikes({
+    limit: 12,
+    intervalMs: 5_000,
+  });
+
   useEffect(() => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set('setupId', selectedSetup.id);
@@ -228,6 +274,17 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
     nextParams.set('setupId', selectedSetup.id);
     nextParams.set('preset', preset);
     nextParams.set('scannerWindow', value);
+    setSearchParams(nextParams);
+  };
+
+  const selectVolumeSpike = (spike: MarketVolumeSpike) => {
+    setSearch(spike.symbol);
+
+    const matchingSetup = setups.find((setup) => setup.symbol === spike.symbol);
+    if (!matchingSetup) return;
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('setupId', matchingSetup.id);
     setSearchParams(nextParams);
   };
 
@@ -263,6 +320,114 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
           {realtimeLabel} · {selectedSetup.symbol}
         </div>
       </header>
+
+      <section className={styles.volumeSpikesPanel} aria-label="Всплески объёма">
+  <div className={styles.volumeSpikesHeader}>
+    <div>
+      <p className={styles.panelEyebrow}>Market-wide · Binance Futures</p>
+      <h2>ВСПЛЕСКИ ОБЪЁМА</h2>
+      <p>5 минут · сравнение с медианой 12 предыдущих периодов</p>
+    </div>
+    <div className={styles.volumeSpikesConnection}>
+      <span
+        className={`${styles.volumeSpikesConnectionDot} ${
+          volumeSpikes.status === 'error'
+            ? styles.volumeSpikesConnectionError
+            : volumeSpikes.status === 'ready'
+              ? styles.volumeSpikesConnectionReady
+              : styles.volumeSpikesConnectionPending
+        }`}
+        aria-hidden="true"
+      />
+      <span>
+        <strong>{
+          volumeSpikes.status === 'error'
+            ? 'ОШИБКА API'
+            : volumeSpikes.status === 'ready'
+              ? 'LIVE'
+              : 'ЗАГРУЗКА'
+        }</strong>
+        <small>{formatVolumeSpikeUpdatedAt(volumeSpikes.lastUpdatedAt)}</small>
+      </span>
+    </div>
+  </div>
+
+  {volumeSpikes.status === 'loading' && volumeSpikes.spikes.length === 0 && (
+    <div className={styles.volumeSpikesState}>
+      <strong>Получаем всплески с backend…</strong>
+      <span>Первый ответ обычно приходит сразу после запуска Scanner.</span>
+    </div>
+  )}
+
+  {volumeSpikes.status === 'error' && (
+    <div className={`${styles.volumeSpikesState} ${styles.volumeSpikesError}`}>
+      <span>{volumeSpikes.error?.message ?? 'Не удалось загрузить всплески объёма.'}</span>
+      <button type="button" onClick={volumeSpikes.retry}>Повторить запрос</button>
+    </div>
+  )}
+
+  {volumeSpikes.status === 'ready' && volumeSpikes.spikes.length === 0 && (
+    <div className={styles.volumeSpikesState}>
+      <strong>Активных всплесков сейчас нет</strong>
+      <span>Блок обновляется автоматически каждые 5 секунд.</span>
+    </div>
+  )}
+
+  {volumeSpikes.spikes.length > 0 && (
+    <div className={styles.volumeSpikesGrid}>
+      {volumeSpikes.spikes.map((spike) => {
+        const priceClass = spike.priceChangePct === null
+          ? ''
+          : spike.priceChangePct >= 0
+            ? styles.positiveValue
+            : styles.negativeValue;
+
+        return (
+          <button
+            key={`${spike.symbol}-${spike.periodStartedAt}`}
+            type="button"
+            className={`${styles.volumeSpikeCard} ${getVolumeSpikeStatusClass(spike.status)}`}
+            onClick={() => selectVolumeSpike(spike)}
+            title={`Показать ${spike.symbol} в Scanner`}
+          >
+            <span className={styles.volumeSpikeCardHeader}>
+              <span className={styles.volumeSpikeSymbol}>
+                <span className={styles.volumeSpikeCoin}>{spike.symbol.slice(0, 1)}</span>
+                <span>
+                  <strong>{spike.symbol}</strong>
+                  <small>BINANCE FUTURES</small>
+                </span>
+              </span>
+              <span className={styles.volumeSpikeStatus}>
+                {VOLUME_SPIKE_STATUS_LABELS[spike.status]}
+              </span>
+            </span>
+
+            <span className={styles.volumeSpikeMetrics}>
+              <span>
+                <small>СИЛА ОБЪЁМА</small>
+                <strong>{spike.volumeRatio.toFixed(2)}×</strong>
+              </span>
+              <span>
+                <small>ЦЕНА · 5М</small>
+                <strong className={priceClass}>{formatVolumeSpikePriceChange(spike.priceChangePct)}</strong>
+              </span>
+              <span>
+                <small>ТЕКУЩИЙ ОБЪЁМ</small>
+                <strong>{formatVolumeSpikeQuoteVolume(spike.currentQuoteVolume)}</strong>
+              </span>
+            </span>
+
+            <span className={styles.volumeSpikeCardFooter}>
+              <span>Сделки {spike.tradesRatio.toFixed(2)}×</span>
+              <span>Показать в Scanner →</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  )}
+</section>
 
       <section className={styles.filtersPanel} aria-label="Фильтры Scanner">
         <div className={styles.presetFilter}>

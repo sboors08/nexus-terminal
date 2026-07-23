@@ -1242,4 +1242,313 @@
     padding-inline: 4px;
   }
 }
+/* Market Scanner Volume Spikes Frontend v0.1 */
+.volumeSpikesPanel {
+  padding: var(--nexus-space-2);
+  margin-bottom: var(--nexus-space-2);
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-lg);
+  background:
+    radial-gradient(circle at 0 0, rgb(53 223 141 / 7%), transparent 28%),
+    var(--nexus-color-bg-surface);
+}
 
+.volumeSpikesHeader,
+.volumeSpikesConnection,
+.volumeSpikeCardHeader,
+.volumeSpikeSymbol,
+.volumeSpikeCardFooter {
+  display: flex;
+  align-items: center;
+}
+
+.volumeSpikesHeader {
+  justify-content: space-between;
+  gap: var(--nexus-space-2);
+  margin-bottom: var(--nexus-space-2);
+}
+
+.volumeSpikesHeader h2 {
+  margin: 3px 0 0;
+  color: var(--nexus-color-text-primary);
+  font-size: var(--nexus-font-size-md);
+  letter-spacing: .04em;
+}
+
+.volumeSpikesHeader p:last-child {
+  margin: 5px 0 0;
+  color: var(--nexus-color-text-muted);
+  font-size: 10px;
+}
+
+.volumeSpikesConnection {
+  gap: 9px;
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+  background: var(--nexus-color-bg-canvas);
+}
+
+.volumeSpikesConnectionDot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: var(--nexus-radius-round);
+}
+
+.volumeSpikesConnectionReady {
+  background: var(--nexus-color-long);
+  box-shadow: 0 0 0 5px var(--nexus-color-long-soft);
+}
+
+.volumeSpikesConnectionPending {
+  background: var(--nexus-color-stage-approach);
+  box-shadow: 0 0 0 5px rgb(255 195 75 / 12%);
+}
+
+.volumeSpikesConnectionError {
+  background: var(--nexus-color-short);
+  box-shadow: 0 0 0 5px var(--nexus-color-short-soft);
+}
+
+.volumeSpikesConnection > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.volumeSpikesConnection strong {
+  color: var(--nexus-color-text-primary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+  letter-spacing: .08em;
+}
+
+.volumeSpikesConnection small {
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+}
+
+.volumeSpikesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--nexus-space-1);
+}
+
+.volumeSpikeCard {
+  --spike-tone: var(--nexus-color-info);
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: var(--nexus-border-width) solid color-mix(in srgb, var(--spike-tone) 34%, var(--nexus-color-border-subtle));
+  border-radius: var(--nexus-radius-md);
+  color: var(--nexus-color-text-secondary);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--spike-tone) 8%, transparent), transparent 48%),
+    var(--nexus-color-bg-canvas);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--nexus-duration-fast),
+    background var(--nexus-duration-fast),
+    transform var(--nexus-duration-fast);
+}
+
+.volumeSpikeCard:hover {
+  border-color: color-mix(in srgb, var(--spike-tone) 72%, var(--nexus-color-border-strong));
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--spike-tone) 13%, transparent), transparent 52%),
+    var(--nexus-color-bg-surface-raised);
+  transform: translateY(-1px);
+}
+
+.volumeSpikeNew { --spike-tone: #55a8ff; }
+.volumeSpikeGrowing { --spike-tone: var(--nexus-color-long); }
+.volumeSpikeStable { --spike-tone: #f2c35b; }
+.volumeSpikeFading { --spike-tone: #ff775f; }
+
+.volumeSpikeCardHeader {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.volumeSpikeSymbol {
+  min-width: 0;
+  gap: 8px;
+}
+
+.volumeSpikeSymbol > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.volumeSpikeSymbol strong {
+  overflow: hidden;
+  color: var(--nexus-color-text-primary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.volumeSpikeSymbol small {
+  color: var(--nexus-color-text-muted);
+  font-size: 7px;
+  letter-spacing: .06em;
+}
+
+.volumeSpikeCoin {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--nexus-radius-round);
+  color: var(--spike-tone);
+  background: color-mix(in srgb, var(--spike-tone) 12%, transparent);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  font-weight: var(--nexus-font-weight-bold);
+}
+
+.volumeSpikeStatus {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: var(--nexus-border-width) solid color-mix(in srgb, var(--spike-tone) 36%, transparent);
+  border-radius: var(--nexus-radius-round);
+  color: var(--spike-tone);
+  background: color-mix(in srgb, var(--spike-tone) 9%, transparent);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  font-weight: var(--nexus-font-weight-bold);
+  letter-spacing: .06em;
+}
+
+.volumeSpikeMetrics {
+  display: grid;
+  grid-template-columns: .8fr .8fr 1.2fr;
+  gap: 7px;
+}
+
+.volumeSpikeMetrics > span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.volumeSpikeMetrics small {
+  overflow: hidden;
+  color: var(--nexus-color-text-muted);
+  font-size: 7px;
+  letter-spacing: .04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.volumeSpikeMetrics strong {
+  overflow: hidden;
+  color: var(--nexus-color-text-primary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.volumeSpikeMetrics .positiveValue { color: var(--nexus-color-long); }
+.volumeSpikeMetrics .negativeValue { color: var(--nexus-color-short); }
+
+.volumeSpikeCardFooter {
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 9px;
+  border-top: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+}
+
+.volumeSpikeCardFooter span:last-child {
+  color: var(--spike-tone);
+  font-weight: var(--nexus-font-weight-bold);
+}
+
+.volumeSpikesState {
+  min-height: 86px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  padding: 14px;
+  border: var(--nexus-border-width) dashed var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-md);
+  color: var(--nexus-color-text-muted);
+  background: var(--nexus-color-bg-canvas);
+  font-size: 10px;
+  text-align: center;
+}
+
+.volumeSpikesState strong {
+  color: var(--nexus-color-text-primary);
+}
+
+.volumeSpikesError {
+  grid-template-columns: minmax(0, 1fr) auto;
+  place-items: center start;
+  color: var(--nexus-color-short);
+  text-align: left;
+}
+
+.volumeSpikesError button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: var(--nexus-border-width) solid var(--nexus-color-short);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-short);
+  background: var(--nexus-color-short-soft);
+  font-size: 10px;
+  font-weight: var(--nexus-font-weight-semibold);
+  cursor: pointer;
+}
+
+@media (max-width: 780px) {
+  .volumeSpikesHeader {
+    align-items: flex-start;
+  }
+
+  .volumeSpikesGrid {
+    grid-auto-columns: minmax(244px, 82vw);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    padding-bottom: 6px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-color: var(--nexus-color-border-strong) transparent;
+    scrollbar-width: thin;
+  }
+
+  .volumeSpikeCard {
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 520px) {
+  .volumeSpikesPanel {
+    padding: 12px;
+  }
+
+  .volumeSpikesHeader {
+    display: grid;
+  }
+
+  .volumeSpikesConnection {
+    width: 100%;
+  }
+
+  .volumeSpikesError {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+}

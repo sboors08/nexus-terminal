@@ -19,6 +19,8 @@
     "src/shared/realtime/binanceSymbolUniverse.ts",
     "src/shared/realtime/dashboardScannerUniverse.ts",
     "src/shared/realtime/marketWideScannerMetrics.ts",
-    "src/shared/realtime/useMarketWideScannerMetrics.ts"
+    "src/shared/realtime/useMarketWideScannerMetrics.ts",
+    "src/shared/realtime/marketVolumeSpikes.ts",
+    "src/shared/realtime/useMarketVolumeSpikes.ts"
   ]
 }
