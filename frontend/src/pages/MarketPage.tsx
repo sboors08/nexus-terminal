@@ -6,17 +6,22 @@ import {
   buildMarketRealtimeView,
   useRealtimeMarketData,
 } from '@/shared/realtime';
-import { nexusApi, useApiQuery, type Candle, type MarketSymbol } from '@/shared/api';
+import { nexusApi, useApiQuery, type MarketSymbol } from '@/shared/api';
+import {
+  NexusCandlestickChart,
+  useMarketCandles,
+  type MarketCandleTimeframe,
+} from '@/shared/charts';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import styles from './MarketPage.module.css';
 
-type MarketTimeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '24h';
+type MarketTimeframe = MarketCandleTimeframe;
 type DirectionFilter = 'all' | 'gainers' | 'losers';
 type StrengthFilter = 'all' | 'positive' | 'negative';
 type CorrelationFilter = 'all' | 'low' | 'medium' | 'high';
 type SortKey = 'change' | 'volume' | 'trades' | 'strength' | 'volatility';
 
-const TIMEFRAMES: MarketTimeframe[] = ['1m', '5m', '15m', '1h', '4h', '24h'];
+const TIMEFRAMES: MarketTimeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
 function formatPrice(value: number) {
   const fractionDigits = value >= 1000 ? 2 : value >= 1 ? 4 : 6;
@@ -39,15 +44,6 @@ function formatSigned(value: number | null, suffix = '') {
   return `${prefix}${value.toFixed(2)}${suffix}`;
 }
 
-function getTimeLabel(iso: string) {
-  return new Intl.DateTimeFormat('ru-RU', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).format(new Date(iso));
-}
-
 function getSparklinePath(symbol: MarketSymbol, index: number) {
   const points = Array.from({ length: 20 }, (_, pointIndex) => {
     const x = (pointIndex / 19) * 92;
@@ -67,84 +63,6 @@ function getSparklinePath(symbol: MarketSymbol, index: number) {
       return `${pointIndex === 0 ? 'M' : 'L'}${point.x.toFixed(2)} ${y.toFixed(2)}`;
     })
     .join(' ');
-}
-
-function MarketChart({ candles, symbol }: { candles: Candle[]; symbol: MarketSymbol }) {
-  if (candles.length === 0) {
-    return <div className={styles.chartEmpty}>Для выбранного периода нет свечей.</div>;
-  }
-
-  const chartWidth = 920;
-  const plotRight = 860;
-  const top = 16;
-  const bottom = 332;
-  const volumeBottom = 440;
-  const volumeHeight = 72;
-  const prices = candles.flatMap((candle) => [candle.high, candle.low]);
-  const minPrice = Math.min(...prices);
-  const maxPrice = Math.max(...prices);
-  const priceRange = Math.max(maxPrice - minPrice, Math.abs(maxPrice) * 0.0001, 1e-8);
-  const maxVolume = Math.max(...candles.map((candle) => candle.volume), 1);
-  const step = (plotRight - 18) / candles.length;
-  const candleWidth = Math.max(3, Math.min(8, step * 0.52));
-  const yForPrice = (price: number) => top + ((maxPrice - price) / priceRange) * (bottom - top);
-  const last = candles[candles.length - 1];
-  const lastY = yForPrice(last.close);
-  const axisPrices = Array.from({ length: 5 }, (_, index) => maxPrice - (priceRange * index) / 4);
-  const timeIndexes = [0, Math.floor(candles.length / 3), Math.floor((candles.length * 2) / 3), candles.length - 1];
-
-  return (
-    <svg className={styles.chartSvg} viewBox={`0 0 ${chartWidth} 462`} preserveAspectRatio="none" role="img" aria-label={`Свечной график ${symbol.symbol}`}>
-      <g className={styles.chartGrid}>
-        {Array.from({ length: 5 }, (_, index) => {
-          const y = top + ((bottom - top) * index) / 4;
-          return <line key={`h-${y}`} x1="18" y1={y} x2={plotRight} y2={y} />;
-        })}
-        {Array.from({ length: 5 }, (_, index) => {
-          const x = 18 + ((plotRight - 18) * index) / 4;
-          return <line key={`v-${x}`} x1={x} y1={top} x2={x} y2={volumeBottom} />;
-        })}
-      </g>
-
-      {candles.map((candle, index) => {
-        const x = 18 + step * index + step / 2;
-        const openY = yForPrice(candle.open);
-        const closeY = yForPrice(candle.close);
-        const highY = yForPrice(candle.high);
-        const lowY = yForPrice(candle.low);
-        const isPositive = candle.close >= candle.open;
-        const bodyY = Math.min(openY, closeY);
-        const bodyHeight = Math.max(2, Math.abs(closeY - openY));
-        const volumeBarHeight = (candle.volume / maxVolume) * volumeHeight;
-
-        return (
-          <g key={candle.openTime} className={isPositive ? styles.candlePositive : styles.candleNegative}>
-            <line className={styles.candleWick} x1={x} x2={x} y1={highY} y2={lowY} />
-            <rect className={styles.candleBody} x={x - candleWidth / 2} y={bodyY} width={candleWidth} height={bodyHeight} rx="1" />
-            <rect className={styles.volumeBar} x={x - candleWidth / 2} y={volumeBottom - volumeBarHeight} width={candleWidth} height={volumeBarHeight} rx="1" />
-          </g>
-        );
-      })}
-
-      <g className={styles.currentPriceMarker}>
-        <line x1="18" y1={lastY} x2={plotRight} y2={lastY} />
-        <rect x="864" y={lastY - 10} width="56" height="20" rx="4" />
-        <text x="892" y={lastY + 4} textAnchor="middle">{formatPrice(last.close)}</text>
-      </g>
-
-      <g className={styles.chartAxisLabels}>
-        {axisPrices.map((price, index) => {
-          const y = top + ((bottom - top) * index) / 4;
-          return <text key={price} x="912" y={y + 4} textAnchor="end">{formatPrice(price)}</text>;
-        })}
-        {timeIndexes.map((candleIndex, index) => {
-          const candle = candles[candleIndex];
-          const x = 40 + ((800 - 40) * index) / 3;
-          return <text key={`${candle.openTime}-${index}`} x={x} y="458">{getTimeLabel(candle.openTime).slice(0, 5)}</text>;
-        })}
-      </g>
-    </svg>
-  );
 }
 
 function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
@@ -260,10 +178,10 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
     symbol: selected.symbol,
     timeframe,
   });
-  const candlesQuery = useApiQuery(
-    `market-candles:${selected.symbol}:${timeframe}`,
-    () => nexusApi.getMarketCandles(selected.symbol, timeframe),
-  );
+  const candlesQuery = useMarketCandles({
+    symbol: selected.symbol,
+    timeframe,
+  });
 
   const resetFilters = () => {
     setSearch('');
@@ -397,7 +315,17 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
           <div className={styles.chartCanvas}>
             {candlesQuery.status === 'loading' && <div className={styles.chartState}>Загружаем свечи…</div>}
             {candlesQuery.status === 'error' && <div className={styles.chartState}><span>Свечи не загрузились.</span><button type="button" onClick={candlesQuery.retry}>Повторить</button></div>}
-            {candlesQuery.status === 'success' && candlesQuery.data && <MarketChart candles={candlesQuery.data} symbol={selected} />}
+            {candlesQuery.status === 'success' && candlesQuery.data?.length === 0 && (
+              <div className={styles.chartEmpty}>
+                Для выбранного периода нет свечей.
+              </div>
+            )}
+            {candlesQuery.status === 'success' && candlesQuery.data && candlesQuery.data.length > 0 && (
+              <NexusCandlestickChart
+                candles={candlesQuery.data}
+                symbol={selected.symbol}
+              />
+            )}
           </div>
 
           <div className={styles.metricsGrid}>

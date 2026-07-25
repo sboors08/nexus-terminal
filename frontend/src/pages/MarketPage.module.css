@@ -258,46 +258,6 @@
     #070e12;
 }
 
-.chartSvg {
-  width: 100%;
-  height: 462px;
-  display: block;
-}
-
-.chartGrid line {
-  stroke: #1a2925;
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.candlePositive { color: #32d583; }
-.candleNegative { color: #ff6273; }
-.candleWick { stroke: currentColor; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
-.candleBody { fill: currentColor; }
-.volumeBar { fill: currentColor; opacity: .25; }
-
-.currentPriceMarker line {
-  stroke: #32d583;
-  stroke-width: 1;
-  stroke-dasharray: 5 5;
-  opacity: .75;
-  vector-effect: non-scaling-stroke;
-}
-
-.currentPriceMarker rect { fill: #32d583; }
-.currentPriceMarker text {
-  fill: #06100c;
-  font-family: var(--nexus-font-family-mono);
-  font-size: 8px;
-  font-weight: 800;
-}
-
-.chartAxisLabels text {
-  fill: #65766f;
-  font-family: var(--nexus-font-family-mono);
-  font-size: 8px;
-}
-
 .chartState,
 .chartEmpty {
   position: absolute;
@@ -570,16 +530,6 @@
     width: 100%;
     overflow-x: auto;
   }
-
-  .chartViewport {
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-  }
-
-  .chartSvg {
-    min-width: 760px;
-  }
-
   .metricsGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
