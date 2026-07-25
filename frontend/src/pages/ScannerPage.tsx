@@ -12,6 +12,7 @@ import {
   useMarketVolumeSpikes,
   useRealtimeMarketData,
   type MarketVolumeSpike,
+  type MarketVolumeSpikePeriodMinutes,
   type MarketVolumeSpikeStatus,
 } from '@/shared/realtime';
 import {
@@ -73,6 +74,30 @@ const VOLUME_SPIKE_STATUS_LABELS: Record<MarketVolumeSpikeStatus, string> = {
   growing: 'РАСТЁТ',
   stable: 'СТАБИЛЬНЫЙ',
   fading: 'ЗАТУХАЕТ',
+};
+
+const VOLUME_SPIKE_PERIOD_OPTIONS:
+readonly MarketVolumeSpikePeriodMinutes[] = [
+  1,
+  3,
+  5,
+  15,
+];
+
+const VOLUME_SPIKE_STATUSES:
+readonly MarketVolumeSpikeStatus[] = [
+  'new',
+  'growing',
+  'stable',
+  'fading',
+];
+
+const DEFAULT_VOLUME_SPIKE_FILTERS = {
+  periodMinutes: 5 as MarketVolumeSpikePeriodMinutes,
+  baselinePeriods: 12,
+  minVolumeRatio: 2,
+  minTradesRatio: 1.5,
+  minCurrentQuoteVolume: 50_000,
 };
 
 function getVolumeSpikeStatusClass(status: MarketVolumeSpikeStatus): string {
@@ -194,6 +219,48 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
   const [btcStrength, setBtcStrength] = useState<BtcStrengthFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('distance');
 
+  const [
+    volumeSpikePeriodMinutes,
+    setVolumeSpikePeriodMinutes,
+  ] = useState<MarketVolumeSpikePeriodMinutes>(
+    DEFAULT_VOLUME_SPIKE_FILTERS.periodMinutes,
+  );
+
+  const [
+    volumeSpikeBaselinePeriods,
+    setVolumeSpikeBaselinePeriods,
+  ] = useState(
+    DEFAULT_VOLUME_SPIKE_FILTERS.baselinePeriods,
+  );
+
+  const [
+    volumeSpikeMinVolumeRatio,
+    setVolumeSpikeMinVolumeRatio,
+  ] = useState(
+    DEFAULT_VOLUME_SPIKE_FILTERS.minVolumeRatio,
+  );
+
+  const [
+    volumeSpikeMinTradesRatio,
+    setVolumeSpikeMinTradesRatio,
+  ] = useState(
+    DEFAULT_VOLUME_SPIKE_FILTERS.minTradesRatio,
+  );
+
+  const [
+    volumeSpikeMinCurrentQuoteVolume,
+    setVolumeSpikeMinCurrentQuoteVolume,
+  ] = useState(
+    DEFAULT_VOLUME_SPIKE_FILTERS.minCurrentQuoteVolume,
+  );
+
+  const [
+    volumeSpikeStatuses,
+    setVolumeSpikeStatuses,
+  ] = useState<MarketVolumeSpikeStatus[]>(
+    [...VOLUME_SPIKE_STATUSES],
+  );
+
   const filteredSetups = useMemo(() => {
     const normalizedSearch = search.trim().toUpperCase();
     const maxDistance = distance === 'all' ? null : Number(distance);
@@ -242,6 +309,18 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
   const volumeSpikes = useMarketVolumeSpikes({
     limit: 12,
     intervalMs: 5_000,
+    periodMinutes:
+      volumeSpikePeriodMinutes,
+    baselinePeriods:
+      volumeSpikeBaselinePeriods,
+    minVolumeRatio:
+      volumeSpikeMinVolumeRatio,
+    minTradesRatio:
+      volumeSpikeMinTradesRatio,
+    minCurrentQuoteVolume:
+      volumeSpikeMinCurrentQuoteVolume,
+    statuses:
+      volumeSpikeStatuses,
   });
 
   useEffect(() => {
@@ -275,6 +354,52 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
     nextParams.set('preset', preset);
     nextParams.set('scannerWindow', value);
     setSearchParams(nextParams);
+  };
+
+  const toggleVolumeSpikeStatus = (
+    status: MarketVolumeSpikeStatus,
+  ) => {
+    setVolumeSpikeStatuses(
+      (current) => {
+        if (current.includes(status)) {
+          if (current.length === 1) {
+            return current;
+          }
+
+          return current.filter(
+            (item) =>
+              item !== status,
+          );
+        }
+
+        return [
+          ...current,
+          status,
+        ];
+      },
+    );
+  };
+
+  const resetVolumeSpikeFilters = () => {
+    setVolumeSpikePeriodMinutes(
+      DEFAULT_VOLUME_SPIKE_FILTERS.periodMinutes,
+    );
+    setVolumeSpikeBaselinePeriods(
+      DEFAULT_VOLUME_SPIKE_FILTERS.baselinePeriods,
+    );
+    setVolumeSpikeMinVolumeRatio(
+      DEFAULT_VOLUME_SPIKE_FILTERS.minVolumeRatio,
+    );
+    setVolumeSpikeMinTradesRatio(
+      DEFAULT_VOLUME_SPIKE_FILTERS.minTradesRatio,
+    );
+    setVolumeSpikeMinCurrentQuoteVolume(
+      DEFAULT_VOLUME_SPIKE_FILTERS
+        .minCurrentQuoteVolume,
+    );
+    setVolumeSpikeStatuses(
+      [...VOLUME_SPIKE_STATUSES],
+    );
   };
 
   const selectVolumeSpike = (spike: MarketVolumeSpike) => {
@@ -326,7 +451,10 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
     <div>
       <p className={styles.panelEyebrow}>Market-wide · Binance Futures</p>
       <h2>ВСПЛЕСКИ ОБЪЁМА</h2>
-      <p>5 минут · сравнение с медианой 12 предыдущих периодов</p>
+      <p>
+        {volumeSpikePeriodMinutes} мин · медиана{' '}
+        {volumeSpikeBaselinePeriods} предыдущих периодов
+      </p>
     </div>
     <div className={styles.volumeSpikesConnection}>
       <span
@@ -350,6 +478,184 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
         <small>{formatVolumeSpikeUpdatedAt(volumeSpikes.lastUpdatedAt)}</small>
       </span>
     </div>
+  </div>
+
+  <div
+    className={styles.volumeSpikesFilters}
+    aria-label="Фильтры всплесков объёма"
+  >
+    <label className={styles.volumeSpikesField}>
+      <span>Период</span>
+      <select
+        value={volumeSpikePeriodMinutes}
+        onChange={(event) => {
+          setVolumeSpikePeriodMinutes(
+            Number(
+              event.currentTarget.value,
+            ) as MarketVolumeSpikePeriodMinutes,
+          );
+        }}
+      >
+        {VOLUME_SPIKE_PERIOD_OPTIONS.map(
+          (value) => (
+            <option
+              key={value}
+              value={value}
+            >
+              {value} мин
+            </option>
+          ),
+        )}
+      </select>
+    </label>
+
+    <label className={styles.volumeSpikesField}>
+      <span>База периодов</span>
+      <input
+        type="number"
+        min="3"
+        max="48"
+        step="1"
+        value={volumeSpikeBaselinePeriods}
+        onChange={(event) => {
+          const value =
+            event.currentTarget.valueAsNumber;
+
+          if (Number.isFinite(value)) {
+            setVolumeSpikeBaselinePeriods(
+              Math.min(
+                48,
+                Math.max(
+                  3,
+                  Math.trunc(value),
+                ),
+              ),
+            );
+          }
+        }}
+      />
+    </label>
+
+    <label className={styles.volumeSpikesField}>
+      <span>Объём от</span>
+      <input
+        type="number"
+        min="1"
+        max="100"
+        step="0.1"
+        value={volumeSpikeMinVolumeRatio}
+        onChange={(event) => {
+          const value =
+            event.currentTarget.valueAsNumber;
+
+          if (Number.isFinite(value)) {
+            setVolumeSpikeMinVolumeRatio(
+              Math.min(
+                100,
+                Math.max(1, value),
+              ),
+            );
+          }
+        }}
+      />
+      <small>× к медиане</small>
+    </label>
+
+    <label className={styles.volumeSpikesField}>
+      <span>Сделки от</span>
+      <input
+        type="number"
+        min="0.1"
+        max="100"
+        step="0.1"
+        value={volumeSpikeMinTradesRatio}
+        onChange={(event) => {
+          const value =
+            event.currentTarget.valueAsNumber;
+
+          if (Number.isFinite(value)) {
+            setVolumeSpikeMinTradesRatio(
+              Math.min(
+                100,
+                Math.max(0.1, value),
+              ),
+            );
+          }
+        }}
+      />
+      <small>× к медиане</small>
+    </label>
+
+    <label className={styles.volumeSpikesField}>
+      <span>Мин. объём USDT</span>
+      <input
+        type="number"
+        min="0"
+        max="1000000000000"
+        step="10000"
+        value={
+          volumeSpikeMinCurrentQuoteVolume
+        }
+        onChange={(event) => {
+          const value =
+            event.currentTarget.valueAsNumber;
+
+          if (Number.isFinite(value)) {
+            setVolumeSpikeMinCurrentQuoteVolume(
+              Math.min(
+                1_000_000_000_000,
+                Math.max(0, value),
+              ),
+            );
+          }
+        }}
+      />
+    </label>
+
+    <div className={styles.volumeSpikesStatusFilters}>
+      <span>Статусы</span>
+      <div>
+        {VOLUME_SPIKE_STATUSES.map(
+          (status) => {
+            const active =
+              volumeSpikeStatuses
+                .includes(status);
+
+            return (
+              <button
+                key={status}
+                type="button"
+                className={
+                  active
+                    ? styles.volumeSpikesStatusActive
+                    : ''
+                }
+                aria-pressed={active}
+                onClick={() =>
+                  toggleVolumeSpikeStatus(
+                    status,
+                  )
+                }
+              >
+                {
+                  VOLUME_SPIKE_STATUS_LABELS[
+                    status
+                  ]
+                }
+              </button>
+            );
+          },
+        )}
+      </div>
+    </div>
+
+    <button
+      type="button"
+      className={styles.volumeSpikesReset}
+      onClick={resetVolumeSpikeFilters}
+    >
+      Сбросить
+    </button>
   </div>
 
   {volumeSpikes.status === 'loading' && volumeSpikes.spikes.length === 0 && (
@@ -409,7 +715,9 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
                 <strong>{spike.volumeRatio.toFixed(2)}×</strong>
               </span>
               <span>
-                <small>ЦЕНА · 5М</small>
+                <small>
+                  ЦЕНА · {spike.periodMinutes}М
+                </small>
                 <strong className={priceClass}>{formatVolumeSpikePriceChange(spike.priceChangePct)}</strong>
               </span>
               <span>

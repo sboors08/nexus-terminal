@@ -59,6 +59,37 @@ test(
 );
 
 test(
+  'builds a URL with volume spike filters',
+  () => {
+    assert.equal(
+      buildMarketVolumeSpikesUrl({
+        symbol: 'eth/usdt',
+        limit: 12,
+        periodMinutes: 15,
+        baselinePeriods: 24,
+        minVolumeRatio: 3.5,
+        minTradesRatio: 2.25,
+        minCurrentQuoteVolume: 250_000,
+        statuses: [
+          'new',
+          'growing',
+          'new',
+        ],
+      }),
+      '/api/v1/market/realtime/market-wide/volume-spikes'
+        + '?symbol=ETHUSDT'
+        + '&limit=12'
+        + '&periodMinutes=15'
+        + '&baselinePeriods=24'
+        + '&minVolumeRatio=3.5'
+        + '&minTradesRatio=2.25'
+        + '&minCurrentQuoteVolume=250000'
+        + '&statuses=new%2Cgrowing',
+    );
+  },
+);
+
+test(
   'fetches and validates volume spikes',
   async () => {
     let requestedUrl = '';
@@ -151,6 +182,54 @@ test(
           limit: 101,
         }),
       /integer from 1 to 100/,
+    );
+
+    assert.throws(
+      () =>
+        buildMarketVolumeSpikesUrl({
+          periodMinutes: 2,
+        }),
+      /periodMinutes/,
+    );
+
+    assert.throws(
+      () =>
+        buildMarketVolumeSpikesUrl({
+          baselinePeriods: 2,
+        }),
+      /baselinePeriods/,
+    );
+
+    assert.throws(
+      () =>
+        buildMarketVolumeSpikesUrl({
+          minVolumeRatio: 0.5,
+        }),
+      /minVolumeRatio/,
+    );
+
+    assert.throws(
+      () =>
+        buildMarketVolumeSpikesUrl({
+          minTradesRatio: 0,
+        }),
+      /minTradesRatio/,
+    );
+
+    assert.throws(
+      () =>
+        buildMarketVolumeSpikesUrl({
+          minCurrentQuoteVolume: -1,
+        }),
+      /minCurrentQuoteVolume/,
+    );
+
+    assert.throws(
+      () =>
+        buildMarketVolumeSpikesUrl({
+          statuses: [],
+        }),
+      /statuses/,
     );
 
     await assert.rejects(
