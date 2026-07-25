@@ -6,6 +6,8 @@ import {
 import {
   fetchMarketVolumeSpikes,
   type MarketVolumeSpike,
+  type MarketVolumeSpikePeriodMinutes,
+  type MarketVolumeSpikeStatus,
 } from './marketVolumeSpikes.js';
 
 export type MarketVolumeSpikesQueryStatus =
@@ -20,6 +22,12 @@ export interface UseMarketVolumeSpikesOptions {
   intervalMs?: number;
   symbol?: string;
   limit?: number;
+  periodMinutes?: MarketVolumeSpikePeriodMinutes;
+  baselinePeriods?: number;
+  minVolumeRatio?: number;
+  minTradesRatio?: number;
+  minCurrentQuoteVolume?: number;
+  statuses?: readonly MarketVolumeSpikeStatus[];
 }
 
 export interface UseMarketVolumeSpikesResult {
@@ -40,6 +48,12 @@ export function useMarketVolumeSpikes(
     intervalMs = 5_000,
     symbol,
     limit = 20,
+    periodMinutes,
+    baselinePeriods,
+    minVolumeRatio,
+    minTradesRatio,
+    minCurrentQuoteVolume,
+    statuses,
   } = options;
 
   const [spikes, setSpikes] =
@@ -101,6 +115,12 @@ export function useMarketVolumeSpikes(
             baseUrl,
             symbol,
             limit,
+            periodMinutes,
+            baselinePeriods,
+            minVolumeRatio,
+            minTradesRatio,
+            minCurrentQuoteVolume,
+            statuses,
           });
 
         if (cancelled) {
@@ -153,10 +173,16 @@ export function useMarketVolumeSpikes(
     };
   }, [
     baseUrl,
+    baselinePeriods,
     enabled,
     intervalMs,
     limit,
+    minCurrentQuoteVolume,
+    minTradesRatio,
+    minVolumeRatio,
+    periodMinutes,
     retryToken,
+    statuses,
     symbol,
   ]);
 

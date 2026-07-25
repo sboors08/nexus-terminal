@@ -1552,3 +1552,131 @@
     justify-items: stretch;
   }
 }
+
+
+/* Volume Spikes Filters Frontend v0.1 */
+.volumeSpikesFilters {
+  display: grid;
+  grid-template-columns:
+    repeat(5, minmax(112px, 1fr))
+    minmax(230px, 1.7fr)
+    auto;
+  align-items: end;
+  gap: var(--nexus-space-1);
+  margin-bottom: var(--nexus-space-2);
+  padding: var(--nexus-space-1);
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-md);
+  background: var(--nexus-color-bg-canvas);
+}
+
+.volumeSpikesField {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+}
+
+.volumeSpikesField > span,
+.volumeSpikesStatusFilters > span {
+  color: var(--nexus-color-text-muted);
+  font-size: 8px;
+  font-weight: var(--nexus-font-weight-semibold);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.volumeSpikesField input,
+.volumeSpikesField select {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-surface);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  outline: none;
+}
+
+.volumeSpikesField input:focus,
+.volumeSpikesField select:focus {
+  border-color: var(--nexus-color-info);
+}
+
+.volumeSpikesField small {
+  color: var(--nexus-color-text-muted);
+  font-size: 7px;
+}
+
+.volumeSpikesStatusFilters {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.volumeSpikesStatusFilters > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.volumeSpikesStatusFilters button,
+.volumeSpikesReset {
+  min-height: 34px;
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-muted);
+  background: var(--nexus-color-bg-surface);
+  font-size: 8px;
+  font-weight: var(--nexus-font-weight-semibold);
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+
+.volumeSpikesStatusFilters button {
+  flex: 1 1 auto;
+  padding: 0 7px;
+}
+
+.volumeSpikesStatusFilters button:hover,
+.volumeSpikesReset:hover {
+  border-color: var(--nexus-color-border-strong);
+  color: var(--nexus-color-text-primary);
+}
+
+.volumeSpikesStatusFilters .volumeSpikesStatusActive {
+  border-color: var(--nexus-color-long);
+  color: var(--nexus-color-long);
+  background: var(--nexus-color-long-soft);
+}
+
+.volumeSpikesReset {
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .volumeSpikesFilters {
+    grid-template-columns:
+      repeat(3, minmax(120px, 1fr));
+  }
+
+  .volumeSpikesStatusFilters {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 680px) {
+  .volumeSpikesFilters {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .volumeSpikesStatusFilters,
+  .volumeSpikesReset {
+    grid-column: 1 / -1;
+  }
+}

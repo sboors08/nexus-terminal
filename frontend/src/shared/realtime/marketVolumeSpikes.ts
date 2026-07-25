@@ -31,10 +31,26 @@ export interface MarketVolumeSpike {
   updatedAt: string;
 }
 
+export const MARKET_VOLUME_SPIKE_PERIOD_MINUTES = [
+  1,
+  3,
+  5,
+  15,
+] as const;
+
+export type MarketVolumeSpikePeriodMinutes =
+  typeof MARKET_VOLUME_SPIKE_PERIOD_MINUTES[number];
+
 export interface FetchMarketVolumeSpikesOptions {
   baseUrl?: string;
   symbol?: string;
   limit?: number;
+  periodMinutes?: MarketVolumeSpikePeriodMinutes;
+  baselinePeriods?: number;
+  minVolumeRatio?: number;
+  minTradesRatio?: number;
+  minCurrentQuoteVolume?: number;
+  statuses?: readonly MarketVolumeSpikeStatus[];
   fetcher?: MarketScannerFetch;
 }
 
@@ -75,6 +91,100 @@ function normalizeLimit(
   return normalized;
 }
 
+function normalizePeriodMinutes(
+  value:
+    MarketVolumeSpikePeriodMinutes
+    | undefined,
+): MarketVolumeSpikePeriodMinutes | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    !MARKET_VOLUME_SPIKE_PERIOD_MINUTES
+      .includes(value)
+  ) {
+    throw new Error(
+      'Volume spike periodMinutes must be one of: 1, 3, 5, 15',
+    );
+  }
+
+  return value;
+}
+
+function normalizeIntegerRange(
+  value: number | undefined,
+  minimum: number,
+  maximum: number,
+  label: string,
+): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    !Number.isInteger(value)
+    || value < minimum
+    || value > maximum
+  ) {
+    throw new Error(
+      `Volume spike ${label} must be an integer from ${minimum} to ${maximum}`,
+    );
+  }
+
+  return value;
+}
+
+function normalizeNumberRange(
+  value: number | undefined,
+  minimum: number,
+  maximum: number,
+  label: string,
+): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    !Number.isFinite(value)
+    || value < minimum
+    || value > maximum
+  ) {
+    throw new Error(
+      `Volume spike ${label} must be from ${minimum} to ${maximum}`,
+    );
+  }
+
+  return value;
+}
+
+function normalizeStatuses(
+  statuses:
+    readonly MarketVolumeSpikeStatus[]
+    | undefined,
+): readonly MarketVolumeSpikeStatus[] | undefined {
+  if (statuses === undefined) {
+    return undefined;
+  }
+
+  if (
+    statuses.length === 0
+    || statuses.some(
+      (status) =>
+        !MARKET_VOLUME_SPIKE_STATUSES
+          .includes(status),
+    )
+  ) {
+    throw new Error(
+      'Volume spike statuses must contain only: new, growing, stable, fading',
+    );
+  }
+
+  return [
+    ...new Set(statuses),
+  ];
+}
+
 export function buildMarketVolumeSpikesUrl(
   options:
     Pick<
@@ -82,6 +192,12 @@ export function buildMarketVolumeSpikesUrl(
       | 'baseUrl'
       | 'symbol'
       | 'limit'
+      | 'periodMinutes'
+      | 'baselinePeriods'
+      | 'minVolumeRatio'
+      | 'minTradesRatio'
+      | 'minCurrentQuoteVolume'
+      | 'statuses'
     > = {},
 ): string {
   const params = new URLSearchParams();
@@ -103,6 +219,95 @@ export function buildMarketVolumeSpikesUrl(
       ),
     ),
   );
+
+  const periodMinutes =
+    normalizePeriodMinutes(
+      options.periodMinutes,
+    );
+
+  if (periodMinutes !== undefined) {
+    params.set(
+      'periodMinutes',
+      String(periodMinutes),
+    );
+  }
+
+  const baselinePeriods =
+    normalizeIntegerRange(
+      options.baselinePeriods,
+      3,
+      48,
+      'baselinePeriods',
+    );
+
+  if (baselinePeriods !== undefined) {
+    params.set(
+      'baselinePeriods',
+      String(baselinePeriods),
+    );
+  }
+
+  const minVolumeRatio =
+    normalizeNumberRange(
+      options.minVolumeRatio,
+      1,
+      100,
+      'minVolumeRatio',
+    );
+
+  if (minVolumeRatio !== undefined) {
+    params.set(
+      'minVolumeRatio',
+      String(minVolumeRatio),
+    );
+  }
+
+  const minTradesRatio =
+    normalizeNumberRange(
+      options.minTradesRatio,
+      0.1,
+      100,
+      'minTradesRatio',
+    );
+
+  if (minTradesRatio !== undefined) {
+    params.set(
+      'minTradesRatio',
+      String(minTradesRatio),
+    );
+  }
+
+  const minCurrentQuoteVolume =
+    normalizeNumberRange(
+      options.minCurrentQuoteVolume,
+      0,
+      1_000_000_000_000,
+      'minCurrentQuoteVolume',
+    );
+
+  if (
+    minCurrentQuoteVolume
+    !== undefined
+  ) {
+    params.set(
+      'minCurrentQuoteVolume',
+      String(
+        minCurrentQuoteVolume,
+      ),
+    );
+  }
+
+  const statuses =
+    normalizeStatuses(
+      options.statuses,
+    );
+
+  if (statuses !== undefined) {
+    params.set(
+      'statuses',
+      statuses.join(','),
+    );
+  }
 
   return (
     `${resolveBaseUrl(options.baseUrl)}`
