@@ -9,6 +9,11 @@ import type {
   SetupEngineStage,
   SetupEngineState,
 } from './setup-engine.types.js';
+import type {
+  SetupLifecycleEvent,
+  SetupLifecycleEventListener,
+  SetupLifecycleEventType,
+} from './setup-lifecycle-events.types.js';
 import {
   DEFAULT_SETUP_STAGE_EVALUATOR_OPTIONS,
   evaluateSetupStage,
@@ -139,6 +144,48 @@ function isTerminalStage(
   );
 }
 
+type SetupLifecycleEventInput =
+  Omit<
+    SetupLifecycleEvent,
+    'eventId'
+  >;
+
+function cloneLifecycleEvent(
+  event:
+    SetupLifecycleEvent,
+): SetupLifecycleEvent {
+  return {
+    ...event,
+    candidate:
+      cloneCandidate(
+        event.candidate,
+      ),
+  };
+}
+
+function lifecycleEventTypeForStage(
+  stage:
+    SetupEngineStage,
+):
+  Exclude<
+    SetupLifecycleEventType,
+    'candidate_created'
+  > {
+  switch (stage) {
+    case 'BREAKOUT_CONFIRMED':
+      return 'breakout_confirmed';
+
+    case 'REJECTION_CONFIRMED':
+      return 'rejection_confirmed';
+
+    case 'SETUP_EXPIRED':
+      return 'setup_expired';
+
+    default:
+      return 'stage_transition';
+  }
+}
+
 export class SetupDetectionRuntimeService {
   private readonly pipeline:
     SetupDetectionPipeline;
@@ -151,6 +198,13 @@ export class SetupDetectionRuntimeService {
       string,
       SetupEngineState
     >();
+
+  private readonly lifecycleListeners =
+    new Set<
+      SetupLifecycleEventListener
+    >();
+
+  private nextLifecycleEventId = 1;
 
   private state:
     SetupDetectionRuntimeState =
@@ -257,6 +311,29 @@ export class SetupDetectionRuntimeService {
     this.unsubscribe = null;
 
     this.state = 'stopped';
+  }
+
+  subscribeLifecycleEvents(
+    listener:
+      SetupLifecycleEventListener,
+  ): () => void {
+    this.lifecycleListeners.add(
+      listener,
+    );
+
+    let subscribed = true;
+
+    return () => {
+      if (!subscribed) {
+        return;
+      }
+
+      subscribed = false;
+
+      this.lifecycleListeners.delete(
+        listener,
+      );
+    };
   }
 
   getStatus():
@@ -538,6 +615,11 @@ export class SetupDetectionRuntimeService {
         this.stageTransitionsCount += 1;
         this.lastTransitionAt =
           updatedCandidate.updatedAt;
+
+        this.emitStageTransition(
+          candidate,
+          updatedCandidate,
+        );
       } catch (error) {
         this.failedEvaluations += 1;
 
@@ -705,11 +787,18 @@ export class SetupDetectionRuntimeService {
             candidate.id,
           )
         ) {
-          this.candidates.set(
-            candidate.id,
+          const storedCandidate =
             cloneCandidate(
               candidate,
-            ),
+            );
+
+          this.candidates.set(
+            candidate.id,
+            storedCandidate,
+          );
+
+          this.emitCandidateCreated(
+            storedCandidate,
           );
         }
       }
@@ -778,6 +867,11 @@ export class SetupDetectionRuntimeService {
         this.stageTransitionsCount += 1;
         this.lastTransitionAt =
           expired.updatedAt;
+
+        this.emitStageTransition(
+          candidate,
+          expired,
+        );
       } catch (error) {
         this.failedEvaluations += 1;
 
@@ -789,6 +883,119 @@ export class SetupDetectionRuntimeService {
     }
 
     this.enforceCandidateLimit();
+  }
+
+  private emitCandidateCreated(
+    candidate:
+      SetupEngineState,
+  ): void {
+    this.emitLifecycleEvent({
+      type:
+        'candidate_created',
+
+      occurredAt:
+        candidate.createdAt,
+
+      candidateId:
+        candidate.id,
+
+      symbol:
+        candidate.symbol,
+
+      setupType:
+        candidate.setupType,
+
+      direction:
+        candidate.direction,
+
+      previousStage:
+        null,
+
+      currentStage:
+        candidate.stage,
+
+      outcome:
+        candidate.outcome,
+
+      candidate:
+        cloneCandidate(
+          candidate,
+        ),
+    });
+  }
+
+  private emitStageTransition(
+    previousCandidate:
+      SetupEngineState,
+
+    currentCandidate:
+      SetupEngineState,
+  ): void {
+    this.emitLifecycleEvent({
+      type:
+        lifecycleEventTypeForStage(
+          currentCandidate.stage,
+        ),
+
+      occurredAt:
+        currentCandidate.updatedAt,
+
+      candidateId:
+        currentCandidate.id,
+
+      symbol:
+        currentCandidate.symbol,
+
+      setupType:
+        currentCandidate.setupType,
+
+      direction:
+        currentCandidate.direction,
+
+      previousStage:
+        previousCandidate.stage,
+
+      currentStage:
+        currentCandidate.stage,
+
+      outcome:
+        currentCandidate.outcome,
+
+      candidate:
+        cloneCandidate(
+          currentCandidate,
+        ),
+    });
+  }
+
+  private emitLifecycleEvent(
+    input:
+      SetupLifecycleEventInput,
+  ): void {
+    const event:
+      SetupLifecycleEvent = {
+        eventId:
+          this.nextLifecycleEventId,
+
+        ...input,
+      };
+
+    this.nextLifecycleEventId += 1;
+
+    for (
+      const listener
+      of this.lifecycleListeners
+    ) {
+      try {
+        listener(
+          cloneLifecycleEvent(
+            event,
+          ),
+        );
+      } catch {
+        continue;
+      }
+    }
   }
 
   private enforceCandidateLimit():
