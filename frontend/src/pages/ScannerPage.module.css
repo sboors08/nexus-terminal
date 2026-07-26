@@ -534,76 +534,35 @@
 
 .chartCanvas {
   position: relative;
-  height: 236px;
+  height: 360px;
+  min-height: 320px;
   margin-top: var(--nexus-space-2);
-  padding-bottom: 22px;
   overflow: hidden;
-  color: var(--nexus-color-long);
   border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
   border-radius: var(--nexus-radius-md);
   background: #0b1017;
 }
 
-.chartShort {
-  color: var(--nexus-color-short);
-}
-
-.chartCanvas svg {
+.chartState {
   width: 100%;
   height: 100%;
-}
-
-.chartGrid line {
-  stroke: var(--nexus-color-border-subtle);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.levelZone {
-  fill: currentColor;
-  opacity: 0.08;
-}
-
-.levelLine {
-  stroke: currentColor;
-  stroke-width: 1;
-  stroke-dasharray: 5 5;
-  opacity: 0.55;
-  vector-effect: non-scaling-stroke;
-}
-
-.chartLine {
-  stroke: currentColor;
-  stroke-width: 2.2;
-}
-
-.touchHalo {
-  fill: currentColor;
-  opacity: 0.16;
-}
-
-.touchPoint {
-  fill: var(--nexus-color-bg-canvas);
-  stroke: currentColor;
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
-}
-
-.touchLabel {
-  fill: currentColor;
-  font-family: var(--nexus-font-family-mono);
-  font-size: 10px;
-  font-weight: var(--nexus-font-weight-bold);
-}
-
-.chartAxis {
-  position: absolute;
-  inset: auto 8px 6px;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--nexus-space-2);
+  padding: var(--nexus-space-3);
   color: var(--nexus-color-text-muted);
-  font-family: var(--nexus-font-family-mono);
-  font-size: 8px;
+  text-align: center;
+}
+
+.chartState button {
+  min-height: 32px;
+  padding: 0 var(--nexus-space-2);
+  color: var(--nexus-color-text-primary);
+  border: var(--nexus-border-width) solid var(--nexus-color-border-default);
+  border-radius: var(--nexus-radius-sm);
+  background: var(--nexus-color-bg-elevated);
+  cursor: pointer;
 }
 
 .previewMetrics {

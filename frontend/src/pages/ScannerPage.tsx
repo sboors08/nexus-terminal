@@ -4,6 +4,10 @@ import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
+  NexusCandlestickChart,
+  useMarketCandles,
+} from '@/shared/charts';
+import {
   buildScannerRealtimeMarketView,
   formatScannerPrice,
   formatScannerQuantity,
@@ -139,52 +143,6 @@ function InfoHint({ label }: { label: string }) {
   );
 }
 
-function ScannerChart({ setup }: { setup: ScannerSetup }) {
-  const directionClass = setup.direction === 'long' ? styles.chartLong : styles.chartShort;
-
-  return (
-    <div className={`${styles.chartCanvas} ${directionClass}`}>
-      <svg viewBox="0 0 640 210" preserveAspectRatio="none" role="img" aria-label={`График ${setup.symbol}`}>
-        <defs>
-          <linearGradient id={`scanner-area-${setup.id}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <g className={styles.chartGrid}>
-          <line x1="0" y1="42" x2="640" y2="42" />
-          <line x1="0" y1="84" x2="640" y2="84" />
-          <line x1="0" y1="126" x2="640" y2="126" />
-          <line x1="0" y1="168" x2="640" y2="168" />
-          <line x1="128" y1="0" x2="128" y2="210" />
-          <line x1="256" y1="0" x2="256" y2="210" />
-          <line x1="384" y1="0" x2="384" y2="210" />
-          <line x1="512" y1="0" x2="512" y2="210" />
-        </g>
-        <rect className={styles.levelZone} x="0" y={setup.levelY - 7} width="640" height="14" rx="2" />
-        <line className={styles.levelLine} x1="0" y1={setup.levelY} x2="640" y2={setup.levelY} />
-        <path d={setup.areaPath} fill={`url(#scanner-area-${setup.id})`} />
-        <path className={styles.chartLine} d={setup.chartPath} fill="none" vectorEffect="non-scaling-stroke" />
-        {setup.touchPoints.map((point, index) => (
-          <g key={`${point.x}-${point.y}`}>
-            <circle className={styles.touchHalo} cx={point.x} cy={point.y} r="8" />
-            <circle className={styles.touchPoint} cx={point.x} cy={point.y} r="3.5" />
-            <text className={styles.touchLabel} x={point.x + 8} y={point.y - 10}>
-              {index + 1}
-            </text>
-          </g>
-        ))}
-      </svg>
-      <div className={styles.chartAxis} aria-hidden="true">
-        <span>14:00</span>
-        <span>15:00</span>
-        <span>16:00</span>
-        <span>17:00</span>
-      </div>
-    </div>
-  );
-}
-
 function numericSort(setups: ScannerSetup[], sortKey: SortKey) {
   return [...setups].sort((a, b) => {
     if (sortKey === 'distance') return a.distancePercent - b.distancePercent;
@@ -198,6 +156,7 @@ function numericSort(setups: ScannerSetup[], sortKey: SortKey) {
 function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSetupId = searchParams.get('setupId');
+  const requestedSymbol = searchParams.get('symbol')?.trim().toUpperCase() ?? null;
   const requestedPreset = searchParams.get('preset');
   const preset: TradingPreset = isTradingPreset(requestedPreset)
     ? requestedPreset
@@ -289,11 +248,25 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
       ?? setups[0];
   }, [filteredSetups, requestedSetupId, setups]);
 
-  const realtime = useRealtimeMarketData({ symbol: selectedSetup.symbol });
-  const realtimeSnapshot = realtime.snapshots[selectedSetup.symbol];
+  const selectedSymbol = requestedSymbol ?? selectedSetup.symbol;
+  const isMarketPreview = selectedSymbol !== selectedSetup.symbol;
+  const workspaceSetupId = isMarketPreview
+    ? `market-${selectedSymbol.toLowerCase()}`
+    : selectedSetup.id;
+
+  const candlesQuery = useMarketCandles({
+    symbol: selectedSymbol,
+    timeframe: selectedSetup.timeframe,
+  });
+
+  const realtime = useRealtimeMarketData({ symbol: selectedSymbol });
+  const realtimeSnapshot = realtime.snapshots[selectedSymbol];
   const realtimeMarket = useMemo(
-    () => buildScannerRealtimeMarketView(realtimeSnapshot, selectedSetup.price),
-    [realtimeSnapshot, selectedSetup.price],
+    () => buildScannerRealtimeMarketView(
+      realtimeSnapshot,
+      isMarketPreview ? '—' : selectedSetup.price,
+    ),
+    [isMarketPreview, realtimeSnapshot, selectedSetup.price],
   );
   const realtimeLabel = getScannerRealtimeConnectionLabel(
     realtime.lifecycleState,
@@ -323,6 +296,26 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
       volumeSpikeStatuses,
   });
 
+  const selectedVolumeSpike =
+    volumeSpikes.spikes.find(
+      (spike) => spike.symbol === selectedSymbol,
+    ) ?? null;
+
+  const marketPreviewPriceChange =
+    selectedVolumeSpike?.priceChangePct ?? null;
+
+  const displayDirection: TradeDirection = isMarketPreview
+    ? marketPreviewPriceChange !== null
+      && marketPreviewPriceChange < 0
+      ? 'short'
+      : 'long'
+    : selectedSetup.direction;
+
+  const displayPriceChange = isMarketPreview
+    ? marketPreviewPriceChange === null
+      ? '—'
+      : `${marketPreviewPriceChange >= 0 ? '+' : ''}${marketPreviewPriceChange.toFixed(2)}%`
+    : selectedSetup.priceChange;
   useEffect(() => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set('setupId', selectedSetup.id);
@@ -337,6 +330,7 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
   const selectSetup = (setupId: string) => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set('setupId', setupId);
+    nextParams.delete('symbol');
     setSearchParams(nextParams);
   };
 
@@ -406,18 +400,21 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
     setSearch(spike.symbol);
 
     const matchingSetup = setups.find((setup) => setup.symbol === spike.symbol);
-    if (!matchingSetup) return;
-
     const nextParams = new URLSearchParams(searchParams);
-    nextParams.set('setupId', matchingSetup.id);
+    nextParams.set('symbol', spike.symbol);
+
+    if (matchingSetup) {
+      nextParams.set('setupId', matchingSetup.id);
+    }
+
     setSearchParams(nextParams);
   };
 
   useFeedbackPageContext({
     screen: 'Scanner',
-    symbol: selectedSetup.symbol,
+    symbol: selectedSymbol,
     timeframe: selectedSetup.timeframe,
-    setupId: selectedSetup.id,
+    setupId: workspaceSetupId,
   });
 
   const resetFilters = () => {
@@ -442,7 +439,7 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
         </div>
         <div className={styles.headerStatus}>
           <span className={`${styles.liveDot} ${realtimeDotClass}`} aria-hidden="true" />
-          {realtimeLabel} · {selectedSetup.symbol}
+          {realtimeLabel} · {selectedSymbol}
         </div>
       </header>
 
@@ -948,31 +945,38 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
           <div className={styles.previewHeader}>
             <div>
               <div className={styles.symbolLine}>
-                <h2>{selectedSetup.symbol}</h2>
-                <DirectionBadge direction={selectedSetup.direction} />
+                <h2>{selectedSymbol}</h2>
+                <DirectionBadge direction={displayDirection} />
                 <span className={styles.timeframeBadge}>{selectedSetup.timeframe}</span>
               </div>
-              <p>{selectedSetup.kind}</p>
+              <p>{isMarketPreview ? 'Рыночный обзор из Volume Spikes' : selectedSetup.kind}</p>
             </div>
             <div className={styles.priceBlock}>
               <strong>{realtimeMarket.priceLabel}</strong>
               <div className={styles.priceMeta}>
-                <span className={selectedSetup.direction === 'long' ? styles.positiveValue : styles.negativeValue}>
-                  {selectedSetup.priceChange}
+                <span className={displayDirection === 'long' ? styles.positiveValue : styles.negativeValue}>
+                  {displayPriceChange}
                 </span>
                 <span className={`${styles.priceSourceBadge} ${realtimeMarket.isLive ? styles.priceSourceLive : styles.priceSourceFallback}`}>
-                  {realtimeMarket.isLive ? 'LIVE' : 'TEST'}
+                  {realtimeMarket.isLive ? 'LIVE' : isMarketPreview ? 'WAIT' : 'TEST'}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className={styles.stageLine}>
-            <SetupStageBadge stage={selectedSetup.stage} resultLabel={selectedSetup.kind.includes('Отскок') ? 'Отскок' : 'Пробой'} />
-            <span>Зона {selectedSetup.level}</span>
-          </div>
+          {isMarketPreview ? (
+            <div className={styles.stageLine}>
+              <span>Volume Spike</span>
+              <span>Сетап ещё не сформирован</span>
+            </div>
+          ) : (
+            <div className={styles.stageLine}>
+              <SetupStageBadge stage={selectedSetup.stage} resultLabel={selectedSetup.kind.includes('Отскок') ? 'Отскок' : 'Пробой'} />
+              <span>Зона {selectedSetup.level}</span>
+            </div>
+          )}
 
-          <section className={styles.realtimeStrip} aria-label={`Realtime рынок ${selectedSetup.symbol}`}>
+          <section className={styles.realtimeStrip} aria-label={`Realtime рынок ${selectedSymbol}`}>
             <div>
               <span>Bid</span>
               <strong className={styles.positiveValue}>{realtimeMarket.bidLabel}</strong>
@@ -989,7 +993,7 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
               <span>
                 {realtimeMarket.isLive
                   ? `Обновлено ${realtimeMarket.updatedAtLabel}`
-                  : `Для ${selectedSetup.symbol} нет активной realtime-подписки`}
+                  : `Для ${selectedSymbol} нет активной realtime-подписки`}
               </span>
               {realtime.error && (
                 <button type="button" onClick={realtime.reconnect}>Переподключить</button>
@@ -997,36 +1001,109 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
             </footer>
           </section>
 
-          <ScannerChart setup={selectedSetup} />
+          <div className={styles.chartCanvas}>
+            {candlesQuery.status === 'loading' && (
+              <div className={styles.chartState}>
+                Загружаем свечи…
+              </div>
+            )}
 
-          <div className={styles.previewMetrics}>
-            <div>
-              <span>До уровня <InfoHint label="Расстояние от текущей цены до ближайшей границы зоны." /></span>
-              <strong className={styles.distanceValue}>{selectedSetup.distanceLabel}</strong>
-            </div>
-            <div>
-              <span>Касания</span>
-              <strong>{selectedSetup.touches}</strong>
-            </div>
-            <div>
-              <span>Формирование</span>
-              <strong>{selectedSetup.formationLabel}</strong>
-            </div>
-            <div>
-              <span>Объём</span>
-              <strong>{selectedSetup.volumeAnomaly.toFixed(2)}×</strong>
-            </div>
-            <div>
-              <span>Сделки</span>
-              <strong>{selectedSetup.tradesAnomaly.toFixed(2)}×</strong>
-            </div>
-            <div>
-              <span>Сила к BTC</span>
-              <strong className={selectedSetup.btcStrength >= 0 ? styles.positiveValue : styles.negativeValue}>{selectedSetup.btcStrengthLabel}</strong>
-            </div>
+            {candlesQuery.status === 'error' && (
+              <div className={styles.chartState}>
+                <span>Свечи не загрузились.</span>
+                <button type="button" onClick={candlesQuery.retry}>
+                  Повторить
+                </button>
+              </div>
+            )}
+
+            {candlesQuery.status === 'success'
+              && candlesQuery.data?.length === 0 && (
+                <div className={styles.chartState}>
+                  Для выбранного периода нет свечей.
+                </div>
+              )}
+
+            {candlesQuery.status === 'success'
+              && candlesQuery.data
+              && candlesQuery.data.length > 0 && (
+                <NexusCandlestickChart
+                  candles={candlesQuery.data}
+                  symbol={selectedSymbol}
+                  fillContainer
+                  enableDrawingTools
+                  drawingScope={`scanner:${selectedSymbol}:${selectedSetup.timeframe}`}
+                  onLoadOlder={candlesQuery.loadOlder}
+                  isLoadingOlder={candlesQuery.isLoadingOlder}
+                  hasMore={candlesQuery.hasMore}
+                />
+              )}
           </div>
 
-          <section className={styles.tradesPanel} aria-label={`Последние сделки ${selectedSetup.symbol}`}>
+          {isMarketPreview ? (
+            <div className={styles.previewMetrics}>
+              <div>
+                <span>Период</span>
+                <strong>
+                  {selectedVolumeSpike
+                    ? `${selectedVolumeSpike.periodMinutes} мин`
+                    : '—'}
+                </strong>
+              </div>
+              <div>
+                <span>Объём</span>
+                <strong>
+                  {selectedVolumeSpike
+                    ? `${selectedVolumeSpike.volumeRatio.toFixed(2)}×`
+                    : '—'}
+                </strong>
+              </div>
+              <div>
+                <span>Сделки</span>
+                <strong>
+                  {selectedVolumeSpike
+                    ? `${selectedVolumeSpike.tradesRatio.toFixed(2)}×`
+                    : '—'}
+                </strong>
+              </div>
+              <div>
+                <span>Изменение</span>
+                <strong className={displayDirection === 'long' ? styles.positiveValue : styles.negativeValue}>
+                  {displayPriceChange}
+                </strong>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.previewMetrics}>
+              <div>
+                <span>До уровня <InfoHint label="Расстояние от текущей цены до ближайшей границы зоны." /></span>
+                <strong className={styles.distanceValue}>{selectedSetup.distanceLabel}</strong>
+              </div>
+              <div>
+                <span>Касания</span>
+                <strong>{selectedSetup.touches}</strong>
+              </div>
+              <div>
+                <span>Формирование</span>
+                <strong>{selectedSetup.formationLabel}</strong>
+              </div>
+              <div>
+                <span>Объём</span>
+                <strong>{selectedSetup.volumeAnomaly.toFixed(2)}×</strong>
+              </div>
+              <div>
+                <span>Сделки</span>
+                <strong>{selectedSetup.tradesAnomaly.toFixed(2)}×</strong>
+              </div>
+              <div>
+                <span>Сила к BTC</span>
+                <strong className={selectedSetup.btcStrength >= 0 ? styles.positiveValue : styles.negativeValue}>
+                  {selectedSetup.btcStrengthLabel}
+                </strong>
+              </div>
+            </div>
+          )}
+          <section className={styles.tradesPanel} aria-label={`Последние сделки ${selectedSymbol}`}>
             <div className={styles.tradesHeader}>
               <div>
                 <p className={styles.panelEyebrow}>Realtime tape</p>
@@ -1050,22 +1127,31 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
               </div>
             ) : (
               <p className={styles.tradesEmpty}>
-                Запусти backend и выбери BTCUSDT, ETHUSDT или SOLUSDT, чтобы увидеть поток сделок.
+                Запусти backend, чтобы увидеть поток сделок по {selectedSymbol}.
               </p>
             )}
           </section>
 
           <section className={styles.reasonBlock}>
-            <p className={styles.panelEyebrow}>Почему в Scanner</p>
-            <ul>
-              {selectedSetup.reasons.map((reason) => <li key={reason}>{reason}</li>)}
-            </ul>
+            <p className={styles.panelEyebrow}>
+              {isMarketPreview ? 'Режим просмотра рынка' : 'Почему в Scanner'}
+            </p>
+
+            {isMarketPreview ? (
+              <p>
+                Монета выбрана из Volume Spikes. Показаны реальные свечи и realtime-данные без подмены чужим торговым сетапом.
+              </p>
+            ) : (
+              <ul>
+                {selectedSetup.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+              </ul>
+            )}
           </section>
 
           <div className={styles.previewActions}>
             <Link className={styles.primaryLink} to={buildWorkspaceUrl(ROUTES.workspace, {
-                setupId: selectedSetup.id,
-                symbol: selectedSetup.symbol,
+                setupId: workspaceSetupId,
+                symbol: selectedSymbol,
                 preset,
                 scannerWindow,
                 timeframe: selectedSetup.timeframe,

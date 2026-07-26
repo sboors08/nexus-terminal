@@ -25,8 +25,8 @@ const [pageSource, cssSource, helperSource, indexSource, packageSource] = await 
 ]);
 
 const requiredMarkers = [
-  'useRealtimeMarketData({ symbol: selectedSetup.symbol })',
-  'realtime.snapshots[selectedSetup.symbol]',
+  'useRealtimeMarketData({ symbol: selectedSymbol })',
+  'realtime.snapshots[selectedSymbol]',
   'buildScannerRealtimeMarketView',
   'TEST SETUPS · LIVE MARKET',
   'Последние сделки',
