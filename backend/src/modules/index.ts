@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   FastifyPluginAsync,
 } from 'fastify';
 import {
@@ -34,9 +34,15 @@ import type {
 import {
   setupReadRoutes,
 } from './setup-engine/setup-read.routes.js';
+import {
+  setupEventHistoryRoutes,
+} from './setup-engine/setup-event-history.routes.js';
 import type {
   SetupDetectionRuntimeReader,
 } from './setup-engine/setup-detection-runtime.types.js';
+import type {
+  SetupEventHistoryReader,
+} from './setup-engine/setup-event-history.types.js';
 
 interface ApiModulesOptions {
   marketDataProvider:
@@ -56,6 +62,9 @@ interface ApiModulesOptions {
 
   setupDetectionRuntimeReader?:
     SetupDetectionRuntimeReader;
+
+  setupEventHistoryReader?:
+    SetupEventHistoryReader;
 }
 
 export const apiModules:
@@ -87,6 +96,22 @@ FastifyPluginAsync<
               setupDetectionRuntimeReader:
                 options
                   .setupDetectionRuntimeReader,
+            }
+          : {}
+      ),
+    },
+  );
+
+  await app.register(
+    setupEventHistoryRoutes,
+    {
+      ...(
+        options
+          .setupEventHistoryReader
+          ? {
+              setupEventHistoryReader:
+                options
+                  .setupEventHistoryReader,
             }
           : {}
       ),
