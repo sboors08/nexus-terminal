@@ -12,9 +12,17 @@ import { MarketWideRealtimeService } from './modules/realtime-market-data/market
 import { MarketWideRuntimeCoordinator } from './modules/realtime-market-data/market-wide-runtime-coordinator.js';
 import { SetupDetectionRuntimeService } from './modules/setup-engine/setup-detection-runtime.service.js';
 import type {
+  SetupDetectionRuntimeEventSource,
   SetupDetectionRuntimeLifecycle,
   SetupDetectionRuntimeReader,
 } from './modules/setup-engine/setup-detection-runtime.types.js';
+import {
+  SetupEventHistoryService,
+} from './modules/setup-engine/setup-event-history.service.js';
+import type {
+  SetupEventHistoryLifecycle,
+  SetupEventHistoryReader,
+} from './modules/setup-engine/setup-event-history.types.js';
 import type { RealtimeMarketDataService } from './modules/realtime-market-data/realtime-market-data.types.js';
 
 export interface BuildAppOptions {
@@ -26,6 +34,27 @@ export interface BuildAppOptions {
   marketWideHistoryWarmupService?: MarketWideHistoryWarmupService | null;
   setupDetectionRuntimeService?: SetupDetectionRuntimeLifecycle | null;
   setupDetectionRuntimeReader?: SetupDetectionRuntimeReader | null;
+  setupEventHistoryService?: SetupEventHistoryLifecycle | null;
+  setupEventHistoryReader?: SetupEventHistoryReader | null;
+}
+
+function isSetupDetectionRuntimeEventSource(
+  value:
+    SetupDetectionRuntimeLifecycle
+    | null,
+): value is
+  SetupDetectionRuntimeLifecycle
+  & SetupDetectionRuntimeEventSource {
+  return Boolean(
+    value
+    && typeof (
+      value as
+        Partial<
+          SetupDetectionRuntimeEventSource
+        >
+    ).subscribeLifecycleEvents
+      === 'function',
+  );
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -153,6 +182,27 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           : null
       : options.setupDetectionRuntimeReader;
 
+  const setupEventHistoryService =
+    options.setupEventHistoryService
+    === undefined
+      ? isSetupDetectionRuntimeEventSource(
+          setupDetectionRuntimeService,
+        )
+        ? new SetupEventHistoryService(
+            setupDetectionRuntimeService,
+          )
+        : null
+      : options.setupEventHistoryService;
+
+  const setupEventHistoryReader =
+    options.setupEventHistoryReader
+    === undefined
+      ? setupEventHistoryService
+        instanceof SetupEventHistoryService
+          ? setupEventHistoryService
+          : null
+      : options.setupEventHistoryReader;
+
   const marketWideRuntimeCoordinator =
     binanceSymbolUniverseService
     && marketWideRealtimeService
@@ -177,6 +227,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       callback(null, isAllowed);
     },
   });
+
+  if (setupEventHistoryService) {
+    app.addHook(
+      'onReady',
+      async () => {
+        setupEventHistoryService.start();
+      },
+    );
+
+    app.addHook(
+      'onClose',
+      async () => {
+        setupEventHistoryService.stop();
+      },
+    );
+  }
 
   if (realtimeMarketDataService) {
     app.addHook('onReady', async () => realtimeMarketDataService.start());
@@ -245,6 +311,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : {}),
     ...(setupDetectionRuntimeReader
       ? { setupDetectionRuntimeReader }
+      : {}),
+    ...(setupEventHistoryReader
+      ? { setupEventHistoryReader }
       : {}),
   });
 
