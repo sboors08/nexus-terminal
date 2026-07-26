@@ -239,7 +239,7 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
     });
 
     return numericSort(result, sortKey);
-  }, [btcStrength, direction, distance, kind, search, sortKey, stage, timeframe, touches]);
+  }, [btcStrength, direction, distance, kind, search, sortKey, stage, timeframe, touches, setups]);
 
   const selectedSetup = useMemo(() => {
     return filteredSetups.find((setup) => setup.id === requestedSetupId)
@@ -247,6 +247,13 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
       ?? filteredSetups[0]
       ?? setups[0];
   }, [filteredSetups, requestedSetupId, setups]);
+
+  const hasRuntimeSetups =
+    setups.some(
+      (setup) =>
+        setup.runtimeData
+        === true,
+    );
 
   const selectedSymbol = requestedSymbol ?? selectedSetup.symbol;
   const isMarketPreview = selectedSymbol !== selectedSetup.symbol;
@@ -433,7 +440,13 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
     <section className={styles.scanner}>
       <header className={styles.pageHeader}>
         <div>
-          <p className={styles.eyebrow}>Поиск сетапов · тестовые сетапы · цены realtime</p>
+          <p className={styles.eyebrow}>
+          {
+            hasRuntimeSetups
+              ? 'Поиск сетапов · реальные кандидаты Setup Engine · цены realtime'
+              : 'Поиск сетапов · тестовые сетапы · цены realtime'
+          }
+        </p>
           <h1 className={styles.title}>Scanner</h1>
           <p className={styles.subtitle}>Полный список найденных ситуаций с фильтрацией, сортировкой и предпросмотром.</p>
         </div>
@@ -862,7 +875,13 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
 
           <div className={styles.filterSummary}>
             <strong>{filteredSetups.length}</strong>
-            <span>из {setups.length} сетапов</span>
+            <span>
+              {
+                hasRuntimeSetups
+                  ? `из ${setups.length} загружено`
+                  : `из ${setups.length} сетапов`
+              }
+            </span>
           </div>
 
           <button className={styles.resetButton} type="button" onClick={resetFilters}>Сбросить фильтры</button>
@@ -876,7 +895,13 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
               <p className={styles.panelEyebrow}>Результаты поиска</p>
               <h2>Найденные сетапы</h2>
             </div>
-            <span className={styles.testBadge}>TEST SETUPS · LIVE MARKET</span>
+            <span className={styles.testBadge}>
+              {
+                hasRuntimeSetups
+                  ? 'REAL SETUPS · BINANCE'
+                  : 'TEST SETUPS · LIVE MARKET'
+              }
+            </span>
           </div>
 
           <div className={styles.tableViewport}>
@@ -923,9 +948,39 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
                     <span className={styles.monoCell}>{setup.formationLabel}</span>
                     <strong className={setup.stage === 'triggered' ? styles.triggeredValue : styles.distanceValue}>{setup.distanceLabel}</strong>
                     <span>{setup.pullbackDepth}</span>
-                    <strong className={styles.monoCell}>{setup.volumeAnomaly.toFixed(2)}×</strong>
-                    <strong className={styles.monoCell}>{setup.tradesAnomaly.toFixed(2)}×</strong>
-                    <strong className={setup.btcStrength >= 0 ? styles.positiveValue : styles.negativeValue}>{setup.btcStrengthLabel}</strong>
+                    <strong className={styles.monoCell}>
+                      {
+                        setup.runtimeData
+                          ? '—'
+                          : setup.volumeAnomaly
+                              .toFixed(2)
+                            + '×'
+                      }
+                    </strong>
+                    <strong className={styles.monoCell}>
+                      {
+                        setup.runtimeData
+                          ? '—'
+                          : setup.tradesAnomaly
+                              .toFixed(2)
+                            + '×'
+                      }
+                    </strong>
+                    <strong
+                      className={
+                        setup.runtimeData
+                          ? styles.monoCell
+                          : setup.btcStrength >= 0
+                            ? styles.positiveValue
+                            : styles.negativeValue
+                      }
+                    >
+                      {
+                        setup.runtimeData
+                          ? '—'
+                          : setup.btcStrengthLabel
+                      }
+                    </strong>
                   </button>
                 );
               })}
@@ -958,7 +1013,15 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
                   {displayPriceChange}
                 </span>
                 <span className={`${styles.priceSourceBadge} ${realtimeMarket.isLive ? styles.priceSourceLive : styles.priceSourceFallback}`}>
-                  {realtimeMarket.isLive ? 'LIVE' : isMarketPreview ? 'WAIT' : 'TEST'}
+                  {
+                     realtimeMarket.isLive
+                       ? 'LIVE'
+                       : isMarketPreview
+                         ? 'WAIT'
+                         : selectedSetup.runtimeData
+                           ? 'API'
+                           : 'TEST'
+                   }
                 </span>
               </div>
             </div>
@@ -1089,16 +1152,44 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
               </div>
               <div>
                 <span>Объём</span>
-                <strong>{selectedSetup.volumeAnomaly.toFixed(2)}×</strong>
+                <strong>
+                  {
+                    selectedSetup.runtimeData
+                      ? '—'
+                      : selectedSetup.volumeAnomaly
+                          .toFixed(2)
+                        + '×'
+                  }
+                </strong>
               </div>
               <div>
                 <span>Сделки</span>
-                <strong>{selectedSetup.tradesAnomaly.toFixed(2)}×</strong>
+                <strong>
+                  {
+                    selectedSetup.runtimeData
+                      ? '—'
+                      : selectedSetup.tradesAnomaly
+                          .toFixed(2)
+                        + '×'
+                  }
+                </strong>
               </div>
               <div>
                 <span>Сила к BTC</span>
-                <strong className={selectedSetup.btcStrength >= 0 ? styles.positiveValue : styles.negativeValue}>
-                  {selectedSetup.btcStrengthLabel}
+                <strong
+                  className={
+                    selectedSetup.runtimeData
+                      ? styles.monoCell
+                      : selectedSetup.btcStrength >= 0
+                        ? styles.positiveValue
+                        : styles.negativeValue
+                  }
+                >
+                  {
+                    selectedSetup.runtimeData
+                      ? '—'
+                      : selectedSetup.btcStrengthLabel
+                  }
                 </strong>
               </div>
             </div>
@@ -1168,7 +1259,19 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
 
 
 export function ScannerPage() {
-  const query = useApiQuery('scanner-setups', () => nexusApi.getScannerSetups());
+  const query =
+    useApiQuery(
+      'scanner-setups',
+      () =>
+        nexusApi.getScannerSetups(),
+      {
+        intervalMs:
+          5_000,
+
+        preserveData:
+          true,
+      },
+    );
 
   if (query.status === 'loading') return <AsyncDataState state="loading" />;
   if (query.status === 'error') {

@@ -25,7 +25,7 @@ export type ScannerSetup = {
   touches: number;
   formationMinutes: number;
   formationLabel: string;
-  pullbackDepth: 'Глубокие' | 'Неглубокие';
+  pullbackDepth: 'Глубокие' | 'Неглубокие' | '—';
   volumeAnomaly: number;
   tradesAnomaly: number;
   tradeSpeed: string;
@@ -38,6 +38,7 @@ export type ScannerSetup = {
   areaPath: string;
   levelY: number;
   touchPoints: Array<{ x: number; y: number }>;
+  runtimeData?: boolean;
 };
 
 export const SCANNER_SETUPS: ScannerSetup[] = [

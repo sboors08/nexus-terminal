@@ -24,6 +24,8 @@
     "src/shared/realtime/useMarketVolumeSpikes.ts",
     "src/shared/charts/api/marketCandles.ts",
     "src/shared/charts/model/candleMapping.ts",
-    "src/shared/charts/model/drawingModel.ts"
+    "src/shared/charts/model/drawingModel.ts",
+    "src/shared/api/runtime/setupRuntimeApi.ts",
+    "src/shared/charts/model/priceFormat.ts"
   ]
 }

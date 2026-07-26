@@ -57,6 +57,10 @@ import type {
   WorkspaceSnapshot,
 } from '@/shared/api/contracts';
 import {
+  fetchSetupRuntimeCandidate,
+  fetchSetupRuntimeCandidates,
+} from '../runtime/setupRuntimeApi';
+import {
   DASHBOARD_VIEW_DATA,
   type DashboardActivityPeriod,
   type DashboardCandle,
@@ -187,6 +191,342 @@ function setupReasons(setup: ScannerSetup): SetupReason[] {
   }));
 }
 
+
+
+function formatRuntimePrice(
+  value: number,
+): string {
+  const digits =
+    value >= 1000
+      ? 2
+      : value >= 1
+        ? 4
+        : 8;
+
+  return value.toFixed(
+    digits,
+  );
+}
+
+function formatRuntimeFormation(
+  detectedAt: string,
+): {
+  minutes: number;
+  label: string;
+} {
+  const detectedAtMs =
+    Date.parse(
+      detectedAt,
+    );
+
+  const minutes =
+    Number.isFinite(
+      detectedAtMs,
+    )
+      ? Math.max(
+          1,
+          Math.floor(
+            (
+              Date.now()
+              - detectedAtMs
+            ) / 60_000,
+          ),
+        )
+      : 1;
+
+  const hours =
+    Math.floor(
+      minutes / 60,
+    );
+
+  const remainingMinutes =
+    minutes % 60;
+
+  return {
+    minutes,
+
+    label:
+      hours > 0
+        ? hours
+          + 'ч '
+          + remainingMinutes
+          + 'м'
+        : minutes
+          + 'м',
+  };
+}
+
+function runtimeScannerStage(
+  stage: Setup['stage'],
+): ScannerSetup['stage'] {
+  if (stage === 'watching') {
+    return 'observation';
+  }
+
+  if (stage === 'approaching') {
+    return 'approach';
+  }
+
+  if (stage === 'confirmation') {
+    return 'confirmation';
+  }
+
+  return 'triggered';
+}
+
+function runtimeSetupKind(
+  setup: Setup,
+): ScannerSetupKind {
+  if (
+    setup.type
+    === 'level_bounce'
+  ) {
+    return setup.level.type
+      === 'support'
+        ? 'Отскок от поддержки'
+        : 'Отскок от сопротивления';
+  }
+
+  return setup.level.type
+    === 'support'
+      ? 'Пробой поддержки'
+      : 'Пробой сопротивления';
+}
+
+function runtimeStageLabel(
+  stage: Setup['stage'],
+): string {
+  if (stage === 'watching') {
+    return 'Наблюдение';
+  }
+
+  if (stage === 'approaching') {
+    return 'Подход';
+  }
+
+  if (stage === 'confirmation') {
+    return 'Подтверждение';
+  }
+
+  if (stage === 'breakout') {
+    return 'Пробой подтверждён';
+  }
+
+  if (stage === 'bounce') {
+    return 'Отскок подтверждён';
+  }
+
+  return 'Сетап истёк';
+}
+
+function runtimeContractSetupToScannerSetup(
+  setup: Setup,
+): ScannerSetup {
+  const formation =
+    formatRuntimeFormation(
+      setup.detectedAt,
+    );
+
+  const chartPath =
+    setup.direction === 'long'
+      ? 'M0 174 C70 168 125 154 180 160 C245 166 300 138 360 143 C425 148 490 119 550 126 C590 130 616 112 640 108'
+      : 'M0 36 C70 42 125 58 180 53 C245 47 300 75 360 70 C425 65 490 94 550 88 C590 84 616 102 640 106';
+
+  const levelName =
+    setup.level.type
+    === 'support'
+      ? 'поддержки'
+      : 'сопротивления';
+
+  return {
+    id:
+      setup.id,
+
+    symbol:
+      setup.symbol,
+
+    exchange:
+      'BINANCE',
+
+    direction:
+      setup.direction,
+
+    kind:
+      runtimeSetupKind(
+        setup,
+      ),
+
+    stage:
+      runtimeScannerStage(
+        setup.stage,
+      ),
+
+    timeframe:
+      setup.timeframe as
+        ScannerTimeframe,
+
+    price:
+      formatRuntimePrice(
+        setup.currentPrice,
+      ),
+
+    priceChange:
+      '—',
+
+    level:
+      formatRuntimePrice(
+        setup.level.zoneLow,
+      )
+      + '–'
+      + formatRuntimePrice(
+          setup.level.zoneHigh,
+        ),
+
+    distancePercent:
+      setup.distanceToLevelPct,
+
+    distanceLabel:
+      setup.distanceToLevelPct
+        .toFixed(4)
+      + '%',
+
+    touches:
+      setup.level.touchesCount,
+
+    formationMinutes:
+      formation.minutes,
+
+    formationLabel:
+      formation.label,
+
+    pullbackDepth:
+      '—',
+
+    volumeAnomaly:
+      0,
+
+    tradesAnomaly:
+      0,
+
+    tradeSpeed:
+      'Данные собираются',
+
+    btcCorrelation:
+      '—',
+
+    btcStrength:
+      0,
+
+    btcStrengthLabel:
+      '—',
+
+    activity:
+      'Средняя',
+
+    reasons: [
+      'Уровень '
+        + levelName
+        + ' подтверждён: касаний '
+        + setup.level.touchesCount
+        + '.',
+
+      'Текущая стадия: '
+        + runtimeStageLabel(
+            setup.stage,
+          )
+        + '.',
+
+      'Расстояние до уровня: '
+        + setup.distanceToLevelPct
+            .toFixed(4)
+        + '%.',
+    ],
+
+    chartPath,
+
+    areaPath:
+      chartPath
+      + ' L640 210 L0 210 Z',
+
+    levelY:
+      106,
+
+    touchPoints: [
+      {
+        x:
+          470,
+
+        y:
+          108,
+      },
+      {
+        x:
+          555,
+
+        y:
+          105,
+      },
+    ],
+
+    runtimeData:
+      true,
+  };
+}
+
+async function resolveRuntimeContractSetup(
+  setupId?: string | null,
+  symbol?: string | null,
+): Promise<Setup | null> {
+  if (
+    setupId
+    && !setupId.startsWith(
+      'market-',
+    )
+  ) {
+    const direct =
+      await fetchSetupRuntimeCandidate({
+        candidateId:
+          setupId,
+      });
+
+    if (direct) {
+      return direct;
+    }
+  }
+
+  const setups =
+    await fetchSetupRuntimeCandidates({
+      limit:
+        100,
+    });
+
+  const normalizedSymbol =
+    symbol
+      ?.trim()
+      .replace('/', '')
+      .toUpperCase();
+
+  if (normalizedSymbol) {
+    return (
+      setups.find(
+        (setup) =>
+          setup.symbol
+          === normalizedSymbol,
+      )
+      ?? null
+    );
+  }
+
+  return (
+    setups.find(
+      (setup) =>
+        setup.stage
+        !== 'invalidated',
+    )
+    ?? setups[0]
+    ?? null
+  );
+}
 
 function buildHistoryChartPath(points: number[]) {
   if (points.length === 0) return 'M0 105 L640 105';
@@ -413,7 +753,12 @@ function toContractSetup(setup: ScannerSetup, index: number): Setup {
     touchesCount: setup.touches,
     formedAt,
     formationDurationSec: setup.formationMinutes * 60,
-    pullbackType: setup.pullbackDepth === 'Неглубокие' ? 'shallow' : 'deep',
+    pullbackType:
+      setup.pullbackDepth === '—'
+        ? null
+        : setup.pullbackDepth === 'Неглубокие'
+          ? 'shallow'
+          : 'deep',
     strength: Math.min(100, 52 + setup.touches * 8 + Math.round(setup.volumeAnomaly * 5)),
     status: setup.stage === 'triggered' ? 'broken' : setup.stage === 'observation' ? 'forming' : 'active',
   };
@@ -685,7 +1030,56 @@ function createCandles(symbol: MarketSymbol, count = 48, timeframe = '5m'): Cand
 }
 
 function createWorkspaceSnapshot(setup: Setup): WorkspaceSnapshot {
-  const symbol = marketSymbols.find((item) => item.symbol === setup.symbol) ?? marketSymbols[0];
+  const symbol:
+  MarketSymbol =
+    marketSymbols.find(
+      (item) =>
+        item.symbol
+        === setup.symbol,
+    )
+    ?? {
+      symbol:
+        setup.symbol,
+
+      baseAsset:
+        setup.symbol.replace(
+          'USDT',
+          '',
+        ),
+
+      quoteAsset:
+        'USDT',
+
+      exchange:
+        'binance',
+
+      price:
+        setup.currentPrice,
+
+      priceChangePct:
+        0,
+
+      volumeQuote:
+        0,
+
+      tradesCount:
+        0,
+
+      tradeRate:
+        0,
+
+      volatilityPct:
+        0,
+
+      btcCorrelation:
+        null,
+
+      btcRelativeStrength:
+        null,
+
+      updatedAt:
+        setup.updatedAt,
+    };
   const candles = createCandles(symbol);
   const activity: MarketActivity = {
     symbol: setup.symbol,
@@ -853,37 +1247,56 @@ const contractApi: NexusApi = {
     const marketSymbol = marketSymbols.find((item) => item.symbol === symbol.toUpperCase()) ?? marketSymbols[0];
     return deliver('market candles', marketSymbol ? createCandles(marketSymbol, 56, timeframe) : [], []);
   },
-  getSetups: () => deliver('setups', contractSetups, []),
-  getSetupById: async (setupId) => {
-    const setup =
-      resolveContractSetupById(
-        setupId,
-      );
+  getSetups: () =>
+    fetchSetupRuntimeCandidates({
+      limit:
+        100,
+    }),
 
-    return deliver(
-      'setup',
-      setup,
-      null,
-    );
-  },
-  getWorkspaceSnapshot: async (setupId) => {
-    const setup =
-      setupId
-        ? resolveContractSetupById(
+  getSetupById:
+    async (setupId) => {
+      if (
+        setupId.startsWith(
+          'market-',
+        )
+      ) {
+        return deliver(
+          'setup',
+          resolveContractSetupById(
             setupId,
-          )
-        : contractSetups[0] ?? null;
+          ),
+          null,
+        );
+      }
 
-    return deliver(
-      'workspace snapshot',
-      setup
+      return fetchSetupRuntimeCandidate({
+        candidateId:
+          setupId,
+      });
+    },
+
+  getWorkspaceSnapshot:
+    async (setupId) => {
+      const setup =
+        setupId
+        && setupId.startsWith(
+          'market-',
+        )
+          ? resolveContractSetupById(
+              setupId,
+            )
+          : await resolveRuntimeContractSetup(
+              setupId,
+              null,
+            );
+
+      return setup
         ? createWorkspaceSnapshot(
             setup,
           )
-        : null,
-      null,
-    );
-  },
+        : null;
+    },
+
   getAlerts: () => deliver('alerts', canonicalAlerts, []),
   getSetupHistory: () => deliver('setup history', canonicalHistory, []),
   getReplaySession: (sessionId) => deliver('replay session', createCanonicalReplay(sessionId), null),
@@ -907,18 +1320,88 @@ const contractApi: NexusApi = {
 
 const viewApi: NexusViewApi = {
   getDashboardView: () => deliver('dashboard', DASHBOARD_VIEW_DATA, null),
-  getScannerSetups: () => deliver('scanner setups', SCANNER_SETUPS, []),
-  getWorkspaceView: async (setupId, symbol) => {
-    const selectedSetup = resolveWorkspaceSetup(setupId, symbol);
-    const data: WorkspaceViewData | null = selectedSetup ? {
-      selectedSetup,
-      prints: WORKSPACE_PRINTS,
-      liquidity: WORKSPACE_LIQUIDITY,
-      marketDynamics: MARKET_DYNAMICS,
-      stageFlow: STAGE_FLOW,
-    } : null;
-    return deliver('workspace view', data, null);
-  },
+  getScannerSetups:
+    async () => {
+      const setups =
+        await fetchSetupRuntimeCandidates({
+          limit:
+            100,
+        });
+
+      return setups
+        .filter(
+          (setup) =>
+            setup.stage
+            !== 'invalidated',
+        )
+        .map(
+          runtimeContractSetupToScannerSetup,
+        );
+    },
+
+  getWorkspaceView:
+    async (
+      setupId,
+      symbol,
+    ) => {
+      if (
+        setupId?.startsWith(
+          'market-',
+        )
+      ) {
+        const selectedSetup =
+          resolveWorkspaceSetup(
+            setupId,
+            symbol,
+          );
+
+        return selectedSetup
+          ? {
+              selectedSetup,
+
+              prints:
+                WORKSPACE_PRINTS,
+
+              liquidity:
+                WORKSPACE_LIQUIDITY,
+
+              marketDynamics:
+                MARKET_DYNAMICS,
+
+              stageFlow:
+                STAGE_FLOW,
+            }
+          : null;
+      }
+
+      const setup =
+        await resolveRuntimeContractSetup(
+          setupId,
+          symbol,
+        );
+
+      return setup
+        ? {
+            selectedSetup:
+              runtimeContractSetupToScannerSetup(
+                setup,
+              ),
+
+            prints:
+              WORKSPACE_PRINTS,
+
+            liquidity:
+              WORKSPACE_LIQUIDITY,
+
+            marketDynamics:
+              MARKET_DYNAMICS,
+
+            stageFlow:
+              STAGE_FLOW,
+          }
+        : null;
+    },
+
   getAlertsView: () => deliver('alerts view', {
     alerts: ALERTS,
     rules: INITIAL_ALERT_RULES,
