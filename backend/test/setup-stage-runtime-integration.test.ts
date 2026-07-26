@@ -914,3 +914,105 @@ test(
     );
   },
 );
+
+test(
+  'uses Binance candle time when the local clock is behind',
+  async (t) => {
+    const {
+      app,
+      source,
+      runtime,
+      clock,
+    } =
+      await createHarness();
+
+    t.after(
+      async () =>
+        app.close(),
+    );
+
+    const initialCandidates =
+      runtime.getCandidates(
+        'SOLUSDT',
+      );
+
+    assert.equal(
+      initialCandidates.length,
+      2,
+    );
+
+    const approachKline =
+      buildKline(
+        'SOLUSDT',
+        7,
+        {
+          open: 99.2,
+          high: 99.8,
+          low: 99.1,
+          close: 99.7,
+        },
+      );
+
+    clock.set(
+      '2026-07-26T12:07:05.000Z',
+    );
+
+    assert.ok(
+      Date.parse(
+        approachKline.eventTime,
+      )
+      > clock.now()
+        .getTime(),
+    );
+
+    source.pushLiveKlines([
+      approachKline,
+    ]);
+
+    const candidates =
+      runtime.getCandidates(
+        'SOLUSDT',
+      );
+
+    assert.equal(
+      candidates.length,
+      2,
+    );
+
+    assert.ok(
+      candidates.every(
+        (candidate) =>
+          candidate.stage
+          === 'APPROACHING_THIRD_TOUCH',
+      ),
+    );
+
+    const status =
+      runtime.getStatus();
+
+    assert.equal(
+      status.evaluationsCount,
+      2,
+    );
+
+    assert.equal(
+      status.failedEvaluations,
+      0,
+    );
+
+    assert.equal(
+      status.stageTransitionsCount,
+      2,
+    );
+
+    assert.equal(
+      status.lastEvaluationAt,
+      approachKline.eventTime,
+    );
+
+    assert.equal(
+      status.lastError,
+      null,
+    );
+  },
+);
