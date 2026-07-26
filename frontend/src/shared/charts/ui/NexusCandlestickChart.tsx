@@ -23,6 +23,9 @@ import type {
 import {
   mapCandleChartData,
 } from '../model/candleMapping.js';
+import {
+  resolveNexusChartPriceFormat,
+} from '../model/priceFormat.js';
 import styles from './NexusCandlestickChart.module.css';
 import {
   NexusChartDrawingOverlay,
@@ -131,6 +134,30 @@ export function NexusCandlestickChart({
           },
         ),
       [candles],
+    );
+
+  const chartPriceFormat =
+    useMemo(
+      () =>
+        resolveNexusChartPriceFormat([
+          ...candles.flatMap(
+            (candle) => [
+              candle.open,
+              candle.high,
+              candle.low,
+              candle.close,
+            ],
+          ),
+
+          ...priceLines.map(
+            (line) =>
+              line.price,
+          ),
+        ]),
+      [
+        candles,
+        priceLines,
+      ],
     );
 
   useEffect(() => {
@@ -330,6 +357,23 @@ export function NexusCandlestickChart({
         null;
     };
   }, []);
+
+  useEffect(() => {
+    const candleSeries =
+      candleSeriesRef.current;
+
+    if (!candleSeries) {
+      return;
+    }
+
+    candleSeries.applyOptions({
+      priceFormat:
+        chartPriceFormat,
+    });
+  }, [
+    chartPriceFormat,
+    chartReadyVersion,
+  ]);
 
   useEffect(() => {
     const chart =

@@ -84,36 +84,17 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     latestCandle?.close
     ?? contractSetup.currentPrice;
 
-  const levelDistanceRatio =
-    Math.abs(
-      contractSetup.distanceToLevelPct,
-    ) / 100;
-
   const chartLevelCenter =
-    contractSetup.direction === 'short'
-      ? chartCurrentPrice
-        * (1 - levelDistanceRatio)
-      : chartCurrentPrice
-        * (1 + levelDistanceRatio);
-
-  const originalLevelHalfWidthRatio =
-    contractSetup.level.centerPrice > 0
-      ? Math.max(
-          contractSetup.level.centerPrice
-            - contractSetup.level.zoneLow,
-          contractSetup.level.zoneHigh
-            - contractSetup.level.centerPrice,
-        )
-        / contractSetup.level.centerPrice
-      : 0.0015;
+    contractSetup.level
+      .centerPrice;
 
   const chartZoneLow =
-    chartLevelCenter
-    * (1 - originalLevelHalfWidthRatio);
+    contractSetup.level
+      .zoneLow;
 
   const chartZoneHigh =
-    chartLevelCenter
-    * (1 + originalLevelHalfWidthRatio);
+    contractSetup.level
+      .zoneHigh;
 
   const formatChartPrice = (
     value: number,
@@ -223,6 +204,28 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const visiblePrints = prints.filter((print) => tapeFilter === 'all' || print.side === tapeFilter);
   const resultLabel = selectedSetup.kind.includes('Отскок') ? 'Отскок' : 'Пробой';
   const currentStageIndex = { observation: 0, approach: 1, confirmation: 2, triggered: 3 }[selectedSetup.stage];
+
+  const isRuntimeSetup =
+    selectedSetup.runtimeData
+    === true;
+
+  const displayedStageFlow =
+    stageFlow.map(
+      (stage, index) =>
+        index === 3
+          ? {
+              ...stage,
+
+              label:
+                resultLabel,
+
+              description:
+                resultLabel === 'Отскок'
+                  ? 'Подтверждён отскок от зоны'
+                  : 'Подтверждён выход за зону',
+            }
+          : stage,
+    );
   const baseAsset = selectedSetup.symbol.replace('USDT', '');
   const numericPrice = chartCurrentPrice;
   const priceDecimals = selectedSetup.price.includes('.') ? selectedSetup.price.split('.')[1].length : 2;
@@ -230,51 +233,163 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     minimumFractionDigits: priceDecimals,
     maximumFractionDigits: priceDecimals,
   });
-  const mapReferencePrice = (referencePrice: string) => {
+  const WORKSPACE_REFERENCE_PRICE =
+    187.42;
+
+  const mapReferencePrice = (
+    referencePrice: string,
+  ) => {
+    const referenceValue =
+      Number(
+        referencePrice,
+      );
+
     const ratio =
-      Number(referencePrice)
-      / contractSetup.currentPrice;
-    return Number.isFinite(numericPrice) ? formatPrice(numericPrice * ratio) : referencePrice;
+      referenceValue
+      / WORKSPACE_REFERENCE_PRICE;
+
+    return (
+      Number.isFinite(
+        numericPrice,
+      )
+      && Number.isFinite(
+        ratio,
+      )
+    )
+      ? formatPrice(
+          numericPrice
+          * ratio,
+        )
+      : referencePrice;
   };
   const workspaceChecklist = [
     {
-      id: 'check-touches',
-      label: 'Минимум 3 касания',
-      detail: `Подтверждено касаний: ${selectedSetup.touches}.`,
-      state: selectedSetup.touches >= 3 ? 'passed' : 'warning',
+      id:
+        'check-touches',
+
+      label:
+        'Минимум 3 касания',
+
+      detail:
+        `Подтверждено касаний: ${selectedSetup.touches}.`,
+
+      state:
+        selectedSetup.touches >= 3
+          ? 'passed'
+          : 'warning',
     },
     {
-      id: 'check-pullbacks',
-      label: 'Характер откатов',
-      detail: `${selectedSetup.pullbackDepth} откаты возле найденной зоны.`,
-      state: selectedSetup.pullbackDepth === 'Неглубокие' ? 'passed' : 'warning',
+      id:
+        'check-pullbacks',
+
+      label:
+        'Характер откатов',
+
+      detail:
+        isRuntimeSetup
+          ? 'Метрика откатов ещё не подключена к кандидату.'
+          : `${selectedSetup.pullbackDepth} откаты возле найденной зоны.`,
+
+      state:
+        isRuntimeSetup
+          ? 'waiting'
+          : selectedSetup.pullbackDepth
+              === 'Неглубокие'
+            ? 'passed'
+            : 'warning',
     },
     {
-      id: 'check-activity',
-      label: 'Активность выше средней',
-      detail: `Объём ${selectedSetup.volumeAnomaly.toFixed(2)}×, сделки ${selectedSetup.tradesAnomaly.toFixed(2)}×.`,
-      state: selectedSetup.volumeAnomaly >= 1.5 && selectedSetup.tradesAnomaly >= 1.5 ? 'passed' : 'warning',
+      id:
+        'check-activity',
+
+      label:
+        'Активность выше средней',
+
+      detail:
+        isRuntimeSetup
+          ? 'Объём и количество сделок будут подключены следующим этапом.'
+          : `Объём ${selectedSetup.volumeAnomaly.toFixed(2)}×, сделки ${selectedSetup.tradesAnomaly.toFixed(2)}×.`,
+
+      state:
+        isRuntimeSetup
+          ? 'waiting'
+          : selectedSetup.volumeAnomaly >= 1.5
+            && selectedSetup.tradesAnomaly >= 1.5
+            ? 'passed'
+            : 'warning',
     },
     {
-      id: 'check-btc',
-      label: 'BTC-контекст поддерживает',
-      detail: `Сила относительно BTC: ${selectedSetup.btcStrengthLabel}, корреляция ${selectedSetup.btcCorrelation}.`,
-      state: (selectedSetup.direction === 'long' && selectedSetup.btcStrength > 0)
-        || (selectedSetup.direction === 'short' && selectedSetup.btcStrength < 0) ? 'passed' : 'warning',
+      id:
+        'check-btc',
+
+      label:
+        'BTC-контекст поддерживает',
+
+      detail:
+        isRuntimeSetup
+          ? 'BTC-контекст ещё не прикреплён к кандидату.'
+          : `Сила относительно BTC: ${selectedSetup.btcStrengthLabel}, корреляция ${selectedSetup.btcCorrelation}.`,
+
+      state:
+        isRuntimeSetup
+          ? 'waiting'
+          : (
+              selectedSetup.direction
+                === 'long'
+              && selectedSetup.btcStrength > 0
+            )
+            || (
+              selectedSetup.direction
+                === 'short'
+              && selectedSetup.btcStrength < 0
+            )
+            ? 'passed'
+            : 'warning',
     },
     {
-      id: 'check-trigger',
-      label: 'Поток принтов подтверждает вход',
-      detail: 'Активность растёт, финальное подтверждение ещё формируется.',
-      state: 'warning',
+      id:
+        'check-trigger',
+
+      label:
+        'Поток принтов подтверждает вход',
+
+      detail:
+        isRuntimeSetup
+          ? 'Привязка потока принтов к сетапу будет добавлена отдельно.'
+          : 'Активность растёт, финальное подтверждение ещё формируется.',
+
+      state:
+        isRuntimeSetup
+          ? 'waiting'
+          : 'warning',
     },
     {
-      id: 'check-result',
-      label: `${resultLabel}: закрепление за зоной`,
-      detail: `Ожидается подтверждение за границей зоны ${chartLevelLabel}.`,
-      state: selectedSetup.stage === 'triggered' ? 'passed' : 'waiting',
+      id:
+        'check-result',
+
+      label:
+        `${resultLabel}: подтверждение результата`,
+
+      detail:
+        selectedSetup.stage
+          === 'triggered'
+          ? `${resultLabel} подтверждён Setup Engine.`
+          : `Ожидается подтверждение возле зоны ${chartLevelLabel}.`,
+
+      state:
+        selectedSetup.stage
+          === 'triggered'
+          ? 'passed'
+          : 'waiting',
     },
   ] as const;
+
+  const checklistPassedCount =
+    workspaceChecklist.filter(
+      (item) =>
+        item.state
+        === 'passed',
+    ).length;
 
   return (
     <section className={styles.workspace}>
@@ -293,7 +408,13 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             ←
           </Link>
           <div>
-            <p className={styles.eyebrow}>Рабочее пространство · тестовые данные</p>
+            <p className={styles.eyebrow}>
+              {
+                isRuntimeSetup
+                  ? 'Рабочее пространство · реальный сетап Binance'
+                  : 'Рабочее пространство · тестовые данные'
+              }
+            </p>
             <div className={styles.symbolRow}>
               <h1>{selectedSetup.symbol}</h1>
               <DirectionBadge direction={selectedSetup.direction} />
@@ -412,9 +533,39 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               <div><span>Касания</span><strong>{selectedSetup.touches}</strong></div>
               <div><span>Формирование</span><strong>{selectedSetup.formationLabel}</strong></div>
               <div><span>Откаты</span><strong>{selectedSetup.pullbackDepth}</strong></div>
-              <div><span>Объём</span><strong>{selectedSetup.volumeAnomaly.toFixed(2)}×</strong></div>
-              <div><span>Сделки</span><strong>{selectedSetup.tradesAnomaly.toFixed(2)}×</strong></div>
-              <div><span>Сила к BTC</span><strong className={selectedSetup.btcStrength >= 0 ? styles.positive : styles.negative}>{selectedSetup.btcStrengthLabel}</strong></div>
+              <div><span>Объём</span><strong>
+                  {
+                    isRuntimeSetup
+                      ? '—'
+                      : selectedSetup.volumeAnomaly
+                          .toFixed(2)
+                        + '×'
+                  }
+                </strong></div>
+              <div><span>Сделки</span><strong>
+                  {
+                    isRuntimeSetup
+                      ? '—'
+                      : selectedSetup.tradesAnomaly
+                          .toFixed(2)
+                        + '×'
+                  }
+                </strong></div>
+              <div><span>Сила к BTC</span><strong
+                  className={
+                    isRuntimeSetup
+                      ? ''
+                      : selectedSetup.btcStrength >= 0
+                        ? styles.positive
+                        : styles.negative
+                  }
+                >
+                  {
+                    isRuntimeSetup
+                      ? '—'
+                      : selectedSetup.btcStrengthLabel
+                  }
+                </strong></div>
             </div>
           </article>
 
@@ -440,8 +591,27 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               </div>
 
               <div className={styles.tapeSummary}>
-                <span>Скорость <strong>42 сделки/с</strong></span>
-                <span>Дельта <strong className={styles.positive}>+$184K</strong></span>
+                <span>
+                  Скорость{' '}
+                  <strong>
+                    {
+                      isRuntimeSetup
+                        ? '—'
+                        : '42 сделки/с'
+                    }
+                  </strong>
+                </span>
+
+                <span>
+                  Дельта{' '}
+                  <strong className={styles.positive}>
+                    {
+                      isRuntimeSetup
+                        ? '—'
+                        : '+$184K'
+                    }
+                  </strong>
+                </span>
               </div>
 
               <div className={styles.tapeTable}>
@@ -449,7 +619,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 {visiblePrints.map((print) => (
                   <div key={print.id} className={`${styles.tapeRow} ${print.side === 'buy' ? styles.buyRow : styles.sellRow}`}>
                     <span>{print.time}</span>
-                    <strong>{Number.isFinite(numericPrice) ? formatPrice(numericPrice * (Number(print.price) / 187.42)) : print.price}</strong>
+                    <strong>{Number.isFinite(numericPrice) ? formatPrice(numericPrice * (Number(print.price) / WORKSPACE_REFERENCE_PRICE)) : print.price}</strong>
                     <span>{print.size.replace('SOL', baseAsset)}</span>
                     <span>{print.value}</span>
                   </div>
@@ -463,7 +633,13 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                   <p className={styles.panelEyebrow}>Значимые плотности</p>
                   <h2>Карта ликвидности</h2>
                 </div>
-                <span className={styles.estimateBadge}>ОЦЕНКА NEXUS</span>
+                <span className={styles.estimateBadge}>
+                  {
+                    isRuntimeSetup
+                      ? 'ДЕМО-КОНТЕКСТ'
+                      : 'ОЦЕНКА NEXUS'
+                  }
+                </span>
               </div>
 
               <div className={styles.liquidityHeader}>
@@ -492,7 +668,13 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                   <p className={styles.panelEyebrow}>Контекст</p>
                   <h2>Динамика рынка</h2>
                 </div>
-                <span className={styles.marketMode}>BTC: умеренно бычий</span>
+                <span className={styles.marketMode}>
+                  {
+                    isRuntimeSetup
+                      ? 'ДЕМО-КОНТЕКСТ'
+                      : 'BTC: умеренно бычий'
+                  }
+                </span>
               </div>
 
               <div className={styles.dynamicsList}>
@@ -524,7 +706,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
           </div>
 
           <div className={styles.stageFlow}>
-            {stageFlow.map((stage, index) => {
+            {displayedStageFlow.map((stage, index) => {
               const status = index < currentStageIndex ? styles.stageComplete : index === currentStageIndex ? styles.stageCurrent : styles.stagePending;
               return (
                 <div key={stage.id} className={`${styles.stageItem} ${status}`}>
@@ -543,7 +725,11 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
           </section>
 
           <section className={styles.nexusSection}>
-            <div className={styles.sectionTitle}><h3>Чек-лист сетапа</h3><span>4 / 6</span></div>
+            <div className={styles.sectionTitle}><h3>Чек-лист сетапа</h3><span>
+                {checklistPassedCount}
+                {' / '}
+                {workspaceChecklist.length}
+              </span></div>
             <div className={styles.checklist}>
               {workspaceChecklist.map((item) => (
                 <div key={item.id} className={`${styles.checkItem} ${styles[item.state]}`}>
@@ -578,7 +764,13 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             </button>
           </div>
 
-          <p className={styles.testNotice}>Данные демонстрационные. NEXUS не выставляет ордера.</p>
+          <p className={styles.testNotice}>
+            {
+              isRuntimeSetup
+                ? 'Сетап, стадия и ценовая зона получены из Setup Engine. Лента и ликвидность пока демонстрационные. NEXUS не выставляет ордера.'
+                : 'Данные демонстрационные. NEXUS не выставляет ордера.'
+            }
+          </p>
         </aside>
       </div>
     </section>
@@ -604,6 +796,13 @@ export function WorkspacePage() {
 
       if (!contractSetup || !snapshot) return null;
       return { contractSetup, snapshot, view };
+    },
+    {
+      intervalMs:
+        5_000,
+
+      preserveData:
+        true,
     },
   );
 
