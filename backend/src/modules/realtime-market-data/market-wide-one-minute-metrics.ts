@@ -1,4 +1,4 @@
-﻿import {
+import {
   calculateMarketScannerActivityScore,
   calculateMarketScannerLiquidityScore,
   type MarketScannerMetrics,
@@ -974,6 +974,47 @@ export class MarketWideOneMinuteMetricsStore {
               - left.currentQuoteVolume;
         },
       );
+  }
+  getKlines(
+    symbol: string,
+    limit?: number,
+  ): BinanceOneMinuteKlineUpdate[] {
+    const normalizedSymbol =
+      normalizeSymbol(symbol);
+
+    if (
+      limit !== undefined
+      && (
+        !Number.isInteger(limit)
+        || limit <= 0
+      )
+    ) {
+      throw new Error(
+        'Market-wide kline limit must be a positive integer',
+      );
+    }
+
+    const state =
+      this.states.get(
+        normalizedSymbol,
+      );
+
+    if (!state) {
+      return [];
+    }
+
+    const klines =
+      limit === undefined
+        ? state.klines
+        : state.klines.slice(
+            -limit,
+          );
+
+    return klines.map(
+      (kline) => ({
+        ...kline,
+      }),
+    );
   }
   getState(
     symbol: string,
