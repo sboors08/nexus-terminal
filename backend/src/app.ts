@@ -34,6 +34,7 @@ export interface BuildAppOptions {
   marketWideHistoryWarmupService?: MarketWideHistoryWarmupService | null;
   setupDetectionRuntimeService?: SetupDetectionRuntimeLifecycle | null;
   setupDetectionRuntimeReader?: SetupDetectionRuntimeReader | null;
+  setupDetectionRuntimeEventSource?: SetupDetectionRuntimeEventSource | null;
   setupEventHistoryService?: SetupEventHistoryLifecycle | null;
   setupEventHistoryReader?: SetupEventHistoryReader | null;
 }
@@ -182,14 +183,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           : null
       : options.setupDetectionRuntimeReader;
 
-  const setupEventHistoryService =
-    options.setupEventHistoryService
+  const setupDetectionRuntimeEventSource =
+    options.setupDetectionRuntimeEventSource
     === undefined
       ? isSetupDetectionRuntimeEventSource(
           setupDetectionRuntimeService,
         )
+        ? setupDetectionRuntimeService
+        : null
+      : options.setupDetectionRuntimeEventSource;
+
+  const setupEventHistoryService =
+    options.setupEventHistoryService
+    === undefined
+      ? setupDetectionRuntimeEventSource
         ? new SetupEventHistoryService(
-            setupDetectionRuntimeService,
+            setupDetectionRuntimeEventSource,
           )
         : null
       : options.setupEventHistoryService;
@@ -311,6 +320,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : {}),
     ...(setupDetectionRuntimeReader
       ? { setupDetectionRuntimeReader }
+      : {}),
+    ...(setupDetectionRuntimeEventSource
+      ? { setupDetectionRuntimeEventSource }
       : {}),
     ...(setupEventHistoryReader
       ? { setupEventHistoryReader }

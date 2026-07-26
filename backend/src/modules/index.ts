@@ -37,7 +37,11 @@ import {
 import {
   setupEventHistoryRoutes,
 } from './setup-engine/setup-event-history.routes.js';
+import {
+  setupLifecycleSseRoutes,
+} from './setup-engine/setup-lifecycle-sse.routes.js';
 import type {
+  SetupDetectionRuntimeEventSource,
   SetupDetectionRuntimeReader,
 } from './setup-engine/setup-detection-runtime.types.js';
 import type {
@@ -62,6 +66,9 @@ interface ApiModulesOptions {
 
   setupDetectionRuntimeReader?:
     SetupDetectionRuntimeReader;
+
+  setupDetectionRuntimeEventSource?:
+    SetupDetectionRuntimeEventSource;
 
   setupEventHistoryReader?:
     SetupEventHistoryReader;
@@ -112,6 +119,33 @@ FastifyPluginAsync<
               setupEventHistoryReader:
                 options
                   .setupEventHistoryReader,
+            }
+          : {}
+      ),
+    },
+  );
+
+  await app.register(
+    setupLifecycleSseRoutes,
+    {
+      ...(
+        options
+          .setupEventHistoryReader
+          ? {
+              setupEventHistoryReader:
+                options
+                  .setupEventHistoryReader,
+            }
+          : {}
+      ),
+
+      ...(
+        options
+          .setupDetectionRuntimeEventSource
+          ? {
+              setupDetectionRuntimeEventSource:
+                options
+                  .setupDetectionRuntimeEventSource,
             }
           : {}
       ),
