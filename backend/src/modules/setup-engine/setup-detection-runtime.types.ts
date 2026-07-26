@@ -5,6 +5,9 @@
 import type {
   SetupEngineState,
 } from './setup-engine.types.js';
+import type {
+  SetupStageEvaluatorOptions,
+} from './setup-stage-evaluator.types.js';
 
 export type SetupDetectionRuntimeState =
   | 'idle'
@@ -40,21 +43,37 @@ export interface SetupDetectionRuntimeSource
 
 export interface SetupDetectionRuntimeOptions {
   maxCandidates: number;
+
   pipelineOptions:
     SetupDetectionPipelineOptions;
+
+  stageEvaluatorOptions?:
+    SetupStageEvaluatorOptions;
+
   now: () => Date;
 }
 
 export interface SetupDetectionRuntimeStatus {
   state:
     SetupDetectionRuntimeState;
+
   candidatesCount: number;
+
   scansCount: number;
   failedScans: number;
+
+  evaluationsCount: number;
+  failedEvaluations: number;
+  stageTransitionsCount: number;
+
   lastScanAt: string | null;
+  lastEvaluationAt: string | null;
+  lastTransitionAt: string | null;
+
   lastTriggerSource:
     SetupDetectionTriggerSource
     | null;
+
   lastError: string | null;
 }
 
