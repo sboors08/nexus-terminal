@@ -508,7 +508,7 @@ export class SetupDetectionRuntimeService {
 
       this.evaluationsCount += 1;
       this.lastEvaluationAt =
-        evaluatedAt;
+        observation.evaluatedAt;
 
       try {
         const event =
@@ -574,6 +574,12 @@ export class SetupDetectionRuntimeService {
       return null;
     }
 
+    const localEvaluatedAtMs =
+      readTimestamp(
+        evaluatedAt,
+        'evaluatedAt',
+      );
+
     const eventTimeMs =
       readTimestamp(
         closedKline.eventTime,
@@ -586,11 +592,22 @@ export class SetupDetectionRuntimeService {
         'kline closeTime',
       );
 
+    const observedAtMs =
+      Math.max(
+        eventTimeMs,
+        closeTimeMs,
+      );
+
     const observedAt =
       new Date(
+        observedAtMs,
+      ).toISOString();
+
+    const effectiveEvaluatedAt =
+      new Date(
         Math.max(
-          eventTimeMs,
-          closeTimeMs,
+          localEvaluatedAtMs,
+          observedAtMs,
         ),
       ).toISOString();
 
@@ -623,7 +640,8 @@ export class SetupDetectionRuntimeService {
         closedKline.isClosed,
 
       observedAt,
-      evaluatedAt,
+      evaluatedAt:
+        effectiveEvaluatedAt,
     };
   }
 
