@@ -16,6 +16,9 @@ import {
   SetupDetectionRuntimeService,
 } from '../src/modules/setup-engine/setup-detection-runtime.service.js';
 import type {
+  SetupLifecycleEvent,
+} from '../src/modules/setup-engine/setup-lifecycle-events.types.js';
+import type {
   SetupDetectionKlineChange,
   SetupDetectionRuntimeOptions,
   SetupDetectionRuntimeSource,
@@ -1014,5 +1017,651 @@ test(
       status.lastError,
       null,
     );
+  },
+);
+
+
+test(
+  'emits sequential lifecycle events when candidates are created',
+  () => {
+    const clock =
+      new MutableClock(
+        Date.parse(
+          '2026-07-26T12:06:59.999Z',
+        ),
+      );
+
+    const source =
+      new TestStageRuntimeSource([
+        'SOLUSDT',
+      ]);
+
+    const runtime =
+      new SetupDetectionRuntimeService(
+        source,
+        buildRuntimeOptions(
+          clock,
+        ),
+      );
+
+    const events:
+      SetupLifecycleEvent[] = [];
+
+    const unsubscribe =
+      runtime
+        .subscribeLifecycleEvents(
+          (event) => {
+            events.push(
+              event,
+            );
+          },
+        );
+
+    runtime.start();
+
+    assert.equal(
+      events.length,
+      2,
+    );
+
+    assert.deepEqual(
+      events.map(
+        (event) =>
+          event.eventId,
+      ),
+      [
+        1,
+        2,
+      ],
+    );
+
+    assert.ok(
+      events.every(
+        (event) =>
+          event.type
+            === 'candidate_created'
+          && event.previousStage
+            === null
+          && event.currentStage
+            === 'LEVEL_CONFIRMED'
+          && event.candidate.stage
+            === 'LEVEL_CONFIRMED',
+      ),
+    );
+
+    assert.deepEqual(
+      new Set(
+        events.map(
+          (event) =>
+            event.candidateId,
+        ),
+      ).size,
+      2,
+    );
+
+    unsubscribe();
+    runtime.stop();
+  },
+);
+
+test(
+  'emits stage transition and breakout lifecycle events',
+  () => {
+    const clock =
+      new MutableClock(
+        Date.parse(
+          '2026-07-26T12:06:59.999Z',
+        ),
+      );
+
+    const source =
+      new TestStageRuntimeSource([
+        'SOLUSDT',
+      ]);
+
+    const runtime =
+      new SetupDetectionRuntimeService(
+        source,
+        buildRuntimeOptions(
+          clock,
+        ),
+      );
+
+    const events:
+      SetupLifecycleEvent[] = [];
+
+    runtime.subscribeLifecycleEvents(
+      (event) => {
+        events.push(
+          event,
+        );
+      },
+    );
+
+    runtime.start();
+
+    const breakoutCandidate =
+      runtime
+        .getCandidates(
+          'SOLUSDT',
+        )
+        .find(
+          (candidate) =>
+            candidate.setupType
+              === 'level_breakout'
+            && candidate.direction
+              === 'long',
+        );
+
+    assert.ok(
+      breakoutCandidate,
+    );
+
+    const approachKline =
+      buildKline(
+        'SOLUSDT',
+        7,
+        {
+          open: 99.2,
+          high: 99.8,
+          low: 99.1,
+          close: 99.7,
+        },
+      );
+
+    clock.set(
+      approachKline.eventTime,
+    );
+
+    source.pushLiveKlines([
+      approachKline,
+    ]);
+
+    const touchKline =
+      buildKline(
+        'SOLUSDT',
+        8,
+        {
+          open: 99.7,
+          high: 100.1,
+          low: 99.6,
+          close: 100,
+        },
+      );
+
+    clock.set(
+      touchKline.eventTime,
+    );
+
+    source.pushLiveKlines([
+      touchKline,
+    ]);
+
+    const breakoutKline =
+      buildKline(
+        'SOLUSDT',
+        9,
+        {
+          open: 100,
+          high: 100.5,
+          low: 99.95,
+          close: 100.4,
+        },
+      );
+
+    clock.set(
+      breakoutKline.eventTime,
+    );
+
+    source.pushLiveKlines([
+      breakoutKline,
+    ]);
+
+    assert.deepEqual(
+      events.map(
+        (event) =>
+          event.eventId,
+      ),
+      events.map(
+        (
+          _event,
+          index,
+        ) =>
+          index + 1,
+      ),
+    );
+
+    const candidateEvents =
+      events.filter(
+        (event) =>
+          event.candidateId
+          === breakoutCandidate.id,
+      );
+
+    assert.deepEqual(
+      candidateEvents.map(
+        (event) =>
+          event.type,
+      ),
+      [
+        'candidate_created',
+        'stage_transition',
+        'stage_transition',
+        'breakout_confirmed',
+      ],
+    );
+
+    assert.deepEqual(
+      candidateEvents.map(
+        (event) =>
+          event.currentStage,
+      ),
+      [
+        'LEVEL_CONFIRMED',
+        'APPROACHING_THIRD_TOUCH',
+        'THIRD_TOUCH_CONFIRMED',
+        'BREAKOUT_CONFIRMED',
+      ],
+    );
+
+    const breakoutEvent =
+      candidateEvents.at(-1);
+
+    assert.ok(
+      breakoutEvent,
+    );
+
+    assert.equal(
+      breakoutEvent.previousStage,
+      'THIRD_TOUCH_CONFIRMED',
+    );
+
+    assert.equal(
+      breakoutEvent.outcome,
+      'breakout',
+    );
+
+    assert.equal(
+      breakoutEvent.candidate.stage,
+      'BREAKOUT_CONFIRMED',
+    );
+
+    runtime.stop();
+  },
+);
+
+test(
+  'emits a rejection confirmed lifecycle event',
+  () => {
+    const clock =
+      new MutableClock(
+        Date.parse(
+          '2026-07-26T12:06:59.999Z',
+        ),
+      );
+
+    const source =
+      new TestStageRuntimeSource([
+        'SOLUSDT',
+      ]);
+
+    const runtime =
+      new SetupDetectionRuntimeService(
+        source,
+        buildRuntimeOptions(
+          clock,
+        ),
+      );
+
+    const events:
+      SetupLifecycleEvent[] = [];
+
+    runtime.subscribeLifecycleEvents(
+      (event) => {
+        events.push(
+          event,
+        );
+      },
+    );
+
+    runtime.start();
+
+    const bounceCandidate =
+      runtime
+        .getCandidates(
+          'SOLUSDT',
+        )
+        .find(
+          (candidate) =>
+            candidate.setupType
+              === 'level_bounce'
+            && candidate.direction
+              === 'short',
+        );
+
+    assert.ok(
+      bounceCandidate,
+    );
+
+    const approachKline =
+      buildKline(
+        'SOLUSDT',
+        7,
+        {
+          open: 99.2,
+          high: 99.8,
+          low: 99.1,
+          close: 99.7,
+        },
+      );
+
+    clock.set(
+      approachKline.eventTime,
+    );
+
+    source.pushLiveKlines([
+      approachKline,
+    ]);
+
+    const touchKline =
+      buildKline(
+        'SOLUSDT',
+        8,
+        {
+          open: 99.7,
+          high: 100.1,
+          low: 99.6,
+          close: 100,
+        },
+      );
+
+    clock.set(
+      touchKline.eventTime,
+    );
+
+    source.pushLiveKlines([
+      touchKline,
+    ]);
+
+    const rejectionKline =
+      buildKline(
+        'SOLUSDT',
+        9,
+        {
+          open: 100,
+          high: 100.05,
+          low: 99.5,
+          close: 99.6,
+        },
+      );
+
+    clock.set(
+      rejectionKline.eventTime,
+    );
+
+    source.pushLiveKlines([
+      rejectionKline,
+    ]);
+
+    const rejectionEvent =
+      events.find(
+        (event) =>
+          event.candidateId
+            === bounceCandidate.id
+          && event.type
+            === 'rejection_confirmed',
+      );
+
+    assert.ok(
+      rejectionEvent,
+    );
+
+    assert.equal(
+      rejectionEvent.previousStage,
+      'THIRD_TOUCH_CONFIRMED',
+    );
+
+    assert.equal(
+      rejectionEvent.currentStage,
+      'REJECTION_CONFIRMED',
+    );
+
+    assert.equal(
+      rejectionEvent.outcome,
+      'rejection',
+    );
+
+    runtime.stop();
+  },
+);
+
+test(
+  'emits setup expired lifecycle events',
+  () => {
+    const clock =
+      new MutableClock(
+        Date.parse(
+          '2026-07-26T12:06:59.999Z',
+        ),
+      );
+
+    const source =
+      new TestStageRuntimeSource([
+        'SOLUSDT',
+      ]);
+
+    const runtime =
+      new SetupDetectionRuntimeService(
+        source,
+        buildRuntimeOptions(
+          clock,
+          120,
+        ),
+      );
+
+    const events:
+      SetupLifecycleEvent[] = [];
+
+    runtime.subscribeLifecycleEvents(
+      (event) => {
+        events.push(
+          event,
+        );
+      },
+    );
+
+    runtime.start();
+
+    clock.set(
+      '2026-07-26T12:08:00.000Z',
+    );
+
+    runtime.getStatus();
+
+    const expirationEvents =
+      events.filter(
+        (event) =>
+          event.type
+          === 'setup_expired',
+      );
+
+    assert.equal(
+      expirationEvents.length,
+      2,
+    );
+
+    assert.ok(
+      expirationEvents.every(
+        (event) =>
+          event.previousStage
+            === 'LEVEL_CONFIRMED'
+          && event.currentStage
+            === 'SETUP_EXPIRED'
+          && event.candidate.stage
+            === 'SETUP_EXPIRED',
+      ),
+    );
+
+    assert.deepEqual(
+      events.map(
+        (event) =>
+          event.eventId,
+      ),
+      [
+        1,
+        2,
+        3,
+        4,
+      ],
+    );
+
+    runtime.stop();
+  },
+);
+
+test(
+  'isolates lifecycle listeners and returns defensive event copies',
+  () => {
+    const clock =
+      new MutableClock(
+        Date.parse(
+          '2026-07-26T12:06:59.999Z',
+        ),
+      );
+
+    const source =
+      new TestStageRuntimeSource([
+        'SOLUSDT',
+      ]);
+
+    const runtime =
+      new SetupDetectionRuntimeService(
+        source,
+        buildRuntimeOptions(
+          clock,
+        ),
+      );
+
+    const observedEvents:
+      SetupLifecycleEvent[] = [];
+
+    const unsubscribeMutator =
+      runtime
+        .subscribeLifecycleEvents(
+          (event) => {
+            event.candidate
+              .level
+              .centerPrice = 1;
+          },
+        );
+
+    const unsubscribeFaulty =
+      runtime
+        .subscribeLifecycleEvents(
+          () => {
+            throw new Error(
+              'Broken lifecycle listener',
+            );
+          },
+        );
+
+    const unsubscribeObserver =
+      runtime
+        .subscribeLifecycleEvents(
+          (event) => {
+            observedEvents.push(
+              event,
+            );
+          },
+        );
+
+    runtime.start();
+
+    assert.equal(
+      observedEvents.length,
+      2,
+    );
+
+    assert.ok(
+      observedEvents.every(
+        (event) =>
+          event.candidate
+            .level
+            .centerPrice
+          !== 1,
+      ),
+    );
+
+    assert.ok(
+      runtime
+        .getCandidates(
+          'SOLUSDT',
+        )
+        .every(
+          (candidate) =>
+            candidate.level
+              .centerPrice
+            !== 1,
+        ),
+    );
+
+    assert.equal(
+      runtime.getStatus()
+        .lastError,
+      null,
+    );
+
+    unsubscribeObserver();
+
+    const observedBefore =
+      observedEvents.length;
+
+    const approachKline =
+      buildKline(
+        'SOLUSDT',
+        7,
+        {
+          open: 99.2,
+          high: 99.8,
+          low: 99.1,
+          close: 99.7,
+        },
+      );
+
+    clock.set(
+      approachKline.eventTime,
+    );
+
+    source.pushLiveKlines([
+      approachKline,
+    ]);
+
+    assert.equal(
+      observedEvents.length,
+      observedBefore,
+    );
+
+    assert.ok(
+      runtime
+        .getCandidates(
+          'SOLUSDT',
+        )
+        .every(
+          (candidate) =>
+            candidate.stage
+            === 'APPROACHING_THIRD_TOUCH',
+        ),
+    );
+
+    assert.equal(
+      runtime.getStatus()
+        .lastError,
+      null,
+    );
+
+    unsubscribeMutator();
+    unsubscribeFaulty();
+
+    runtime.stop();
   },
 );

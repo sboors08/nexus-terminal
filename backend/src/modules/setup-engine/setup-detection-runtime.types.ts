@@ -8,6 +8,9 @@ import type {
 import type {
   SetupStageEvaluatorOptions,
 } from './setup-stage-evaluator.types.js';
+import type {
+  SetupLifecycleEventListener,
+} from './setup-lifecycle-events.types.js';
 
 export type SetupDetectionRuntimeState =
   | 'idle'
@@ -93,4 +96,12 @@ export interface SetupDetectionRuntimeReader {
   getCandidate(
     candidateId: string,
   ): SetupEngineState | null;
+}
+
+
+export interface SetupDetectionRuntimeEventSource {
+  subscribeLifecycleEvents(
+    listener:
+      SetupLifecycleEventListener,
+  ): () => void;
 }
