@@ -63,6 +63,20 @@ export interface MarketWideRealtimeServiceOptions {
   now?: () => Date;
 }
 
+export type MarketWideKlineChangeSource =
+  | 'live'
+  | 'history';
+
+export interface MarketWideKlineChange {
+  source: MarketWideKlineChangeSource;
+  symbols: string[];
+}
+
+export type MarketWideKlineChangeListener =
+  (
+    event: MarketWideKlineChange,
+  ) => void;
+
 interface CombinedStreamPayload {
   stream?: string;
   data?: unknown;
@@ -321,6 +335,11 @@ export class MarketWideRealtimeService {
   private readonly metricsStore:
     MarketWideOneMinuteMetricsStore;
 
+  private readonly klineChangeListeners =
+    new Set<
+      MarketWideKlineChangeListener
+    >();
+
   private symbols: string[];
   private shards:
     MarketWideShardRuntime[] = [];
@@ -448,6 +467,46 @@ export class MarketWideRealtimeService {
     return [...this.symbols];
   }
 
+  getKlines(
+    symbol: string,
+    limit?: number,
+  ): BinanceOneMinuteKlineUpdate[] {
+    return this.metricsStore.getKlines(
+      symbol,
+      limit,
+    );
+  }
+
+  getState(
+    symbol: string,
+  ): {
+    kline:
+      BinanceOneMinuteKlineUpdate
+      | null;
+    bookTicker:
+      RealtimeBookTicker
+      | null;
+  } | null {
+    return this.metricsStore.getState(
+      symbol,
+    );
+  }
+
+  subscribeKlineChanges(
+    listener:
+      MarketWideKlineChangeListener,
+  ): () => void {
+    this.klineChangeListeners.add(
+      listener,
+    );
+
+    return () => {
+      this.klineChangeListeners.delete(
+        listener,
+      );
+    };
+  }
+
   getMetrics(
     symbol?: string,
     scannerWindow:
@@ -473,11 +532,55 @@ export class MarketWideRealtimeService {
     updates:
       readonly BinanceOneMinuteKlineUpdate[],
   ): number {
-    return this.metricsStore
-      .applyHistoricalKlines(
-        updates,
-      );
+    const appliedCount =
+      this.metricsStore
+        .applyHistoricalKlines(
+          updates,
+        );
+
+    if (appliedCount > 0) {
+      const trackedSymbols =
+        new Set(
+          this.symbols,
+        );
+
+      const changedSymbols =
+        [
+          ...new Set(
+            updates
+              .filter(
+                (update) =>
+                  update.isClosed,
+              )
+              .map(
+                (update) =>
+                  normalizeSymbol(
+                    update.symbol,
+                  ),
+              )
+              .filter(
+                (symbol) =>
+                  trackedSymbols.has(
+                    symbol,
+                  ),
+              ),
+          ),
+        ].sort();
+
+      if (
+        changedSymbols.length > 0
+      ) {
+        this.emitKlineChange({
+          source: 'history',
+          symbols:
+            changedSymbols,
+        });
+      }
+    }
+
+    return appliedCount;
   }
+
   getStatus():
   MarketWideRealtimeStatus {
     const connectedSockets =
@@ -746,6 +849,30 @@ export class MarketWideRealtimeService {
     );
   }
 
+  private emitKlineChange(
+    event: MarketWideKlineChange,
+  ): void {
+    for (
+      const listener
+      of this.klineChangeListeners
+    ) {
+      try {
+        listener({
+          source:
+            event.source,
+          symbols: [
+            ...event.symbols,
+          ],
+        });
+      } catch (error) {
+        this.lastError =
+          error instanceof Error
+            ? error.message
+            : 'Unable to notify market-wide kline listener';
+      }
+    }
+  }
+
   private buildShardUrl(
     shard:
       MarketWideStreamShard,
@@ -869,11 +996,27 @@ export class MarketWideRealtimeService {
           '@kline_1m',
         )
       ) {
-        this.metricsStore.applyKline(
+        const update =
           parseBinanceOneMinuteKlineEvent(
             payload.data,
-          ),
-        );
+          );
+
+        const applied =
+          this.metricsStore.applyKline(
+            update,
+          );
+
+        if (
+          applied
+          && update.isClosed
+        ) {
+          this.emitKlineChange({
+            source: 'live',
+            symbols: [
+              update.symbol,
+            ],
+          });
+        }
 
         return;
       }

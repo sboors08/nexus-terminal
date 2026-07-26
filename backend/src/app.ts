@@ -10,6 +10,8 @@ import { BinanceSymbolUniverseService } from './modules/realtime-market-data/bin
 import { MarketWideHistoryWarmupService } from './modules/realtime-market-data/market-wide-history-warmup.service.js';
 import { MarketWideRealtimeService } from './modules/realtime-market-data/market-wide-realtime.service.js';
 import { MarketWideRuntimeCoordinator } from './modules/realtime-market-data/market-wide-runtime-coordinator.js';
+import { SetupDetectionRuntimeService } from './modules/setup-engine/setup-detection-runtime.service.js';
+import type { SetupDetectionRuntimeLifecycle } from './modules/setup-engine/setup-detection-runtime.types.js';
 import type { RealtimeMarketDataService } from './modules/realtime-market-data/realtime-market-data.types.js';
 
 export interface BuildAppOptions {
@@ -19,6 +21,7 @@ export interface BuildAppOptions {
   binanceSymbolUniverseService?: BinanceSymbolUniverseService | null;
   marketWideRealtimeService?: MarketWideRealtimeService | null;
   marketWideHistoryWarmupService?: MarketWideHistoryWarmupService | null;
+  setupDetectionRuntimeService?: SetupDetectionRuntimeLifecycle | null;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -127,6 +130,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           : null
       : options.marketWideHistoryWarmupService;
 
+  const setupDetectionRuntimeService =
+    options.setupDetectionRuntimeService
+    === undefined
+      ? marketWideRealtimeService
+        ? new SetupDetectionRuntimeService(
+            marketWideRealtimeService,
+          )
+        : null
+      : options.setupDetectionRuntimeService;
+
   const marketWideRuntimeCoordinator =
     binanceSymbolUniverseService
     && marketWideRealtimeService
@@ -155,6 +168,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   if (realtimeMarketDataService) {
     app.addHook('onReady', async () => realtimeMarketDataService.start());
     app.addHook('onClose', async () => realtimeMarketDataService.stop());
+  }
+
+  if (setupDetectionRuntimeService) {
+    app.addHook(
+      'onReady',
+      async () => {
+        setupDetectionRuntimeService.start();
+      },
+    );
+
+    app.addHook(
+      'onClose',
+      async () => {
+        setupDetectionRuntimeService.stop();
+      },
+    );
   }
 
   if (marketWideRuntimeCoordinator) {
