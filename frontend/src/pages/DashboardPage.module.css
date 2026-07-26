@@ -6,7 +6,7 @@
   --muted: #71847d;
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-template-rows: 300px 288px 248px;
+  grid-template-rows: 300px 288px 430px;
   gap: 11px;
   width: 100%;
   max-width: 1600px;
@@ -802,7 +802,7 @@
 
 @media (max-width: 1450px) {
   .dashboard {
-    grid-template-rows: 290px 288px 242px;
+    grid-template-rows: 290px 288px 410px;
     gap: 9px;
   }
   .marketMode { height: 242px; padding: 13px; }
@@ -1673,4 +1673,32 @@
   .dashboardVolumeSpikeRow {
     min-width: 500px;
   }
+}
+
+
+.chartState {
+  display: grid;
+  height: 100%;
+  min-height: 220px;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 20px;
+  color: #8fa29b;
+  font-size: 12px;
+  text-align: center;
+}
+
+.chartState button {
+  min-height: 30px;
+  padding: 0 14px;
+  border: 1px solid #24523f;
+  border-radius: 4px;
+  color: #35df8d;
+  background: #0a1a14;
+}
+
+.chartCanvas > div {
+  height: 100%;
+  min-height: 0;
 }

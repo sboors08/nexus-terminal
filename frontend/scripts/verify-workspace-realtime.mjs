@@ -12,6 +12,10 @@ const requiredFiles = [
   'src/shared/realtime/workspaceRealtime.ts',
   'src/shared/realtime/realtimeClient.ts',
   'src/shared/realtime/useRealtimeMarketData.ts',
+  'src/shared/charts/ui/NexusCandlestickChart.tsx',
+  'src/shared/charts/ui/NexusChartDrawingOverlay.tsx',
+  'src/shared/charts/model/drawingModel.ts',
+  'src/shared/charts/index.ts',
   'test/workspace-realtime.test.mjs',
 ];
 
@@ -31,8 +35,12 @@ const [
   helperSource,
   clientSource,
   hookSource,
+  chartSource,
+  drawingOverlaySource,
+  drawingModelSource,
+  chartsIndexSource,
   testSource,
-  indexSource,
+  realtimeIndexSource,
   tsconfigSource,
   packageSource,
 ] = await Promise.all([
@@ -52,7 +60,10 @@ const [
     'utf8',
   ),
   readFile(
-    resolve(root, 'src/shared/realtime/realtimeClient.ts'),
+    resolve(
+      root,
+      'src/shared/realtime/realtimeClient.ts',
+    ),
     'utf8',
   ),
   readFile(
@@ -60,6 +71,31 @@ const [
       root,
       'src/shared/realtime/useRealtimeMarketData.ts',
     ),
+    'utf8',
+  ),
+  readFile(
+    resolve(
+      root,
+      'src/shared/charts/ui/NexusCandlestickChart.tsx',
+    ),
+    'utf8',
+  ),
+  readFile(
+    resolve(
+      root,
+      'src/shared/charts/ui/NexusChartDrawingOverlay.tsx',
+    ),
+    'utf8',
+  ),
+  readFile(
+    resolve(
+      root,
+      'src/shared/charts/model/drawingModel.ts',
+    ),
+    'utf8',
+  ),
+  readFile(
+    resolve(root, 'src/shared/charts/index.ts'),
     'utf8',
   ),
   readFile(
@@ -86,14 +122,27 @@ const requiredMarkers = [
   'symbol: selectedSetup.symbol',
   'snapshot.candles',
   'realtime.status?.state ?? null',
-  'realtimeWorkspace.priceLabel',
-  'realtimeWorkspace.priceY',
-  'realtimeWorkspace.axisLabels',
-  "showCurrentPrice={realtimeWorkspace.rangePosition === 'inside'}",
-  'styles.rangeWarning',
+  'useMarketCandles({',
+  'symbol: contractSetup.symbol',
+  'const chartCurrentPrice =',
+  'NexusCandlestickChart',
+  'priceLines={chartPriceLines}',
+  'showSeriesPriceLine={false}',
+  'enableDrawingTools',
+  'drawingScope=',
+  'formatChartPrice(chartCurrentPrice)',
+  'realtimeWorkspace.connectionLabel',
   '.liveIndicator_pending',
   '.liveIndicator_error',
-  '.priceSourceLive',
+  '.priceSourceTest',
+  'NexusChartDrawingOverlay',
+  'longPosition',
+  'shortPosition',
+  'fibExtension',
+  'moveNexusDrawing',
+  'loadNexusDrawings',
+  'saveNexusDrawings',
+  "export * from './model/drawingModel.js';",
   "export * from './workspaceRealtime'",
   'src/shared/realtime/workspaceRealtime.ts',
   'test/workspace-realtime.test.mjs',
@@ -108,15 +157,21 @@ const corpus = [
   helperSource,
   clientSource,
   hookSource,
+  chartSource,
+  drawingOverlaySource,
+  drawingModelSource,
+  chartsIndexSource,
   testSource,
-  indexSource,
+  realtimeIndexSource,
   tsconfigSource,
   packageSource,
 ].join('\n');
 
-const missingMarkers = requiredMarkers.filter(
-  (marker) => !corpus.includes(marker),
-);
+const missingMarkers =
+  requiredMarkers.filter(
+    (marker) =>
+      !corpus.includes(marker),
+  );
 
 if (
   missingFiles.length > 0
@@ -138,5 +193,5 @@ if (
 }
 
 console.log(
-  'NEXUS frontend verified: Workspace Realtime Integration v0.1 is present.',
+  'NEXUS frontend verified: Workspace Realtime and Drawing Tools v0.2 are present.',
 );

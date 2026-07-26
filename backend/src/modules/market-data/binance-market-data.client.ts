@@ -1,5 +1,5 @@
 import type { Candle, MarketSymbol } from '../../contracts/nexus-api.js';
-import { MarketDataUnavailableError, MarketSymbolNotFoundError, type MarketDataProvider } from './market-data.provider.js';
+import { MarketDataUnavailableError, MarketSymbolNotFoundError, type GetCandlesOptions, type MarketDataProvider } from './market-data.provider.js';
 
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -79,9 +79,60 @@ export class BinanceMarketDataClient implements MarketDataProvider {
     return symbols;
   }
 
-  async getCandles(symbol: string, timeframe: string): Promise<Candle[]> {
-    const query = new URLSearchParams({ symbol, interval: timeframe, limit: '200' });
-    const payload = await this.requestJson<unknown>(`/fapi/v1/klines?${query.toString()}`, symbol);
+  async getCandles(
+    symbol: string,
+    timeframe: string,
+    options: GetCandlesOptions = {},
+  ): Promise<Candle[]> {
+    const limit =
+      options.limit
+      ?? 1000;
+
+    if (
+      !Number.isInteger(limit)
+      || limit < 1
+      || limit > 1000
+    ) {
+      throw new MarketDataUnavailableError(
+        'Binance candle limit must be between 1 and 1000',
+      );
+    }
+
+    if (
+      options.endTime !== undefined
+      && (
+        !Number.isSafeInteger(options.endTime)
+        || options.endTime < 0
+      )
+    ) {
+      throw new MarketDataUnavailableError(
+        'Binance candle endTime must be a non-negative safe integer',
+      );
+    }
+
+    const query =
+      new URLSearchParams({
+        symbol,
+        interval:
+          timeframe,
+        limit:
+          String(limit),
+      });
+
+    if (
+      options.endTime
+      !== undefined
+    ) {
+      query.set(
+        'endTime',
+        String(options.endTime),
+      );
+    }
+
+    const payload = await this.requestJson<unknown>(
+      `/fapi/v1/klines?${query.toString()}`,
+      symbol,
+    );
     if (!Array.isArray(payload)) throw new MarketDataUnavailableError('Binance returned an unexpected candles response');
 
     return payload.map((row) => {

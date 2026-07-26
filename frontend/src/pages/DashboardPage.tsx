@@ -6,7 +6,6 @@ import {
   nexusApi,
   useApiQuery,
   type DashboardActivityPeriod,
-  type DashboardCandle,
   type DashboardChartPeriod,
   type DashboardHotCoin,
   type DashboardMarketModeData,
@@ -35,6 +34,11 @@ import {
   type MarketVolumeSpikeStatus,
   type ScannerFilterState,
 } from '@/shared/realtime';
+import {
+  NexusCandlestickChart,
+  useMarketCandles,
+  type MarketCandleTimeframe,
+} from '@/shared/charts';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { DashboardScannerFilters } from './DashboardScannerFilters';
 import filterStyles from './DashboardScannerFilters.module.css';
@@ -255,48 +259,71 @@ function FearGreed({ value, label, tone }: { value: number; label: string; tone:
   );
 }
 
-function TradingChart({ candles }: { candles: DashboardCandle[] }) {
-  const min = Math.min(...candles.map((candle) => candle.low));
-  const max = Math.max(...candles.map((candle) => candle.high));
-  const range = Math.max(max - min, 1);
-  const mapY = (value: number) => 202 - ((value - min) / range) * 145;
-  const step = 900 / candles.length;
-  const bodyWidth = Math.max(4, step * .58);
+const DASHBOARD_CHART_TIMEFRAMES:
+  Readonly<
+    Record<
+      DashboardChartPeriod,
+      MarketCandleTimeframe
+    >
+  > = {
+    '1M': '1m',
+    '5M': '5m',
+    '15M': '15m',
+    '1H': '1h',
+    '4H': '4h',
+    '1D': '1d',
+  };
 
-  return (
-    <div className={styles.chartCanvas}>
-      <div className={styles.chartTools}>{['⌖', '╱', '⌁', 'T', '□', '⌕'].map((tool) => <span key={tool}>{tool}</span>)}</div>
-      <svg viewBox="0 0 900 230" preserveAspectRatio="none" role="img" aria-label="График SOL/USDT">
-        <g className={styles.chartGrid}>
-          {[38, 76, 114, 152, 190].map((y) => <line key={`y${y}`} x1="0" x2="900" y1={y} y2={y} />)}
-          {[112, 224, 336, 448, 560, 672, 784].map((x) => <line key={`x${x}`} x1={x} x2={x} y1="0" y2="230" />)}
-        </g>
-        <line x1="0" x2="900" y1="68" y2="68" className={styles.priceLine} />
-        {candles.map((candle) => {
-          const x = candle.index * step + step / 2;
-          const isUp = candle.close >= candle.open;
-          const openY = mapY(candle.open);
-          const closeY = mapY(candle.close);
-          return (
-            <g key={candle.index} className={isUp ? styles.candleUp : styles.candleDown}>
-              <line x1={x} x2={x} y1={mapY(candle.high)} y2={mapY(candle.low)} />
-              <rect x={x - bodyWidth / 2} y={Math.min(openY, closeY)} width={bodyWidth} height={Math.max(2, Math.abs(closeY - openY))} rx=".6" />
-              <rect x={x - bodyWidth / 2} y={226 - candle.volume} width={bodyWidth} height={candle.volume} className={styles.volumeBar} />
-            </g>
-          );
-        })}
-        <path d="M0 187 C92 180 160 151 235 157 C318 164 369 131 447 137 C527 143 602 121 680 127 C758 133 818 109 900 102" className={styles.maFast} fill="none" />
-        <path d="M0 198 C102 195 184 181 268 174 C352 167 442 154 529 147 C614 140 696 133 778 125 C830 120 872 114 900 110" className={styles.maSlow} fill="none" />
-        <g className={styles.priceTag} transform="translate(846 55)"><rect width="54" height="23" rx="2" /><text x="27" y="15">167.42</text></g>
-      </svg>
-      <div className={styles.chartTimes}><span>11:30</span><span>11:40</span><span>11:50</span><span>12:00</span><span>12:10</span><span>12:20</span><span>12:30</span><span>12:40</span></div>
-    </div>
+function formatDashboardChartPrice(
+  value: number | null,
+): string {
+  if (
+    value === null
+    || !Number.isFinite(value)
+  ) {
+    return '—';
+  }
+
+  const fractionDigits =
+    value >= 1000
+      ? 2
+      : value >= 1
+        ? 4
+        : 8;
+
+  return value.toLocaleString(
+    'ru-RU',
+    {
+      minimumFractionDigits:
+        fractionDigits,
+      maximumFractionDigits:
+        fractionDigits,
+    },
   );
+}
+
+function formatDashboardChartVolume(
+  value: number | null,
+): string {
+  if (
+    value === null
+    || !Number.isFinite(value)
+  ) {
+    return '—';
+  }
+
+  return new Intl.NumberFormat(
+    'ru-RU',
+    {
+      notation: 'compact',
+      maximumFractionDigits: 2,
+    },
+  ).format(value);
 }
 
 function DashboardPageContent({ data }: { data: DashboardViewData }) {
   const navigate = useNavigate();
-  const { marketMode: marketModeSource, hotCoins, scannerRows, insights, levels, stats, chartPeriods, activityPeriods, candles } = data;
+  const { marketMode: marketModeSource, hotCoins, scannerRows, insights, levels, stats, chartPeriods, activityPeriods } = data;
   const [selected, setSelected] = useState(
     hotCoins[0].symbol,
   );
@@ -534,6 +561,43 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
       ) ?? hotCoins[0],
     [hotCoins, selected],
   );
+
+  const dashboardChartSymbol =
+    normalizeDashboardRealtimeSymbol(
+      selectedCoin.symbol,
+    );
+
+  const dashboardChartTimeframe =
+    DASHBOARD_CHART_TIMEFRAMES[
+      chartPeriod
+    ];
+
+  const dashboardCandlesQuery =
+    useMarketCandles({
+      symbol: dashboardChartSymbol,
+      timeframe: dashboardChartTimeframe,
+    });
+
+  const dashboardChartRealtime =
+    dashboardRealtime.coins[
+      dashboardChartSymbol
+    ];
+
+  const dashboardChartLatestCandle =
+    dashboardCandlesQuery.status
+      === 'success'
+    && dashboardCandlesQuery.data
+      ?.length
+      ? dashboardCandlesQuery.data[
+          dashboardCandlesQuery.data.length
+          - 1
+        ]
+      : undefined;
+
+  const dashboardChartPrice =
+    dashboardChartRealtime?.priceValue
+    ?? dashboardChartLatestCandle?.close
+    ?? null;
 
   const marketMode = useMemo(
     () => resolveMarketMode(
@@ -1268,12 +1332,194 @@ const barCount =
 
       <article className={`${styles.panel} ${styles.chartPanel}`}>
         <div className={styles.chartHeader}>
-          <div className={styles.chartPair}><span className={styles.chartCoin}>≋</span><strong>{selectedCoin.symbol}</strong><span>☆</span></div>
-          <div className={styles.chartPeriods}>{chartPeriods.map((period) => <button key={period} type="button" className={chartPeriod === period ? styles.chartPeriodActive : ''} onClick={() => setChartPeriod(period)}>{period}</button>)}</div>
-          <div className={styles.chartQuote}><strong>167.42</strong><em>+2.81%</em><span>H 167.89</span><span>L 162.34</span><span>V 4.21M</span></div>
-          <span className={styles.indicators}>⌁ Индикаторы　▣　⛶</span>
+          <div className={styles.chartPair}>
+            <span className={styles.chartCoin}>
+              {selectedCoin.icon}
+            </span>
+
+            <strong>
+              {selectedCoin.symbol}
+            </strong>
+
+            <span aria-hidden="true">
+              ☆
+            </span>
+          </div>
+
+          <div className={styles.chartPeriods}>
+            {chartPeriods.map((period) => (
+              <button
+                key={period}
+                type="button"
+                className={
+                  chartPeriod === period
+                    ? styles.chartPeriodActive
+                    : ''
+                }
+                onClick={() =>
+                  setChartPeriod(period)
+                }
+              >
+                {period}
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.chartQuote}>
+            <strong>
+              {
+                formatDashboardChartPrice(
+                  dashboardChartPrice,
+                )
+              }
+            </strong>
+
+            <em
+              className={
+                dashboardChartRealtime
+                  ?.changePct !== null
+                && dashboardChartRealtime
+                  ?.changePct !== undefined
+                && dashboardChartRealtime
+                  .changePct < 0
+                  ? styles.negative
+                  : styles.positive
+              }
+            >
+              {
+                dashboardChartRealtime
+                  ?.changeLabel
+                ?? selectedCoin.change
+              }
+            </em>
+
+            <span>
+              H {
+                formatDashboardChartPrice(
+                  dashboardChartLatestCandle
+                    ?.high
+                  ?? null,
+                )
+              }
+            </span>
+
+            <span>
+              L {
+                formatDashboardChartPrice(
+                  dashboardChartLatestCandle
+                    ?.low
+                  ?? null,
+                )
+              }
+            </span>
+
+            <span>
+              V {
+                formatDashboardChartVolume(
+                  dashboardChartLatestCandle
+                    ?.volume
+                  ?? null,
+                )
+              }
+            </span>
+          </div>
+
+          <span className={styles.indicators}>
+            {
+              dashboardCandlesQuery
+                .isLoadingOlder
+                ? 'Загружаем историю…'
+                : dashboardCandlesQuery
+                    .hasMore
+                  ? 'История доступна влево'
+                  : 'История загружена'
+            }
+          </span>
         </div>
-        <TradingChart candles={candles} />
+
+        <div className={styles.chartCanvas}>
+          {
+            dashboardCandlesQuery.status
+              === 'loading'
+              ? (
+                <div className={styles.chartState}>
+                  Загружаем реальные свечи…
+                </div>
+              )
+              : null
+          }
+
+          {
+            dashboardCandlesQuery.status
+              === 'error'
+              ? (
+                <div className={styles.chartState}>
+                  <span>
+                    Свечи не загрузились.
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={
+                      dashboardCandlesQuery.retry
+                    }
+                  >
+                    Повторить
+                  </button>
+                </div>
+              )
+              : null
+          }
+
+          {
+            dashboardCandlesQuery.status
+              === 'success'
+            && dashboardCandlesQuery.data
+              ?.length === 0
+              ? (
+                <div className={styles.chartState}>
+                  Для выбранного периода нет свечей.
+                </div>
+              )
+              : null
+          }
+
+          {
+            dashboardCandlesQuery.status
+              === 'success'
+            && dashboardCandlesQuery.data
+            && dashboardCandlesQuery.data
+              .length > 0
+              ? (
+                <NexusCandlestickChart
+                  candles={
+                    dashboardCandlesQuery.data
+                  }
+                  symbol={
+                    dashboardChartSymbol
+                  }
+                  fillContainer
+                  enableDrawingTools
+                  drawingScope={
+                    `dashboard:${dashboardChartSymbol}:${dashboardChartTimeframe}`
+                  }
+                  onLoadOlder={
+                    dashboardCandlesQuery
+                      .loadOlder
+                  }
+                  isLoadingOlder={
+                    dashboardCandlesQuery
+                      .isLoadingOlder
+                  }
+                  hasMore={
+                    dashboardCandlesQuery
+                      .hasMore
+                  }
+                />
+              )
+              : null
+          }
+        </div>
       </article>
 
     </section>

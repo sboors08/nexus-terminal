@@ -31,3 +31,130 @@ test('NEXUS API Contract accepts setup feedback', async (t) => {
   const response = await app.inject({ method: 'POST', url: '/api/v1/setup-feedback', payload: { setupId: 'setup-sol-breakout-001', useful: true, reasons: [], comment: null, createdAt: '2026-07-18T14:10:00.000Z' } });
   assert.equal(response.statusCode, 202); assert.match(response.json().id, /^feedback-/);
 });
+
+
+test('NEXUS API passes candle pagination parameters', async (t) => {
+  let receivedOptions:
+    | {
+        limit?: number;
+        endTime?: number;
+      }
+    | undefined;
+
+  const provider: MarketDataProvider = {
+    getMarketSymbols:
+      async () => marketSymbols,
+
+    getCandles:
+      async (
+        symbol,
+        timeframe,
+        options,
+      ) => {
+        receivedOptions =
+          options;
+
+        return createCandles(
+          symbol,
+          timeframe,
+        );
+      },
+  };
+
+  const app =
+    await buildApp({
+      env:
+        testEnv,
+      marketDataProvider:
+        provider,
+    });
+
+  t.after(
+    async () =>
+      app.close(),
+  );
+
+  const response =
+    await app.inject({
+      method:
+        'GET',
+      url:
+        '/api/v1/market/candles'
+        + '?symbol=SOLUSDT'
+        + '&timeframe=5m'
+        + '&limit=1000'
+        + '&endTime=1721275199999',
+    });
+
+  assert.equal(
+    response.statusCode,
+    200,
+  );
+
+  assert.deepEqual(
+    receivedOptions,
+    {
+      limit:
+        1000,
+      endTime:
+        1721275199999,
+    },
+  );
+});
+
+test('NEXUS API rejects invalid candle pagination', async (t) => {
+  const app =
+    await buildApp({
+      env:
+        testEnv,
+      marketDataProvider:
+        fixtureProvider,
+    });
+
+  t.after(
+    async () =>
+      app.close(),
+  );
+
+  const invalidLimit =
+    await app.inject({
+      method:
+        'GET',
+      url:
+        '/api/v1/market/candles'
+        + '?symbol=SOLUSDT'
+        + '&timeframe=5m'
+        + '&limit=1001',
+    });
+
+  assert.equal(
+    invalidLimit.statusCode,
+    400,
+  );
+
+  assert.equal(
+    invalidLimit.json().error,
+    'invalid_limit',
+  );
+
+  const invalidEndTime =
+    await app.inject({
+      method:
+        'GET',
+      url:
+        '/api/v1/market/candles'
+        + '?symbol=SOLUSDT'
+        + '&timeframe=5m'
+        + '&endTime=-1',
+    });
+
+  assert.equal(
+    invalidEndTime.statusCode,
+    400,
+  );
+
+  assert.equal(
+    invalidEndTime.json().error,
+    'invalid_end_time',
+  );
+});

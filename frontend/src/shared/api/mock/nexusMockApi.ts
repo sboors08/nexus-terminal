@@ -321,21 +321,79 @@ const HOT_LIST_ONLY_SETUPS: ScannerSetup[] = [
 
 const WORKSPACE_SETUPS: ScannerSetup[] = [...SCANNER_SETUPS, ...HOT_LIST_ONLY_SETUPS];
 
-function resolveWorkspaceSetup(setupId?: string | null, symbol?: string | null): ScannerSetup | null {
+function resolveWorkspaceSetup(
+  setupId?: string | null,
+  symbol?: string | null,
+): ScannerSetup | null {
   if (setupId) {
-    const direct = WORKSPACE_SETUPS.find((setup) => setup.id === setupId);
-    if (direct) return direct;
-    const historyItem = MARKET_HISTORY_ITEMS.find((item) => item.setupId === setupId);
-    if (historyItem) return historyItemToScannerSetup(historyItem);
+    const direct =
+      WORKSPACE_SETUPS.find(
+        (setup) => setup.id === setupId,
+      );
+
+    if (direct) {
+      return direct;
+    }
+
+    const historyItem =
+      MARKET_HISTORY_ITEMS.find(
+        (item) => item.setupId === setupId,
+      );
+
+    if (historyItem) {
+      return historyItemToScannerSetup(
+        historyItem,
+      );
+    }
+
+    if (setupId.startsWith('market-')) {
+      const dynamicSymbol =
+        setupId
+          .slice('market-'.length)
+          .toUpperCase();
+
+      return dynamicSymbol
+        ? createMarketWorkspaceSetup(
+            dynamicSymbol,
+          )
+        : null;
+    }
+
     return null;
   }
 
-  const requestedSymbol = symbol?.toUpperCase();
+  const requestedSymbol =
+    symbol
+      ?.trim()
+      .replace('/', '')
+      .toUpperCase();
+
   if (requestedSymbol) {
-    const active = WORKSPACE_SETUPS.find((setup) => setup.symbol === requestedSymbol);
-    if (active) return active;
-    const historyItem = MARKET_HISTORY_ITEMS.find((item) => item.symbol === requestedSymbol);
-    if (historyItem) return historyItemToScannerSetup(historyItem);
+    const active =
+      WORKSPACE_SETUPS.find(
+        (setup) =>
+          setup.symbol === requestedSymbol,
+      );
+
+    if (active) {
+      return active;
+    }
+
+    const historyItem =
+      MARKET_HISTORY_ITEMS.find(
+        (item) =>
+          item.symbol === requestedSymbol,
+      );
+
+    if (historyItem) {
+      return historyItemToScannerSetup(
+        historyItem,
+      );
+    }
+
+    return createMarketWorkspaceSetup(
+      requestedSymbol,
+    );
   }
 
   return WORKSPACE_SETUPS[0] ?? null;
@@ -445,6 +503,158 @@ const marketSymbols: MarketSymbol[] = MARKET_SEEDS.map(([symbol, price, change],
   btcRelativeStrength: symbol === 'BTCUSDT' ? 0 : Number((change - 1.82).toFixed(2)),
   updatedAt: FIXED_NOW,
 }));
+
+function formatDynamicWorkspacePrice(
+  value: number,
+): string {
+  const digits =
+    value >= 1000
+      ? 2
+      : value >= 1
+        ? 4
+        : 8;
+
+  return value.toLocaleString(
+    'ru-RU',
+    {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    },
+  );
+}
+
+function createMarketWorkspaceSetup(
+  requestedSymbol: string,
+): ScannerSetup {
+  const symbol =
+    requestedSymbol
+      .trim()
+      .replace('/', '')
+      .toUpperCase();
+
+  const marketSymbol =
+    marketSymbols.find(
+      (item) => item.symbol === symbol,
+    );
+
+  const price =
+    marketSymbol?.price ?? 1;
+
+  const change =
+    marketSymbol?.priceChangePct ?? 0;
+
+  const direction =
+    change < 0
+      ? 'short'
+      : 'long';
+
+  const levelCenter =
+    direction === 'long'
+      ? price * 1.003
+      : price * 0.997;
+
+  const levelLow =
+    levelCenter * 0.999;
+
+  const levelHigh =
+    levelCenter * 1.001;
+
+  const btcStrength =
+    marketSymbol
+      ?.btcRelativeStrength ?? 0;
+
+  const btcCorrelation =
+    marketSymbol
+      ?.btcCorrelation ?? 0.5;
+
+  const chartPath =
+    'M0 174 C70 168 125 154 180 160 '
+    + 'C245 166 300 138 360 143 '
+    + 'C425 148 490 119 550 126 '
+    + 'C590 130 616 112 640 108';
+
+  return {
+    id:
+      `market-${symbol.toLowerCase()}`,
+    symbol,
+    exchange: 'BINANCE',
+    direction,
+    kind:
+      direction === 'long'
+        ? 'Пробой сопротивления'
+        : 'Пробой поддержки',
+    stage: 'observation',
+    timeframe: '1m',
+    price:
+      formatDynamicWorkspacePrice(
+        price,
+      ),
+    priceChange:
+      `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`,
+    level:
+      `${formatDynamicWorkspacePrice(levelLow)}–${formatDynamicWorkspacePrice(levelHigh)}`,
+    distancePercent: 0.3,
+    distanceLabel: '0.30%',
+    touches: 2,
+    formationMinutes: 30,
+    formationLabel: '30м',
+    pullbackDepth: 'Неглубокие',
+    volumeAnomaly: 1.2,
+    tradesAnomaly: 1.15,
+    tradeSpeed: 'Средняя',
+    btcCorrelation:
+      btcCorrelation.toFixed(2),
+    btcStrength,
+    btcStrengthLabel:
+      `${btcStrength >= 0 ? '+' : ''}${btcStrength.toFixed(2)}%`,
+    activity: 'Средняя',
+    reasons: [
+      'Монета выбрана в Market Scanner.',
+      'Рабочий контекст сформирован автоматически.',
+    ],
+    chartPath,
+    areaPath:
+      `${chartPath} L640 210 L0 210 Z`,
+    levelY: 104,
+    touchPoints: [
+      { x: 470, y: 108 },
+      { x: 555, y: 105 },
+    ],
+  };
+}
+
+function resolveContractSetupById(
+  setupId: string,
+): Setup | null {
+  const stored =
+    contractSetups.find(
+      (item) => item.id === setupId,
+    );
+
+  if (stored) {
+    return stored;
+  }
+
+  if (!setupId.startsWith('market-')) {
+    return null;
+  }
+
+  const symbol =
+    setupId
+      .slice('market-'.length)
+      .toUpperCase();
+
+  if (!symbol) {
+    return null;
+  }
+
+  return toContractSetup(
+    createMarketWorkspaceSetup(
+      symbol,
+    ),
+    contractSetups.length,
+  );
+}
 
 function timeframeToMinutes(timeframe: string): number {
   const value = timeframe.trim().toLowerCase();
@@ -645,14 +855,34 @@ const contractApi: NexusApi = {
   },
   getSetups: () => deliver('setups', contractSetups, []),
   getSetupById: async (setupId) => {
-    const setup = contractSetups.find((item) => item.id === setupId) ?? null;
-    return deliver('setup', setup, null);
+    const setup =
+      resolveContractSetupById(
+        setupId,
+      );
+
+    return deliver(
+      'setup',
+      setup,
+      null,
+    );
   },
   getWorkspaceSnapshot: async (setupId) => {
-    const setup = setupId
-      ? contractSetups.find((item) => item.id === setupId) ?? null
-      : contractSetups[0] ?? null;
-    return deliver('workspace snapshot', setup ? createWorkspaceSnapshot(setup) : null, null);
+    const setup =
+      setupId
+        ? resolveContractSetupById(
+            setupId,
+          )
+        : contractSetups[0] ?? null;
+
+    return deliver(
+      'workspace snapshot',
+      setup
+        ? createWorkspaceSnapshot(
+            setup,
+          )
+        : null,
+      null,
+    );
   },
   getAlerts: () => deliver('alerts', canonicalAlerts, []),
   getSetupHistory: () => deliver('setup history', canonicalHistory, []),
