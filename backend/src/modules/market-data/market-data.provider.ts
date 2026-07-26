@@ -1,8 +1,17 @@
 import type { Candle, MarketSymbol } from '../../contracts/nexus-api.js';
 
+export interface GetCandlesOptions {
+  limit?: number;
+  endTime?: number;
+}
+
 export interface MarketDataProvider {
   getMarketSymbols(): Promise<MarketSymbol[]>;
-  getCandles(symbol: string, timeframe: string): Promise<Candle[]>;
+  getCandles(
+    symbol: string,
+    timeframe: string,
+    options?: GetCandlesOptions,
+  ): Promise<Candle[]>;
 }
 
 export class MarketDataUnavailableError extends Error {

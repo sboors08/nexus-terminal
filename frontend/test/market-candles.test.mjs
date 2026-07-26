@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildMarketCandlesUrl,
   fetchMarketCandles,
+  mergeMarketCandlePages,
   parseMarketCandle,
 } from '../node_modules/.tmp/realtime-test/charts/api/marketCandles.js';
 
@@ -229,6 +230,92 @@ test(
               ),
         }),
       /request failed: 503/,
+    );
+  },
+);
+
+test(
+  'builds a paginated market candles URL',
+  () => {
+    assert.equal(
+      buildMarketCandlesUrl({
+        symbol:
+          'SOLUSDT',
+        timeframe:
+          '1m',
+        limit:
+          1000,
+        endTime:
+          1721275199999,
+      }),
+      '/api/v1/market/candles'
+        + '?symbol=SOLUSDT'
+        + '&timeframe=1m'
+        + '&limit=1000'
+        + '&endTime=1721275199999',
+    );
+
+    assert.throws(
+      () =>
+        buildMarketCandlesUrl({
+          symbol:
+            'SOLUSDT',
+          timeframe:
+            '1m',
+          limit:
+            1001,
+        }),
+      /limit/,
+    );
+  },
+);
+
+test(
+  'merges candle pages in order without duplicates',
+  () => {
+    const newer = [
+      createCandle(),
+      {
+        ...createCandle(),
+        openTime:
+          '2026-07-25T12:05:00.000Z',
+        closeTime:
+          '2026-07-25T12:09:59.999Z',
+      },
+    ];
+
+    const older = [
+      {
+        ...createCandle(),
+        openTime:
+          '2026-07-25T11:55:00.000Z',
+        closeTime:
+          '2026-07-25T11:59:59.999Z',
+      },
+      createCandle(),
+    ];
+
+    const merged =
+      mergeMarketCandlePages(
+        older,
+        newer,
+      );
+
+    assert.equal(
+      merged.length,
+      3,
+    );
+
+    assert.deepEqual(
+      merged.map(
+        (candle) =>
+          candle.openTime,
+      ),
+      [
+        '2026-07-25T11:55:00.000Z',
+        '2026-07-25T12:00:00.000Z',
+        '2026-07-25T12:05:00.000Z',
+      ],
     );
   },
 );

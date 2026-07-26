@@ -2,14 +2,18 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import {
   CandlestickSeries,
   ColorType,
   CrosshairMode,
   HistogramSeries,
+  LineStyle,
   createChart,
   type IChartApi,
+  type IPriceLine,
+  type LogicalRange,
   type ISeriesApi,
 } from 'lightweight-charts';
 
@@ -20,6 +24,9 @@ import {
   mapCandleChartData,
 } from '../model/candleMapping.js';
 import styles from './NexusCandlestickChart.module.css';
+import {
+  NexusChartDrawingOverlay,
+} from './NexusChartDrawingOverlay.js';
 
 const CHART_COLORS = {
   background: '#070e12',
@@ -32,14 +39,38 @@ const CHART_COLORS = {
   volumeDown: 'rgba(255, 98, 115, 0.25)',
 } as const;
 
+export interface NexusChartPriceLine {
+  price: number;
+  color: string;
+  title?: string;
+  lineStyle?: 'solid' | 'dashed';
+  axisLabelVisible?: boolean;
+}
+
 export interface NexusCandlestickChartProps {
   candles: readonly Candle[];
   symbol: string;
+  fillContainer?: boolean;
+  priceLines?: readonly NexusChartPriceLine[];
+  showSeriesPriceLine?: boolean;
+  enableDrawingTools?: boolean;
+  drawingScope?: string;
+  onLoadOlder?: () => void;
+  isLoadingOlder?: boolean;
+  hasMore?: boolean;
 }
 
 export function NexusCandlestickChart({
   candles,
   symbol,
+  fillContainer = false,
+  priceLines = [],
+  showSeriesPriceLine = true,
+  enableDrawingTools = false,
+  drawingScope = symbol,
+  onLoadOlder,
+  isLoadingOlder = false,
+  hasMore = false,
 }: NexusCandlestickChartProps) {
   const containerRef =
     useRef<HTMLDivElement | null>(
@@ -60,6 +91,32 @@ export function NexusCandlestickChart({
     useRef<
       ISeriesApi<'Histogram'> | null
     >(null);
+
+  const [
+    chartReadyVersion,
+    setChartReadyVersion,
+  ] = useState(0);
+
+  const onLoadOlderRef =
+    useRef(onLoadOlder);
+
+  const isLoadingOlderRef =
+    useRef(isLoadingOlder);
+
+  const hasMoreRef =
+    useRef(hasMore);
+
+  const previousDataLengthRef =
+    useRef(0);
+
+  onLoadOlderRef.current =
+    onLoadOlder;
+
+  isLoadingOlderRef.current =
+    isLoadingOlder;
+
+  hasMoreRef.current =
+    hasMore;
 
   const chartData =
     useMemo(
@@ -174,9 +231,9 @@ export function NexusCandlestickChart({
           wickDownColor:
             CHART_COLORS.down,
           priceLineVisible:
-            true,
+            showSeriesPriceLine,
           lastValueVisible:
-            true,
+            showSeriesPriceLine,
         },
       );
 
@@ -216,6 +273,10 @@ export function NexusCandlestickChart({
 
     volumeSeriesRef.current =
       volumeSeries;
+
+    setChartReadyVersion(
+      (value) => value + 1,
+    );
 
     const resizeObserver =
       new ResizeObserver(
@@ -288,6 +349,19 @@ export function NexusCandlestickChart({
       return;
     }
 
+    const timeScale =
+      chart.timeScale();
+
+    const previousRange =
+      timeScale
+        .getVisibleLogicalRange();
+
+    const previousLength =
+      previousDataLengthRef.current;
+
+    const currentLength =
+      chartData.candles.length;
+
     candleSeries.setData(
       chartData.candles,
     );
@@ -296,22 +370,164 @@ export function NexusCandlestickChart({
       chartData.volume,
     );
 
-    if (
-      chartData.candles.length
-      > 0
-    ) {
-      chart
-        .timeScale()
-        .fitContent();
+    if (currentLength > 0) {
+      if (previousLength === 0) {
+        const right =
+          currentLength + 4;
+
+        timeScale
+          .setVisibleLogicalRange({
+            from:
+              Math.max(
+                0,
+                right - 160,
+              ),
+            to:
+              right,
+          });
+      } else if (
+        currentLength
+          > previousLength
+        && previousRange
+      ) {
+        const addedCount =
+          currentLength
+          - previousLength;
+
+        timeScale
+          .setVisibleLogicalRange({
+            from:
+              previousRange.from
+              + addedCount,
+            to:
+              previousRange.to
+              + addedCount,
+          });
+      }
     }
+
+    previousDataLengthRef.current =
+      currentLength;
   }, [chartData]);
+
+  useEffect(() => {
+    const chart =
+      chartRef.current;
+
+    if (!chart) {
+      return;
+    }
+
+    const handleVisibleRangeChange = (
+      range: LogicalRange | null,
+    ) => {
+      if (
+        !range
+        || range.from > 25
+        || isLoadingOlderRef.current
+        || !hasMoreRef.current
+      ) {
+        return;
+      }
+
+      onLoadOlderRef.current?.();
+    };
+
+    const timeScale =
+      chart.timeScale();
+
+    timeScale
+      .subscribeVisibleLogicalRangeChange(
+        handleVisibleRangeChange,
+      );
+
+    return () => {
+      timeScale
+        .unsubscribeVisibleLogicalRangeChange(
+          handleVisibleRangeChange,
+        );
+    };
+  }, [chartReadyVersion]);
+
+  useEffect(() => {
+    const candleSeries =
+      candleSeriesRef.current;
+
+    if (!candleSeries) {
+      return;
+    }
+
+    const createdLines: IPriceLine[] =
+      priceLines
+        .filter(
+          (line) =>
+            Number.isFinite(line.price)
+            && line.price > 0,
+        )
+        .map((line) =>
+          candleSeries.createPriceLine({
+            price: line.price,
+            color: line.color,
+            lineWidth:
+              line.lineStyle === 'solid'
+                ? 2
+                : 1,
+            lineStyle:
+              line.lineStyle === 'solid'
+                ? LineStyle.Solid
+                : LineStyle.Dashed,
+            axisLabelVisible:
+              line.axisLabelVisible
+              ?? true,
+            title:
+              line.title
+              ?? '',
+          }),
+        );
+
+    return () => {
+      for (const line of createdLines) {
+        candleSeries.removePriceLine(
+          line,
+        );
+      }
+    };
+  }, [priceLines]);
 
   return (
     <div
-      ref={containerRef}
-      className={styles.chart}
-      role="img"
-      aria-label={`Свечной график ${symbol}`}
-    />
+      aria-busy={
+        isLoadingOlder
+      }
+      className={[
+        styles.root,
+        fillContainer
+          ? styles.fill
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <div
+        ref={containerRef}
+        className={styles.chart}
+        role="img"
+        aria-label={`Свечной график ${symbol}`}
+      />
+
+      {enableDrawingTools
+        ? (
+          <NexusChartDrawingOverlay
+            chartRef={chartRef}
+            seriesRef={candleSeriesRef}
+            readyVersion={
+              chartReadyVersion
+            }
+            candles={candles}
+            scope={drawingScope}
+          />
+        )
+        : null}
+    </div>
   );
 }

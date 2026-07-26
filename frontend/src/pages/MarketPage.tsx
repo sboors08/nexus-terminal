@@ -324,6 +324,17 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
               <NexusCandlestickChart
                 candles={candlesQuery.data}
                 symbol={selected.symbol}
+                enableDrawingTools
+                drawingScope={`market:${selected.symbol}:${timeframe}`}
+                onLoadOlder={
+                  candlesQuery.loadOlder
+                }
+                isLoadingOlder={
+                  candlesQuery.isLoadingOlder
+                }
+                hasMore={
+                  candlesQuery.hasMore
+                }
               />
             )}
           </div>

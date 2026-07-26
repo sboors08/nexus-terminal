@@ -43,12 +43,108 @@ export const apiContractRoutes: FastifyPluginAsync<ApiContractRoutesOptions> = a
     try { return await options.marketDataProvider.getMarketSymbols(); } catch (error) { return sendMarketDataError(request, reply, error); }
   });
 
-  app.get<{ Querystring: { symbol?: string; timeframe?: string } }>('/market/candles', async (request, reply) => {
-    const symbol = normalizeSymbol(request.query.symbol);
-    const timeframe = normalizeTimeframe(request.query.timeframe);
-    if (!symbol) return sendError(request, reply, 400, 'invalid_symbol', 'Query parameter symbol is required');
-    if (!timeframe) return sendError(request, reply, 400, 'invalid_timeframe', 'Unsupported timeframe');
-    try { return await options.marketDataProvider.getCandles(symbol, timeframe); } catch (error) { return sendMarketDataError(request, reply, error); }
+  app.get<{
+    Querystring: {
+      symbol?: string;
+      timeframe?: string;
+      limit?: string;
+      endTime?: string;
+    };
+  }>('/market/candles', async (request, reply) => {
+    const symbol =
+      normalizeSymbol(
+        request.query.symbol,
+      );
+
+    const timeframe =
+      normalizeTimeframe(
+        request.query.timeframe,
+      );
+
+    const limit =
+      request.query.limit === undefined
+        ? 1000
+        : Number(
+            request.query.limit,
+          );
+
+    const endTime =
+      request.query.endTime === undefined
+        ? undefined
+        : Number(
+            request.query.endTime,
+          );
+
+    if (!symbol) {
+      return sendError(
+        request,
+        reply,
+        400,
+        'invalid_symbol',
+        'Query parameter symbol is required',
+      );
+    }
+
+    if (!timeframe) {
+      return sendError(
+        request,
+        reply,
+        400,
+        'invalid_timeframe',
+        'Unsupported timeframe',
+      );
+    }
+
+    if (
+      !Number.isInteger(limit)
+      || limit < 1
+      || limit > 1000
+    ) {
+      return sendError(
+        request,
+        reply,
+        400,
+        'invalid_limit',
+        'Candle limit must be between 1 and 1000',
+      );
+    }
+
+    if (
+      endTime !== undefined
+      && (
+        !Number.isSafeInteger(endTime)
+        || endTime < 0
+      )
+    ) {
+      return sendError(
+        request,
+        reply,
+        400,
+        'invalid_end_time',
+        'Candle endTime must be a non-negative safe integer',
+      );
+    }
+
+    try {
+      return await options.marketDataProvider.getCandles(
+        symbol,
+        timeframe,
+        {
+          limit,
+          ...(endTime === undefined
+            ? {}
+            : {
+                endTime,
+              }),
+        },
+      );
+    } catch (error) {
+      return sendMarketDataError(
+        request,
+        reply,
+        error,
+      );
+    }
   });
 
   app.get('/setups', async () => setups);

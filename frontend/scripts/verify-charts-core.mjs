@@ -119,7 +119,15 @@ const markers = [
   ],
   [
     hook,
-    'useApiQuery',
+    'loadOlder',
+  ],
+  [
+    hook,
+    'MARKET_CANDLES_PAGE_SIZE',
+  ],
+  [
+    client,
+    'mergeMarketCandlePages',
   ],
   [
     mapping,
@@ -155,7 +163,15 @@ const markers = [
   ],
   [
     component,
-    'fitContent',
+    'setVisibleLogicalRange',
+  ],
+  [
+    component,
+    'subscribeVisibleLogicalRangeChange',
+  ],
+  [
+    component,
+    'onLoadOlder',
   ],
   [
     componentCss,

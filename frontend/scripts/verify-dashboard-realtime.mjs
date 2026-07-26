@@ -1,4 +1,4 @@
-﻿import {
+import {
   access,
   readFile,
 } from 'node:fs/promises';
@@ -81,6 +81,13 @@ const requiredMarkers = [
   'dashboardRealtime.liveCount',
   'btcRealtime.priceLabel',
   'realtime.sourceLabel',
+  'dashboardChartTimeframe',
+  'useMarketCandles({',
+  'NexusCandlestickChart',
+  'onLoadOlder={',
+  'hasMore={',
+  'formatDashboardChartPrice',
+  'История доступна влево',
   'styles.realtimeStatus',
   '.realtimeStatus_live',
   '.sourceLive',

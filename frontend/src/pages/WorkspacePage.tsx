@@ -23,6 +23,11 @@ import {
   type WorkspaceSnapshot,
   type WorkspaceViewData,
 } from '@/shared/api';
+import {
+  NexusCandlestickChart,
+  useMarketCandles,
+  type NexusChartPriceLine,
+} from '@/shared/charts';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { DirectionBadge } from '@/shared/ui/DirectionBadge';
 import { SetupStageBadge } from '@/shared/ui/SetupStageBadge';
@@ -36,117 +41,6 @@ type WorkspacePageData = {
   snapshot: WorkspaceSnapshot;
   view: WorkspaceViewData;
 };
-
-function WorkspaceChart({
-  setupId,
-  chartPath,
-  areaPath,
-  levelY,
-  touchPoints,
-  direction,
-  price,
-  priceY,
-  axisLabels,
-  showCurrentPrice,
-}: {
-  setupId: string;
-  chartPath: string;
-  areaPath: string;
-  levelY: number;
-  touchPoints: Array<{ x: number; y: number }>;
-  direction: 'long' | 'short';
-  price: string;
-  priceY: number;
-  axisLabels: string[];
-  showCurrentPrice: boolean;
-}) {
-  const chartTone = direction === 'long' ? styles.chartLong : styles.chartShort;
-
-  return (
-    <div className={`${styles.chartCanvas} ${chartTone}`}>
-      <svg viewBox="0 0 900 390" preserveAspectRatio="none" role="img" aria-label="Рабочий график выбранного сетапа">
-        <defs>
-          <linearGradient id={`workspace-area-${setupId}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id={`workspace-volume-${setupId}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.12" />
-          </linearGradient>
-        </defs>
-
-        <g className={styles.chartGrid}>
-          {[65, 130, 195, 260, 325].map((y) => <line key={`h-${y}`} x1="0" y1={y} x2="900" y2={y} />)}
-          {[150, 300, 450, 600, 750].map((x) => <line key={`v-${x}`} x1={x} y1="0" x2={x} y2="390" />)}
-        </g>
-
-        <rect className={styles.levelZone} x="0" y={levelY * 1.45 - 11} width="900" height="22" rx="3" />
-        <line className={styles.levelLine} x1="0" y1={levelY * 1.45} x2="900" y2={levelY * 1.45} />
-        <text className={styles.levelLabel} x="12" y={Math.max(18, levelY * 1.45 - 16)}>ЗОНА УРОВНЯ</text>
-
-        <g className={styles.volumeBars}>
-          {[44, 31, 54, 38, 63, 51, 78, 58, 89, 67, 106, 84, 126, 97, 148, 121, 171, 142, 194, 165, 218, 189, 246, 213, 276, 238, 304, 269].map((height, index) => (
-            <rect
-              key={`${height}-${index}`}
-              x={index * 32 + 4}
-              y={378 - height * 0.34}
-              width="18"
-              height={height * 0.34}
-              rx="2"
-              fill={`url(#workspace-volume-${setupId})`}
-            />
-          ))}
-        </g>
-
-        <g transform="scale(1.40625 1.45)">
-          <path d={areaPath} fill={`url(#workspace-area-${setupId})`} />
-          <path className={styles.chartLine} d={chartPath} fill="none" vectorEffect="non-scaling-stroke" />
-          {touchPoints.map((point, index) => (
-            <g key={`${point.x}-${point.y}`}>
-              <circle className={styles.touchHalo} cx={point.x} cy={point.y} r="7" />
-              <circle className={styles.touchPoint} cx={point.x} cy={point.y} r="3.2" />
-              <text className={styles.touchLabel} x={point.x + 8} y={point.y - 9}>{index + 1}</text>
-            </g>
-          ))}
-        </g>
-
-        {showCurrentPrice && (
-          <>
-            <line
-              className={styles.currentPriceLine}
-              x1="0"
-              y1={priceY}
-              x2="900"
-              y2={priceY}
-            />
-            <g
-              className={styles.priceMarker}
-              transform={`translate(810 ${priceY - 14})`}
-            >
-              <rect width="84" height="28" rx="5" />
-              <text x="42" y="18">{price}</text>
-            </g>
-          </>
-        )}
-      </svg>
-
-      <div className={styles.chartBottomAxis} aria-hidden="true">
-        <span>14:00</span>
-        <span>14:45</span>
-        <span>15:30</span>
-        <span>16:15</span>
-        <span>17:00</span>
-        <span>17:32</span>
-      </div>
-      <div className={styles.chartRightAxis} aria-hidden="true">
-        {axisLabels.map((label, index) => (
-          <span key={`${label}-${index}`}>{label}</span>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function ChecklistIcon({ state }: { state: 'passed' | 'warning' | 'waiting' }) {
   if (state === 'passed') return <span aria-hidden="true">✓</span>;
@@ -172,6 +66,104 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const requestedTimeframe = searchParams.get('timeframe');
   const defaultTimeframe: Timeframe = isWorkspaceTimeframe(selectedSetup.timeframe) ? selectedSetup.timeframe : '5m';
   const timeframe: Timeframe = isWorkspaceTimeframe(requestedTimeframe) ? requestedTimeframe : defaultTimeframe;
+
+  const candlesQuery = useMarketCandles({
+    symbol: contractSetup.symbol,
+    timeframe,
+  });
+
+  const latestCandle =
+    candlesQuery.status === 'success'
+    && candlesQuery.data?.length
+      ? candlesQuery.data[
+          candlesQuery.data.length - 1
+        ]
+      : undefined;
+
+  const chartCurrentPrice =
+    latestCandle?.close
+    ?? contractSetup.currentPrice;
+
+  const levelDistanceRatio =
+    Math.abs(
+      contractSetup.distanceToLevelPct,
+    ) / 100;
+
+  const chartLevelCenter =
+    contractSetup.direction === 'short'
+      ? chartCurrentPrice
+        * (1 - levelDistanceRatio)
+      : chartCurrentPrice
+        * (1 + levelDistanceRatio);
+
+  const originalLevelHalfWidthRatio =
+    contractSetup.level.centerPrice > 0
+      ? Math.max(
+          contractSetup.level.centerPrice
+            - contractSetup.level.zoneLow,
+          contractSetup.level.zoneHigh
+            - contractSetup.level.centerPrice,
+        )
+        / contractSetup.level.centerPrice
+      : 0.0015;
+
+  const chartZoneLow =
+    chartLevelCenter
+    * (1 - originalLevelHalfWidthRatio);
+
+  const chartZoneHigh =
+    chartLevelCenter
+    * (1 + originalLevelHalfWidthRatio);
+
+  const formatChartPrice = (
+    value: number,
+  ) =>
+    value.toLocaleString(
+      'ru-RU',
+      {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8,
+      },
+    );
+
+  const chartLevelLabel =
+    `${formatChartPrice(chartZoneLow)}–${formatChartPrice(chartZoneHigh)}`;
+
+  const chartPriceLines =
+    useMemo<readonly NexusChartPriceLine[]>(
+      () => [
+        {
+          price: chartZoneLow,
+          color: '#d5a928',
+          lineStyle: 'dashed',
+          axisLabelVisible: false,
+        },
+        {
+          price: chartLevelCenter,
+          color: '#f0b90b',
+          title: 'УРОВЕНЬ',
+          lineStyle: 'solid',
+        },
+        {
+          price: chartZoneHigh,
+          color: '#d5a928',
+          lineStyle: 'dashed',
+          axisLabelVisible: false,
+        },
+        {
+          price: chartCurrentPrice,
+          color: '#4aa8ff',
+          title: 'LAST',
+          lineStyle: 'dashed',
+        },
+      ],
+      [
+        chartCurrentPrice,
+        chartLevelCenter,
+        chartZoneHigh,
+        chartZoneLow,
+      ],
+    );
   const [tapeFilter, setTapeFilter] = useState<TapeFilter>('all');
   const [alertCreated, setAlertCreated] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -232,14 +224,16 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const resultLabel = selectedSetup.kind.includes('Отскок') ? 'Отскок' : 'Пробой';
   const currentStageIndex = { observation: 0, approach: 1, confirmation: 2, triggered: 3 }[selectedSetup.stage];
   const baseAsset = selectedSetup.symbol.replace('USDT', '');
-  const numericPrice = Number(selectedSetup.price.replace(/\s/g, ''));
+  const numericPrice = chartCurrentPrice;
   const priceDecimals = selectedSetup.price.includes('.') ? selectedSetup.price.split('.')[1].length : 2;
   const formatPrice = (value: number) => value.toLocaleString('ru-RU', {
     minimumFractionDigits: priceDecimals,
     maximumFractionDigits: priceDecimals,
   });
   const mapReferencePrice = (referencePrice: string) => {
-    const ratio = Number(referencePrice) / 187.42;
+    const ratio =
+      Number(referencePrice)
+      / contractSetup.currentPrice;
     return Number.isFinite(numericPrice) ? formatPrice(numericPrice * ratio) : referencePrice;
   };
   const workspaceChecklist = [
@@ -277,7 +271,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     {
       id: 'check-result',
       label: `${resultLabel}: закрепление за зоной`,
-      detail: `Ожидается подтверждение за границей зоны ${selectedSetup.level}.`,
+      detail: `Ожидается подтверждение за границей зоны ${chartLevelLabel}.`,
       state: selectedSetup.stage === 'triggered' ? 'passed' : 'waiting',
     },
   ] as const;
@@ -306,24 +300,16 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               <span className={styles.exchangeBadge}>{selectedSetup.exchange}</span>
               <span className={styles.timeframeBadge}>{timeframe}</span>
             </div>
-            <p className={styles.setupDescription}>{selectedSetup.kind} · зона {selectedSetup.level}</p>
+            <p className={styles.setupDescription}>{selectedSetup.kind} · зона {chartLevelLabel}</p>
           </div>
         </div>
 
         <div className={styles.headerRight}>
           <div className={styles.priceBlock}>
             <span>Текущая цена</span>
-            <strong>{realtimeWorkspace.priceLabel}</strong>
-            <em
-              className={
-                realtimeWorkspace.isLive
-                  ? styles.priceSourceLive
-                  : styles.priceSourceTest
-              }
-            >
-              {realtimeWorkspace.isLive
-                ? `LIVE ? ${realtimeWorkspace.updatedAtLabel}`
-                : 'TEST DATA'}
+            <strong>{formatChartPrice(chartCurrentPrice)}</strong>
+            <em className={styles.priceSourceTest}>
+              ПОСЛЕДНЯЯ СВЕЧА
             </em>
           </div>
           <div className={styles.headerActions}>
@@ -358,8 +344,8 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 ))}
               </div>
               <div className={styles.chartLegend}>
-                <span><i className={styles.levelLegend} /> Уровень {selectedSetup.level}</span>
-                <span><i className={styles.priceLegend} /> Цена {realtimeWorkspace.priceLabel}</span>
+                <span><i className={styles.levelLegend} /> Уровень {chartLevelLabel}</span>
+                <span><i className={styles.priceLegend} /> Цена {formatChartPrice(chartCurrentPrice)}</span>
                 <span
                   className={[
                     styles.liveIndicator,
@@ -368,28 +354,58 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 >
                   <i /> {realtimeWorkspace.connectionLabel}
                 </span>
-                {realtimeWorkspace.rangePosition !== 'inside'
-                  && realtimeWorkspace.rangePosition !== 'unknown'
-                  && (
-                    <span className={styles.rangeWarning}>
-                      LIVE-цена вне диапазона тестового графика
-                    </span>
-                  )}
               </div>
             </div>
 
-            <WorkspaceChart
-              setupId={selectedSetup.id}
-              chartPath={selectedSetup.chartPath}
-              areaPath={selectedSetup.areaPath}
-              levelY={selectedSetup.levelY}
-              touchPoints={selectedSetup.touchPoints}
-              direction={selectedSetup.direction}
-              price={realtimeWorkspace.priceLabel}
-              priceY={realtimeWorkspace.priceY}
-              axisLabels={realtimeWorkspace.axisLabels}
-              showCurrentPrice={realtimeWorkspace.rangePosition === 'inside'}
-            />
+            <div className={styles.chartCanvas}>
+              {candlesQuery.status === 'loading' && (
+                <div className={styles.chartState}>
+                  Загружаем реальные свечи…
+                </div>
+              )}
+
+              {candlesQuery.status === 'error' && (
+                <div className={styles.chartState}>
+                  <span>Свечи не загрузились.</span>
+                  <button
+                    type="button"
+                    onClick={candlesQuery.retry}
+                  >
+                    Повторить
+                  </button>
+                </div>
+              )}
+
+              {candlesQuery.status === 'success'
+                && candlesQuery.data?.length === 0 && (
+                  <div className={styles.chartState}>
+                    Для выбранного периода нет свечей.
+                  </div>
+                )}
+
+              {candlesQuery.status === 'success'
+                && candlesQuery.data
+                && candlesQuery.data.length > 0 && (
+                  <NexusCandlestickChart
+                    candles={candlesQuery.data}
+                    symbol={contractSetup.symbol}
+                    fillContainer
+                    priceLines={chartPriceLines}
+                    showSeriesPriceLine={false}
+                    enableDrawingTools
+                    drawingScope={`${contractSetup.symbol}:${timeframe}`}
+                    onLoadOlder={
+                      candlesQuery.loadOlder
+                    }
+                    isLoadingOlder={
+                      candlesQuery.isLoadingOlder
+                    }
+                    hasMore={
+                      candlesQuery.hasMore
+                    }
+                  />
+                )}
+            </div>
 
             <div className={styles.chartMetrics}>
               <div><span>До уровня</span><strong className={styles.warningValue}>{selectedSetup.distanceLabel}</strong></div>
@@ -460,7 +476,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                     <strong>{mapReferencePrice(level.price)}</strong><span>{level.size}</span><span>{level.age}</span><span>{level.state}</span><span>{level.fillPercent}%</span>
                   </div>
                 ))}
-                <div className={styles.currentPriceDivider}><span>ТЕКУЩАЯ ЦЕНА</span><strong>{selectedSetup.price}</strong></div>
+                <div className={styles.currentPriceDivider}><span>ТЕКУЩАЯ ЦЕНА</span><strong>{formatChartPrice(chartCurrentPrice)}</strong></div>
                 {liquidity.slice(5).map((level) => (
                   <div key={level.id} className={`${styles.liquidityRow} ${styles.buyerRow}`}>
                     <span className={styles.liquidityBar} style={{ width: `${level.intensity * 100}%` }} />

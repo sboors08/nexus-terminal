@@ -1,0 +1,297 @@
+.toolbar {
+  position: absolute;
+  z-index: 6;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 5px;
+  border: 1px solid rgba(76, 101, 92, 0.72);
+  border-radius: 8px;
+  background: rgba(7, 14, 18, 0.93);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+}
+
+.toolScroller {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.toolButton,
+.actionButton {
+  display: grid;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #91a39c;
+  background: transparent;
+  font: 600 12px/1 var(--nexus-font-family-mono);
+  cursor: pointer;
+}
+
+.toolButton:hover:not(:disabled),
+.actionButton:hover:not(:disabled) {
+  color: #f5faf8;
+  border-color: rgba(74, 168, 255, 0.55);
+  background: rgba(74, 168, 255, 0.14);
+}
+
+.toolButton.active,
+.actionButton.active {
+  color: #ffffff;
+  border-color: rgba(74, 168, 255, 0.9);
+  background: rgba(74, 168, 255, 0.24);
+}
+
+.toolButton.longTool {
+  color: #32d583;
+}
+
+.toolButton.shortTool {
+  color: #ff6273;
+}
+
+.toolButton:disabled,
+.actionButton:disabled {
+  opacity: 0.34;
+  cursor: not-allowed;
+}
+
+.separator {
+  flex: 0 0 1px;
+  width: 1px;
+  height: 22px;
+  margin: 0 2px;
+  background: rgba(76, 101, 92, 0.65);
+}
+
+.counter {
+  min-width: 18px;
+  color: #72837d;
+  font: 600 10px/1 var(--nexus-font-family-mono);
+  text-align: center;
+}
+
+.layer {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.layer.interactive {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.drawing {
+  pointer-events: none;
+}
+
+.selected {
+  filter:
+    drop-shadow(
+      0 0 3px
+      rgba(255, 255, 255, 0.7)
+    );
+}
+
+.preview {
+  opacity: 0.58;
+}
+
+.trendLine,
+.arrowLine,
+.measureLine,
+.horizontalLine,
+.verticalLine,
+.channelLine,
+.fibonacciLine,
+.positionEntry {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.trendLine {
+  stroke: #4aa8ff;
+  stroke-width: 2;
+}
+
+.arrowLine {
+  stroke: #4aa8ff;
+  stroke-width: 2;
+}
+
+.arrowHead {
+  fill: #4aa8ff;
+}
+
+.horizontalLine {
+  stroke: #f0b90b;
+  stroke-width: 1.5;
+  stroke-dasharray: 7 4;
+}
+
+.verticalLine {
+  stroke: #a3b6af;
+  stroke-width: 1.25;
+  stroke-dasharray: 5 5;
+}
+
+.measureLine {
+  stroke: #32d583;
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+
+.channelLine {
+  stroke: #4aa8ff;
+  stroke-width: 1.5;
+}
+
+.channelFill {
+  fill: rgba(74, 168, 255, 0.08);
+  stroke: none;
+}
+
+.fibonacciLine {
+  stroke: rgba(187, 139, 255, 0.95);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.rectangle,
+.ellipse {
+  fill: rgba(74, 168, 255, 0.1);
+  stroke: rgba(74, 168, 255, 0.95);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.positionProfit {
+  fill: rgba(50, 213, 131, 0.2);
+  stroke: rgba(50, 213, 131, 0.9);
+  stroke-width: 1;
+}
+
+.positionLoss {
+  fill: rgba(255, 98, 115, 0.2);
+  stroke: rgba(255, 98, 115, 0.9);
+  stroke-width: 1;
+}
+
+.positionEntry {
+  stroke: #f3f7f5;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 3;
+}
+
+.anchor,
+.handle {
+  fill: #070e12;
+  stroke: #dfeae6;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.handle {
+  pointer-events: none;
+}
+
+.handleLocked {
+  fill: #f0b90b;
+  stroke: #070e12;
+}
+
+.marker {
+  fill: #f0b90b;
+  stroke: #070e12;
+  stroke-width: 2;
+}
+
+.priceLabel,
+.measureLabel,
+.fibonacciLabel,
+.note,
+.positionLabel {
+  paint-order: stroke;
+  stroke: #070e12;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  font-family: var(--nexus-font-family-mono);
+  pointer-events: none;
+}
+
+.priceLabel {
+  fill: #f0b90b;
+  font-size: 11px;
+}
+
+.measureLabel {
+  fill: #32d583;
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.fibonacciLabel {
+  fill: #bb8bff;
+  font-size: 10px;
+}
+
+.note {
+  fill: #f3f7f5;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.positionLabel {
+  fill: #f3f7f5;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.hint {
+  position: absolute;
+  z-index: 7;
+  top: 50px;
+  left: 12px;
+  padding: 5px 8px;
+  border: 1px solid rgba(187, 139, 255, 0.6);
+  border-radius: 5px;
+  color: #d9c2ff;
+  background: rgba(7, 14, 18, 0.92);
+  font: 600 10px/1 var(--nexus-font-family-mono);
+  pointer-events: none;
+}
+
+@media (max-width: 820px) {
+  .toolbar {
+    top: 6px;
+    left: 6px;
+    right: 6px;
+  }
+
+  .toolButton,
+  .actionButton {
+    flex-basis: 28px;
+    width: 28px;
+    height: 28px;
+  }
+}

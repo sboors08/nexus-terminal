@@ -1328,3 +1328,24 @@
   font-family: var(--nexus-font-family-mono);
   font-weight: var(--nexus-font-weight-semibold);
 }
+
+
+.chartState {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  color: var(--nexus-color-text-secondary);
+}
+
+.chartState button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-elevated);
+  cursor: pointer;
+}

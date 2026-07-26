@@ -5,6 +5,9 @@ import type {
 export const MARKET_CANDLES_PATH =
   '/api/v1/market/candles';
 
+export const MARKET_CANDLES_PAGE_SIZE =
+  1000;
+
 export const MARKET_CANDLE_TIMEFRAMES = [
   '1m',
   '3m',
@@ -30,6 +33,8 @@ export interface FetchMarketCandlesOptions {
   baseUrl?: string;
   symbol: string;
   timeframe: MarketCandleTimeframe;
+  limit?: number;
+  endTime?: number;
   signal?: AbortSignal;
   fetcher?: MarketCandlesFetch;
 }
@@ -86,7 +91,11 @@ export function buildMarketCandlesUrl(
   options:
     Pick<
       FetchMarketCandlesOptions,
-      'baseUrl' | 'symbol' | 'timeframe'
+      | 'baseUrl'
+      | 'symbol'
+      | 'timeframe'
+      | 'limit'
+      | 'endTime'
     >,
 ): string {
   const params = new URLSearchParams({
@@ -98,6 +107,46 @@ export function buildMarketCandlesUrl(
         options.timeframe,
       ),
   });
+
+  if (
+    options.limit !== undefined
+  ) {
+    if (
+      !Number.isInteger(options.limit)
+      || options.limit < 1
+      || options.limit
+        > MARKET_CANDLES_PAGE_SIZE
+    ) {
+      throw new Error(
+        'Market candle limit must be between 1 and 1000',
+      );
+    }
+
+    params.set(
+      'limit',
+      String(options.limit),
+    );
+  }
+
+  if (
+    options.endTime !== undefined
+  ) {
+    if (
+      !Number.isSafeInteger(
+        options.endTime,
+      )
+      || options.endTime < 0
+    ) {
+      throw new Error(
+        'Market candle endTime must be a non-negative safe integer',
+      );
+    }
+
+    params.set(
+      'endTime',
+      String(options.endTime),
+    );
+  }
 
   return (
     `${resolveBaseUrl(options.baseUrl)}`
@@ -269,6 +318,33 @@ export function parseMarketCandle(
         'tradesCount',
       ),
   };
+}
+
+export function mergeMarketCandlePages(
+  ...pages:
+    readonly (
+      readonly Candle[]
+    )[]
+): Candle[] {
+  const candlesByOpenTime =
+    new Map<string, Candle>();
+
+  for (const page of pages) {
+    for (const candle of page) {
+      candlesByOpenTime.set(
+        candle.openTime,
+        candle,
+      );
+    }
+  }
+
+  return [
+    ...candlesByOpenTime.values(),
+  ].sort(
+    (left, right) =>
+      Date.parse(left.openTime)
+      - Date.parse(right.openTime),
+  );
 }
 
 const defaultFetch:
