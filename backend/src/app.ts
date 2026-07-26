@@ -11,7 +11,10 @@ import { MarketWideHistoryWarmupService } from './modules/realtime-market-data/m
 import { MarketWideRealtimeService } from './modules/realtime-market-data/market-wide-realtime.service.js';
 import { MarketWideRuntimeCoordinator } from './modules/realtime-market-data/market-wide-runtime-coordinator.js';
 import { SetupDetectionRuntimeService } from './modules/setup-engine/setup-detection-runtime.service.js';
-import type { SetupDetectionRuntimeLifecycle } from './modules/setup-engine/setup-detection-runtime.types.js';
+import type {
+  SetupDetectionRuntimeLifecycle,
+  SetupDetectionRuntimeReader,
+} from './modules/setup-engine/setup-detection-runtime.types.js';
 import type { RealtimeMarketDataService } from './modules/realtime-market-data/realtime-market-data.types.js';
 
 export interface BuildAppOptions {
@@ -22,6 +25,7 @@ export interface BuildAppOptions {
   marketWideRealtimeService?: MarketWideRealtimeService | null;
   marketWideHistoryWarmupService?: MarketWideHistoryWarmupService | null;
   setupDetectionRuntimeService?: SetupDetectionRuntimeLifecycle | null;
+  setupDetectionRuntimeReader?: SetupDetectionRuntimeReader | null;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -140,6 +144,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         : null
       : options.setupDetectionRuntimeService;
 
+  const setupDetectionRuntimeReader =
+    options.setupDetectionRuntimeReader
+    === undefined
+      ? setupDetectionRuntimeService
+        instanceof SetupDetectionRuntimeService
+          ? setupDetectionRuntimeService
+          : null
+      : options.setupDetectionRuntimeReader;
+
   const marketWideRuntimeCoordinator =
     binanceSymbolUniverseService
     && marketWideRealtimeService
@@ -229,6 +242,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : {}),
     ...(marketWideHistoryWarmupService
       ? { marketWideHistoryWarmupService }
+      : {}),
+    ...(setupDetectionRuntimeReader
+      ? { setupDetectionRuntimeReader }
       : {}),
   });
 
