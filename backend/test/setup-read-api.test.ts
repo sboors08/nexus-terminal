@@ -168,8 +168,15 @@ implements SetupDetectionRuntimeReader {
         this.candidates.length,
       scansCount: 25,
       failedScans: 1,
+      evaluationsCount: 40,
+      failedEvaluations: 2,
+      stageTransitionsCount: 9,
       lastScanAt:
         '2026-07-26T12:10:00.000Z',
+      lastEvaluationAt:
+        '2026-07-26T12:10:00.000Z',
+      lastTransitionAt:
+        '2026-07-26T12:09:59.999Z',
       lastTriggerSource:
         'history',
       lastError:
@@ -289,6 +296,16 @@ test(
     assert.equal(
       payload.scansCount,
       25,
+    );
+
+    assert.equal(
+      payload.evaluationsCount,
+      40,
+    );
+
+    assert.equal(
+      payload.stageTransitionsCount,
+      9,
     );
 
     await app.close();
