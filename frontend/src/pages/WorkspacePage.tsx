@@ -18,6 +18,7 @@ import {
 import {
   nexusApi,
   useApiQuery,
+  useSetupLifecycleRefresh,
   type PrintSide,
   type Setup,
   type WorkspaceSnapshot,
@@ -798,13 +799,24 @@ export function WorkspacePage() {
       return { contractSetup, snapshot, view };
     },
     {
-      intervalMs:
-        5_000,
-
       preserveData:
         true,
     },
   );
+
+  useSetupLifecycleRefresh({
+    candidateId:
+      requestedSetupId,
+
+    enabled:
+      requestedSetupId.length > 0
+      && !requestedSetupId.startsWith(
+        'market-',
+      ),
+
+    onEvent:
+      query.retry,
+  });
 
   if (query.status === 'loading') return <AsyncDataState state="loading" />;
   if (query.status === 'error') {

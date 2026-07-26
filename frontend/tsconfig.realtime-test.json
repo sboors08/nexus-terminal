@@ -26,6 +26,8 @@
     "src/shared/charts/model/candleMapping.ts",
     "src/shared/charts/model/drawingModel.ts",
     "src/shared/api/runtime/setupRuntimeApi.ts",
-    "src/shared/charts/model/priceFormat.ts"
+    "src/shared/charts/model/priceFormat.ts",
+    "src/shared/api/runtime/setupLifecycleStream.ts",
+    "src/shared/api/runtime/useSetupLifecycleRefresh.ts"
   ]
 }

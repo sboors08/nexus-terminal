@@ -22,6 +22,7 @@ import {
 import {
   nexusApi,
   useApiQuery,
+  useSetupLifecycleRefresh,
   type ScannerSetup,
   type ScannerSetupKind,
   type ScannerTimeframe,
@@ -1265,13 +1266,15 @@ export function ScannerPage() {
       () =>
         nexusApi.getScannerSetups(),
       {
-        intervalMs:
-          5_000,
-
         preserveData:
           true,
       },
     );
+
+  useSetupLifecycleRefresh({
+    onEvent:
+      query.retry,
+  });
 
   if (query.status === 'loading') return <AsyncDataState state="loading" />;
   if (query.status === 'error') {
