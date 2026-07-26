@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   advanceSetupEngineState,
@@ -14,9 +14,11 @@ function buildInitialState(): SetupEngineState {
     symbol: 'SOLUSDT',
     timeframe: '5m',
     direction: 'long',
+    setupType: 'level_breakout',
     stage: 'LEVEL_CONFIRMED',
     outcome: null,
     level: {
+      kind: 'resistance',
       centerPrice: 100,
       zoneLow: 99.5,
       zoneHigh: 100.5,

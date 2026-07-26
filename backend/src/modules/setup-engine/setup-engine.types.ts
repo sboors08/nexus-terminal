@@ -2,6 +2,14 @@
   | 'long'
   | 'short';
 
+export type SetupEngineSetupType =
+  | 'level_breakout'
+  | 'level_bounce';
+
+export type SetupEngineLevelKind =
+  | 'support'
+  | 'resistance';
+
 export type SetupEngineStage =
   | 'LEVEL_CONFIRMED'
   | 'APPROACHING_THIRD_TOUCH'
@@ -16,6 +24,7 @@ export type SetupEngineOutcome =
   | null;
 
 export interface SetupLevelZone {
+  kind: SetupEngineLevelKind;
   centerPrice: number;
   zoneLow: number;
   zoneHigh: number;
@@ -27,6 +36,7 @@ export interface SetupEngineState {
   id: string;
   symbol: string;
   timeframe: string;
+  setupType: SetupEngineSetupType;
   direction: SetupDirection;
   stage: SetupEngineStage;
   outcome: SetupEngineOutcome;
