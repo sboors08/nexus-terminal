@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
+import { buildMarketWorkspaceUrl } from '@/shared/routing/setupContext';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import {
   buildMarketRealtimeView,
@@ -348,7 +349,16 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
             <article><span>Волатильность</span><strong>{selected.volatilityPct.toFixed(2)}%</strong><small>амплитуда периода</small></article>
           </div>
 
-          <div className={styles.workspaceBar}><div><span>Выбран {selected.symbol}</span><small>Откройте полный график, принты и ликвидность в рабочем пространстве.</small></div><Link className={styles.workspaceButton} to={`${ROUTES.workspace}?symbol=${selected.symbol}&timeframe=${timeframe}`}>Открыть в Workspace</Link></div>
+          <div className={styles.workspaceBar}><div><span>Выбран {selected.symbol}</span><small>Откройте полный график, принты и ликвидность в рабочем пространстве.</small></div><Link
+  className={styles.workspaceButton}
+  to={buildMarketWorkspaceUrl(
+    ROUTES.workspace,
+    selected.symbol,
+    timeframe,
+  )}
+>
+  Открыть в Workspace
+</Link></div>
         </section>
 
         <aside className={styles.listPanel}>

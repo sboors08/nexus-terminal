@@ -6,7 +6,13 @@ import {
   buildWorkspaceRealtimeView,
   useRealtimeMarketData,
 } from '@/shared/realtime';
-import { buildReplayUrl, buildSetupSelectionUrl, isWorkspaceTimeframe } from '@/shared/routing/setupContext';
+import {
+  buildMarketWorkspaceSetupId,
+  buildReplayUrl,
+  isMarketWorkspaceSetupId,
+  buildSetupSelectionUrl,
+  isWorkspaceTimeframe,
+} from '@/shared/routing/setupContext';
 import {
   TRADING_PRESETS,
   isScannerWindow,
@@ -52,6 +58,10 @@ function ChecklistIcon({ state }: { state: 'passed' | 'warning' | 'waiting' }) {
 function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const { contractSetup, snapshot, view } = data;
   const { selectedSetup, prints, liquidity, marketDynamics, stageFlow } = view;
+  const isMarketPreview =
+    isMarketWorkspaceSetupId(
+      contractSetup.id,
+    );
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedPreset = searchParams.get('preset');
   const preset: TradingPreset = isTradingPreset(requestedPreset)
@@ -113,37 +123,78 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
 
   const chartPriceLines =
     useMemo<readonly NexusChartPriceLine[]>(
-      () => [
-        {
-          price: chartZoneLow,
-          color: '#d5a928',
-          lineStyle: 'dashed',
-          axisLabelVisible: false,
-        },
-        {
-          price: chartLevelCenter,
-          color: '#f0b90b',
-          title: 'УРОВЕНЬ',
-          lineStyle: 'solid',
-        },
-        {
-          price: chartZoneHigh,
-          color: '#d5a928',
-          lineStyle: 'dashed',
-          axisLabelVisible: false,
-        },
-        {
-          price: chartCurrentPrice,
-          color: '#4aa8ff',
-          title: 'LAST',
-          lineStyle: 'dashed',
-        },
-      ],
+      () => {
+        const currentPriceLine:
+        NexusChartPriceLine = {
+          price:
+            chartCurrentPrice,
+
+          color:
+            '#4aa8ff',
+
+          title:
+            'LAST',
+
+          lineStyle:
+            'dashed',
+        };
+
+        if (isMarketPreview) {
+          return [
+            currentPriceLine,
+          ];
+        }
+
+        return [
+          {
+            price:
+              chartZoneLow,
+
+            color:
+              '#d5a928',
+
+            lineStyle:
+              'dashed',
+
+            axisLabelVisible:
+              false,
+          },
+          {
+            price:
+              chartLevelCenter,
+
+            color:
+              '#f0b90b',
+
+            title:
+              'УРОВЕНЬ',
+
+            lineStyle:
+              'solid',
+          },
+          {
+            price:
+              chartZoneHigh,
+
+            color:
+              '#d5a928',
+
+            lineStyle:
+              'dashed',
+
+            axisLabelVisible:
+              false,
+          },
+
+          currentPriceLine,
+        ];
+      },
       [
         chartCurrentPrice,
         chartLevelCenter,
         chartZoneHigh,
         chartZoneLow,
+        isMarketPreview,
       ],
     );
   const [tapeFilter, setTapeFilter] = useState<TapeFilter>('all');
@@ -209,6 +260,10 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const isRuntimeSetup =
     selectedSetup.runtimeData
     === true;
+
+  const usesDemoWorkspaceContext =
+    isRuntimeSetup
+    || isMarketPreview;
 
   const displayedStageFlow =
     stageFlow.map(
@@ -411,18 +466,32 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
           <div>
             <p className={styles.eyebrow}>
               {
-                isRuntimeSetup
-                  ? 'Рабочее пространство · реальный сетап Binance'
-                  : 'Рабочее пространство · тестовые данные'
+                isMarketPreview
+                  ? 'Рабочее пространство · рыночный обзор Binance'
+                  : isRuntimeSetup
+                    ? 'Рабочее пространство · реальный сетап Binance'
+                    : 'Рабочее пространство · тестовые данные'
               }
             </p>
             <div className={styles.symbolRow}>
               <h1>{selectedSetup.symbol}</h1>
-              <DirectionBadge direction={selectedSetup.direction} />
+              {!isMarketPreview && (
+                <DirectionBadge
+                  direction={
+                    selectedSetup.direction
+                  }
+                />
+              )}
               <span className={styles.exchangeBadge}>{selectedSetup.exchange}</span>
               <span className={styles.timeframeBadge}>{timeframe}</span>
             </div>
-            <p className={styles.setupDescription}>{selectedSetup.kind} · зона {chartLevelLabel}</p>
+            <p className={styles.setupDescription}>
+              {
+                isMarketPreview
+                  ? 'Рыночный обзор · сетап ещё не сформирован'
+                  : `${selectedSetup.kind} · зона ${chartLevelLabel}`
+              }
+            </p>
           </div>
         </div>
 
@@ -435,13 +504,15 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             </em>
           </div>
           <div className={styles.headerActions}>
-            <button
-              className={alertCreated ? styles.alertButtonActive : styles.secondaryButton}
-              type="button"
-              onClick={() => setAlertCreated((current) => !current)}
-            >
-              {alertCreated ? 'Алерт создан ✓' : 'Создать алерт'}
-            </button>
+            {!isMarketPreview && (
+              <button
+                className={alertCreated ? styles.alertButtonActive : styles.secondaryButton}
+                type="button"
+                onClick={() => setAlertCreated((current) => !current)}
+              >
+                {alertCreated ? 'Алерт создан ✓' : 'Создать алерт'}
+              </button>
+            )}
             <button className={styles.primaryButton} type="button" onClick={() => setNoteOpen((current) => !current)}>
               {noteOpen ? 'Закрыть заметку' : 'Добавить заметку'}
             </button>
@@ -466,8 +537,18 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 ))}
               </div>
               <div className={styles.chartLegend}>
-                <span><i className={styles.levelLegend} /> Уровень {chartLevelLabel}</span>
-                <span><i className={styles.priceLegend} /> Цена {formatChartPrice(chartCurrentPrice)}</span>
+                {!isMarketPreview && (
+                  <span>
+                    <i className={styles.levelLegend} />
+                    {' '}
+                    Уровень {chartLevelLabel}
+                  </span>
+                )}
+                <span>
+                  <i className={styles.priceLegend} />
+                  {' '}
+                  Цена {formatChartPrice(chartCurrentPrice)}
+                </span>
                 <span
                   className={[
                     styles.liveIndicator,
@@ -530,46 +611,167 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             </div>
 
             <div className={styles.chartMetrics}>
-              <div><span>До уровня</span><strong className={styles.warningValue}>{selectedSetup.distanceLabel}</strong></div>
-              <div><span>Касания</span><strong>{selectedSetup.touches}</strong></div>
-              <div><span>Формирование</span><strong>{selectedSetup.formationLabel}</strong></div>
-              <div><span>Откаты</span><strong>{selectedSetup.pullbackDepth}</strong></div>
-              <div><span>Объём</span><strong>
-                  {
-                    isRuntimeSetup
-                      ? '—'
-                      : selectedSetup.volumeAnomaly
-                          .toFixed(2)
-                        + '×'
-                  }
-                </strong></div>
-              <div><span>Сделки</span><strong>
-                  {
-                    isRuntimeSetup
-                      ? '—'
-                      : selectedSetup.tradesAnomaly
-                          .toFixed(2)
-                        + '×'
-                  }
-                </strong></div>
-              <div><span>Сила к BTC</span><strong
-                  className={
-                    isRuntimeSetup
-                      ? ''
-                      : selectedSetup.btcStrength >= 0
-                        ? styles.positive
-                        : styles.negative
-                  }
-                >
-                  {
-                    isRuntimeSetup
-                      ? '—'
-                      : selectedSetup.btcStrengthLabel
-                  }
-                </strong></div>
+              {
+                isMarketPreview
+                  ? (
+                    <>
+                      <div>
+                        <span>Режим</span>
+                        <strong>
+                          Рыночный обзор
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Сетап</span>
+                        <strong>
+                          Не обнаружен
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Свечи</span>
+                        <strong>
+                          Binance
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Realtime</span>
+                        <strong>
+                          {
+                            realtimeWorkspace
+                              .connectionLabel
+                          }
+                        </strong>
+                      </div>
+                    </>
+                  )
+                  : (
+                    <>
+                      <div>
+                        <span>До уровня</span>
+                        <strong className={styles.warningValue}>
+                          {selectedSetup.distanceLabel}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Касания</span>
+                        <strong>{selectedSetup.touches}</strong>
+                      </div>
+                      <div>
+                        <span>Формирование</span>
+                        <strong>{selectedSetup.formationLabel}</strong>
+                      </div>
+                      <div>
+                        <span>Откаты</span>
+                        <strong>{selectedSetup.pullbackDepth}</strong>
+                      </div>
+                      <div>
+                        <span>Объём</span>
+                        <strong>
+                          {
+                            isRuntimeSetup
+                              ? '—'
+                              : selectedSetup.volumeAnomaly
+                                  .toFixed(2)
+                                + '×'
+                          }
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Сделки</span>
+                        <strong>
+                          {
+                            isRuntimeSetup
+                              ? '—'
+                              : selectedSetup.tradesAnomaly
+                                  .toFixed(2)
+                                + '×'
+                          }
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Сила к BTC</span>
+                        <strong
+                          className={
+                            isRuntimeSetup
+                              ? ''
+                              : selectedSetup.btcStrength >= 0
+                                ? styles.positive
+                                : styles.negative
+                          }
+                        >
+                          {
+                            isRuntimeSetup
+                              ? '—'
+                              : selectedSetup.btcStrengthLabel
+                          }
+                        </strong>
+                      </div>
+                    </>
+                  )
+              }
             </div>
           </article>
 
+          {
+            isMarketPreview
+              ? (
+          <div className={styles.lowerGrid}>
+            <article className={styles.dataPanel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <p className={styles.panelEyebrow}>
+                    Поток сделок
+                  </p>
+                  <h2>Лента принтов</h2>
+                </div>
+                <span className={styles.estimateBadge}>
+                  НЕ ПОДКЛЮЧЕНО
+                </span>
+              </div>
+              <p className={styles.testNotice}>
+                Реальная лента принтов для произвольной монеты
+                в Workspace ещё не подключена.
+              </p>
+            </article>
+
+            <article className={styles.dataPanel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <p className={styles.panelEyebrow}>
+                    Значимые плотности
+                  </p>
+                  <h2>Карта ликвидности</h2>
+                </div>
+                <span className={styles.estimateBadge}>
+                  НЕ ПОДКЛЮЧЕНО
+                </span>
+              </div>
+              <p className={styles.testNotice}>
+                Плотности и изменения стакана не показываются,
+                пока для монеты не сформирован реальный сетап.
+              </p>
+            </article>
+
+            <article className={styles.dataPanel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <p className={styles.panelEyebrow}>
+                    Контекст
+                  </p>
+                  <h2>Динамика рынка</h2>
+                </div>
+                <span className={styles.marketMode}>
+                  ОЖИДАНИЕ ДАННЫХ
+                </span>
+              </div>
+              <p className={styles.testNotice}>
+                Торговая оценка, давление и BTC-контекст
+                для этого режима ещё не рассчитаны.
+              </p>
+            </article>
+          </div>
+                )
+              : (
           <div className={styles.lowerGrid}>
             <article className={styles.dataPanel}>
               <div className={styles.panelHeader}>
@@ -695,81 +897,221 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               </div>
             </article>
           </div>
+                )
+          }
+
         </div>
 
         <aside className={styles.nexusPanel}>
           <div className={styles.nexusPanelHeader}>
             <div>
-              <p className={styles.panelEyebrow}>Панель NEXUS</p>
-              <h2>Сетап под наблюдением</h2>
+              <p className={styles.panelEyebrow}>
+                Панель NEXUS
+              </p>
+              <h2>
+                {
+                  isMarketPreview
+                    ? 'Рыночный обзор'
+                    : 'Сетап под наблюдением'
+                }
+              </h2>
             </div>
-            <SetupStageBadge stage={selectedSetup.stage} resultLabel={resultLabel} />
+
+            {!isMarketPreview && (
+              <SetupStageBadge
+                stage={selectedSetup.stage}
+                resultLabel={resultLabel}
+              />
+            )}
           </div>
 
-          <div className={styles.stageFlow}>
-            {displayedStageFlow.map((stage, index) => {
-              const status = index < currentStageIndex ? styles.stageComplete : index === currentStageIndex ? styles.stageCurrent : styles.stagePending;
-              return (
-                <div key={stage.id} className={`${styles.stageItem} ${status}`}>
-                  <span className={styles.stageNumber}>{index + 1}</span>
-                  <div><strong>{stage.label}</strong><small>{stage.description}</small></div>
-                </div>
-              );
-            })}
-          </div>
+          {
+            isMarketPreview
+              ? (
+                <>
+                  <section className={styles.nexusSection}>
+                    <div className={styles.sectionTitle}>
+                      <h3>Сетап не обнаружен</h3>
+                      <span>MARKET</span>
+                    </div>
+                    <p className={styles.testNotice}>
+                      Монета открыта из Market Scanner.
+                      NEXUS не обнаружил для неё подтверждённый
+                      торговый сетап, поэтому направление,
+                      уровень и стадия не показываются.
+                    </p>
+                  </section>
 
-          <section className={styles.nexusSection}>
-            <div className={styles.sectionTitle}><h3>Почему в Scanner</h3><span>{selectedSetup.reasons.length}</span></div>
-            <ul className={styles.reasonList}>
-              {selectedSetup.reasons.map((reason) => <li key={reason}>{reason}</li>)}
-            </ul>
-          </section>
+                  <section className={styles.nexusSection}>
+                    <div className={styles.sectionTitle}>
+                      <h3>Доступно сейчас</h3>
+                      <span>LIVE</span>
+                    </div>
+                    <ul className={styles.reasonList}>
+                      <li>Реальные свечи Binance Futures.</li>
+                      <li>Текущая цена и realtime-подключение.</li>
+                      <li>Инструменты ручного анализа графика.</li>
+                    </ul>
+                  </section>
+                </>
+              )
+              : (
+                <>
+                  <div className={styles.stageFlow}>
+                    {displayedStageFlow.map((stage, index) => {
+                      const status =
+                        index < currentStageIndex
+                          ? styles.stageComplete
+                          : index === currentStageIndex
+                            ? styles.stageCurrent
+                            : styles.stagePending;
 
-          <section className={styles.nexusSection}>
-            <div className={styles.sectionTitle}><h3>Чек-лист сетапа</h3><span>
-                {checklistPassedCount}
-                {' / '}
-                {workspaceChecklist.length}
-              </span></div>
-            <div className={styles.checklist}>
-              {workspaceChecklist.map((item) => (
-                <div key={item.id} className={`${styles.checkItem} ${styles[item.state]}`}>
-                  <span className={styles.checkIcon}><ChecklistIcon state={item.state} /></span>
-                  <div><strong>{item.label}</strong><small>{item.detail}</small></div>
-                </div>
-              ))}
-            </div>
-          </section>
+                      return (
+                        <div
+                          key={stage.id}
+                          className={
+                            `${styles.stageItem} ${status}`
+                          }
+                        >
+                          <span className={styles.stageNumber}>
+                            {index + 1}
+                          </span>
+                          <div>
+                            <strong>{stage.label}</strong>
+                            <small>{stage.description}</small>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <section className={styles.nexusSection}>
+                    <div className={styles.sectionTitle}>
+                      <h3>Почему в Scanner</h3>
+                      <span>{selectedSetup.reasons.length}</span>
+                    </div>
+                    <ul className={styles.reasonList}>
+                      {selectedSetup.reasons.map(
+                        (reason) => (
+                          <li key={reason}>
+                            {reason}
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  </section>
+
+                  <section className={styles.nexusSection}>
+                    <div className={styles.sectionTitle}>
+                      <h3>Чек-лист сетапа</h3>
+                      <span>
+                        {checklistPassedCount}
+                        {' / '}
+                        {workspaceChecklist.length}
+                      </span>
+                    </div>
+                    <div className={styles.checklist}>
+                      {workspaceChecklist.map(
+                        (item) => (
+                          <div
+                            key={item.id}
+                            className={
+                              `${styles.checkItem} ${styles[item.state]}`
+                            }
+                          >
+                            <span className={styles.checkIcon}>
+                              <ChecklistIcon state={item.state} />
+                            </span>
+                            <div>
+                              <strong>{item.label}</strong>
+                              <small>{item.detail}</small>
+                            </div>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </section>
+                </>
+              )
+          }
 
           {noteOpen && (
             <section className={styles.noteEditor}>
-              <label htmlFor="workspace-note">Заметка к сетапу</label>
-              <textarea id="workspace-note" placeholder="Например: дождаться закрепления выше 188.42 и повторного теста зоны…" />
-              <button type="button" onClick={() => setNoteOpen(false)}>Сохранить заметку</button>
+              <label htmlFor="workspace-note">
+                {
+                  isMarketPreview
+                    ? 'Заметка к рыночному обзору'
+                    : 'Заметка к сетапу'
+                }
+              </label>
+              <textarea
+                id="workspace-note"
+                placeholder={
+                  isMarketPreview
+                    ? 'Запишите собственное наблюдение по монете…'
+                    : 'Например: дождаться закрепления и повторного теста зоны…'
+                }
+              />
+              <button
+                type="button"
+                onClick={() => setNoteOpen(false)}
+              >
+                Сохранить заметку
+              </button>
             </section>
           )}
 
-          <div className={styles.nexusActions}>
-            <button className={styles.primaryButton} type="button" onClick={() => setAlertCreated(true)}>
-              {alertCreated ? 'Алерт активен ✓' : 'Создать алерт'}
-            </button>
-            <Link className={styles.secondaryLink} to={buildReplayUrl(ROUTES.replay, {
-              setupId: contractSetup.id,
-              symbol: contractSetup.symbol,
-              preset,
-              scannerWindow,
-              timeframe,
-            })}>Открыть в Replay</Link>
-            <button className={styles.externalButton} type="button" title="Интеграция с внешним терминалом будет подключена отдельным этапом">
-              Внешний терминал ↗
-            </button>
-          </div>
+          {!isMarketPreview && (
+            <div className={styles.nexusActions}>
+              <button
+                className={styles.primaryButton}
+                type="button"
+                onClick={() => setAlertCreated(true)}
+              >
+                {
+                  alertCreated
+                    ? 'Алерт активен ✓'
+                    : 'Создать алерт'
+                }
+              </button>
+
+              <Link
+                className={styles.secondaryLink}
+                to={buildReplayUrl(
+                  ROUTES.replay,
+                  {
+                    setupId:
+                      contractSetup.id,
+
+                    symbol:
+                      contractSetup.symbol,
+
+                    preset,
+                    scannerWindow,
+                    timeframe,
+                  },
+                )}
+              >
+                Открыть в Replay
+              </Link>
+
+              <button
+                className={styles.externalButton}
+                type="button"
+                title="Интеграция с внешним терминалом будет подключена отдельным этапом"
+              >
+                Внешний терминал ↗
+              </button>
+            </div>
+          )}
 
           <p className={styles.testNotice}>
             {
-              isRuntimeSetup
-                ? 'Сетап, стадия и ценовая зона получены из Setup Engine. Лента и ликвидность пока демонстрационные. NEXUS не выставляет ордера.'
-                : 'Данные демонстрационные. NEXUS не выставляет ордера.'
+              isMarketPreview
+                ? 'Рыночный режим не является торговым сигналом. NEXUS не выставляет ордера.'
+                : usesDemoWorkspaceContext
+                  ? 'Сетап, стадия и ценовая зона получены из Setup Engine. Лента и ликвидность пока демонстрационные. NEXUS не выставляет ордера.'
+                  : 'Данные демонстрационные. NEXUS не выставляет ордера.'
             }
           </p>
         </aside>
@@ -786,23 +1128,84 @@ export function WorkspacePage() {
   const query = useApiQuery(
     `workspace-context:${requestedSetupId}:${requestedSymbol}`,
     async (): Promise<WorkspacePageData | null> => {
-      const view = await nexusApi.getWorkspaceView(requestedSetupId || null, requestedSymbol || null);
-      if (!view) return null;
+      const shouldPreferRuntimeSetup =
+        isMarketWorkspaceSetupId(
+          requestedSetupId,
+        )
+        && requestedSymbol.length > 0;
 
-      const resolvedSetupId = requestedSetupId || view.selectedSetup.id;
-      const [contractSetup, snapshot] = await Promise.all([
-        nexusApi.getSetupById(resolvedSetupId),
-        nexusApi.getWorkspaceSnapshot(resolvedSetupId),
+      const runtimeView =
+        shouldPreferRuntimeSetup
+          ? await nexusApi.getWorkspaceView(
+              null,
+              requestedSymbol,
+            )
+          : null;
+
+      const primaryView =
+        runtimeView
+        ?? await nexusApi.getWorkspaceView(
+          requestedSetupId || null,
+          requestedSymbol || null,
+        );
+
+      const marketFallbackSetupId =
+        requestedSymbol
+          ? buildMarketWorkspaceSetupId(
+              requestedSymbol,
+            )
+          : null;
+
+      const view =
+        primaryView
+        ?? (
+          marketFallbackSetupId
+            ? await nexusApi.getWorkspaceView(
+                marketFallbackSetupId,
+                requestedSymbol,
+              )
+            : null
+        );
+
+      if (!view) {
+        return null;
+      }
+
+      const resolvedSetupId =
+        view.selectedSetup.id;
+
+      const [
+        contractSetup,
+        snapshot,
+      ] = await Promise.all([
+        nexusApi.getSetupById(
+          resolvedSetupId,
+        ),
+
+        nexusApi.getWorkspaceSnapshot(
+          resolvedSetupId,
+        ),
       ]);
 
-      if (!contractSetup || !snapshot) return null;
-      return { contractSetup, snapshot, view };
+      if (
+        !contractSetup
+        || !snapshot
+      ) {
+        return null;
+      }
+
+      return {
+        contractSetup,
+        snapshot,
+        view,
+      };
     },
     {
       preserveData:
         true,
     },
   );
+
 
   useSetupLifecycleRefresh({
     candidateId:

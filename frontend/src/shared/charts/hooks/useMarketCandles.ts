@@ -61,6 +61,116 @@ function asError(
       );
 }
 
+export const MARKET_CANDLES_REQUEST_TIMEOUT_MS =
+  15_000;
+
+export const MARKET_CANDLES_CACHE_MAX_ENTRIES =
+  24;
+
+export interface MarketCandlesCacheEntry {
+  data:
+    Candle[];
+
+  hasMore:
+    boolean;
+}
+
+const marketCandlesCache =
+  new Map<
+    string,
+    MarketCandlesCacheEntry
+  >();
+
+export function readMarketCandlesCache(
+  key:
+    string,
+): MarketCandlesCacheEntry | null {
+  const cached =
+    marketCandlesCache.get(
+      key,
+    );
+
+  if (!cached) {
+    return null;
+  }
+
+  marketCandlesCache.delete(
+    key,
+  );
+
+  marketCandlesCache.set(
+    key,
+    cached,
+  );
+
+  return {
+    data:
+      [
+        ...cached.data,
+      ],
+
+    hasMore:
+      cached.hasMore,
+  };
+}
+
+export function writeMarketCandlesCache(
+  key:
+    string,
+
+  data:
+    readonly Candle[],
+
+  hasMore:
+    boolean,
+): void {
+  marketCandlesCache.delete(
+    key,
+  );
+
+  marketCandlesCache.set(
+    key,
+    {
+      data:
+        [
+          ...data,
+        ],
+
+      hasMore,
+    },
+  );
+
+  while (
+    marketCandlesCache.size
+    > MARKET_CANDLES_CACHE_MAX_ENTRIES
+  ) {
+    const oldestKey =
+      marketCandlesCache
+        .keys()
+        .next()
+        .value;
+
+    if (
+      typeof oldestKey
+      !== 'string'
+    ) {
+      break;
+    }
+
+    marketCandlesCache.delete(
+      oldestKey,
+    );
+  }
+}
+
+export function clearMarketCandlesCache(): void {
+  marketCandlesCache.clear();
+}
+
+export function getMarketCandlesCacheSize(): number {
+  return marketCandlesCache.size;
+}
+
 export function useMarketCandles(
   options: UseMarketCandlesOptions,
 ): UseMarketCandlesResult {
@@ -103,12 +213,6 @@ export function useMarketCandles(
       null,
     );
 
-  stateRef.current =
-    state;
-
-  keyRef.current =
-    key;
-
   const commitState = (
     next: MarketCandlesState,
   ) => {
@@ -119,6 +223,15 @@ export function useMarketCandles(
   };
 
   useEffect(() => {
+    let active =
+      true;
+
+    let timedOut =
+      false;
+
+    keyRef.current =
+      key;
+
     olderRequestRef.current
       ?.abort();
 
@@ -128,32 +241,81 @@ export function useMarketCandles(
     const controller =
       new AbortController();
 
-    commitState({
-      status:
-        'loading',
-      data:
-        null,
-      error:
-        null,
-      isLoadingOlder:
-        false,
-      hasMore:
-        true,
-      olderError:
-        null,
-    });
+    const cached =
+      readMarketCandlesCache(
+        key,
+      );
+
+    commitState(
+      cached
+        ? {
+            status:
+              'success',
+
+            data:
+              cached.data,
+
+            error:
+              null,
+
+            isLoadingOlder:
+              false,
+
+            hasMore:
+              cached.hasMore,
+
+            olderError:
+              null,
+          }
+        : {
+            status:
+              'loading',
+
+            data:
+              null,
+
+            error:
+              null,
+
+            isLoadingOlder:
+              false,
+
+            hasMore:
+              true,
+
+            olderError:
+              null,
+          },
+    );
+
+    const timeout =
+      globalThis.setTimeout(
+        () => {
+          timedOut =
+            true;
+
+          controller.abort();
+        },
+        MARKET_CANDLES_REQUEST_TIMEOUT_MS,
+      );
 
     fetchMarketCandles({
       ...options,
+
       limit:
         MARKET_CANDLES_PAGE_SIZE,
+
       signal:
         controller.signal,
     })
       .then((page) => {
+        globalThis.clearTimeout(
+          timeout,
+        );
+
         if (
-          controller.signal.aborted
-          || keyRef.current !== key
+          !active
+          || controller.signal.aborted
         ) {
           return;
         }
@@ -163,46 +325,109 @@ export function useMarketCandles(
             page,
           );
 
+        const hasMore =
+          page.length
+          === MARKET_CANDLES_PAGE_SIZE;
+
+        writeMarketCandlesCache(
+          key,
+          data,
+          hasMore,
+        );
+
         commitState({
           status:
             'success',
+
           data,
+
           error:
             null,
+
           isLoadingOlder:
             false,
-          hasMore:
-            page.length
-            === MARKET_CANDLES_PAGE_SIZE,
+
+          hasMore,
+
           olderError:
             null,
         });
       })
       .catch((error: unknown) => {
+        globalThis.clearTimeout(
+          timeout,
+        );
+
+        if (!active) {
+          return;
+        }
+
         if (
           controller.signal.aborted
-          || keyRef.current !== key
+          && !timedOut
         ) {
+          return;
+        }
+
+        if (cached) {
+          commitState({
+            status:
+              'success',
+
+            data:
+              cached.data,
+
+            error:
+              null,
+
+            isLoadingOlder:
+              false,
+
+            hasMore:
+              cached.hasMore,
+
+            olderError:
+              null,
+          });
+
           return;
         }
 
         commitState({
           status:
             'error',
+
           data:
             null,
+
           error:
-            asError(error),
+            timedOut
+              ? new Error(
+                  '\u041f\u0440\u0435\u0432\u044b\u0448\u0435\u043d\u043e \u0432\u0440\u0435\u043c\u044f \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438 \u0441\u0432\u0435\u0447\u0435\u0439',
+                )
+              : asError(
+                  error,
+                ),
+
           isLoadingOlder:
             false,
+
           hasMore:
             false,
+
           olderError:
             null,
         });
       });
 
     return () => {
+      active =
+        false;
+
+      globalThis.clearTimeout(
+        timeout,
+      );
+
       controller.abort();
     };
   }, [
@@ -300,6 +525,17 @@ export function useMarketCandles(
             merged.length
             - currentData.length;
 
+          const hasMore =
+            page.length
+              === MARKET_CANDLES_PAGE_SIZE
+            && addedCount > 0;
+
+          writeMarketCandlesCache(
+            requestKey,
+            merged,
+            hasMore,
+          );
+
           commitState({
             status:
               'success',
@@ -309,10 +545,7 @@ export function useMarketCandles(
               null,
             isLoadingOlder:
               false,
-            hasMore:
-              page.length
-                === MARKET_CANDLES_PAGE_SIZE
-              && addedCount > 0,
+            hasMore,
             olderError:
               null,
           });
