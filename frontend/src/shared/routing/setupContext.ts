@@ -20,6 +20,67 @@ export function buildWorkspaceUrl(route: string, context: SetupRouteContext) {
   return `${route}?${params.toString()}`;
 }
 
+export function buildMarketWorkspaceSetupId(
+  symbol: string,
+) {
+  const normalizedSymbol =
+    symbol
+      .trim()
+      .replace(
+        /\//g,
+        '',
+      )
+      .toUpperCase();
+
+  if (!normalizedSymbol) {
+    throw new Error(
+      'Market workspace symbol is required',
+    );
+  }
+
+  return 'market-'
+    + normalizedSymbol.toLowerCase();
+}
+
+export function isMarketWorkspaceSetupId(
+  setupId: string | null | undefined,
+): boolean {
+  return typeof setupId === 'string'
+    && setupId.startsWith(
+      'market-',
+    );
+}
+
+export function buildMarketWorkspaceUrl(
+  route: string,
+  symbol: string,
+  timeframe?: string | null,
+) {
+  const normalizedSymbol =
+    symbol
+      .trim()
+      .replace(
+        /\//g,
+        '',
+      )
+      .toUpperCase();
+
+  return buildWorkspaceUrl(
+    route,
+    {
+      setupId:
+        buildMarketWorkspaceSetupId(
+          normalizedSymbol,
+        ),
+
+      symbol:
+        normalizedSymbol,
+
+      timeframe,
+    },
+  );
+}
+
 export function buildReplayUrl(route: string, context: ReplayRouteContext) {
   const params = new URLSearchParams();
   if (context.sessionId) params.set('session', context.sessionId);

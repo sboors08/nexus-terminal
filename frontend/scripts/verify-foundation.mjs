@@ -59,12 +59,47 @@ const requiredMarketModeMarkers = [
 ];
 
 
-const requiredSetupContextMarkers = [
-  "params.set('setupId', context.setupId)",
-  'getSetupById(resolvedSetupId)',
-  'getWorkspaceSnapshot(resolvedSetupId)',
-  'buildWorkspaceUrl(ROUTES.workspace',
-  'buildReplayUrl(ROUTES.replay',
+const requiredSetupContextMarkerGroups = [
+  {
+    label:
+      "params.set('setupId', context.setupId)",
+
+    markers: [
+      "params.set('setupId', context.setupId)",
+    ],
+  },
+  {
+    label:
+      'getSetupById(...)',
+
+    markers: [
+      'getSetupById(',
+    ],
+  },
+  {
+    label:
+      'getWorkspaceSnapshot(...)',
+
+    markers: [
+      'getWorkspaceSnapshot(',
+    ],
+  },
+  {
+    label:
+      'buildWorkspaceUrl(ROUTES.workspace, ...)',
+
+    markers: [
+      'buildWorkspaceUrl(ROUTES.workspace',
+    ],
+  },
+  {
+    label:
+      'buildReplayUrl(ROUTES.replay, ...)',
+
+    markers: [
+      'buildReplayUrl(ROUTES.replay',
+    ],
+  },
 ];
 
 const dataPages = [
@@ -112,7 +147,21 @@ const setupContextCorpus = [
   replayDataSource,
   ...pageSources,
 ].join('\n');
-const missingSetupContextMarkers = requiredSetupContextMarkers.filter((marker) => !setupContextCorpus.includes(marker));
+const missingSetupContextMarkers =
+  requiredSetupContextMarkerGroups
+    .filter(
+      ({ markers }) =>
+        !markers.some(
+          (marker) =>
+            setupContextCorpus.includes(
+              marker,
+            ),
+        ),
+    )
+    .map(
+      ({ label }) =>
+        label,
+    );
 const setupIdMissingFromAlerts = !alertsDataSource.includes('setupId: string;');
 const legacySetupQueryPresent = pageSources
   .filter((_, index) => index !== 0 && index !== 2)

@@ -56,6 +56,15 @@ export interface SetupRuntimeCandidate {
   expiresAt: string;
 }
 
+export interface SetupRuntimeView
+  extends Setup {
+  runtimeOutcome:
+    SetupRuntimeCandidate['outcome'];
+
+  runtimeExpiresAt:
+    string;
+}
+
 export type SetupRuntimeFetch =
   typeof globalThis.fetch;
 
@@ -68,12 +77,16 @@ export interface SetupRuntimeFetchOptions {
 export interface FetchSetupRuntimeCandidatesOptions
   extends SetupRuntimeFetchOptions {
   limit?: number;
+  symbol?: string;
 }
 
 export interface FetchSetupRuntimeCandidateOptions
   extends SetupRuntimeFetchOptions {
   candidateId: string;
 }
+
+const SETUP_RUNTIME_SYMBOL_PATTERN =
+  /^[A-Z0-9]{5,30}$/;
 
 const SETUP_STAGES:
 readonly SetupRuntimeStage[] = [
@@ -220,6 +233,30 @@ function resolveBaseUrl(
   );
 }
 
+function normalizeSetupRuntimeSymbol(
+  value: string,
+): string {
+  const symbol =
+    value
+      .trim()
+      .replace(
+        '/',
+        '',
+      )
+      .toUpperCase();
+
+  if (
+    !SETUP_RUNTIME_SYMBOL_PATTERN
+      .test(symbol)
+  ) {
+    throw new Error(
+      'Invalid setup runtime symbol',
+    );
+  }
+
+  return symbol;
+}
+
 function normalizeCandidateId(
   value: string,
 ): string {
@@ -244,6 +281,7 @@ export function buildSetupRuntimeCandidatesUrl(
       FetchSetupRuntimeCandidatesOptions,
       | 'baseUrl'
       | 'limit'
+      | 'symbol'
     > = {},
 ): string {
   const limit =
@@ -259,12 +297,31 @@ export function buildSetupRuntimeCandidatesUrl(
     );
   }
 
+  const query =
+    new URLSearchParams({
+      limit:
+        String(limit),
+    });
+
+  if (
+    options.symbol
+    !== undefined
+  ) {
+    query.set(
+      'symbol',
+      normalizeSetupRuntimeSymbol(
+        options.symbol,
+      ),
+    );
+  }
+
   return (
     resolveBaseUrl(
       options.baseUrl,
     )
     + SETUP_RUNTIME_CANDIDATES_PATH
-    + `?limit=${limit}`
+    + '?'
+    + query.toString()
   );
 }
 
@@ -517,7 +574,7 @@ export function mapSetupRuntimeStage(
 export function mapSetupRuntimeCandidate(
   value:
     SetupRuntimeCandidate,
-): Setup {
+): SetupRuntimeView {
   const stage =
     mapSetupRuntimeStage(
       value.stage,
@@ -620,6 +677,12 @@ export function mapSetupRuntimeCandidate(
     updatedAt:
       value.updatedAt,
 
+    runtimeOutcome:
+      value.outcome,
+
+    runtimeExpiresAt:
+      value.expiresAt,
+
     level: {
       id:
         `${value.id}.level`,
@@ -692,6 +755,195 @@ export function mapSetupRuntimeCandidate(
   };
 }
 
+const ACTIVE_SETUP_STAGE_PRIORITY:
+Record<
+  Setup['stage'],
+  number
+> = {
+  confirmation:
+    3,
+
+  approaching:
+    2,
+
+  watching:
+    1,
+
+  breakout:
+    0,
+
+  bounce:
+    0,
+
+  invalidated:
+    0,
+};
+
+function hasValidRuntimeExpiry(
+  setup:
+    SetupRuntimeView,
+  nowMs:
+    number,
+): boolean {
+  const expiresAt =
+    Date.parse(
+      setup.runtimeExpiresAt,
+    );
+
+  return (
+    Number.isFinite(
+      expiresAt,
+    )
+    && expiresAt > nowMs
+  );
+}
+
+function compareActiveRuntimeSetups(
+  left:
+    SetupRuntimeView,
+  right:
+    SetupRuntimeView,
+): number {
+  const stageDifference =
+    ACTIVE_SETUP_STAGE_PRIORITY[
+      right.stage
+    ]
+    - ACTIVE_SETUP_STAGE_PRIORITY[
+        left.stage
+      ];
+
+  if (stageDifference !== 0) {
+    return stageDifference;
+  }
+
+  const distanceDifference =
+    left.distanceToLevelPct
+    - right.distanceToLevelPct;
+
+  if (distanceDifference !== 0) {
+    return distanceDifference;
+  }
+
+  const updatedDifference =
+    Date.parse(
+      right.updatedAt,
+    )
+    - Date.parse(
+        left.updatedAt,
+      );
+
+  if (
+    Number.isFinite(
+      updatedDifference,
+    )
+    && updatedDifference !== 0
+  ) {
+    return updatedDifference;
+  }
+
+  return left.id.localeCompare(
+    right.id,
+  );
+}
+
+function compareTerminalRuntimeSetups(
+  left:
+    SetupRuntimeView,
+  right:
+    SetupRuntimeView,
+): number {
+  const updatedDifference =
+    Date.parse(
+      right.updatedAt,
+    )
+    - Date.parse(
+        left.updatedAt,
+      );
+
+  if (
+    Number.isFinite(
+      updatedDifference,
+    )
+    && updatedDifference !== 0
+  ) {
+    return updatedDifference;
+  }
+
+  const distanceDifference =
+    left.distanceToLevelPct
+    - right.distanceToLevelPct;
+
+  if (distanceDifference !== 0) {
+    return distanceDifference;
+  }
+
+  return left.id.localeCompare(
+    right.id,
+  );
+}
+
+export function selectPreferredSetupRuntimeCandidate(
+  setups:
+    readonly SetupRuntimeView[],
+  nowMs:
+    number = Date.now(),
+): SetupRuntimeView | null {
+  const unexpired =
+    setups.filter(
+      (setup) =>
+        setup.stage
+          !== 'invalidated'
+        && hasValidRuntimeExpiry(
+          setup,
+          nowMs,
+        ),
+    );
+
+  const active =
+    unexpired
+      .filter(
+        (setup) =>
+          setup.runtimeOutcome
+            === null
+          && (
+            setup.stage
+              === 'watching'
+            || setup.stage
+              === 'approaching'
+            || setup.stage
+              === 'confirmation'
+          ),
+      )
+      .sort(
+        compareActiveRuntimeSetups,
+      );
+
+  if (active.length > 0) {
+    return active[0]
+      ?? null;
+  }
+
+  const terminal =
+    unexpired
+      .filter(
+        (setup) =>
+          setup.runtimeOutcome
+            !== null
+          && (
+            setup.stage
+              === 'breakout'
+            || setup.stage
+              === 'bounce'
+          ),
+      )
+      .sort(
+        compareTerminalRuntimeSetups,
+      );
+
+  return terminal[0]
+    ?? null;
+}
+
 const defaultFetch:
 SetupRuntimeFetch = (
   input,
@@ -751,7 +1003,7 @@ async function requestJson(
 export async function fetchSetupRuntimeCandidates(
   options:
     FetchSetupRuntimeCandidatesOptions = {},
-): Promise<Setup[]> {
+): Promise<SetupRuntimeView[]> {
   const response =
     await requestJson(
       buildSetupRuntimeCandidatesUrl(
@@ -792,7 +1044,7 @@ export async function fetchSetupRuntimeCandidates(
 export async function fetchSetupRuntimeCandidate(
   options:
     FetchSetupRuntimeCandidateOptions,
-): Promise<Setup | null> {
+): Promise<SetupRuntimeView | null> {
   const response =
     await requestJson(
       buildSetupRuntimeCandidateUrl(

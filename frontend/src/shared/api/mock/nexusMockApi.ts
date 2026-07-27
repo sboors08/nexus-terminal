@@ -59,6 +59,7 @@ import type {
 import {
   fetchSetupRuntimeCandidate,
   fetchSetupRuntimeCandidates,
+  selectPreferredSetupRuntimeCandidate,
 } from '../runtime/setupRuntimeApi';
 import {
   DASHBOARD_VIEW_DATA,
@@ -155,9 +156,54 @@ async function deliver<T>(key: string, value: T, emptyValue: T): Promise<T> {
 }
 
 function parseNumber(value: string): number {
-  const normalized = value.replace(/\s/g, '').replace(/[^0-9.-]/g, '');
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  const compact =
+    value
+      .trim()
+      .replace(
+        /\s/g,
+        '',
+      )
+      .replace(
+        /[^0-9,.-]/g,
+        '',
+      );
+
+  const lastComma =
+    compact.lastIndexOf(
+      ',',
+    );
+
+  const lastDot =
+    compact.lastIndexOf(
+      '.',
+    );
+
+  const normalized =
+    lastComma > lastDot
+      ? compact
+          .replace(
+            /\./g,
+            '',
+          )
+          .replace(
+            ',',
+            '.',
+          )
+      : compact.replace(
+          /,/g,
+          '',
+        );
+
+  const parsed =
+    Number(
+      normalized,
+    );
+
+  return Number.isFinite(
+    parsed,
+  )
+    ? parsed
+    : 0;
 }
 
 function parseLevelZone(value: string, fallback: number): [number, number] {
@@ -494,37 +540,30 @@ async function resolveRuntimeContractSetup(
     }
   }
 
+  const normalizedSymbol =
+    symbol
+      ?.trim()
+      .replace(
+        '/',
+        '',
+      )
+      .toUpperCase();
+
   const setups =
     await fetchSetupRuntimeCandidates({
       limit:
         100,
+
+      ...(normalizedSymbol
+        ? {
+            symbol:
+              normalizedSymbol,
+          }
+        : {}),
     });
 
-  const normalizedSymbol =
-    symbol
-      ?.trim()
-      .replace('/', '')
-      .toUpperCase();
-
-  if (normalizedSymbol) {
-    return (
-      setups.find(
-        (setup) =>
-          setup.symbol
-          === normalizedSymbol,
-      )
-      ?? null
-    );
-  }
-
-  return (
-    setups.find(
-      (setup) =>
-        setup.stage
-        !== 'invalidated',
-    )
-    ?? setups[0]
-    ?? null
+  return selectPreferredSetupRuntimeCandidate(
+    setups,
   );
 }
 

@@ -1,16 +1,158 @@
-﻿import {
+import {
   useEffect,
   useRef,
 } from 'react';
 import {
   SetupLifecycleStreamClient,
   type SetupLifecycleStreamEvent,
-} from './setupLifecycleStream';
+} from './setupLifecycleStream.js';
+
+export const DEFAULT_SETUP_LIFECYCLE_REFRESH_THROTTLE_MS =
+  250;
+
+export interface SetupLifecycleRefreshTimerScheduler {
+  schedule:
+    (
+      callback:
+        () => void,
+      delayMs:
+        number,
+    ) => unknown;
+
+  cancel:
+    (
+      handle:
+        unknown,
+    ) => void;
+}
+
+export interface SetupLifecycleEventThrottle {
+  push:
+    (
+      event:
+        SetupLifecycleStreamEvent,
+    ) => void;
+
+  cancel:
+    () => void;
+}
+
+const defaultTimerScheduler:
+SetupLifecycleRefreshTimerScheduler = {
+  schedule:
+    (
+      callback,
+      delayMs,
+    ) =>
+      globalThis.setTimeout(
+        callback,
+        delayMs,
+      ),
+
+  cancel:
+    (handle) =>
+      globalThis.clearTimeout(
+        handle as ReturnType<
+          typeof setTimeout
+        >,
+      ),
+};
+
+export function createSetupLifecycleEventThrottle(
+  onEvent:
+    (
+      event:
+        SetupLifecycleStreamEvent,
+    ) => void,
+
+  delayMs:
+    number =
+      DEFAULT_SETUP_LIFECYCLE_REFRESH_THROTTLE_MS,
+
+  scheduler:
+    SetupLifecycleRefreshTimerScheduler =
+      defaultTimerScheduler,
+): SetupLifecycleEventThrottle {
+  if (
+    !Number.isFinite(
+      delayMs,
+    )
+    || delayMs < 0
+  ) {
+    throw new Error(
+      'Setup Lifecycle refresh throttle must be a non-negative number',
+    );
+  }
+
+  let timerHandle:
+    unknown | null = null;
+
+  let latestEvent:
+    SetupLifecycleStreamEvent | null =
+      null;
+
+  return {
+    push:
+      (event) => {
+        latestEvent =
+          event;
+
+        if (
+          timerHandle
+          !== null
+        ) {
+          return;
+        }
+
+        timerHandle =
+          scheduler.schedule(
+            () => {
+              timerHandle =
+                null;
+
+              const eventToHandle =
+                latestEvent;
+
+              latestEvent =
+                null;
+
+              if (
+                eventToHandle
+              ) {
+                onEvent(
+                  eventToHandle,
+                );
+              }
+            },
+            delayMs,
+          );
+      },
+
+    cancel:
+      () => {
+        if (
+          timerHandle
+          !== null
+        ) {
+          scheduler.cancel(
+            timerHandle,
+          );
+        }
+
+        timerHandle =
+          null;
+
+        latestEvent =
+          null;
+      },
+  };
+}
 
 export interface UseSetupLifecycleRefreshOptions {
   candidateId?: string;
   symbol?: string;
   enabled?: boolean;
+  throttleMs?: number;
 
   onEvent:
     (
@@ -34,6 +176,10 @@ export function useSetupLifecycleRefresh(
   const enabled =
     options.enabled
     ?? true;
+
+  const throttleMs =
+    options.throttleMs
+    ?? DEFAULT_SETUP_LIFECYCLE_REFRESH_THROTTLE_MS;
 
   useEffect(
     () => {
@@ -67,11 +213,14 @@ export function useSetupLifecycleRefresh(
       let lastHandledEventId =
         0;
 
-      let refreshTimer:
-        ReturnType<
-          typeof setTimeout
-        >
-        | null = null;
+      const eventThrottle =
+        createSetupLifecycleEventThrottle(
+          (event) =>
+            onEventRef.current(
+              event,
+            ),
+          throttleMs,
+        );
 
       const unsubscribe =
         client.subscribe(
@@ -92,42 +241,16 @@ export function useSetupLifecycleRefresh(
             lastHandledEventId =
               event.eventId;
 
-            if (
-              refreshTimer
-              !== null
-            ) {
-              clearTimeout(
-                refreshTimer,
-              );
-            }
-
-            refreshTimer =
-              setTimeout(
-                () => {
-                  refreshTimer =
-                    null;
-
-                  onEventRef.current(
-                    event,
-                  );
-                },
-                50,
-              );
+            eventThrottle.push(
+              event,
+            );
           },
         );
 
       client.connect();
 
       return () => {
-        if (
-          refreshTimer
-          !== null
-        ) {
-          clearTimeout(
-            refreshTimer,
-          );
-        }
-
+        eventThrottle.cancel();
         unsubscribe();
         client.close();
       };
@@ -136,6 +259,7 @@ export function useSetupLifecycleRefresh(
       enabled,
       options.candidateId,
       options.symbol,
+      throttleMs,
     ],
   );
 }

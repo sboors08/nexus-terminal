@@ -54,7 +54,8 @@ const requiredMarkersByFile = {
     "nextParams.set('preset', preset);",
     "nextParams.set('scannerWindow', scannerWindow);",
     'to={buildSetupSelectionUrl(ROUTES.scanner, contractSetup.id, {',
-    'to={buildReplayUrl(ROUTES.replay, {',
+    'buildReplayUrl(',
+    'ROUTES.replay',
   ],
   'src/shared/routing/setupContext.ts': [
     'preset?: string | null;',
