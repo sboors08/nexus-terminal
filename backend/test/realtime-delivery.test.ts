@@ -6,6 +6,9 @@ import { buildApp } from '../src/app.js';
 import type { AppEnv } from '../src/config/env.js';
 import { createCandles, marketSymbols } from '../src/modules/api-contract/fixtures.js';
 import type { MarketDataProvider } from '../src/modules/market-data/market-data.provider.js';
+import {
+  MarketWideRealtimeService,
+} from '../src/modules/realtime-market-data/market-wide-realtime.service.js';
 import type {
   RealtimeMarketDataEvent,
   RealtimeMarketDataListener,
@@ -202,3 +205,444 @@ test('Realtime SSE endpoint rejects an invalid symbol format', async (t) => {
   assert.equal(response.statusCode, 400);
   assert.equal(response.json().error, 'invalid_symbol');
 });
+
+
+test(
+  'Realtime SSE endpoint sends the exact selected timeframe candle',
+  async (t) => {
+    const realtimeService =
+      new FakeRealtimeService();
+
+    const candleService =
+      new MarketWideRealtimeService({
+        baseUrl:
+          'wss://fstream.binance.com',
+        symbols: [
+          'BTCUSDT',
+        ],
+        maxStreamsPerSocket:
+          10,
+        reconnectBaseDelayMs:
+          100,
+        reconnectMaxDelayMs:
+          1_000,
+      });
+
+    const appliedHistoricalKlines =
+      candleService.applyHistoricalKlines([
+      {
+        symbol:
+          'BTCUSDT',
+        eventTime:
+          '2026-07-18T16:00:59.999Z',
+        openTime:
+          '2026-07-18T16:00:00.000Z',
+        closeTime:
+          '2026-07-18T16:00:59.999Z',
+        open:
+          63_900,
+        high:
+          64_100,
+        low:
+          63_850,
+        close:
+          64_000,
+        volume:
+          123.45,
+        quoteVolume:
+          7_900_000,
+        tradesCount:
+          845,
+        takerBuyQuoteVolume:
+          4_000_000,
+        isClosed:
+          true,
+      },
+    ]);
+
+    assert.equal(
+      appliedHistoricalKlines,
+      1,
+    );
+
+    const retainedCandle =
+      candleService
+        .getLatestRealtimeCandle(
+          'BTCUSDT',
+        );
+
+    assert.ok(
+      retainedCandle,
+    );
+
+    assert.equal(
+      retainedCandle.isClosed,
+      true,
+    );
+
+    assert.equal(
+      retainedCandle.volume,
+      123.45,
+    );
+
+    const app =
+      await buildApp({
+        env:
+          testEnv,
+        marketDataProvider:
+          fixtureProvider,
+        realtimeMarketDataService:
+          realtimeService,
+        marketWideRealtimeService:
+          candleService,
+        binanceSymbolUniverseService:
+          null,
+        marketWideHistoryWarmupService:
+          null,
+        setupDetectionRuntimeService:
+          null,
+      });
+
+    await app.listen({
+      host:
+        '127.0.0.1',
+      port:
+        0,
+    });
+
+    t.after(
+      async () =>
+        app.close(),
+    );
+
+    const address =
+      app.server.address() as AddressInfo;
+
+    const body =
+      await new Promise<string>(
+        (
+          resolve,
+          reject,
+        ) => {
+          let settled =
+            false;
+
+          const timeout =
+            setTimeout(
+              () => {
+                if (settled) {
+                  return;
+                }
+
+                settled =
+                  true;
+
+                reject(
+                  new Error(
+                    'Timed out waiting for realtime candle SSE payload',
+                  ),
+                );
+              },
+              2_000,
+            );
+
+          const request =
+            get(
+              {
+                host:
+                  '127.0.0.1',
+                port:
+                  address.port,
+                path:
+                  '/api/v1/market/realtime/stream'
+                  + '?candleSymbol=BTCUSDT'
+                  + '&candleTimeframe=5m'
+                  + '&candleOnly=true',
+                headers: {
+                  accept:
+                    'text/event-stream',
+                },
+              },
+              (response) => {
+                let payload =
+                  '';
+
+                response.setEncoding(
+                  'utf8',
+                );
+
+                response.on(
+                  'data',
+                  (
+                    chunk:
+                      string,
+                  ) => {
+                    payload +=
+                      chunk;
+
+                    if (
+                      !settled
+                      && payload.includes(
+                        'event: candle',
+                      )
+                      && payload.includes(
+                        '"timeframe":"5m"',
+                      )
+                      && payload.includes(
+                        '"volume":123.45',
+                      )
+                      && payload.includes(
+                        '"tradesCount":845',
+                      )
+                    ) {
+                      settled =
+                        true;
+
+                      clearTimeout(
+                        timeout,
+                      );
+
+                      resolve(
+                        payload,
+                      );
+
+                      response.destroy();
+                    }
+                  },
+                );
+              },
+            );
+
+          request.on(
+            'error',
+            (error) => {
+              if (settled) {
+                return;
+              }
+
+              settled =
+                true;
+
+              clearTimeout(
+                timeout,
+              );
+
+              reject(
+                error,
+              );
+            },
+          );
+        },
+      );
+
+    assert.match(
+      body,
+      /event: candle/u,
+    );
+
+    assert.match(
+      body,
+      /"symbol":"BTCUSDT"/u,
+    );
+
+    assert.match(
+      body,
+      /"close":64000/u,
+    );
+
+    assert.doesNotMatch(
+      body,
+      /event: status/u,
+    );
+
+    assert.doesNotMatch(
+      body,
+      /event: snapshot/u,
+    );
+
+    assert.equal(
+      realtimeService.listenerCount,
+      0,
+    );
+  },
+);
+
+
+test(
+  'Realtime SSE endpoint rejects an unsupported candle timeframe',
+  async (t) => {
+    const realtimeService =
+      new FakeRealtimeService();
+
+    const candleService =
+      new MarketWideRealtimeService({
+        baseUrl:
+          'wss://fstream.binance.com',
+        symbols: [
+          'BTCUSDT',
+        ],
+        maxStreamsPerSocket:
+          10,
+        reconnectBaseDelayMs:
+          100,
+        reconnectMaxDelayMs:
+          1_000,
+      });
+
+    const app =
+      await buildApp({
+        env:
+          testEnv,
+        marketDataProvider:
+          fixtureProvider,
+        realtimeMarketDataService:
+          realtimeService,
+        marketWideRealtimeService:
+          candleService,
+        binanceSymbolUniverseService:
+          null,
+        marketWideHistoryWarmupService:
+          null,
+        setupDetectionRuntimeService:
+          null,
+      });
+
+    t.after(
+      async () =>
+        app.close(),
+    );
+
+    const response =
+      await app.inject({
+        method:
+          'GET',
+        url:
+          '/api/v1/market/realtime/stream'
+          + '?symbol=BTCUSDT'
+          + '&candleSymbol=BTCUSDT'
+          + '&candleTimeframe=7m',
+      });
+
+    assert.equal(
+      response.statusCode,
+      400,
+    );
+
+    assert.equal(
+      response.json().error,
+      'invalid_candle_timeframe',
+    );
+  },
+);
+
+
+test(
+  'Realtime SSE endpoint validates candle-only mode',
+  async (t) => {
+    const realtimeService =
+      new FakeRealtimeService();
+
+    const candleService =
+      new MarketWideRealtimeService({
+        baseUrl:
+          'wss://fstream.binance.com',
+        symbols: [
+          'BTCUSDT',
+        ],
+        maxStreamsPerSocket:
+          10,
+        reconnectBaseDelayMs:
+          100,
+        reconnectMaxDelayMs:
+          1_000,
+      });
+
+    const app =
+      await buildApp({
+        env:
+          testEnv,
+        marketDataProvider:
+          fixtureProvider,
+        realtimeMarketDataService:
+          realtimeService,
+        marketWideRealtimeService:
+          candleService,
+        binanceSymbolUniverseService:
+          null,
+        marketWideHistoryWarmupService:
+          null,
+        setupDetectionRuntimeService:
+          null,
+      });
+
+    t.after(
+      async () =>
+        app.close(),
+    );
+
+    const missingSymbol =
+      await app.inject({
+        method:
+          'GET',
+        url:
+          '/api/v1/market/realtime/stream'
+          + '?candleOnly=true',
+      });
+
+    assert.equal(
+      missingSymbol.statusCode,
+      400,
+    );
+
+    assert.equal(
+      missingSymbol.json().error,
+      'candle_symbol_required',
+    );
+
+    const conflictingSymbol =
+      await app.inject({
+        method:
+          'GET',
+        url:
+          '/api/v1/market/realtime/stream'
+          + '?symbol=BTCUSDT'
+          + '&candleSymbol=BTCUSDT'
+          + '&candleOnly=true',
+      });
+
+    assert.equal(
+      conflictingSymbol.statusCode,
+      400,
+    );
+
+    assert.equal(
+      conflictingSymbol.json().error,
+      'candle_only_conflict',
+    );
+
+    const invalidFlag =
+      await app.inject({
+        method:
+          'GET',
+        url:
+          '/api/v1/market/realtime/stream'
+          + '?candleSymbol=BTCUSDT'
+          + '&candleOnly=maybe',
+      });
+
+    assert.equal(
+      invalidFlag.statusCode,
+      400,
+    );
+
+    assert.equal(
+      invalidFlag.json().error,
+      'invalid_candle_only',
+    );
+
+    assert.equal(
+      realtimeService.listenerCount,
+      0,
+    );
+  },
+);

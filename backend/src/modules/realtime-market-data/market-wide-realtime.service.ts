@@ -14,8 +14,13 @@ import {
   type BinanceOneMinuteKlineUpdate,
   type MarketWideSymbolChange,
 } from './market-wide-one-minute-metrics.js';
+import {
+  REALTIME_CANDLE_TIMEFRAMES,
+} from './realtime-market-data.types.js';
 import type {
   RealtimeBookTicker,
+  RealtimeCandle,
+  RealtimeCandleTimeframe,
   RealtimeSocketEvent,
   RealtimeWebSocket,
   RealtimeWebSocketFactory,
@@ -77,6 +82,11 @@ export type MarketWideKlineChangeListener =
     event: MarketWideKlineChange,
   ) => void;
 
+export type MarketWideRealtimeCandleListener =
+  (
+    candle: RealtimeCandle,
+  ) => void;
+
 interface CombinedStreamPayload {
   stream?: string;
   data?: unknown;
@@ -132,6 +142,320 @@ function normalizeSymbol(
   }
 
   return symbol;
+}
+
+const REALTIME_CANDLE_DURATION_MS:
+Record<
+  RealtimeCandleTimeframe,
+  number
+> = {
+  '1m':
+    60_000,
+  '3m':
+    3 * 60_000,
+  '5m':
+    5 * 60_000,
+  '15m':
+    15 * 60_000,
+  '30m':
+    30 * 60_000,
+  '1h':
+    60 * 60_000,
+  '2h':
+    2 * 60 * 60_000,
+  '4h':
+    4 * 60 * 60_000,
+  '6h':
+    6 * 60 * 60_000,
+  '8h':
+    8 * 60 * 60_000,
+  '12h':
+    12 * 60 * 60_000,
+  '1d':
+    24 * 60 * 60_000,
+};
+
+function getRealtimeCandleWindowSize(
+  timeframe:
+    RealtimeCandleTimeframe,
+): number {
+  return Math.max(
+    1,
+    Math.ceil(
+      REALTIME_CANDLE_DURATION_MS[
+        timeframe
+      ] / 60_000,
+    ),
+  );
+}
+
+export function normalizeRealtimeCandleTimeframe(
+  value:
+    string
+    | undefined,
+): RealtimeCandleTimeframe | null {
+  if (value === undefined) {
+    return '1m';
+  }
+
+  const normalized =
+    value
+      .trim()
+      .toLowerCase();
+
+  return REALTIME_CANDLE_TIMEFRAMES.includes(
+    normalized as
+      RealtimeCandleTimeframe,
+  )
+    ? normalized as
+        RealtimeCandleTimeframe
+    : null;
+}
+
+function buildRealtimeCandle(
+  update: BinanceOneMinuteKlineUpdate,
+): RealtimeCandle {
+  return {
+    symbol:
+      update.symbol,
+    timeframe:
+      '1m',
+    openTime:
+      update.openTime,
+    closeTime:
+      update.closeTime,
+    open:
+      update.open,
+    high:
+      update.high,
+    low:
+      update.low,
+    close:
+      update.close,
+    volume:
+      update.volume
+      ?? null,
+    quoteVolume:
+      update.quoteVolume,
+    tradesCount:
+      update.tradesCount,
+    isClosed:
+      update.isClosed,
+    updatedAt:
+      update.eventTime,
+  };
+}
+
+function aggregateRealtimeCandle(
+  klines:
+    readonly BinanceOneMinuteKlineUpdate[],
+  timeframe:
+    RealtimeCandleTimeframe,
+): RealtimeCandle | null {
+  if (klines.length === 0) {
+    return null;
+  }
+
+  const ordered =
+    [...klines].sort(
+      (
+        left,
+        right,
+      ) => {
+        const openDifference =
+          Date.parse(
+            left.openTime,
+          )
+          - Date.parse(
+            right.openTime,
+          );
+
+        if (openDifference !== 0) {
+          return openDifference;
+        }
+
+        return (
+          Date.parse(
+            left.eventTime,
+          )
+          - Date.parse(
+            right.eventTime,
+          )
+        );
+      },
+    );
+
+  const latest =
+    ordered[
+      ordered.length - 1
+    ];
+
+  if (!latest) {
+    return null;
+  }
+
+  const latestOpenTimeMs =
+    Date.parse(
+      latest.openTime,
+    );
+
+  if (
+    !Number.isFinite(
+      latestOpenTimeMs,
+    )
+  ) {
+    throw new Error(
+      `Invalid realtime candle open time: ${latest.symbol}`,
+    );
+  }
+
+  const durationMs =
+    REALTIME_CANDLE_DURATION_MS[
+      timeframe
+    ];
+
+  const bucketOpenTimeMs =
+    Math.floor(
+      latestOpenTimeMs
+      / durationMs,
+    ) * durationMs;
+
+  const bucketCloseTimeMs =
+    bucketOpenTimeMs
+    + durationMs
+    - 1;
+
+  const bucketKlines =
+    ordered.filter(
+      (kline) => {
+        const openTimeMs =
+          Date.parse(
+            kline.openTime,
+          );
+
+        return (
+          Number.isFinite(
+            openTimeMs,
+          )
+          && openTimeMs
+            >= bucketOpenTimeMs
+          && openTimeMs
+            <= bucketCloseTimeMs
+        );
+      },
+    );
+
+  const first =
+    bucketKlines[0];
+
+  const last =
+    bucketKlines[
+      bucketKlines.length - 1
+    ];
+
+  if (
+    !first
+    || !last
+  ) {
+    return null;
+  }
+
+  let high =
+    Number.NEGATIVE_INFINITY;
+
+  let low =
+    Number.POSITIVE_INFINITY;
+
+  let volume:
+    number | null = 0;
+
+  let quoteVolume =
+    0;
+
+  let tradesCount =
+    0;
+
+  for (
+    const kline
+    of bucketKlines
+  ) {
+    high =
+      Math.max(
+        high,
+        kline.high,
+      );
+
+    low =
+      Math.min(
+        low,
+        kline.low,
+      );
+
+    quoteVolume +=
+      kline.quoteVolume;
+
+    tradesCount +=
+      kline.tradesCount;
+
+    if (
+      volume === null
+      || kline.volume
+        === undefined
+      || kline.volume
+        === null
+    ) {
+      volume =
+        null;
+    } else {
+      volume +=
+        kline.volume;
+    }
+  }
+
+  const lastCloseTimeMs =
+    Date.parse(
+      last.closeTime,
+    );
+
+  return {
+    symbol:
+      last.symbol,
+    timeframe,
+    openTime:
+      new Date(
+        bucketOpenTimeMs,
+      ).toISOString(),
+    closeTime:
+      new Date(
+        bucketCloseTimeMs,
+      ).toISOString(),
+    open:
+      first.open,
+    high,
+    low,
+    close:
+      last.close,
+    volume,
+    quoteVolume,
+    tradesCount,
+    isClosed:
+      last.isClosed
+      && Number.isFinite(
+        lastCloseTimeMs,
+      )
+      && lastCloseTimeMs
+        >= bucketCloseTimeMs,
+    updatedAt:
+      last.eventTime,
+  };
+}
+
+function cloneRealtimeCandle(
+  candle: RealtimeCandle,
+): RealtimeCandle {
+  return {
+    ...candle,
+  };
 }
 
 function normalizeSymbols(
@@ -340,6 +664,14 @@ export class MarketWideRealtimeService {
       MarketWideKlineChangeListener
     >();
 
+  private readonly realtimeCandleListeners =
+    new Map<
+      string,
+      Set<
+        MarketWideRealtimeCandleListener
+      >
+    >();
+
   private symbols: string[];
   private shards:
     MarketWideShardRuntime[] = [];
@@ -475,6 +807,74 @@ export class MarketWideRealtimeService {
       symbol,
       limit,
     );
+  }
+
+  getLatestRealtimeCandle(
+    symbol: string,
+    timeframe:
+      RealtimeCandleTimeframe =
+        '1m',
+  ): RealtimeCandle | null {
+    return aggregateRealtimeCandle(
+      this.getKlines(
+        symbol,
+        getRealtimeCandleWindowSize(
+          timeframe,
+        ),
+      ),
+      timeframe,
+    );
+  }
+
+  subscribeRealtimeCandles(
+    symbol: string,
+    listener:
+      MarketWideRealtimeCandleListener,
+  ): () => void {
+    const normalizedSymbol =
+      normalizeSymbol(
+        symbol,
+      );
+
+    const listeners =
+      this.realtimeCandleListeners.get(
+        normalizedSymbol,
+      )
+      ?? new Set<
+        MarketWideRealtimeCandleListener
+      >();
+
+    listeners.add(
+      listener,
+    );
+
+    this.realtimeCandleListeners.set(
+      normalizedSymbol,
+      listeners,
+    );
+
+    return () => {
+      const currentListeners =
+        this.realtimeCandleListeners.get(
+          normalizedSymbol,
+        );
+
+      if (!currentListeners) {
+        return;
+      }
+
+      currentListeners.delete(
+        listener,
+      );
+
+      if (
+        currentListeners.size === 0
+      ) {
+        this.realtimeCandleListeners.delete(
+          normalizedSymbol,
+        );
+      }
+    };
   }
 
   getState(
@@ -849,6 +1249,37 @@ export class MarketWideRealtimeService {
     );
   }
 
+  private emitRealtimeCandle(
+    candle: RealtimeCandle,
+  ): void {
+    const listeners =
+      this.realtimeCandleListeners.get(
+        candle.symbol,
+      );
+
+    if (!listeners) {
+      return;
+    }
+
+    for (
+      const listener
+      of listeners
+    ) {
+      try {
+        listener(
+          cloneRealtimeCandle(
+            candle,
+          ),
+        );
+      } catch (error) {
+        this.lastError =
+          error instanceof Error
+            ? error.message
+            : 'Unable to notify realtime candle listener';
+      }
+    }
+  }
+
   private emitKlineChange(
     event: MarketWideKlineChange,
   ): void {
@@ -1005,6 +1436,14 @@ export class MarketWideRealtimeService {
           this.metricsStore.applyKline(
             update,
           );
+
+        if (applied) {
+          this.emitRealtimeCandle(
+            buildRealtimeCandle(
+              update,
+            ),
+          );
+        }
 
         if (
           applied

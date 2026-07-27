@@ -12,6 +12,11 @@ import type {
   ApiQueryResult,
 } from '../../api/useApiQuery.js';
 import {
+  liveMarketCandleStore,
+  mergeLiveMarketCandle,
+  type LiveMarketCandle,
+} from '../api/liveMarketCandles.js';
+import {
   buildMarketCandlesUrl,
   fetchMarketCandles,
   MARKET_CANDLES_PAGE_SIZE,
@@ -213,6 +218,14 @@ export function useMarketCandles(
       null,
     );
 
+  const liveCandleRef =
+    useRef<
+      LiveMarketCandle
+      | null
+    >(
+      null,
+    );
+
   const commitState = (
     next: MarketCandlesState,
   ) => {
@@ -221,6 +234,82 @@ export function useMarketCandles(
 
     setState(next);
   };
+
+  useEffect(() => {
+    liveCandleRef.current =
+      null;
+
+    const unsubscribe =
+      liveMarketCandleStore
+        .subscribe(
+          {
+            baseUrl:
+              options.baseUrl,
+            symbol:
+              options.symbol,
+            timeframe:
+              options.timeframe,
+          },
+          (
+            liveState,
+          ) => {
+            const candle =
+              liveState.candle;
+
+            if (!candle) {
+              return;
+            }
+
+            liveCandleRef.current =
+              candle;
+
+            if (
+              keyRef.current
+              !== key
+            ) {
+              return;
+            }
+
+            const current =
+              stateRef.current;
+
+            if (
+              current.status
+                !== 'success'
+              || current.data
+                === null
+            ) {
+              return;
+            }
+
+            const data =
+              mergeLiveMarketCandle(
+                current.data,
+                candle,
+              );
+
+            writeMarketCandlesCache(
+              key,
+              data,
+              current.hasMore,
+            );
+
+            commitState({
+              ...current,
+              data,
+              error:
+                null,
+            });
+          },
+        );
+
+    return unsubscribe;
+  }, [
+    key,
+    options.baseUrl,
+    options.symbol,
+    options.timeframe,
+  ]);
 
   useEffect(() => {
     let active =
@@ -320,10 +409,18 @@ export function useMarketCandles(
           return;
         }
 
+        const liveCandle =
+          liveCandleRef.current;
+
         const data =
-          mergeMarketCandlePages(
-            page,
-          );
+          liveCandle
+            ? mergeLiveMarketCandle(
+                page,
+                liveCandle,
+              )
+            : mergeMarketCandlePages(
+                page,
+              );
 
         const hasMore =
           page.length
@@ -370,12 +467,29 @@ export function useMarketCandles(
         }
 
         if (cached) {
+          const liveCandle =
+            liveCandleRef.current;
+
+          const fallbackData =
+            liveCandle
+              ? mergeLiveMarketCandle(
+                  cached.data,
+                  liveCandle,
+                )
+              : cached.data;
+
+          writeMarketCandlesCache(
+            key,
+            fallbackData,
+            cached.hasMore,
+          );
+
           commitState({
             status:
               'success',
 
             data:
-              cached.data,
+              fallbackData,
 
             error:
               null,

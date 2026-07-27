@@ -229,6 +229,13 @@ function parseKline(
       Number.MIN_VALUE,
     );
 
+  const volume =
+    readNumber(
+      row[5],
+      'volume',
+      0,
+    );
+
   const quoteVolume =
     readNumber(
       row[7],
@@ -288,6 +295,7 @@ function parseKline(
     high,
     low,
     close,
+    volume,
     quoteVolume,
     tradesCount,
     takerBuyQuoteVolume,
