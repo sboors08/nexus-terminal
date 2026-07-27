@@ -12,11 +12,13 @@ const [
   packageSource,
   page,
   client,
+  liveClient,
   hook,
   mapping,
   component,
   componentCss,
   clientTests,
+  liveClientTests,
   mappingTests,
 ] =
   await Promise.all([
@@ -38,6 +40,13 @@ const [
       resolve(
         root,
         'src/shared/charts/api/marketCandles.ts',
+      ),
+      'utf8',
+    ),
+    readFile(
+      resolve(
+        root,
+        'src/shared/charts/api/liveMarketCandles.ts',
       ),
       'utf8',
     ),
@@ -79,6 +88,13 @@ const [
     readFile(
       resolve(
         root,
+        'test/live-market-candles.test.mjs',
+      ),
+      'utf8',
+    ),
+    readFile(
+      resolve(
+        root,
         'test/candle-mapping.test.mjs',
       ),
       'utf8',
@@ -112,6 +128,22 @@ const markers = [
   [
     client,
     "'1d'",
+  ],
+  [
+    liveClient,
+    'LiveMarketCandleStore',
+  ],
+  [
+    liveClient,
+    'candleOnly',
+  ],
+  [
+    liveClient,
+    'mergeLiveMarketCandle',
+  ],
+  [
+    hook,
+    'liveMarketCandleStore',
   ],
   [
     hook,
@@ -200,6 +232,14 @@ const markers = [
   [
     clientTests,
     'request failed: 503',
+  ],
+  [
+    liveClientTests,
+    'shares one EventSource for matching candle subscriptions',
+  ],
+  [
+    liveClientTests,
+    'ignores stale live candle updates',
   ],
   [
     mappingTests,

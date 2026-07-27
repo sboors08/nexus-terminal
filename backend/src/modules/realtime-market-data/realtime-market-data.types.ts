@@ -42,6 +42,40 @@ export interface RealtimeBookTicker {
   updatedAt: string;
 }
 
+export const REALTIME_CANDLE_TIMEFRAMES = [
+  '1m',
+  '3m',
+  '5m',
+  '15m',
+  '30m',
+  '1h',
+  '2h',
+  '4h',
+  '6h',
+  '8h',
+  '12h',
+  '1d',
+] as const;
+
+export type RealtimeCandleTimeframe =
+  typeof REALTIME_CANDLE_TIMEFRAMES[number];
+
+export interface RealtimeCandle {
+  symbol: string;
+  timeframe: RealtimeCandleTimeframe;
+  openTime: string;
+  closeTime: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number | null;
+  quoteVolume: number;
+  tradesCount: number;
+  isClosed: boolean;
+  updatedAt: string;
+}
+
 export interface RealtimeSymbolSnapshot {
   symbol: string;
   lastTrade: RealtimeTrade | null;

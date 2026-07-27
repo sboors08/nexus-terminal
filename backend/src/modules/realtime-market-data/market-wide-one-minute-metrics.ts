@@ -32,6 +32,7 @@ export interface BinanceOneMinuteKlineUpdate {
   high: number;
   low: number;
   close: number;
+  volume?: number | null;
   quoteVolume: number;
   tradesCount: number;
   takerBuyQuoteVolume: number;
@@ -352,6 +353,15 @@ export function parseBinanceOneMinuteKlineEvent(
       Number.MIN_VALUE,
     );
 
+  const volume =
+    kline.v === undefined
+      ? null
+      : readFiniteNumber(
+          kline,
+          'v',
+          0,
+        );
+
   const quoteVolume =
     readFiniteNumber(
       kline,
@@ -413,6 +423,7 @@ export function parseBinanceOneMinuteKlineEvent(
     high,
     low,
     close,
+    volume,
     quoteVolume,
     tradesCount,
     takerBuyQuoteVolume,

@@ -1,6 +1,10 @@
 import type { ServerResponse } from 'node:http';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import type { ApiErrorResponse } from '../../contracts/nexus-api.js';
+import {
+  normalizeRealtimeCandleTimeframe,
+  type MarketWideRealtimeService,
+} from './market-wide-realtime.service.js';
 import type {
   RealtimeMarketDataEvent,
   RealtimeMarketDataService,
@@ -15,6 +19,7 @@ const SSE_RETRY_INTERVAL_MS = 3_000;
 
 interface RealtimeMarketDataRoutesOptions {
   realtimeMarketDataService: RealtimeMarketDataService;
+  marketWideRealtimeService?: MarketWideRealtimeService;
 }
 
 function sendError(
@@ -55,6 +60,37 @@ function normalizeSymbols(value: string | undefined): string[] | null {
   return symbols;
 }
 
+function normalizeBooleanFlag(
+  value:
+    string
+    | undefined,
+): boolean | null {
+  if (value === undefined) {
+    return false;
+  }
+
+  const normalized =
+    value
+      .trim()
+      .toLowerCase();
+
+  if (
+    normalized === 'true'
+    || normalized === '1'
+  ) {
+    return true;
+  }
+
+  if (
+    normalized === 'false'
+    || normalized === '0'
+  ) {
+    return false;
+  }
+
+  return null;
+}
+
 function acquireSymbols(
   service: RealtimeMarketDataService,
   symbols: readonly string[],
@@ -72,7 +108,9 @@ function acquireSymbols(
 function writeSseEvent(
   response: ServerResponse,
   id: string,
-  event: RealtimeMarketDataEvent['type'],
+  event:
+    | RealtimeMarketDataEvent['type']
+    | 'candle',
   data: unknown,
 ): void {
   if (response.destroyed || response.writableEnded) return;
@@ -247,11 +285,33 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
     },
   );
 
-  app.get<{ Querystring: { symbol?: string; symbols?: string } }>(
+  app.get<{
+    Querystring: {
+      symbol?: string;
+      symbols?: string;
+      candleSymbol?: string;
+      candleTimeframe?: string;
+      candleOnly?: string;
+    };
+  }>(
     '/market/realtime/stream',
     async (request, reply) => {
       const symbol = normalizeSymbol(request.query.symbol);
       const symbols = normalizeSymbols(request.query.symbols);
+      const candleSymbol =
+        normalizeSymbol(
+          request.query.candleSymbol,
+        );
+
+      const candleTimeframe =
+        normalizeRealtimeCandleTimeframe(
+          request.query.candleTimeframe,
+        );
+
+      const candleOnly =
+        normalizeBooleanFlag(
+          request.query.candleOnly,
+        );
 
       if (symbol === '') {
         return sendError(request, reply, 400, 'invalid_symbol', 'Invalid symbol format');
@@ -259,6 +319,78 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
 
       if (symbols?.length === 0) {
         return sendError(request, reply, 400, 'invalid_symbols', 'Invalid symbols format');
+      }
+
+      if (candleSymbol === '') {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_candle_symbol',
+          'Invalid candle symbol format',
+        );
+      }
+
+      if (candleTimeframe === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_candle_timeframe',
+          'Unsupported realtime candle timeframe',
+        );
+      }
+
+      if (candleOnly === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_candle_only',
+          'Invalid candle-only mode',
+        );
+      }
+
+      if (
+        candleOnly
+        && !candleSymbol
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'candle_symbol_required',
+          'candleSymbol is required in candle-only mode',
+        );
+      }
+
+      if (
+        candleOnly
+        && (
+          symbol
+          || symbols
+        )
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'candle_only_conflict',
+          'Do not combine candle-only mode with symbol or symbols',
+        );
+      }
+
+      if (
+        candleSymbol
+        && !options.marketWideRealtimeService
+      ) {
+        return sendError(
+          request,
+          reply,
+          503,
+          'realtime_candles_unavailable',
+          'Realtime candles are unavailable',
+        );
       }
 
       if (symbol && symbols) {
@@ -271,22 +403,56 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
         );
       }
 
-      const requestedSymbols = symbols ?? (symbol ? [symbol] : null);
+      const requestedSymbols =
+        candleOnly
+          ? null
+          : symbols
+            ?? (
+              symbol
+                ? [
+                    symbol,
+                  ]
+                : null
+            );
       const requestedSymbolSet = requestedSymbols
         ? new Set(requestedSymbols)
         : null;
 
-      const isMarketListStream = symbols !== null;
+      const isMarketListStream =
+        !candleOnly
+        && symbols !== null;
 
       const releaseSymbols = requestedSymbols
         ? acquireSymbols(options.realtimeMarketDataService, requestedSymbols)
         : null;
 
-      const snapshots = requestedSymbolSet
-        ? options.realtimeMarketDataService
-            .getSnapshots()
-            .filter((snapshot) => requestedSymbolSet.has(snapshot.symbol))
-        : options.realtimeMarketDataService.getSnapshots();
+      const snapshots =
+        candleOnly
+          ? []
+          : requestedSymbolSet
+            ? options
+                .realtimeMarketDataService
+                .getSnapshots()
+                .filter(
+                  (snapshot) =>
+                    requestedSymbolSet.has(
+                      snapshot.symbol,
+                    ),
+                )
+            : options
+                .realtimeMarketDataService
+                .getSnapshots();
+
+      const initialCandle =
+        candleSymbol
+          ? options
+              .marketWideRealtimeService
+              ?.getLatestRealtimeCandle(
+                candleSymbol,
+                candleTimeframe,
+              )
+            ?? null
+          : null;
 
       const compactMarketListSnapshot = (
         snapshot: (typeof snapshots)[number],
@@ -313,12 +479,16 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
       const nextId = () => `${request.id}-${++sequence}`;
 
       response.write(`retry: ${SSE_RETRY_INTERVAL_MS}\n\n`);
-      writeSseEvent(
-        response,
-        nextId(),
-        'status',
-        options.realtimeMarketDataService.getStatus(),
-      );
+      if (!candleOnly) {
+        writeSseEvent(
+          response,
+          nextId(),
+          'status',
+          options
+            .realtimeMarketDataService
+            .getStatus(),
+        );
+      }
 
       for (const snapshot of snapshots) {
         writeSseEvent(
@@ -331,7 +501,21 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
         );
       }
 
-      const unsubscribe = options.realtimeMarketDataService.subscribe((event) => {
+      if (initialCandle) {
+        writeSseEvent(
+          response,
+          nextId(),
+          'candle',
+          initialCandle,
+        );
+      }
+
+      const unsubscribe =
+        candleOnly
+          ? null
+          : options
+              .realtimeMarketDataService
+              .subscribe((event) => {
         if (event.type === 'status') {
           writeSseEvent(response, nextId(), event.type, event.status);
           return;
@@ -359,6 +543,44 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
           event.snapshot,
         );
       }, symbol ?? undefined);
+
+      const unsubscribeCandles =
+        candleSymbol
+        && options.marketWideRealtimeService
+          ? options
+              .marketWideRealtimeService
+              .subscribeRealtimeCandles(
+                candleSymbol,
+                (candle) => {
+                  if (
+                    candle.symbol
+                    !== candleSymbol
+                  ) {
+                    return;
+                  }
+
+                  const aggregatedCandle =
+                    options
+                      .marketWideRealtimeService
+                      ?.getLatestRealtimeCandle(
+                        candleSymbol,
+                        candleTimeframe,
+                      )
+                    ?? null;
+
+                  if (!aggregatedCandle) {
+                    return;
+                  }
+
+                  writeSseEvent(
+                    response,
+                    nextId(),
+                    'candle',
+                    aggregatedCandle,
+                  );
+                },
+              )
+          : null;
 
       const snapshotFlush = isMarketListStream
         ? setInterval(() => {
@@ -399,7 +621,8 @@ export const realtimeMarketDataRoutes: FastifyPluginAsync<RealtimeMarketDataRout
         clearInterval(heartbeat);
         if (snapshotFlush) clearInterval(snapshotFlush);
         pendingSnapshots.clear();
-        unsubscribe();
+        unsubscribe?.();
+        unsubscribeCandles?.();
         releaseSymbols?.();
       };
 

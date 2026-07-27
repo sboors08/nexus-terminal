@@ -137,6 +137,7 @@ function klineMessage(
         h: '102',
         l: '99',
         c: '101',
+        v: '1234',
         q: '125000',
         n: 400,
         Q: '70000',
@@ -748,6 +749,351 @@ test(
     assert.equal(
       metric.windowStartedAt,
       '2024-07-20T12:00:00.000Z',
+    );
+  },
+);
+
+test(
+  'publishes live candle updates without changing closed-kline subscriptions',
+  () => {
+    const sockets:
+      TestSocket[] = [];
+
+    const urls:
+      string[] = [];
+
+    const service =
+      new MarketWideRealtimeService({
+        baseUrl:
+          'wss://fstream.binance.com',
+        symbols: [
+          'BTCUSDT',
+        ],
+        maxStreamsPerSocket:
+          10,
+        reconnectBaseDelayMs:
+          100,
+        reconnectMaxDelayMs:
+          1_000,
+        socketFactory: (url) => {
+          urls.push(
+            url,
+          );
+
+          const socket =
+            new TestSocket();
+
+          sockets.push(
+            socket,
+          );
+
+          return socket;
+        },
+        now: () =>
+          new Date(
+            '2024-07-20T12:04:03.000Z',
+          ),
+      });
+
+    const candles:
+      Array<{
+        symbol: string;
+        timeframe: string;
+        close: number;
+        volume: number | null;
+        isClosed: boolean;
+      }> = [];
+
+    const closedChanges:
+      string[][] = [];
+
+    const unrelatedCandles:
+      string[] = [];
+
+    const unsubscribeCandles =
+      service.subscribeRealtimeCandles(
+        'BTCUSDT',
+        (candle) => {
+          candles.push(
+            candle,
+          );
+        },
+      );
+
+    const unsubscribeClosed =
+      service.subscribeKlineChanges(
+        (event) => {
+          closedChanges.push(
+            event.symbols,
+          );
+        },
+      );
+
+    const unsubscribeUnrelated =
+      service.subscribeRealtimeCandles(
+        'ETHUSDT',
+        (candle) => {
+          unrelatedCandles.push(
+            candle.symbol,
+          );
+        },
+      );
+
+    service.start();
+
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/market/stream?',
+          ),
+      );
+
+    assert.notEqual(
+      marketSocketIndex,
+      -1,
+    );
+
+    const marketSocket =
+      sockets[
+        marketSocketIndex
+      ];
+
+    assert.ok(
+      marketSocket,
+    );
+
+    marketSocket.emit(
+      'open',
+    );
+
+    marketSocket.emit(
+      'message',
+      {
+        data:
+          klineMessage(
+            'BTCUSDT',
+          ),
+      },
+    );
+
+    assert.equal(
+      candles.length,
+      1,
+    );
+
+    assert.equal(
+      candles[0]?.symbol,
+      'BTCUSDT',
+    );
+
+    assert.equal(
+      candles[0]?.timeframe,
+      '1m',
+    );
+
+    assert.equal(
+      candles[0]?.close,
+      101,
+    );
+
+    assert.equal(
+      candles[0]?.volume,
+      1234,
+    );
+
+    assert.equal(
+      candles[0]?.isClosed,
+      false,
+    );
+
+    assert.equal(
+      closedChanges.length,
+      0,
+    );
+
+    assert.equal(
+      unrelatedCandles.length,
+      0,
+    );
+
+    const latest =
+      service.getLatestRealtimeCandle(
+        'BTCUSDT',
+      );
+
+    assert.equal(
+      latest?.close,
+      101,
+    );
+
+    assert.equal(
+      latest?.volume,
+      1234,
+    );
+
+    unsubscribeCandles();
+    unsubscribeUnrelated();
+    unsubscribeClosed();
+    service.stop();
+  },
+);
+
+
+test(
+  'aggregates retained one-minute candles into an exact selected timeframe',
+  () => {
+    const service =
+      new MarketWideRealtimeService({
+        baseUrl:
+          'wss://fstream.binance.com',
+        symbols: [
+          'BTCUSDT',
+        ],
+        maxStreamsPerSocket:
+          10,
+        reconnectBaseDelayMs:
+          100,
+        reconnectMaxDelayMs:
+          1_000,
+      });
+
+    const bucketStart =
+      Date.parse(
+        '2024-07-20T12:00:00.000Z',
+      );
+
+    const applied =
+      service.applyHistoricalKlines(
+        Array.from(
+          {
+            length:
+              5,
+          },
+          (
+            _,
+            index,
+          ) => {
+            const openTime =
+              bucketStart
+              + index * 60_000;
+
+            const closeTime =
+              openTime
+              + 59_999;
+
+            return {
+              symbol:
+                'BTCUSDT',
+              eventTime:
+                new Date(
+                  closeTime,
+                ).toISOString(),
+              openTime:
+                new Date(
+                  openTime,
+                ).toISOString(),
+              closeTime:
+                new Date(
+                  closeTime,
+                ).toISOString(),
+              open:
+                100 + index,
+              high:
+                102 + index,
+              low:
+                99 + index,
+              close:
+                101 + index,
+              volume:
+                index + 1,
+              quoteVolume:
+                (
+                  index + 1
+                ) * 1_000,
+              tradesCount:
+                (
+                  index + 1
+                ) * 10,
+              takerBuyQuoteVolume:
+                (
+                  index + 1
+                ) * 500,
+              isClosed:
+                true,
+            };
+          },
+        ),
+      );
+
+    assert.equal(
+      applied,
+      5,
+    );
+
+    const candle =
+      service.getLatestRealtimeCandle(
+        'BTCUSDT',
+        '5m',
+      );
+
+    assert.ok(
+      candle,
+    );
+
+    assert.equal(
+      candle.timeframe,
+      '5m',
+    );
+
+    assert.equal(
+      candle.openTime,
+      '2024-07-20T12:00:00.000Z',
+    );
+
+    assert.equal(
+      candle.closeTime,
+      '2024-07-20T12:04:59.999Z',
+    );
+
+    assert.equal(
+      candle.open,
+      100,
+    );
+
+    assert.equal(
+      candle.high,
+      106,
+    );
+
+    assert.equal(
+      candle.low,
+      99,
+    );
+
+    assert.equal(
+      candle.close,
+      105,
+    );
+
+    assert.equal(
+      candle.volume,
+      15,
+    );
+
+    assert.equal(
+      candle.quoteVolume,
+      15_000,
+    );
+
+    assert.equal(
+      candle.tradesCount,
+      150,
+    );
+
+    assert.equal(
+      candle.isClosed,
+      true,
     );
   },
 );

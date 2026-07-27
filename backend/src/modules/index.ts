@@ -162,6 +162,16 @@ FastifyPluginAsync<
         realtimeMarketDataService:
           options
             .realtimeMarketDataService,
+        ...(
+          options
+            .marketWideRealtimeService
+            ? {
+                marketWideRealtimeService:
+                  options
+                    .marketWideRealtimeService,
+              }
+            : {}
+        ),
       },
     );
   }
