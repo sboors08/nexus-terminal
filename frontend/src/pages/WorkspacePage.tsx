@@ -3,8 +3,11 @@ import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import {
+  buildWorkspaceLiquidityMap,
   buildWorkspaceRealtimeView,
   buildWorkspaceTradeTape,
+  resolveWorkspaceLiquidityBucketSize,
+  useOrderBookDepth,
   useRealtimeMarketData,
 } from '@/shared/realtime';
 import {
@@ -58,7 +61,7 @@ function ChecklistIcon({ state }: { state: 'passed' | 'warning' | 'waiting' }) {
 
 function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const { contractSetup, snapshot, view } = data;
-  const { selectedSetup, liquidity, marketDynamics, stageFlow } = view;
+  const { selectedSetup, marketDynamics, stageFlow } = view;
   const isMarketPreview =
     isMarketWorkspaceSetupId(
       contractSetup.id,
@@ -358,6 +361,57 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     ],
   );
 
+  const liquidityBucketSize =
+    useMemo(
+      () =>
+        resolveWorkspaceLiquidityBucketSize(
+          chartCurrentPrice,
+        ),
+      [
+        chartCurrentPrice,
+      ],
+    );
+
+  const orderBook =
+    useOrderBookDepth({
+      symbol:
+        selectedSetup.symbol,
+      levelsLimit:
+        60,
+      depthRangePct:
+        0.2,
+      bucketSize:
+        liquidityBucketSize,
+      maxBucketsPerSide:
+        20,
+    });
+
+  const liquidityMap =
+    useMemo(
+      () =>
+        buildWorkspaceLiquidityMap({
+          snapshot:
+            orderBook.snapshot,
+          lifecycleState:
+            orderBook.lifecycleState,
+          status:
+            orderBook.status,
+          error:
+            orderBook.error,
+          now:
+            tradeTapeNow,
+          maxRowsPerSide:
+            5,
+        }),
+      [
+        orderBook.error,
+        orderBook.lifecycleState,
+        orderBook.snapshot,
+        orderBook.status,
+        tradeTapeNow,
+      ],
+    );
+
   useEffect(() => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('setup');
@@ -422,7 +476,6 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
           : stage,
     );
   const baseAsset = selectedSetup.symbol.replace('USDT', '');
-  const numericPrice = chartCurrentPrice;
   const priceDecimals = selectedSetup.price.includes('.') ? selectedSetup.price.split('.')[1].length : 2;
   const formatPrice = (value: number) => value.toLocaleString('ru-RU', {
     minimumFractionDigits: priceDecimals,
@@ -513,35 +566,21 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
       )
       + '%';
   };
-  const WORKSPACE_REFERENCE_PRICE =
-    187.42;
+  const formatLiquidityDistance = (
+    value: number | null,
+  ) =>
+    value === null
+      ? '—'
+      : formatTapePercent(
+          value,
+        );
 
-  const mapReferencePrice = (
-    referencePrice: string,
-  ) => {
-    const referenceValue =
-      Number(
-        referencePrice,
-      );
-
-    const ratio =
-      referenceValue
-      / WORKSPACE_REFERENCE_PRICE;
-
-    return (
-      Number.isFinite(
-        numericPrice,
-      )
-      && Number.isFinite(
-        ratio,
-      )
-    )
-      ? formatPrice(
-          numericPrice
-          * ratio,
-        )
-      : referencePrice;
-  };
+  const formatLiquidityDepth = (
+    value: number,
+  ) =>
+    formatTapeQuoteValue(
+      value,
+    );
 
   const volumeAnomaly =
     selectedSetup.volumeAnomaly;
@@ -721,6 +760,37 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     ].join(
       ' ',
     );
+
+  const liquidityStatusClass =
+    [
+      styles.tapeStatus,
+      styles[
+        `tapeStatus_${
+          liquidityMap.freshness
+            .tone
+        }`
+      ],
+    ].join(
+      ' ',
+    );
+
+  const liquidityImbalanceClass =
+    liquidityMap.imbalancePct === null
+      ? styles.neutralValue
+      : liquidityMap.imbalancePct > 0
+        ? styles.positive
+        : liquidityMap.imbalancePct < 0
+          ? styles.negative
+          : styles.neutralValue;
+
+  const liquidityBuyerPressure =
+    liquidityMap.buyerPressurePct;
+
+  const liquiditySellerPressure =
+    liquidityBuyerPressure === null
+      ? null
+      : 100
+        - liquidityBuyerPressure;
 
   const tradeTapePanel = (
     <article className={styles.dataPanel}>
@@ -981,6 +1051,300 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               </div>
             )
         }
+      </div>
+    </article>
+  );
+
+  const liquidityMapPanel = (
+    <article className={styles.dataPanel}>
+      <div className={styles.panelHeader}>
+        <div>
+          <p className={styles.panelEyebrow}>
+            Binance Futures · depth ±0,2%
+          </p>
+          <h2>Карта ликвидности</h2>
+        </div>
+
+        <div className={styles.tapeHeaderActions}>
+          <span
+            className={liquidityStatusClass}
+            title={
+              [
+                liquidityMap.freshness
+                  .message,
+                liquidityMap.freshness
+                  .lastUpdatedLabel,
+              ].join(
+                ' ',
+              )
+            }
+          >
+            {liquidityMap.freshness.label}
+          </span>
+        </div>
+      </div>
+
+      <div className={styles.liquiditySummary}>
+        <div>
+          <span>Спред</span>
+          <strong>
+            {
+              liquidityMap.spread === null
+                ? '—'
+                : formatChartPrice(
+                    liquidityMap.spread,
+                  )
+            }
+          </strong>
+        </div>
+
+        <div>
+          <span>Дисбаланс</span>
+          <strong className={liquidityImbalanceClass}>
+            {
+              liquidityMap.imbalancePct === null
+                ? '—'
+                : formatTapePercent(
+                    liquidityMap.imbalancePct,
+                  )
+            }
+          </strong>
+        </div>
+
+        <div>
+          <span>Bid depth</span>
+          <strong className={styles.positive}>
+            {
+              formatLiquidityDepth(
+                liquidityMap.bidDepthQuote,
+              )
+            }
+          </strong>
+        </div>
+
+        <div>
+          <span>Ask depth</span>
+          <strong className={styles.negative}>
+            {
+              formatLiquidityDepth(
+                liquidityMap.askDepthQuote,
+              )
+            }
+          </strong>
+        </div>
+
+        <span className={styles.tapeAge}>
+          {
+            liquidityMap.freshness
+              .lastUpdatedLabel
+          }
+        </span>
+      </div>
+
+      {
+        liquidityMap.freshness.state
+          === 'stale'
+        && (
+          <div className={styles.tapeNotice}>
+            <span>
+              {liquidityMap.freshness.message}
+            </span>
+            <button
+              type="button"
+              className={styles.tapeRetry}
+              onClick={orderBook.reconnect}
+            >
+              Переподключить
+            </button>
+          </div>
+        )
+      }
+
+      <div className={styles.liquidityHeader}>
+        <span>Цена</span>
+        <span>Размер</span>
+        <span>Объём</span>
+        <span>До mid</span>
+      </div>
+
+      <div className={styles.liquidityMap}>
+        {
+          liquidityMap.asks.length > 0
+          || liquidityMap.bids.length > 0
+            ? (
+                <>
+                  {
+                    liquidityMap.asks.map(
+                      (row) => (
+                        <div
+                          key={`ask-${row.price}`}
+                          className={
+                            `${styles.liquidityRow} ${styles.sellerRow}`
+                          }
+                        >
+                          <span
+                            className={styles.liquidityBar}
+                            style={{
+                              width:
+                                `${row.intensity * 100}%`,
+                            }}
+                          />
+                          <strong>
+                            {formatChartPrice(row.price)}
+                          </strong>
+                          <span>
+                            {
+                              formatTapeQuantity(
+                                row.quantity,
+                              )
+                            }
+                          </span>
+                          <span className={styles.liquidityQuote}>
+                            {
+                              formatLiquidityDepth(
+                                row.quoteValue,
+                              )
+                            }
+                          </span>
+                          <span className={styles.liquidityDistance}>
+                            {
+                              formatLiquidityDistance(
+                                row.distancePct,
+                              )
+                            }
+                          </span>
+                        </div>
+                      ),
+                    )
+                  }
+
+                  <div className={styles.currentPriceDivider}>
+                    <span>
+                      {
+                        liquidityMap.midpoint === null
+                          ? chartPriceHeading
+                              .toLocaleUpperCase(
+                                'ru-RU',
+                              )
+                          : 'MIDPOINT'
+                      }
+                    </span>
+                    <strong>
+                      {
+                        formatChartPrice(
+                          liquidityMap.midpoint
+                          ?? chartCurrentPrice,
+                        )
+                      }
+                    </strong>
+                  </div>
+
+                  {
+                    liquidityMap.bids.map(
+                      (row) => (
+                        <div
+                          key={`bid-${row.price}`}
+                          className={
+                            `${styles.liquidityRow} ${styles.buyerRow}`
+                          }
+                        >
+                          <span
+                            className={styles.liquidityBar}
+                            style={{
+                              width:
+                                `${row.intensity * 100}%`,
+                            }}
+                          />
+                          <strong>
+                            {formatChartPrice(row.price)}
+                          </strong>
+                          <span>
+                            {
+                              formatTapeQuantity(
+                                row.quantity,
+                              )
+                            }
+                          </span>
+                          <span className={styles.liquidityQuote}>
+                            {
+                              formatLiquidityDepth(
+                                row.quoteValue,
+                              )
+                            }
+                          </span>
+                          <span className={styles.liquidityDistance}>
+                            {
+                              formatLiquidityDistance(
+                                row.distancePct,
+                              )
+                            }
+                          </span>
+                        </div>
+                      ),
+                    )
+                  }
+                </>
+              )
+            : (
+                <div className={styles.tapeEmpty}>
+                  <strong>
+                    {liquidityMap.freshness.label}
+                  </strong>
+                  <span>
+                    {liquidityMap.freshness.message}
+                  </span>
+
+                  {
+                    liquidityMap.freshness.state
+                      === 'error'
+                    && (
+                      <button
+                        type="button"
+                        className={styles.tapeRetry}
+                        onClick={orderBook.reconnect}
+                      >
+                        Повторить подключение
+                      </button>
+                    )
+                  }
+                </div>
+              )
+        }
+      </div>
+
+      <div className={styles.pressureBlock}>
+        <div className={styles.pressureHeader}>
+          <span>Баланс глубины</span>
+          <strong>
+            {
+              liquidityBuyerPressure === null
+              || liquiditySellerPressure === null
+                ? '— / —'
+                : [
+                    Math.round(
+                      liquidityBuyerPressure,
+                    ),
+                    Math.round(
+                      liquiditySellerPressure,
+                    ),
+                  ].join(
+                    ' / ',
+                  )
+            }
+          </strong>
+        </div>
+        <div className={styles.pressureTrack}>
+          <span
+            style={{
+              width:
+                `${liquidityBuyerPressure ?? 0}%`,
+            }}
+          />
+        </div>
+        <div className={styles.pressureLabels}>
+          <span>Покупатели</span>
+          <span>Продавцы</span>
+        </div>
       </div>
     </article>
   );
@@ -1355,23 +1719,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
           <div className={styles.lowerGrid}>
             {tradeTapePanel}
 
-            <article className={styles.dataPanel}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className={styles.panelEyebrow}>
-                    Значимые плотности
-                  </p>
-                  <h2>Карта ликвидности</h2>
-                </div>
-                <span className={styles.estimateBadge}>
-                  НЕ ПОДКЛЮЧЕНО
-                </span>
-              </div>
-              <p className={styles.testNotice}>
-                Плотности и изменения стакана не показываются,
-                пока для монеты не сформирован реальный сетап.
-              </p>
-            </article>
+            {liquidityMapPanel}
 
             <article className={styles.dataPanel}>
               <div className={styles.panelHeader}>
@@ -1396,40 +1744,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
           <div className={styles.lowerGrid}>
             {tradeTapePanel}
 
-            <article className={styles.dataPanel}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className={styles.panelEyebrow}>Значимые плотности</p>
-                  <h2>Карта ликвидности</h2>
-                </div>
-                <span className={styles.estimateBadge}>
-                  {
-                    isRuntimeSetup
-                      ? 'ДЕМО-КОНТЕКСТ'
-                      : 'ОЦЕНКА NEXUS'
-                  }
-                </span>
-              </div>
-
-              <div className={styles.liquidityHeader}>
-                <span>Цена</span><span>Размер</span><span>Возраст</span><span>Состояние</span><span>Исполнено</span>
-              </div>
-              <div className={styles.liquidityMap}>
-                {liquidity.slice(0, 5).map((level) => (
-                  <div key={level.id} className={`${styles.liquidityRow} ${styles.sellerRow}`}>
-                    <span className={styles.liquidityBar} style={{ width: `${level.intensity * 100}%` }} />
-                    <strong>{mapReferencePrice(level.price)}</strong><span>{level.size}</span><span>{level.age}</span><span>{level.state}</span><span>{level.fillPercent}%</span>
-                  </div>
-                ))}
-                <div className={styles.currentPriceDivider}><span>{chartPriceHeading.toLocaleUpperCase('ru-RU')}</span><strong>{formatChartPrice(chartCurrentPrice)}</strong></div>
-                {liquidity.slice(5).map((level) => (
-                  <div key={level.id} className={`${styles.liquidityRow} ${styles.buyerRow}`}>
-                    <span className={styles.liquidityBar} style={{ width: `${level.intensity * 100}%` }} />
-                    <strong>{mapReferencePrice(level.price)}</strong><span>{level.size}</span><span>{level.age}</span><span>{level.state}</span><span>{level.fillPercent}%</span>
-                  </div>
-                ))}
-              </div>
-            </article>
+            {liquidityMapPanel}
 
             <article className={styles.dataPanel}>
               <div className={styles.panelHeader}>
@@ -1517,6 +1832,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                       <li>Реальные свечи Binance Futures.</li>
                       <li>Цена со статусом свежести и realtime-подключение.</li>
                       <li>Живая лента сделок со скоростью и дельтой.</li>
+                      <li>Живая карта глубины и дисбаланса стакана.</li>
                       <li>Инструменты ручного анализа графика.</li>
                     </ul>
                   </section>
