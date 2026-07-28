@@ -318,6 +318,23 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
         )
       : referencePrice;
   };
+
+  const volumeAnomaly =
+    selectedSetup.volumeAnomaly;
+
+  const tradesAnomaly =
+    selectedSetup.tradesAnomaly;
+
+  const btcStrengthValue =
+    selectedSetup.btcStrength;
+
+  const hasActivityMetrics =
+    volumeAnomaly !== null
+    && tradesAnomaly !== null;
+
+  const hasBtcStrengthMetric =
+    btcStrengthValue !== null;
+
   const workspaceChecklist = [
     {
       id:
@@ -362,15 +379,15 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
         'Активность выше средней',
 
       detail:
-        isRuntimeSetup
-          ? 'Объём и количество сделок будут подключены следующим этапом.'
-          : `Объём ${selectedSetup.volumeAnomaly.toFixed(2)}×, сделки ${selectedSetup.tradesAnomaly.toFixed(2)}×.`,
+        !hasActivityMetrics
+          ? 'Данные объёма и количества сделок пока собираются.'
+          : `Объём ${volumeAnomaly.toFixed(2)}×, сделки ${tradesAnomaly.toFixed(2)}×.`,
 
       state:
-        isRuntimeSetup
+        !hasActivityMetrics
           ? 'waiting'
-          : selectedSetup.volumeAnomaly >= 1.5
-            && selectedSetup.tradesAnomaly >= 1.5
+          : volumeAnomaly >= 1.5
+            && tradesAnomaly >= 1.5
             ? 'passed'
             : 'warning',
     },
@@ -382,22 +399,22 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
         'BTC-контекст поддерживает',
 
       detail:
-        isRuntimeSetup
-          ? 'BTC-контекст ещё не прикреплён к кандидату.'
+        !hasBtcStrengthMetric
+          ? 'BTC-контекст пока собирается.'
           : `Сила относительно BTC: ${selectedSetup.btcStrengthLabel}, корреляция ${selectedSetup.btcCorrelation}.`,
 
       state:
-        isRuntimeSetup
+        !hasBtcStrengthMetric
           ? 'waiting'
           : (
               selectedSetup.direction
                 === 'long'
-              && selectedSetup.btcStrength > 0
+              && btcStrengthValue > 0
             )
             || (
               selectedSetup.direction
                 === 'short'
-              && selectedSetup.btcStrength < 0
+              && btcStrengthValue < 0
             )
             ? 'passed'
             : 'warning',
@@ -668,9 +685,10 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                         <span>Объём</span>
                         <strong>
                           {
-                            isRuntimeSetup
+                            volumeAnomaly
+                            === null
                               ? '—'
-                              : selectedSetup.volumeAnomaly
+                              : volumeAnomaly
                                   .toFixed(2)
                                 + '×'
                           }
@@ -680,9 +698,10 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                         <span>Сделки</span>
                         <strong>
                           {
-                            isRuntimeSetup
+                            tradesAnomaly
+                            === null
                               ? '—'
-                              : selectedSetup.tradesAnomaly
+                              : tradesAnomaly
                                   .toFixed(2)
                                 + '×'
                           }
@@ -692,15 +711,17 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                         <span>Сила к BTC</span>
                         <strong
                           className={
-                            isRuntimeSetup
+                            btcStrengthValue
+                            === null
                               ? ''
-                              : selectedSetup.btcStrength >= 0
+                              : btcStrengthValue >= 0
                                 ? styles.positive
                                 : styles.negative
                           }
                         >
                           {
-                            isRuntimeSetup
+                            btcStrengthValue
+                            === null
                               ? '—'
                               : selectedSetup.btcStrengthLabel
                           }

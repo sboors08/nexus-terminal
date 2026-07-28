@@ -9,6 +9,7 @@ export * from './dashboardRealtime';
 export * from './dashboardScannerMetrics';
 export * from './useDashboardScannerMetrics';
 export * from './scannerFilters';
+export * from './scannerSetupTable';
 export * from './binanceSymbolUniverse';
 export * from './useBinanceSymbolUniverse';
 export * from './dashboardScannerUniverse';

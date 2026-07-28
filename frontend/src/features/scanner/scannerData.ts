@@ -26,11 +26,11 @@ export type ScannerSetup = {
   formationMinutes: number;
   formationLabel: string;
   pullbackDepth: 'Глубокие' | 'Неглубокие' | '—';
-  volumeAnomaly: number;
-  tradesAnomaly: number;
+  volumeAnomaly: number | null;
+  tradesAnomaly: number | null;
   tradeSpeed: string;
   btcCorrelation: string;
-  btcStrength: number;
+  btcStrength: number | null;
   btcStrengthLabel: string;
   activity: 'Низкая' | 'Средняя' | 'Высокая';
   reasons: string[];

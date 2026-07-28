@@ -6,6 +6,9 @@ const root = process.cwd();
 
 const requiredFiles = [
   'src/shared/realtime/scannerFilters.ts',
+  'src/shared/realtime/scannerSetupTable.ts',
+  'src/pages/ScannerPage.tsx',
+  'test/scanner-setup-table.test.mjs',
   'src/pages/DashboardScannerFilters.tsx',
   'src/pages/DashboardScannerFilters.module.css',
   'test/scanner-filters-sorting.test.mjs',
@@ -66,6 +69,39 @@ const checks = [
       'counts active Scanner filters without counting sorting',
     ],
   },
+  {
+    file: 'src/shared/realtime/scannerSetupTable.ts',
+    markers: [
+      'SCANNER_SETUP_TABLE_SORT_KEYS',
+      'buildScannerSetupMetricKey',
+      'applyScannerSetupLiveMetrics',
+      'sortScannerSetupRows',
+      'nextScannerSetupSortState',
+      'isMissingSortValue',
+    ],
+  },
+  {
+    file: 'src/pages/ScannerPage.tsx',
+    markers: [
+      'useMarketWideScannerMetrics',
+      'indexScannerSetupMetrics',
+      'applyScannerSetupLiveMetrics',
+      'SortableTableHeader',
+      'aria-sort',
+      'sortKey="volume"',
+      'sortKey="trades"',
+      'sortKey="btcStrength"',
+    ],
+  },
+  {
+    file: 'test/scanner-setup-table.test.mjs',
+    markers: [
+      'supports all thirteen Scanner setup table sort columns',
+      'uses descending on the first header click and ascending on the second',
+      'keeps missing Scanner setup values last in both directions',
+      'applies only the exact symbol and timeframe live metric',
+    ],
+  },
 ];
 
 const errors = [];
@@ -109,5 +145,5 @@ if (errors.length > 0) {
 }
 
 console.log(
-  'NEXUS frontend verified: Scanner Live Filters & Sorting v0.1 are present.',
+  'NEXUS frontend verified: Scanner Live Metrics, Filters & Header Sorting v0.2 are present.',
 );

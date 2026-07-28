@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   MarketScannerMetricsSeries,
@@ -229,6 +229,45 @@ test(
         (sample) => sample.closePrice,
       ),
       [102, 103, 104],
+    );
+  },
+);
+
+
+test(
+  'does not invent anomaly values without historical baseline windows',
+  () => {
+    const series =
+      new MarketScannerMetricsSeries(
+        'SOLUSDT',
+      );
+
+    series.addTrade(
+      trade(
+        'SOLUSDT-series-anomaly-null',
+        '2026-07-19T12:00:30.000Z',
+        100,
+        1,
+        'buy',
+      ),
+    );
+
+    const metrics =
+      series.getMetrics(
+        '5m',
+        new Date(
+          '2026-07-19T12:01:00.000Z',
+        ),
+      );
+
+    assert.equal(
+      metrics.volumeAnomaly,
+      null,
+    );
+
+    assert.equal(
+      metrics.tradesAnomaly,
+      null,
     );
   },
 );

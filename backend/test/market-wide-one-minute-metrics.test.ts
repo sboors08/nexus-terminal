@@ -850,3 +850,168 @@ test(
     );
   },
 );
+
+test(
+  'calculates rolling Scanner anomalies against median historical windows',
+  () => {
+    const store =
+      new MarketWideOneMinuteMetricsStore([
+        'SOLUSDT',
+      ]);
+
+    const startedAt =
+      Date.parse(
+        '2026-07-27T12:00:00.000Z',
+      );
+
+    for (
+      let index = 0;
+      index < 13;
+      index += 1
+    ) {
+      const openTime =
+        startedAt
+        + index * 60_000;
+
+      const isCurrent =
+        index === 12;
+
+      const isBaselineOutlier =
+        index === 5;
+
+      assert.equal(
+        store.applyKline({
+          symbol:
+            'SOLUSDT',
+
+          eventTime:
+            new Date(
+              openTime + 59_000,
+            ).toISOString(),
+
+          openTime:
+            new Date(
+              openTime,
+            ).toISOString(),
+
+          closeTime:
+            new Date(
+              openTime + 59_999,
+            ).toISOString(),
+
+          open:
+            100,
+
+          high:
+            101,
+
+          low:
+            99,
+
+          close:
+            100,
+
+          quoteVolume:
+            isCurrent
+              ? 250
+              : isBaselineOutlier
+                ? 1_000
+                : 100,
+
+          tradesCount:
+            isCurrent
+              ? 20
+              : isBaselineOutlier
+                ? 100
+                : 10,
+
+          takerBuyQuoteVolume:
+            isCurrent
+              ? 125
+              : 50,
+
+          isClosed:
+            !isCurrent,
+        }),
+        true,
+      );
+    }
+
+    const metric =
+      store.getMetrics(
+        'SOLUSDT',
+        '1m',
+      )[0];
+
+    assert.ok(
+      metric,
+    );
+
+    assert.equal(
+      metric.volumeAnomaly,
+      2.5,
+    );
+
+    assert.equal(
+      metric.tradesAnomaly,
+      2,
+    );
+  },
+);
+
+test(
+  'returns null Scanner anomalies when historical baseline is incomplete',
+  () => {
+    const store =
+      new MarketWideOneMinuteMetricsStore([
+        'SOLUSDT',
+      ]);
+
+    store.applyKline({
+      symbol:
+        'SOLUSDT',
+      eventTime:
+        '2026-07-27T12:00:30.000Z',
+      openTime:
+        '2026-07-27T12:00:00.000Z',
+      closeTime:
+        '2026-07-27T12:00:59.999Z',
+      open:
+        100,
+      high:
+        101,
+      low:
+        99,
+      close:
+        100,
+      quoteVolume:
+        100,
+      tradesCount:
+        10,
+      takerBuyQuoteVolume:
+        50,
+      isClosed:
+        false,
+    });
+
+    const metric =
+      store.getMetrics(
+        'SOLUSDT',
+        '1m',
+      )[0];
+
+    assert.ok(
+      metric,
+    );
+
+    assert.equal(
+      metric.volumeAnomaly,
+      null,
+    );
+
+    assert.equal(
+      metric.tradesAnomaly,
+      null,
+    );
+  },
+);

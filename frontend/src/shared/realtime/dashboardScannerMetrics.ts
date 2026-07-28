@@ -33,6 +33,8 @@ export interface MarketScannerMetrics {
   priceChangePct: number | null;
   btcCorrelation: number | null;
   relativeStrengthPct: number | null;
+  volumeAnomaly: number | null;
+  tradesAnomaly: number | null;
   volatilityPct: number | null;
   spreadPct: number | null;
   topBookQuoteValue: number | null;
@@ -218,6 +220,21 @@ function readNullableNumber(
   return value;
 }
 
+function readOptionalNullableNumber(
+  record:
+    Record<string, unknown>,
+  key: string,
+): number | null {
+  if (!(key in record)) {
+    return null;
+  }
+
+  return readNullableNumber(
+    record,
+    key,
+  );
+}
+
 function readNullableString(
   record: Record<string, unknown>,
   key: string,
@@ -360,6 +377,16 @@ export function parseMarketScannerMetric(
       readNullableNumber(
         value,
         'relativeStrengthPct',
+      ),
+    volumeAnomaly:
+      readOptionalNullableNumber(
+        value,
+        'volumeAnomaly',
+      ),
+    tradesAnomaly:
+      readOptionalNullableNumber(
+        value,
+        'tradesAnomaly',
       ),
     volatilityPct: readNullableNumber(
       value,

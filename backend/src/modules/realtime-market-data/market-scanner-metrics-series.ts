@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   RealtimeBookTicker,
   RealtimeTrade,
 } from './realtime-market-data.types.js';
@@ -440,6 +440,10 @@ export class MarketScannerMetricsSeries {
       priceChangePct,
       btcCorrelation: null,
       relativeStrengthPct: null,
+      volumeAnomaly:
+        null,
+      tradesAnomaly:
+        null,
       volatilityPct,
       spreadPct:
         this.bookTicker?.spreadPct
