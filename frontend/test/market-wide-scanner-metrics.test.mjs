@@ -18,6 +18,8 @@ function createMetric(
     priceChangePct: 1.25,
     btcCorrelation: null,
     relativeStrengthPct: 0.75,
+    volumeAnomaly: 1.75,
+    tradesAnomaly: 1.5,
     volatilityPct: 2.5,
     spreadPct: 0.01,
     topBookQuoteValue:
@@ -119,6 +121,18 @@ test(
     assert.equal(
       metrics[1]?.price,
       200,
+    );
+
+    assert.equal(
+      metrics[1]
+        ?.volumeAnomaly,
+      1.75,
+    );
+
+    assert.equal(
+      metrics[1]
+        ?.tradesAnomaly,
+      1.5,
     );
 
     const indexed =

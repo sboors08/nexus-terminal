@@ -8,16 +8,24 @@ import {
   useMarketCandles,
 } from '@/shared/charts';
 import {
+  DEFAULT_SCANNER_SETUP_TABLE_SORT_STATE,
+  applyScannerSetupLiveMetrics,
   buildScannerRealtimeMarketView,
   formatScannerPrice,
   formatScannerQuantity,
   formatScannerTradeTime,
   getScannerRealtimeConnectionLabel,
+  indexScannerSetupMetrics,
+  nextScannerSetupSortState,
+  sortScannerSetupRows,
   useMarketVolumeSpikes,
+  useMarketWideScannerMetrics,
   useRealtimeMarketData,
   type MarketVolumeSpike,
   type MarketVolumeSpikePeriodMinutes,
   type MarketVolumeSpikeStatus,
+  type ScannerSetupTableSortKey,
+  type ScannerSetupTableSortState,
 } from '@/shared/realtime';
 import {
   nexusApi,
@@ -48,7 +56,6 @@ type KindFilter = 'all' | ScannerSetupKind;
 type DistanceFilter = 'all' | '0.5' | '1' | '2';
 type TouchesFilter = 'all' | '2' | '3';
 type BtcStrengthFilter = 'all' | 'positive' | 'negative';
-type SortKey = 'distance' | 'btcStrength' | 'volume' | 'trades' | 'formation';
 
 const STAGE_OPTIONS: Array<{ value: StageFilter; label: string }> = [
   { value: 'all', label: 'Все стадии' },
@@ -64,14 +71,6 @@ const KIND_OPTIONS: Array<{ value: KindFilter; label: string }> = [
   { value: 'Пробой поддержки', label: 'Пробой поддержки' },
   { value: 'Отскок от поддержки', label: 'Отскок от поддержки' },
   { value: 'Отскок от сопротивления', label: 'Отскок от сопротивления' },
-];
-
-const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
-  { value: 'distance', label: 'Ближе к уровню' },
-  { value: 'btcStrength', label: 'Сильнее относительно BTC' },
-  { value: 'volume', label: 'Аномалия объёма' },
-  { value: 'trades', label: 'Аномалия сделок' },
-  { value: 'formation', label: 'Дольше формируется' },
 ];
 
 const VOLUME_SPIKE_STATUS_LABELS: Record<MarketVolumeSpikeStatus, string> = {
@@ -144,14 +143,90 @@ function InfoHint({ label }: { label: string }) {
   );
 }
 
-function numericSort(setups: ScannerSetup[], sortKey: SortKey) {
-  return [...setups].sort((a, b) => {
-    if (sortKey === 'distance') return a.distancePercent - b.distancePercent;
-    if (sortKey === 'btcStrength') return Math.abs(b.btcStrength) - Math.abs(a.btcStrength);
-    if (sortKey === 'volume') return b.volumeAnomaly - a.volumeAnomaly;
-    if (sortKey === 'trades') return b.tradesAnomaly - a.tradesAnomaly;
-    return b.formationMinutes - a.formationMinutes;
-  });
+type SortableTableHeaderProps = {
+  label: string;
+  sortKey: ScannerSetupTableSortKey;
+  sortState: ScannerSetupTableSortState;
+  onSort: (sortKey: ScannerSetupTableSortKey) => void;
+  hint?: string;
+};
+
+function SortableTableHeader({
+  label,
+  sortKey,
+  sortState,
+  onSort,
+  hint,
+}: SortableTableHeaderProps) {
+  const active =
+    sortState.sortBy
+    === sortKey;
+
+  const ariaSort:
+    'none'
+    | 'ascending'
+    | 'descending' =
+      active
+        ? sortState.sortDirection
+          === 'desc'
+            ? 'descending'
+            : 'ascending'
+        : 'none';
+
+  const indicator =
+    active
+      ? sortState.sortDirection
+        === 'desc'
+          ? '↓'
+          : '↑'
+      : '↕';
+
+  return (
+    <span
+      className={
+        `${styles.sortableHeader} ${
+          hint
+            ? styles.headerWithHint
+            : ''
+        }`
+      }
+      role="columnheader"
+      aria-sort={ariaSort}
+    >
+      <button
+        type="button"
+        className={
+          active
+            ? `${styles.sortButton} ${styles.sortButtonActive}`
+            : styles.sortButton
+        }
+        onClick={() => onSort(sortKey)}
+        aria-label={
+          `Сортировать «${label}»: ${
+            active
+              ? sortState.sortDirection === 'desc'
+                ? 'сейчас по убыванию'
+                : 'сейчас по возрастанию'
+              : 'первое нажатие по убыванию'
+          }`
+        }
+      >
+        <span>{label}</span>
+        <span
+          className={styles.sortIndicator}
+          aria-hidden="true"
+        >
+          {indicator}
+        </span>
+      </button>
+
+      {
+        hint
+          ? <InfoHint label={hint} />
+          : null
+      }
+    </span>
+  );
 }
 
 function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
@@ -177,7 +252,10 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
   const [distance, setDistance] = useState<DistanceFilter>('all');
   const [touches, setTouches] = useState<TouchesFilter>('all');
   const [btcStrength, setBtcStrength] = useState<BtcStrengthFilter>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('distance');
+  const [sortState, setSortState] =
+    useState<ScannerSetupTableSortState>({
+      ...DEFAULT_SCANNER_SETUP_TABLE_SORT_STATE,
+    });
 
   const [
     volumeSpikePeriodMinutes,
@@ -221,12 +299,95 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
     [...VOLUME_SPIKE_STATUSES],
   );
 
+  const hasRuntimeSetups =
+    setups.some(
+      (setup) =>
+        setup.runtimeData
+        === true,
+    );
+
+  const runtimeTimeframes =
+    useMemo(
+      () =>
+        new Set(
+          setups
+            .filter(
+              (setup) =>
+                setup.runtimeData
+                === true,
+            )
+            .map(
+              (setup) =>
+                setup.timeframe,
+            ),
+        ),
+      [setups],
+    );
+
+  const oneMinuteMetrics =
+    useMarketWideScannerMetrics({
+      enabled:
+        hasRuntimeSetups
+        && runtimeTimeframes
+          .has('1m'),
+      scannerWindow:
+        '1m',
+    });
+
+  const fiveMinuteMetrics =
+    useMarketWideScannerMetrics({
+      enabled:
+        hasRuntimeSetups
+        && runtimeTimeframes
+          .has('5m'),
+      scannerWindow:
+        '5m',
+    });
+
+  const fifteenMinuteMetrics =
+    useMarketWideScannerMetrics({
+      enabled:
+        hasRuntimeSetups
+        && runtimeTimeframes
+          .has('15m'),
+      scannerWindow:
+        '15m',
+    });
+
+  const setupMetrics =
+    useMemo(
+      () =>
+        indexScannerSetupMetrics([
+          oneMinuteMetrics.metrics,
+          fiveMinuteMetrics.metrics,
+          fifteenMinuteMetrics.metrics,
+        ]),
+      [
+        oneMinuteMetrics.metrics,
+        fiveMinuteMetrics.metrics,
+        fifteenMinuteMetrics.metrics,
+      ],
+    );
+
+  const displayedSetups =
+    useMemo(
+      () =>
+        applyScannerSetupLiveMetrics(
+          setups,
+          setupMetrics,
+        ),
+      [
+        setups,
+        setupMetrics,
+      ],
+    );
+
   const filteredSetups = useMemo(() => {
     const normalizedSearch = search.trim().toUpperCase();
     const maxDistance = distance === 'all' ? null : Number(distance);
     const minTouches = touches === 'all' ? null : Number(touches);
 
-    const result = setups.filter((setup) => {
+    const result = displayedSetups.filter((setup) => {
       if (normalizedSearch && !setup.symbol.includes(normalizedSearch)) return false;
       if (direction !== 'all' && setup.direction !== direction) return false;
       if (kind !== 'all' && setup.kind !== kind) return false;
@@ -234,27 +395,51 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
       if (timeframe !== 'all' && setup.timeframe !== timeframe) return false;
       if (maxDistance !== null && setup.distancePercent > maxDistance) return false;
       if (minTouches !== null && setup.touches < minTouches) return false;
-      if (btcStrength === 'positive' && setup.btcStrength <= 0) return false;
-      if (btcStrength === 'negative' && setup.btcStrength >= 0) return false;
+      if (
+        btcStrength === 'positive'
+        && (
+          setup.btcStrength === null
+          || setup.btcStrength <= 0
+        )
+      ) return false;
+
+      if (
+        btcStrength === 'negative'
+        && (
+          setup.btcStrength === null
+          || setup.btcStrength >= 0
+        )
+      ) return false;
       return true;
     });
 
-    return numericSort(result, sortKey);
-  }, [btcStrength, direction, distance, kind, search, sortKey, stage, timeframe, touches, setups]);
+    return sortScannerSetupRows(
+      result,
+      sortState,
+    );
+  }, [
+    btcStrength,
+    direction,
+    distance,
+    kind,
+    search,
+    sortState,
+    stage,
+    timeframe,
+    touches,
+    displayedSetups,
+  ]);
 
   const selectedSetup = useMemo(() => {
     return filteredSetups.find((setup) => setup.id === requestedSetupId)
-      ?? setups.find((setup) => setup.id === requestedSetupId)
+      ?? displayedSetups.find((setup) => setup.id === requestedSetupId)
       ?? filteredSetups[0]
-      ?? setups[0];
-  }, [filteredSetups, requestedSetupId, setups]);
-
-  const hasRuntimeSetups =
-    setups.some(
-      (setup) =>
-        setup.runtimeData
-        === true,
-    );
+      ?? displayedSetups[0];
+  }, [
+    displayedSetups,
+    filteredSetups,
+    requestedSetupId,
+  ]);
 
   const selectedSymbol = requestedSymbol ?? selectedSetup.symbol;
   const isMarketPreview = selectedSymbol !== selectedSetup.symbol;
@@ -407,7 +592,7 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
   const selectVolumeSpike = (spike: MarketVolumeSpike) => {
     setSearch(spike.symbol);
 
-    const matchingSetup = setups.find((setup) => setup.symbol === spike.symbol);
+    const matchingSetup = displayedSetups.find((setup) => setup.symbol === spike.symbol);
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set('symbol', spike.symbol);
 
@@ -425,6 +610,19 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
     setupId: workspaceSetupId,
   });
 
+  const selectTableSort = (
+    sortKey:
+      ScannerSetupTableSortKey,
+  ) => {
+    setSortState(
+      (current) =>
+        nextScannerSetupSortState(
+          current,
+          sortKey,
+        ),
+    );
+  };
+
   const resetFilters = () => {
     setSearch('');
     setDirection('all');
@@ -434,7 +632,9 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
     setDistance('all');
     setTouches('all');
     setBtcStrength('all');
-    setSortKey('distance');
+    setSortState({
+      ...DEFAULT_SCANNER_SETUP_TABLE_SORT_STATE,
+    });
   };
 
   return (
@@ -867,13 +1067,6 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
             </select>
           </label>
 
-          <label className={styles.compactSelect}>
-            <span>Сортировка</span>
-            <select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}>
-              {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-
           <div className={styles.filterSummary}>
             <strong>{filteredSetups.length}</strong>
             <span>
@@ -906,20 +1099,92 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
           </div>
 
           <div className={styles.tableViewport}>
-            <div className={styles.tableHeader} aria-hidden="true">
-              <span>Инструмент</span>
-              <span>Напр.</span>
-              <span>Тип сетапа</span>
-              <span>Стадия</span>
-              <span>TF</span>
-              <span>Уровень</span>
-              <span>Касания</span>
-              <span>Формирование</span>
-              <span>До уровня</span>
-              <span>Откаты</span>
-              <span className={styles.headerWithHint}>Объём <InfoHint label="Отношение текущего объёма к среднему значению для этого инструмента и таймфрейма." /></span>
-              <span className={styles.headerWithHint}>Сделки <InfoHint label="Отношение текущего количества сделок к среднему значению." /></span>
-              <span className={styles.headerWithHint}>Сила к BTC <InfoHint label="Положительное значение означает, что инструмент сильнее BTC; отрицательное — слабее." /></span>
+            <div
+              className={styles.tableHeader}
+              role="row"
+              aria-label="Сортируемые столбцы Scanner"
+            >
+              <SortableTableHeader
+                label="Инструмент"
+                sortKey="symbol"
+                sortState={sortState}
+                onSort={selectTableSort}
+              />
+              <SortableTableHeader
+                label="Напр."
+                sortKey="direction"
+                sortState={sortState}
+                onSort={selectTableSort}
+              />
+              <SortableTableHeader
+                label="Тип сетапа"
+                sortKey="kind"
+                sortState={sortState}
+                onSort={selectTableSort}
+              />
+              <SortableTableHeader
+                label="Стадия"
+                sortKey="stage"
+                sortState={sortState}
+                onSort={selectTableSort}
+              />
+              <SortableTableHeader
+                label="TF"
+                sortKey="timeframe"
+                sortState={sortState}
+                onSort={selectTableSort}
+              />
+              <SortableTableHeader
+                label="Уровень"
+                sortKey="level"
+                sortState={sortState}
+                onSort={selectTableSort}
+              />
+              <SortableTableHeader
+                label="Касания"
+                sortKey="touches"
+                sortState={sortState}
+                onSort={selectTableSort}
+              />
+              <SortableTableHeader
+                label="Формирование"
+                sortKey="formation"
+                sortState={sortState}
+                onSort={selectTableSort}
+              />
+              <SortableTableHeader
+                label="До уровня"
+                sortKey="distance"
+                sortState={sortState}
+                onSort={selectTableSort}
+              />
+              <SortableTableHeader
+                label="Откаты"
+                sortKey="pullbacks"
+                sortState={sortState}
+                onSort={selectTableSort}
+              />
+              <SortableTableHeader
+                label="Объём"
+                sortKey="volume"
+                sortState={sortState}
+                onSort={selectTableSort}
+                hint="Отношение текущего объёма к медиане предыдущих периодов для этого инструмента и таймфрейма."
+              />
+              <SortableTableHeader
+                label="Сделки"
+                sortKey="trades"
+                sortState={sortState}
+                onSort={selectTableSort}
+                hint="Отношение текущего количества сделок к медиане предыдущих периодов."
+              />
+              <SortableTableHeader
+                label="Сила к BTC"
+                sortKey="btcStrength"
+                sortState={sortState}
+                onSort={selectTableSort}
+                hint="Положительное значение означает, что инструмент сильнее BTC; отрицательное — слабее."
+              />
             </div>
 
             <div className={styles.tableBody}>
@@ -951,25 +1216,28 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
                     <span>{setup.pullbackDepth}</span>
                     <strong className={styles.monoCell}>
                       {
-                        setup.runtimeData
-                          ? '—'
-                          : setup.volumeAnomaly
-                              .toFixed(2)
-                            + '×'
+                        setup.volumeAnomaly
+                          === null
+                            ? '—'
+                            : setup.volumeAnomaly
+                                .toFixed(2)
+                              + '×'
                       }
                     </strong>
                     <strong className={styles.monoCell}>
                       {
-                        setup.runtimeData
-                          ? '—'
-                          : setup.tradesAnomaly
-                              .toFixed(2)
-                            + '×'
+                        setup.tradesAnomaly
+                          === null
+                            ? '—'
+                            : setup.tradesAnomaly
+                                .toFixed(2)
+                              + '×'
                       }
                     </strong>
                     <strong
                       className={
-                        setup.runtimeData
+                        setup.btcStrength
+                        === null
                           ? styles.monoCell
                           : setup.btcStrength >= 0
                             ? styles.positiveValue
@@ -977,7 +1245,8 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
                       }
                     >
                       {
-                        setup.runtimeData
+                        setup.btcStrength
+                        === null
                           ? '—'
                           : setup.btcStrengthLabel
                       }
@@ -1155,7 +1424,8 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
                 <span>Объём</span>
                 <strong>
                   {
-                    selectedSetup.runtimeData
+                    selectedSetup.volumeAnomaly
+                    === null
                       ? '—'
                       : selectedSetup.volumeAnomaly
                           .toFixed(2)
@@ -1167,7 +1437,8 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
                 <span>Сделки</span>
                 <strong>
                   {
-                    selectedSetup.runtimeData
+                    selectedSetup.tradesAnomaly
+                    === null
                       ? '—'
                       : selectedSetup.tradesAnomaly
                           .toFixed(2)
@@ -1179,7 +1450,8 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
                 <span>Сила к BTC</span>
                 <strong
                   className={
-                    selectedSetup.runtimeData
+                    selectedSetup.btcStrength
+                    === null
                       ? styles.monoCell
                       : selectedSetup.btcStrength >= 0
                         ? styles.positiveValue
@@ -1187,7 +1459,8 @@ function ScannerPageContent({ setups }: { setups: ScannerSetup[] }) {
                   }
                 >
                   {
-                    selectedSetup.runtimeData
+                    selectedSetup.btcStrength
+                    === null
                       ? '—'
                       : selectedSetup.btcStrengthLabel
                   }

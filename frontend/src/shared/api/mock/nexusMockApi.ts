@@ -449,10 +449,10 @@ function runtimeContractSetupToScannerSetup(
       '—',
 
     volumeAnomaly:
-      0,
+      null,
 
     tradesAnomaly:
-      0,
+      null,
 
     tradeSpeed:
       'Данные собираются',
@@ -461,7 +461,7 @@ function runtimeContractSetupToScannerSetup(
       '—',
 
     btcStrength:
-      0,
+      null,
 
     btcStrengthLabel:
       '—',
@@ -779,6 +779,19 @@ function resolveWorkspaceSetup(
 }
 
 function toContractSetup(setup: ScannerSetup, index: number): Setup {
+  if (
+    setup.volumeAnomaly
+      === null
+    || setup.tradesAnomaly
+      === null
+    || setup.btcStrength
+      === null
+  ) {
+    throw new Error(
+      'Static mock setup requires complete Scanner metrics',
+    );
+  }
+
   const currentPrice = parseNumber(setup.price);
   const [zoneLow, zoneHigh] = parseLevelZone(setup.level, currentPrice);
   const formedAt = new Date(new Date(FIXED_NOW).getTime() - setup.formationMinutes * 60_000).toISOString();

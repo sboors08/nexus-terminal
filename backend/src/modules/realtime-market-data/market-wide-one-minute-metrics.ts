@@ -432,6 +432,296 @@ export function parseBinanceOneMinuteKlineEvent(
   };
 }
 
+export const MARKET_SCANNER_ANOMALY_BASELINE_WINDOWS =
+  12;
+
+export interface MarketScannerAnomalies {
+  volumeAnomaly: number;
+  tradesAnomaly: number;
+}
+
+function roundScannerAnomaly(
+  value: number,
+): number {
+  return Math.round(
+    value * 10_000,
+  ) / 10_000;
+}
+
+function medianScannerValue(
+  values:
+    readonly number[],
+): number {
+  if (values.length === 0) {
+    return 0;
+  }
+
+  const ordered =
+    [...values].sort(
+      (
+        left,
+        right,
+      ) =>
+        left - right,
+    );
+
+  const middle =
+    Math.floor(
+      ordered.length / 2,
+    );
+
+  if (
+    ordered.length % 2
+    === 1
+  ) {
+    return ordered[middle]
+      ?? 0;
+  }
+
+  return (
+    (
+      (
+        ordered[middle - 1]
+        ?? 0
+      )
+      + (
+        ordered[middle]
+        ?? 0
+      )
+    ) / 2
+  );
+}
+
+function hasConsecutiveScannerKlines(
+  klines:
+    readonly BinanceOneMinuteKlineUpdate[],
+): boolean {
+  for (
+    let index = 0;
+    index < klines.length;
+    index += 1
+  ) {
+    const current =
+      klines[index];
+
+    if (!current) {
+      return false;
+    }
+
+    const currentOpenTime =
+      Date.parse(
+        current.openTime,
+      );
+
+    if (
+      !Number.isFinite(
+        currentOpenTime,
+      )
+    ) {
+      return false;
+    }
+
+    if (index === 0) {
+      continue;
+    }
+
+    const previous =
+      klines[index - 1];
+
+    if (!previous) {
+      return false;
+    }
+
+    const previousOpenTime =
+      Date.parse(
+        previous.openTime,
+      );
+
+    if (
+      !Number.isFinite(
+        previousOpenTime,
+      )
+      || currentOpenTime
+        - previousOpenTime
+        !== 60_000
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function aggregateScannerActivity(
+  klines:
+    readonly BinanceOneMinuteKlineUpdate[],
+): {
+  quoteVolume: number;
+  tradesCount: number;
+} {
+  let quoteVolume =
+    0;
+
+  let tradesCount =
+    0;
+
+  for (const kline of klines) {
+    quoteVolume +=
+      kline.quoteVolume;
+
+    tradesCount +=
+      kline.tradesCount;
+  }
+
+  return {
+    quoteVolume,
+    tradesCount,
+  };
+}
+
+export function calculateMarketScannerAnomalies(
+  sourceKlines:
+    readonly BinanceOneMinuteKlineUpdate[],
+  windowMinutes: number,
+  baselineWindows =
+    MARKET_SCANNER_ANOMALY_BASELINE_WINDOWS,
+): MarketScannerAnomalies | null {
+  if (
+    !Number.isInteger(
+      windowMinutes,
+    )
+    || windowMinutes <= 0
+  ) {
+    throw new Error(
+      'Scanner anomaly windowMinutes must be a positive integer',
+    );
+  }
+
+  if (
+    !Number.isInteger(
+      baselineWindows,
+    )
+    || baselineWindows <= 0
+  ) {
+    throw new Error(
+      'Scanner anomaly baselineWindows must be a positive integer',
+    );
+  }
+
+  const baselineKlineCount =
+    baselineWindows
+    * windowMinutes;
+
+  const requiredKlineCount =
+    baselineKlineCount
+    + windowMinutes;
+
+  if (
+    sourceKlines.length
+    < requiredKlineCount
+  ) {
+    return null;
+  }
+
+  const klines =
+    sourceKlines.slice(
+      -requiredKlineCount,
+    );
+
+  if (
+    !hasConsecutiveScannerKlines(
+      klines,
+    )
+  ) {
+    return null;
+  }
+
+  const baselineKlines =
+    klines.slice(
+      0,
+      baselineKlineCount,
+    );
+
+  if (
+    baselineKlines.some(
+      (kline) =>
+        !kline.isClosed,
+    )
+  ) {
+    return null;
+  }
+
+  const baselineQuoteVolumes:
+    number[] = [];
+
+  const baselineTradesCounts:
+    number[] = [];
+
+  for (
+    let windowIndex = 0;
+    windowIndex < baselineWindows;
+    windowIndex += 1
+  ) {
+    const start =
+      windowIndex
+      * windowMinutes;
+
+    const activity =
+      aggregateScannerActivity(
+        baselineKlines.slice(
+          start,
+          start + windowMinutes,
+        ),
+      );
+
+    baselineQuoteVolumes.push(
+      activity.quoteVolume,
+    );
+
+    baselineTradesCounts.push(
+      activity.tradesCount,
+    );
+  }
+
+  const baselineQuoteVolume =
+    medianScannerValue(
+      baselineQuoteVolumes,
+    );
+
+  const baselineTradesCount =
+    medianScannerValue(
+      baselineTradesCounts,
+    );
+
+  if (
+    baselineQuoteVolume <= 0
+    || baselineTradesCount <= 0
+  ) {
+    return null;
+  }
+
+  const current =
+    aggregateScannerActivity(
+      klines.slice(
+        baselineKlineCount,
+      ),
+    );
+
+  return {
+    volumeAnomaly:
+      roundScannerAnomaly(
+        current.quoteVolume
+        / baselineQuoteVolume,
+      ),
+
+    tradesAnomaly:
+      roundScannerAnomaly(
+        current.tradesCount
+        / baselineTradesCount,
+      ),
+  };
+}
+
 export class MarketWideOneMinuteMetricsStore {
   private readonly states =
     new Map<
@@ -1133,6 +1423,12 @@ export class MarketWideOneMinuteMetricsStore {
         scannerWindow,
       );
 
+    const scannerAnomalies =
+      calculateMarketScannerAnomalies(
+        state.klines,
+        windowMs / 60_000,
+      );
+
     const bidQuoteValue =
       bookTicker
         ? (
@@ -1298,10 +1594,10 @@ export class MarketWideOneMinuteMetricsStore {
     const activityScore =
       calculateMarketScannerActivityScore(
         quoteVolume,
-        tradesCount,
+        tradesPerMinute,
         volatilityPct,
         liquidityScore,
-        tradesPerMinute,
+        tradesCount,
       );
 
     return {
@@ -1312,6 +1608,14 @@ export class MarketWideOneMinuteMetricsStore {
       priceChangePct,
       btcCorrelation: null,
       relativeStrengthPct: null,
+      volumeAnomaly:
+        scannerAnomalies
+          ?.volumeAnomaly
+        ?? null,
+      tradesAnomaly:
+        scannerAnomalies
+          ?.tradesAnomaly
+        ?? null,
       volatilityPct,
       spreadPct:
         bookTicker?.spreadPct

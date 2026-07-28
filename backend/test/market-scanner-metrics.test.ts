@@ -385,3 +385,40 @@ test(
     );
   },
 );
+
+test(
+  'does not invent anomaly baselines in the focused realtime window',
+  () => {
+    const window =
+      new MarketScannerMetricsWindow(
+        'SOLUSDT',
+      );
+
+    window.addTrade(
+      trade(
+        'SOLUSDT-anomaly-null',
+        '2026-07-19T12:00:30.000Z',
+        100,
+        1,
+        'buy',
+      ),
+    );
+
+    const metrics =
+      window.getMetrics(
+        new Date(
+          '2026-07-19T12:01:00.000Z',
+        ),
+      );
+
+    assert.equal(
+      metrics.volumeAnomaly,
+      null,
+    );
+
+    assert.equal(
+      metrics.tradesAnomaly,
+      null,
+    );
+  },
+);

@@ -16,6 +16,7 @@
     "src/shared/realtime/dashboardRealtime.ts",
     "src/shared/realtime/dashboardScannerMetrics.ts",
     "src/shared/realtime/scannerFilters.ts",
+    "src/shared/realtime/scannerSetupTable.ts",
     "src/shared/realtime/binanceSymbolUniverse.ts",
     "src/shared/realtime/dashboardScannerUniverse.ts",
     "src/shared/realtime/marketWideScannerMetrics.ts",
