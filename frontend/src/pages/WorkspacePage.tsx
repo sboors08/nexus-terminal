@@ -4,6 +4,7 @@ import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import {
   buildWorkspaceLiquidityMap,
+  buildWorkspaceMarketDynamics,
   buildWorkspaceRealtimeView,
   buildWorkspaceTradeTape,
   resolveWorkspaceLiquidityBucketSize,
@@ -61,7 +62,7 @@ function ChecklistIcon({ state }: { state: 'passed' | 'warning' | 'waiting' }) {
 
 function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const { contractSetup, snapshot, view } = data;
-  const { selectedSetup, marketDynamics, stageFlow } = view;
+  const { selectedSetup, stageFlow } = view;
   const isMarketPreview =
     isMarketWorkspaceSetupId(
       contractSetup.id,
@@ -412,6 +413,19 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
       ],
     );
 
+  const marketDynamics =
+    useMemo(
+      () =>
+        buildWorkspaceMarketDynamics({
+          tradeTape,
+          liquidityMap,
+        }),
+      [
+        liquidityMap,
+        tradeTape,
+      ],
+    );
+
   useEffect(() => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('setup');
@@ -568,12 +582,35 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   };
   const formatLiquidityDistance = (
     value: number | null,
-  ) =>
-    value === null
-      ? '—'
-      : formatTapePercent(
-          value,
-        );
+  ) => {
+    if (value === null) {
+      return '—';
+    }
+
+    const normalizedValue =
+      Math.abs(
+        value,
+      ) < 0.005
+        ? 0
+        : value;
+
+    const sign =
+      normalizedValue > 0
+        ? '+'
+        : '';
+
+    return sign
+      + normalizedValue.toLocaleString(
+          'ru-RU',
+          {
+            minimumFractionDigits:
+              2,
+            maximumFractionDigits:
+              2,
+          },
+        )
+      + '%';
+  };
 
   const formatLiquidityDepth = (
     value: number,
@@ -791,6 +828,95 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
       ? null
       : 100
         - liquidityBuyerPressure;
+
+  const marketDynamicsStatusClass =
+    [
+      styles.tapeStatus,
+      styles[
+        `tapeStatus_${
+          marketDynamics.freshness
+            .tone
+        }`
+      ],
+    ].join(
+      ' ',
+    );
+
+  const marketDynamicsModeClass =
+    [
+      styles.marketMode,
+      styles[
+        `marketMode_${
+          marketDynamics.modeTone
+        }`
+      ],
+    ].join(
+      ' ',
+    );
+
+  const marketDynamicsPressureClass =
+    marketDynamics.pressureScore === null
+      ? styles.neutralValue
+      : marketDynamics.pressureScore > 0
+        ? styles.positive
+        : marketDynamics.pressureScore < 0
+          ? styles.negative
+          : styles.neutralValue;
+
+  const marketDynamicsAccelerationClass =
+    marketDynamics.accelerationPct === null
+      ? styles.neutralValue
+      : marketDynamics.accelerationPct > 0
+        ? styles.positive
+        : marketDynamics.accelerationPct < 0
+          ? styles.negative
+          : styles.neutralValue;
+
+  const marketDynamicsDeltaClass =
+    marketDynamics.deltaQuoteValue === null
+      ? styles.neutralValue
+      : marketDynamics.deltaQuoteValue > 0
+        ? styles.positive
+        : marketDynamics.deltaQuoteValue < 0
+          ? styles.negative
+          : styles.neutralValue;
+
+  const marketDynamicsBookClass =
+    marketDynamics.bookImbalancePct === null
+      ? styles.neutralValue
+      : marketDynamics.bookImbalancePct > 0
+        ? styles.positive
+        : marketDynamics.bookImbalancePct < 0
+          ? styles.negative
+          : styles.neutralValue;
+
+  const marketActivityLabel = {
+    accelerating:
+      'Активность ускоряется',
+    slowing:
+      'Активность замедляется',
+    stable:
+      'Скорость стабильна',
+    unknown:
+      'Нет предыдущего окна',
+  }[marketDynamics.activityTrend];
+
+  const marketAgreementLabel = {
+    aligned:
+      'Лента и стакан согласованы',
+    mixed:
+      'Лента и стакан расходятся',
+    neutral:
+      'Один источник близок к балансу',
+    unavailable:
+      'Согласованность ещё не рассчитана',
+  }[marketDynamics.agreement];
+
+  const reconnectMarketDynamics =
+    () => {
+      realtime.reconnect();
+      orderBook.reconnect();
+    };
 
   const tradeTapePanel = (
     <article className={styles.dataPanel}>
@@ -1349,6 +1475,262 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     </article>
   );
 
+  const marketDynamicsPanel = (
+    <article
+      className={
+        `${styles.dataPanel} ${styles.marketDynamicsPanel}`
+      }
+    >
+      <div className={styles.panelHeader}>
+        <div>
+          <p className={styles.panelEyebrow}>
+            Поток сделок + глубина стакана
+          </p>
+          <h2>Динамика рынка</h2>
+        </div>
+
+        <div className={styles.marketDynamicsHeaderActions}>
+          <span
+            className={marketDynamicsStatusClass}
+            title={
+              [
+                marketDynamics.freshness
+                  .message,
+                marketDynamics.freshness
+                  .lastUpdatedLabel,
+              ].join(
+                ' ',
+              )
+            }
+          >
+            {marketDynamics.freshness.label}
+          </span>
+
+          <span className={marketDynamicsModeClass}>
+            {marketDynamics.modeLabel}
+          </span>
+        </div>
+      </div>
+
+      <p className={styles.marketDynamicsDescription}>
+        {marketDynamics.modeDescription}
+      </p>
+
+      {
+        (
+          marketDynamics.freshness.state
+            === 'stale'
+          || marketDynamics.freshness.state
+            === 'error'
+        )
+        && (
+          <div className={styles.tapeNotice}>
+            <span>
+              {marketDynamics.freshness.message}
+            </span>
+            <button
+              type="button"
+              className={styles.tapeRetry}
+              onClick={reconnectMarketDynamics}
+            >
+              Переподключить источники
+            </button>
+          </div>
+        )
+      }
+
+      <div className={styles.dynamicsList}>
+        <div className={styles.dynamicMetric}>
+          <span>Скорость сделок</span>
+          <strong>
+            {
+              marketDynamics.tradeRate === null
+                ? '—'
+                : marketDynamics.tradeRate
+                    .toLocaleString(
+                      'ru-RU',
+                      {
+                        maximumFractionDigits:
+                          2,
+                      },
+                    )
+                  + ' сдел./с'
+            }
+          </strong>
+          <em className={styles.neutralValue}>
+            {marketActivityLabel}
+          </em>
+        </div>
+
+        <div className={styles.dynamicMetric}>
+          <span>Ускорение</span>
+          <strong className={marketDynamicsAccelerationClass}>
+            {
+              formatTapePercent(
+                marketDynamics.accelerationPct,
+              )
+            }
+          </strong>
+          <em className={styles.neutralValue}>
+            к предыдущим 10 секундам
+          </em>
+        </div>
+
+        <div className={styles.dynamicMetric}>
+          <span>Дельта потока</span>
+          <strong className={marketDynamicsDeltaClass}>
+            {
+              marketDynamics.deltaQuoteValue === null
+                ? '—'
+                : formatTapeQuoteValue(
+                    marketDynamics.deltaQuoteValue,
+                    true,
+                  )
+            }
+          </strong>
+          <em className={styles.neutralValue}>
+            покупки минус продажи
+          </em>
+        </div>
+
+        <div className={styles.dynamicMetric}>
+          <span>Доля покупок</span>
+          <strong>
+            {
+              formatTapePercent(
+                marketDynamics.buySharePct,
+                false,
+              )
+            }
+          </strong>
+          <em className={styles.neutralValue}>
+            агрессивные сделки за 10 секунд
+          </em>
+        </div>
+
+        <div className={styles.dynamicMetric}>
+          <span>Дисбаланс стакана</span>
+          <strong className={marketDynamicsBookClass}>
+            {
+              formatTapePercent(
+                marketDynamics.bookImbalancePct,
+              )
+            }
+          </strong>
+          <em className={styles.neutralValue}>
+            глубина Binance Futures ±0,2%
+          </em>
+        </div>
+
+        <div className={styles.dynamicMetric}>
+          <span>Спред</span>
+          <strong>
+            {
+              marketDynamics.spread === null
+                ? '—'
+                : formatChartPrice(
+                    marketDynamics.spread,
+                  )
+            }
+          </strong>
+          <em className={styles.neutralValue}>
+            {
+              marketDynamics.spreadPct === null
+                ? 'процент пока не рассчитан'
+                : formatTapePercent(
+                    marketDynamics.spreadPct,
+                    false,
+                  )
+            }
+          </em>
+        </div>
+      </div>
+
+      <div className={styles.pressureBlock}>
+        <div className={styles.pressureHeader}>
+          <span>Сводное давление</span>
+          <strong className={marketDynamicsPressureClass}>
+            {
+              formatTapePercent(
+                marketDynamics.pressureScore,
+              )
+            }
+          </strong>
+        </div>
+        <div className={styles.pressureTrack}>
+          <span
+            style={{
+              width:
+                `${marketDynamics.buyerPressurePct ?? 0}%`,
+            }}
+          />
+        </div>
+        <div className={styles.pressureLabels}>
+          <span>
+            Покупатели {
+              marketDynamics.buyerPressurePct === null
+                ? '—'
+                : Math.round(
+                    marketDynamics.buyerPressurePct,
+                  )
+                  + '%'
+            }
+          </span>
+          <span>
+            Продавцы {
+              marketDynamics.sellerPressurePct === null
+                ? '—'
+                : Math.round(
+                    marketDynamics.sellerPressurePct,
+                  )
+                  + '%'
+            }
+          </span>
+        </div>
+      </div>
+
+      <div className={styles.marketDynamicsFooter}>
+        <div>
+          <span>Bid depth</span>
+          <strong className={styles.positive}>
+            {
+              marketDynamics.bidDepthQuote === null
+                ? '—'
+                : formatLiquidityDepth(
+                    marketDynamics.bidDepthQuote,
+                  )
+            }
+          </strong>
+        </div>
+
+        <div>
+          <span>Ask depth</span>
+          <strong className={styles.negative}>
+            {
+              marketDynamics.askDepthQuote === null
+                ? '—'
+                : formatLiquidityDepth(
+                    marketDynamics.askDepthQuote,
+                  )
+            }
+          </strong>
+        </div>
+
+        <div className={styles.marketDynamicsSource}>
+          <span>Источники</span>
+          <strong>{marketAgreementLabel}</strong>
+        </div>
+      </div>
+
+      <p className={styles.marketDynamicsUpdated}>
+        {
+          marketDynamics.freshness
+            .lastUpdatedLabel
+        }
+      </p>
+    </article>
+  );
+
   return (
     <section className={styles.workspace}>
       <header className={styles.pageHeader}>
@@ -1721,23 +2103,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
 
             {liquidityMapPanel}
 
-            <article className={styles.dataPanel}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className={styles.panelEyebrow}>
-                    Контекст
-                  </p>
-                  <h2>Динамика рынка</h2>
-                </div>
-                <span className={styles.marketMode}>
-                  ОЖИДАНИЕ ДАННЫХ
-                </span>
-              </div>
-              <p className={styles.testNotice}>
-                Торговая оценка, давление и BTC-контекст
-                для этого режима ещё не рассчитаны.
-              </p>
-            </article>
+            {marketDynamicsPanel}
           </div>
                 )
               : (
@@ -1746,37 +2112,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
 
             {liquidityMapPanel}
 
-            <article className={styles.dataPanel}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className={styles.panelEyebrow}>Контекст</p>
-                  <h2>Динамика рынка</h2>
-                </div>
-                <span className={styles.marketMode}>
-                  {
-                    isRuntimeSetup
-                      ? 'ДЕМО-КОНТЕКСТ'
-                      : 'BTC: умеренно бычий'
-                  }
-                </span>
-              </div>
-
-              <div className={styles.dynamicsList}>
-                {marketDynamics.map((metric) => (
-                  <div key={metric.label} className={styles.dynamicMetric}>
-                    <span>{metric.label}</span>
-                    <strong>{metric.value}</strong>
-                    <em className={metric.tone === 'positive' ? styles.positive : styles.neutralValue}>{metric.change}</em>
-                  </div>
-                ))}
-              </div>
-
-              <div className={styles.pressureBlock}>
-                <div className={styles.pressureHeader}><span>Баланс давления</span><strong>68 / 32</strong></div>
-                <div className={styles.pressureTrack}><span style={{ width: '68%' }} /></div>
-                <div className={styles.pressureLabels}><span>Покупатели</span><span>Продавцы</span></div>
-              </div>
-            </article>
+            {marketDynamicsPanel}
           </div>
                 )
           }
@@ -1833,6 +2169,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                       <li>Цена со статусом свежести и realtime-подключение.</li>
                       <li>Живая лента сделок со скоростью и дельтой.</li>
                       <li>Живая карта глубины и дисбаланса стакана.</li>
+                      <li>Сводная динамика потока сделок и стакана.</li>
                       <li>Инструменты ручного анализа графика.</li>
                     </ul>
                   </section>
@@ -1993,8 +2330,8 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               isMarketPreview
                 ? 'Рыночный режим не является торговым сигналом. NEXUS не выставляет ордера.'
                 : usesDemoWorkspaceContext
-                  ? 'Сетап, стадия и ценовая зона получены из Setup Engine. Лента и ликвидность пока демонстрационные. NEXUS не выставляет ордера.'
-                  : 'Данные демонстрационные. NEXUS не выставляет ордера.'
+                  ? 'Сетап, стадия и ценовая зона получены из Setup Engine. Лента, стакан и динамика рынка поступают из live-данных Binance. NEXUS не выставляет ордера.'
+                  : 'Сетап демонстрационный. Лента, стакан и динамика рынка поступают из live-данных Binance. NEXUS не выставляет ордера.'
             }
           </p>
         </aside>
