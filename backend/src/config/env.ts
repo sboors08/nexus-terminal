@@ -21,6 +21,8 @@ export interface AppEnv {
   binanceWebSocketReconnectBaseDelayMs?: number;
   binanceWebSocketReconnectMaxDelayMs?: number;
   binanceWebSocketTradesBufferSize?: number;
+  binanceOrderBookDepthEnabled?: boolean;
+  binanceOrderBookDepthStaleAfterMs?: number;
   binanceSymbolUniverseEnabled?: boolean;
   binanceSymbolUniverseQuoteAsset?: string;
   binanceSymbolUniverseRefreshIntervalMs?: number;
@@ -144,6 +146,18 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     binanceWebSocketReconnectBaseDelayMs: readInteger(source.BINANCE_WS_RECONNECT_BASE_DELAY_MS, 1_000, 'BINANCE_WS_RECONNECT_BASE_DELAY_MS', 100, 60_000),
     binanceWebSocketReconnectMaxDelayMs: readInteger(source.BINANCE_WS_RECONNECT_MAX_DELAY_MS, 30_000, 'BINANCE_WS_RECONNECT_MAX_DELAY_MS', 1_000, 300_000),
     binanceWebSocketTradesBufferSize: readInteger(source.BINANCE_WS_TRADES_BUFFER_SIZE, 100, 'BINANCE_WS_TRADES_BUFFER_SIZE', 1, 5_000),
+    binanceOrderBookDepthEnabled: readBoolean(
+      source.BINANCE_ORDER_BOOK_ENABLED,
+      source.NODE_ENV !== 'test',
+      'BINANCE_ORDER_BOOK_ENABLED',
+    ),
+    binanceOrderBookDepthStaleAfterMs: readInteger(
+      source.BINANCE_ORDER_BOOK_STALE_AFTER_MS,
+      5_000,
+      'BINANCE_ORDER_BOOK_STALE_AFTER_MS',
+      500,
+      60_000,
+    ),
     binanceSymbolUniverseEnabled: readBoolean(
       source.BINANCE_SYMBOL_UNIVERSE_ENABLED,
       source.NODE_ENV !== 'test',

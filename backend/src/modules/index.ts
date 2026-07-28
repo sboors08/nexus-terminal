@@ -32,6 +32,12 @@ import type {
   RealtimeMarketDataService,
 } from './realtime-market-data/realtime-market-data.types.js';
 import {
+  orderBookDepthRoutes,
+} from './realtime-market-data/order-book-depth.routes.js';
+import type {
+  OrderBookDepthRuntimeService,
+} from './realtime-market-data/order-book-depth-runtime.types.js';
+import {
   setupReadRoutes,
 } from './setup-engine/setup-read.routes.js';
 import {
@@ -54,6 +60,9 @@ interface ApiModulesOptions {
 
   realtimeMarketDataService?:
     RealtimeMarketDataService;
+
+  orderBookDepthService?:
+    OrderBookDepthRuntimeService;
 
   binanceSymbolUniverseService?:
     BinanceSymbolUniverseService;
@@ -172,6 +181,20 @@ FastifyPluginAsync<
               }
             : {}
         ),
+      },
+    );
+  }
+
+  if (
+    options
+      .orderBookDepthService
+  ) {
+    await app.register(
+      orderBookDepthRoutes,
+      {
+        orderBookDepthService:
+          options
+            .orderBookDepthService,
       },
     );
   }
