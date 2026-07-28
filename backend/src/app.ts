@@ -5,6 +5,7 @@ import { apiModules } from './modules/index.js';
 import { BinanceMarketDataClient } from './modules/market-data/binance-market-data.client.js';
 import type { MarketDataProvider } from './modules/market-data/market-data.provider.js';
 import { BinanceWebSocketMarketDataService } from './modules/realtime-market-data/binance-websocket.service.js';
+import { BinanceOrderBookDepthService } from './modules/realtime-market-data/binance-order-book-depth.service.js';
 import { BinanceMarketHistoryClient } from './modules/realtime-market-data/binance-market-history.client.js';
 import { BinanceSymbolUniverseService } from './modules/realtime-market-data/binance-symbol-universe.service.js';
 import { MarketWideHistoryWarmupService } from './modules/realtime-market-data/market-wide-history-warmup.service.js';
@@ -24,11 +25,13 @@ import type {
   SetupEventHistoryReader,
 } from './modules/setup-engine/setup-event-history.types.js';
 import type { RealtimeMarketDataService } from './modules/realtime-market-data/realtime-market-data.types.js';
+import type { OrderBookDepthRuntimeService } from './modules/realtime-market-data/order-book-depth-runtime.types.js';
 
 export interface BuildAppOptions {
   env?: AppEnv;
   marketDataProvider?: MarketDataProvider;
   realtimeMarketDataService?: RealtimeMarketDataService | null;
+  orderBookDepthService?: OrderBookDepthRuntimeService | null;
   binanceSymbolUniverseService?: BinanceSymbolUniverseService | null;
   marketWideRealtimeService?: MarketWideRealtimeService | null;
   marketWideHistoryWarmupService?: MarketWideHistoryWarmupService | null;
@@ -78,6 +81,44 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       })
       : null
     : options.realtimeMarketDataService;
+
+  const orderBookDepthEnabled =
+    env.binanceOrderBookDepthEnabled
+    ?? env.nodeEnv !== 'test';
+
+  const orderBookDepthService =
+    options.orderBookDepthService
+    === undefined
+      ? orderBookDepthEnabled
+        ? new BinanceOrderBookDepthService({
+            restBaseUrl:
+              env.binanceBaseUrl
+              ?? 'https://fapi.binance.com',
+            websocketBaseUrl:
+              env.binanceWebSocketBaseUrl
+              ?? 'wss://fstream.binance.com',
+            symbols:
+              env.binanceWebSocketSymbols
+              ?? [
+                'BTCUSDT',
+                'ETHUSDT',
+                'SOLUSDT',
+              ],
+            requestTimeoutMs:
+              env.binanceRequestTimeoutMs
+              ?? 5_000,
+            staleAfterMs:
+              env.binanceOrderBookDepthStaleAfterMs
+              ?? 5_000,
+            reconnectBaseDelayMs:
+              env.binanceWebSocketReconnectBaseDelayMs
+              ?? 1_000,
+            reconnectMaxDelayMs:
+              env.binanceWebSocketReconnectMaxDelayMs
+              ?? 30_000,
+          })
+        : null
+      : options.orderBookDepthService;
 
   const symbolUniverseEnabled =
     env.binanceSymbolUniverseEnabled
@@ -258,6 +299,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     app.addHook('onClose', async () => realtimeMarketDataService.stop());
   }
 
+  if (orderBookDepthService) {
+    app.addHook(
+      'onReady',
+      async () => {
+        orderBookDepthService.start();
+      },
+    );
+
+    app.addHook(
+      'onClose',
+      async () => {
+        orderBookDepthService.stop();
+      },
+    );
+  }
+
   if (setupDetectionRuntimeService) {
     app.addHook(
       'onReady',
@@ -309,6 +366,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     prefix: env.apiPrefix,
     marketDataProvider,
     ...(realtimeMarketDataService ? { realtimeMarketDataService } : {}),
+    ...(orderBookDepthService
+      ? { orderBookDepthService }
+      : {}),
     ...(binanceSymbolUniverseService
       ? { binanceSymbolUniverseService }
       : {}),
