@@ -4,6 +4,7 @@ import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import {
   buildWorkspaceRealtimeView,
+  buildWorkspaceTradeTape,
   useRealtimeMarketData,
 } from '@/shared/realtime';
 import {
@@ -57,7 +58,7 @@ function ChecklistIcon({ state }: { state: 'passed' | 'warning' | 'waiting' }) {
 
 function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const { contractSetup, snapshot, view } = data;
-  const { selectedSetup, prints, liquidity, marketDynamics, stageFlow } = view;
+  const { selectedSetup, liquidity, marketDynamics, stageFlow } = view;
   const isMarketPreview =
     isMarketWorkspaceSetupId(
       contractSetup.id,
@@ -312,6 +313,51 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     ],
   );
 
+  const [tradeTapeNow, setTradeTapeNow] = useState(
+    () => Date.now(),
+  );
+
+  useEffect(() => {
+    const intervalId =
+      window.setInterval(
+        () => {
+          setTradeTapeNow(
+            Date.now(),
+          );
+        },
+        5_000,
+      );
+
+    return () => {
+      window.clearInterval(
+        intervalId,
+      );
+    };
+  }, []);
+
+  const tradeTape = useMemo(
+    () => buildWorkspaceTradeTape({
+      snapshot:
+        realtimeSnapshot,
+      lifecycleState:
+        realtime.lifecycleState,
+      backendState:
+        realtime.status?.state
+        ?? null,
+      error:
+        realtime.error,
+      now:
+        tradeTapeNow,
+    }),
+    [
+      realtime.error,
+      realtime.lifecycleState,
+      realtime.status?.state,
+      realtimeSnapshot,
+      tradeTapeNow,
+    ],
+  );
+
   useEffect(() => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('setup');
@@ -340,7 +386,13 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     setupId: contractSetup.id,
   });
 
-  const visiblePrints = prints.filter((print) => tapeFilter === 'all' || print.side === tapeFilter);
+  const visiblePrints =
+    tradeTape.prints.filter(
+      (print) =>
+        tapeFilter === 'all'
+        || print.side
+          === tapeFilter,
+    );
   const resultLabel = selectedSetup.kind.includes('Отскок') ? 'Отскок' : 'Пробой';
   const currentStageIndex = { observation: 0, approach: 1, confirmation: 2, triggered: 3 }[selectedSetup.stage];
 
@@ -376,6 +428,91 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     minimumFractionDigits: priceDecimals,
     maximumFractionDigits: priceDecimals,
   });
+
+  const formatTapeTime = (
+    timestamp: string,
+  ) =>
+    new Date(
+      timestamp,
+    ).toLocaleTimeString(
+      'ru-RU',
+      {
+        hour:
+          '2-digit',
+        minute:
+          '2-digit',
+        second:
+          '2-digit',
+      },
+    );
+
+  const formatTapeQuantity = (
+    quantity: number,
+  ) =>
+    [
+      quantity.toLocaleString(
+        'ru-RU',
+        {
+          maximumFractionDigits:
+            8,
+        },
+      ),
+      baseAsset,
+    ].join(
+      ' ',
+    );
+
+  const formatTapeQuoteValue = (
+    value: number,
+    includePositiveSign = false,
+  ) => {
+    const sign =
+      includePositiveSign
+      && value > 0
+        ? '+'
+        : '';
+
+    return [
+      sign
+      + value.toLocaleString(
+        'ru-RU',
+        {
+          notation:
+            'compact',
+          maximumFractionDigits:
+            1,
+        },
+      ),
+      'USDT',
+    ].join(
+      ' ',
+    );
+  };
+
+  const formatTapePercent = (
+    value: number | null,
+    includePositiveSign = true,
+  ) => {
+    if (value === null) {
+      return '—';
+    }
+
+    const sign =
+      includePositiveSign
+      && value > 0
+        ? '+'
+        : '';
+
+    return sign
+      + value.toLocaleString(
+        'ru-RU',
+        {
+          maximumFractionDigits:
+            1,
+        },
+      )
+      + '%';
+  };
   const WORKSPACE_REFERENCE_PRICE =
     187.42;
 
@@ -550,6 +687,303 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
         item.state
         === 'passed',
     ).length;
+
+  const tapeDeltaClass =
+    tradeTape.metrics
+      .deltaQuoteValue > 0
+      ? styles.positive
+      : tradeTape.metrics
+          .deltaQuoteValue < 0
+        ? styles.negative
+        : styles.neutralValue;
+
+  const tapeAccelerationClass =
+    tradeTape.metrics
+      .accelerationPct === null
+      ? styles.neutralValue
+      : tradeTape.metrics
+          .accelerationPct > 0
+        ? styles.positive
+        : tradeTape.metrics
+            .accelerationPct < 0
+          ? styles.negative
+          : styles.neutralValue;
+
+  const tapeStatusClass =
+    [
+      styles.tapeStatus,
+      styles[
+        `tapeStatus_${
+          tradeTape.freshness
+            .tone
+        }`
+      ],
+    ].join(
+      ' ',
+    );
+
+  const tradeTapePanel = (
+    <article className={styles.dataPanel}>
+      <div className={styles.panelHeader}>
+        <div>
+          <p className={styles.panelEyebrow}>
+            Поток сделок
+          </p>
+          <h2>Лента принтов</h2>
+        </div>
+
+        <div className={styles.tapeHeaderActions}>
+          <span
+            className={tapeStatusClass}
+            title={
+              [
+                tradeTape.freshness
+                  .message,
+                tradeTape.freshness
+                  .lastUpdatedLabel,
+              ].join(
+                ' ',
+              )
+            }
+          >
+            {tradeTape.freshness.label}
+          </span>
+
+          <div className={styles.tapeFilters}>
+            {
+              (['all', 'buy', 'sell'] as const)
+                .map(
+                  (value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={
+                        tapeFilter
+                          === value
+                          ? styles
+                              .tapeFilterActive
+                          : ''
+                      }
+                      onClick={() =>
+                        setTapeFilter(
+                          value,
+                        )
+                      }
+                    >
+                      {
+                        value
+                          === 'all'
+                          ? 'Все'
+                          : value
+                              === 'buy'
+                            ? 'Покупки'
+                            : 'Продажи'
+                      }
+                    </button>
+                  ),
+                )
+            }
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.tapeSummary}>
+        <span>
+          Скорость{' '}
+          <strong>
+            {
+              tradeTape.metrics
+                .tradeRate
+                .toLocaleString(
+                  'ru-RU',
+                  {
+                    maximumFractionDigits:
+                      2,
+                  },
+                )
+              + ' сдел./с'
+            }
+          </strong>
+        </span>
+
+        <span>
+          Ускорение{' '}
+          <strong className={tapeAccelerationClass}>
+            {
+              formatTapePercent(
+                tradeTape.metrics
+                  .accelerationPct,
+              )
+            }
+          </strong>
+        </span>
+
+        <span>
+          Дельта{' '}
+          <strong className={tapeDeltaClass}>
+            {
+              formatTapeQuoteValue(
+                tradeTape.metrics
+                  .deltaQuoteValue,
+                true,
+              )
+            }
+          </strong>
+        </span>
+
+        <span>
+          Покупки{' '}
+          <strong>
+            {
+              tradeTape.metrics
+                .buySharePct === null
+                ? '—'
+                : formatTapePercent(
+                    tradeTape.metrics
+                      .buySharePct,
+                    false,
+                  )
+            }
+          </strong>
+        </span>
+
+        <span className={styles.tapeAge}>
+          {
+            tradeTape.freshness
+              .lastUpdatedLabel
+          }
+        </span>
+      </div>
+
+      {
+        tradeTape.freshness.state
+          === 'stale'
+        && (
+          <div className={styles.tapeNotice}>
+            <span>
+              {tradeTape.freshness.message}
+            </span>
+            <button
+              type="button"
+              className={styles.tapeRetry}
+              onClick={realtime.reconnect}
+            >
+              Переподключить
+            </button>
+          </div>
+        )
+      }
+
+      <div className={styles.tapeTable}>
+        <div className={styles.tapeHeader}>
+          <span>Время</span>
+          <span>Цена</span>
+          <span>Размер</span>
+          <span>Сумма</span>
+        </div>
+
+        {
+          visiblePrints.length > 0
+            ? visiblePrints.map(
+                (print) => (
+                  <div
+                    key={print.id}
+                    className={
+                      [
+                        styles.tapeRow,
+                        print.side
+                          === 'buy'
+                          ? styles.buyRow
+                          : styles.sellRow,
+                        print.isLarge
+                          ? styles.largePrintRow
+                          : '',
+                      ].join(
+                        ' ',
+                      )
+                    }
+                    title={
+                      print.tradesCount
+                      + ' исходных сделок Binance'
+                    }
+                  >
+                    <span>
+                      {
+                        formatTapeTime(
+                          print.timestamp,
+                        )
+                      }
+                    </span>
+
+                    <strong>
+                      {formatPrice(print.price)}
+                    </strong>
+
+                    <span>
+                      {
+                        formatTapeQuantity(
+                          print.quantity,
+                        )
+                      }
+                    </span>
+
+                    <span className={styles.tapeValue}>
+                      <span>
+                        {
+                          formatTapeQuoteValue(
+                            print.quoteValue,
+                          )
+                        }
+                      </span>
+
+                      {
+                        print.isLarge
+                        && (
+                          <small
+                            className={
+                              styles.largePrintBadge
+                            }
+                          >
+                            КРУПНЫЙ
+                          </small>
+                        )
+                      }
+                    </span>
+                  </div>
+                ),
+              )
+            : (
+              <div className={styles.tapeEmpty}>
+                <strong>
+                  {tradeTape.freshness.label}
+                </strong>
+                <span>
+                  {tradeTape.freshness.message}
+                </span>
+
+                {
+                  (
+                    tradeTape.freshness.state
+                      === 'error'
+                    || tradeTape.freshness.state
+                      === 'offline'
+                  )
+                  && (
+                    <button
+                      type="button"
+                      className={styles.tapeRetry}
+                      onClick={realtime.reconnect}
+                    >
+                      Повторить подключение
+                    </button>
+                  )
+                }
+              </div>
+            )
+        }
+      </div>
+    </article>
+  );
 
   return (
     <section className={styles.workspace}>
@@ -919,23 +1353,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             isMarketPreview
               ? (
           <div className={styles.lowerGrid}>
-            <article className={styles.dataPanel}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className={styles.panelEyebrow}>
-                    Поток сделок
-                  </p>
-                  <h2>Лента принтов</h2>
-                </div>
-                <span className={styles.estimateBadge}>
-                  НЕ ПОДКЛЮЧЕНО
-                </span>
-              </div>
-              <p className={styles.testNotice}>
-                Реальная лента принтов для произвольной монеты
-                в Workspace ещё не подключена.
-              </p>
-            </article>
+            {tradeTapePanel}
 
             <article className={styles.dataPanel}>
               <div className={styles.panelHeader}>
@@ -976,62 +1394,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 )
               : (
           <div className={styles.lowerGrid}>
-            <article className={styles.dataPanel}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className={styles.panelEyebrow}>Поток сделок</p>
-                  <h2>Лента принтов</h2>
-                </div>
-                <div className={styles.tapeFilters}>
-                  {(['all', 'buy', 'sell'] as const).map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      className={tapeFilter === value ? styles.tapeFilterActive : ''}
-                      onClick={() => setTapeFilter(value)}
-                    >
-                      {value === 'all' ? 'Все' : value === 'buy' ? 'Покупки' : 'Продажи'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className={styles.tapeSummary}>
-                <span>
-                  Скорость{' '}
-                  <strong>
-                    {
-                      isRuntimeSetup
-                        ? '—'
-                        : '42 сделки/с'
-                    }
-                  </strong>
-                </span>
-
-                <span>
-                  Дельта{' '}
-                  <strong className={styles.positive}>
-                    {
-                      isRuntimeSetup
-                        ? '—'
-                        : '+$184K'
-                    }
-                  </strong>
-                </span>
-              </div>
-
-              <div className={styles.tapeTable}>
-                <div className={styles.tapeHeader}><span>Время</span><span>Цена</span><span>Размер</span><span>Сумма</span></div>
-                {visiblePrints.map((print) => (
-                  <div key={print.id} className={`${styles.tapeRow} ${print.side === 'buy' ? styles.buyRow : styles.sellRow}`}>
-                    <span>{print.time}</span>
-                    <strong>{Number.isFinite(numericPrice) ? formatPrice(numericPrice * (Number(print.price) / WORKSPACE_REFERENCE_PRICE)) : print.price}</strong>
-                    <span>{print.size.replace('SOL', baseAsset)}</span>
-                    <span>{print.value}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
+            {tradeTapePanel}
 
             <article className={styles.dataPanel}>
               <div className={styles.panelHeader}>
@@ -1153,6 +1516,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                     <ul className={styles.reasonList}>
                       <li>Реальные свечи Binance Futures.</li>
                       <li>Цена со статусом свежести и realtime-подключение.</li>
+                      <li>Живая лента сделок со скоростью и дельтой.</li>
                       <li>Инструменты ручного анализа графика.</li>
                     </ul>
                   </section>

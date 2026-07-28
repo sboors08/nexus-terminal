@@ -502,8 +502,90 @@
   font-size: 8px;
 }
 
+.tapeHeaderActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--nexus-space-1);
+}
+
+.tapeStatus {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-round);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  font-weight: var(--nexus-font-weight-bold);
+  letter-spacing: 0.06em;
+}
+
+.tapeStatus_live {
+  color: var(--nexus-color-long);
+  border-color: color-mix(in srgb, var(--nexus-color-long) 52%, var(--nexus-color-border-subtle));
+  background: var(--nexus-color-long-soft);
+}
+
+.tapeStatus_pending {
+  color: var(--nexus-color-info);
+  border-color: var(--nexus-color-border-info);
+  background: var(--nexus-color-info-soft);
+}
+
+.tapeStatus_warning {
+  color: var(--nexus-color-stage-approach);
+  border-color: color-mix(in srgb, var(--nexus-color-stage-approach) 55%, var(--nexus-color-border-subtle));
+  background: var(--nexus-color-stage-approach-soft);
+}
+
+.tapeStatus_error {
+  color: var(--nexus-color-short);
+  border-color: color-mix(in srgb, var(--nexus-color-short) 55%, var(--nexus-color-border-subtle));
+  background: var(--nexus-color-short-soft);
+}
+
+.tapeStatus_offline {
+  color: var(--nexus-color-text-muted);
+  border-color: var(--nexus-color-border-strong);
+  background: var(--nexus-color-bg-canvas);
+}
+
+.tapeNotice {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nexus-space-1);
+  padding: 7px var(--nexus-space-2);
+  border-bottom: var(--nexus-border-width) solid color-mix(in srgb, var(--nexus-color-stage-approach) 44%, var(--nexus-color-border-subtle));
+  color: var(--nexus-color-stage-approach);
+  background: var(--nexus-color-stage-approach-soft);
+  font-size: 9px;
+}
+
+.tapeRetry {
+  min-height: 26px;
+  padding: 0 9px;
+  border: var(--nexus-border-width) solid currentColor;
+  border-radius: var(--nexus-radius-sm);
+  color: inherit;
+  background: transparent;
+  font-size: 9px;
+  font-weight: var(--nexus-font-weight-semibold);
+  cursor: pointer;
+}
+
+.tapeRetry:hover {
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-hover);
+}
+
 .tapeSummary {
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--nexus-space-1);
   padding: 9px var(--nexus-space-2);
   border-bottom: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
@@ -546,6 +628,64 @@
   color: var(--nexus-color-text-secondary);
   font-family: var(--nexus-font-family-mono);
   font-size: 9px;
+}
+
+.tapeAge {
+  flex-basis: 100%;
+  color: var(--nexus-color-text-disabled);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+}
+
+.tapeValue {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+}
+
+.largePrintRow {
+  background: color-mix(in srgb, var(--nexus-color-stage-approach-soft) 62%, transparent);
+}
+
+.largePrintRow::after {
+  content: '';
+  position: absolute;
+  inset: 4px 4px 4px auto;
+  width: 2px;
+  border-radius: var(--nexus-radius-round);
+  background: var(--nexus-color-stage-approach);
+}
+
+.largePrintBadge {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  border: var(--nexus-border-width) solid color-mix(in srgb, var(--nexus-color-stage-approach) 55%, var(--nexus-color-border-subtle));
+  border-radius: 4px;
+  color: var(--nexus-color-stage-approach);
+  background: var(--nexus-color-stage-approach-soft);
+  font-size: 6px;
+  font-weight: var(--nexus-font-weight-bold);
+  letter-spacing: 0.04em;
+}
+
+.tapeEmpty {
+  min-height: 298px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 7px;
+  padding: var(--nexus-space-3);
+  color: var(--nexus-color-text-muted);
+  text-align: center;
+  font-size: 10px;
+}
+
+.tapeEmpty strong {
+  color: var(--nexus-color-text-primary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 11px;
 }
 
 .tapeRow::before {
