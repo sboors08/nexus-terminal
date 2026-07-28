@@ -23,6 +23,7 @@ export interface RealtimeTrade {
   price: number;
   quantity: number;
   quoteValue: number;
+  tradesCount?: number;
   side: 'buy' | 'sell';
   isBuyerMaker: boolean;
 }
