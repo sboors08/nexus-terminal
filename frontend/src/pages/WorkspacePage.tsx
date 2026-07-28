@@ -6,6 +6,7 @@ import {
   buildWorkspaceLiquidityMap,
   buildWorkspaceMarketDynamics,
   buildWorkspaceRealtimeView,
+  buildWorkspaceSetupConfirmation,
   buildWorkspaceTradeTape,
   resolveWorkspaceLiquidityBucketSize,
   useOrderBookDepth,
@@ -426,6 +427,20 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
       ],
     );
 
+  const setupConfirmation =
+    useMemo(
+      () =>
+        buildWorkspaceSetupConfirmation({
+          direction:
+            selectedSetup.direction,
+          marketDynamics,
+        }),
+      [
+        marketDynamics,
+        selectedSetup.direction,
+      ],
+    );
+
   useEffect(() => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('setup');
@@ -724,17 +739,27 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
         'check-trigger',
 
       label:
-        'Поток принтов подтверждает вход',
+        'Live-поток подтверждает направление',
 
       detail:
-        isRuntimeSetup
-          ? 'Привязка потока принтов к сетапу будет добавлена отдельно.'
-          : 'Активность растёт, финальное подтверждение ещё формируется.',
+        [
+          setupConfirmation
+            .freshness
+            .label,
+          setupConfirmation
+            .summary,
+        ].join(
+          ' · ',
+        ),
 
       state:
-        isRuntimeSetup
-          ? 'waiting'
-          : 'warning',
+        setupConfirmation
+          .isLiveConfirmation
+          ? 'passed'
+          : setupConfirmation
+              .blockingCount > 0
+            ? 'warning'
+            : 'waiting',
     },
     {
       id:
@@ -917,6 +942,55 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
       realtime.reconnect();
       orderBook.reconnect();
     };
+
+  const setupConfirmationFreshnessClass =
+    [
+      styles.tapeStatus,
+      styles[
+        `tapeStatus_${
+          setupConfirmation
+            .freshness
+            .tone
+        }`
+      ],
+    ].join(
+      ' ',
+    );
+
+  const setupConfirmationBadgeClass =
+    [
+      styles.setupConfirmationBadge,
+      styles[
+        `setupConfirmationBadge_${
+          setupConfirmation.tone
+        }`
+      ],
+    ].join(
+      ' ',
+    );
+
+  const setupConfirmationPressureClass =
+    setupConfirmation
+      .directionalPressurePct === null
+      ? styles.neutralValue
+      : setupConfirmation
+          .directionalPressurePct > 0
+        ? styles.positive
+        : setupConfirmation
+            .directionalPressurePct < 0
+          ? styles.negative
+          : styles.neutralValue;
+
+  const setupConfirmationCheckStates = {
+    supports:
+      'passed',
+    opposes:
+      'warning',
+    neutral:
+      'waiting',
+    unavailable:
+      'waiting',
+  } as const;
 
   const tradeTapePanel = (
     <article className={styles.dataPanel}>
@@ -2221,6 +2295,153 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                     </ul>
                   </section>
 
+                  <section
+                    className={
+                      `${styles.nexusSection} ${styles.setupConfirmationSection}`
+                    }
+                  >
+                    <div className={styles.setupConfirmationHeader}>
+                      <div>
+                        <h3>Live-подтверждение</h3>
+                        <span
+                          className={setupConfirmationFreshnessClass}
+                          title={
+                            [
+                              setupConfirmation
+                                .freshness
+                                .message,
+                              setupConfirmation
+                                .freshness
+                                .lastUpdatedLabel,
+                            ].join(
+                              ' ',
+                            )
+                          }
+                          aria-live="polite"
+                        >
+                          {
+                            setupConfirmation
+                              .freshness
+                              .label
+                          }
+                        </span>
+                      </div>
+
+                      <strong
+                        className={setupConfirmationBadgeClass}
+                        aria-live="polite"
+                      >
+                        {setupConfirmation.statusLabel}
+                      </strong>
+                    </div>
+
+                    <p className={styles.setupConfirmationSummary}>
+                      {setupConfirmation.summary}
+                    </p>
+
+                    {
+                      (
+                        setupConfirmation
+                          .freshness
+                          .state
+                          === 'stale'
+                        || setupConfirmation
+                            .freshness
+                            .state
+                            === 'error'
+                      )
+                      && (
+                        <div className={styles.tapeNotice}>
+                          <span>
+                            {
+                              setupConfirmation
+                                .freshness
+                                .message
+                            }
+                          </span>
+                          <button
+                            type="button"
+                            className={styles.tapeRetry}
+                            onClick={reconnectMarketDynamics}
+                          >
+                            Переподключить источники
+                          </button>
+                        </div>
+                      )
+                    }
+
+                    <div className={styles.setupConfirmationStats}>
+                      <div>
+                        <span>Поддерживают</span>
+                        <strong className={styles.positive}>
+                          {setupConfirmation.supportCount}
+                          {' / '}
+                          {setupConfirmation.checks.length}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>Против</span>
+                        <strong
+                          className={
+                            setupConfirmation.blockingCount > 0
+                              ? styles.negative
+                              : styles.neutralValue
+                          }
+                        >
+                          {setupConfirmation.blockingCount}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>Давление к направлению</span>
+                        <strong className={setupConfirmationPressureClass}>
+                          {
+                            formatTapePercent(
+                              setupConfirmation
+                                .directionalPressurePct,
+                            )
+                          }
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className={styles.setupConfirmationChecks}>
+                      {
+                        setupConfirmation.checks.map(
+                          (check) => {
+                            const checkState =
+                              setupConfirmationCheckStates[
+                                check.state
+                              ];
+
+                            return (
+                              <div
+                                key={check.id}
+                                className={
+                                  `${styles.setupConfirmationCheck} ${styles[checkState]}`
+                                }
+                              >
+                                <span className={styles.checkIcon}>
+                                  <ChecklistIcon state={checkState} />
+                                </span>
+                                <div>
+                                  <strong>{check.label}</strong>
+                                  <small>{check.detail}</small>
+                                </div>
+                              </div>
+                            );
+                          },
+                        )
+                      }
+                    </div>
+
+                    <p className={styles.setupConfirmationDisclaimer}>
+                      Оценка не меняет стадию Setup Engine автоматически
+                      и не является торговым сигналом.
+                    </p>
+                  </section>
+
                   <section className={styles.nexusSection}>
                     <div className={styles.sectionTitle}>
                       <h3>Чек-лист сетапа</h3>
@@ -2330,8 +2551,8 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               isMarketPreview
                 ? 'Рыночный режим не является торговым сигналом. NEXUS не выставляет ордера.'
                 : usesDemoWorkspaceContext
-                  ? 'Сетап, стадия и ценовая зона получены из Setup Engine. Лента, стакан и динамика рынка поступают из live-данных Binance. NEXUS не выставляет ордера.'
-                  : 'Сетап демонстрационный. Лента, стакан и динамика рынка поступают из live-данных Binance. NEXUS не выставляет ордера.'
+                  ? 'Сетап, стадия и ценовая зона получены из Setup Engine. Лента, стакан, динамика рынка и live-подтверждение поступают из данных Binance. NEXUS не выставляет ордера.'
+                  : 'Сетап демонстрационный. Лента, стакан, динамика рынка и live-подтверждение поступают из данных Binance. NEXUS не выставляет ордера.'
             }
           </p>
         </aside>
