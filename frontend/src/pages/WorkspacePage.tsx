@@ -91,9 +91,94 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
         ]
       : undefined;
 
+  const candleFreshness =
+    candlesQuery.freshness;
+
+  const hasCandleData =
+    Boolean(
+      candlesQuery.data?.length,
+    );
+
+  const hasCandlePrice =
+    latestCandle !== undefined;
+
   const chartCurrentPrice =
     latestCandle?.close
     ?? contractSetup.currentPrice;
+
+  const chartPriceHeading =
+    hasCandlePrice
+      ? candleFreshness.state
+          === 'live'
+        ? 'Текущая цена'
+        : 'Последняя цена'
+      : 'Цена сетапа';
+
+  const chartPriceLineTitle =
+    hasCandlePrice
+      ? candleFreshness.label
+      : 'SETUP';
+
+  const chartPriceLineColor =
+    hasCandlePrice
+    && candleFreshness.state
+      === 'stale'
+      ? '#d5a928'
+      : '#4aa8ff';
+
+  const chartUpdatedAtLabel = (() => {
+    if (
+      candleFreshness.lastUpdatedAt
+      === null
+    ) {
+      return 'время неизвестно';
+    }
+
+    const timestamp =
+      new Date(
+        candleFreshness.lastUpdatedAt,
+      );
+
+    if (
+      !Number.isFinite(
+        timestamp.getTime(),
+      )
+    ) {
+      return 'время неизвестно';
+    }
+
+    return timestamp.toLocaleTimeString(
+      'ru-RU',
+      {
+        hour:
+          '2-digit',
+        minute:
+          '2-digit',
+        second:
+          '2-digit',
+      },
+    );
+  })();
+
+  const chartPriceSource =
+    hasCandlePrice
+      ? [
+          candleFreshness.label,
+          candleFreshness
+            .lastUpdatedLabel,
+          chartUpdatedAtLabel,
+        ].join(
+          ' · ',
+        )
+      : candleFreshness.state
+          === 'collecting'
+        ? 'COLLECTING · ожидаем свечи'
+        : [
+            candleFreshness.label,
+            'свечи недоступны',
+          ].join(
+            ' · ',
+          );
 
   const chartLevelCenter =
     contractSetup.level
@@ -130,10 +215,10 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             chartCurrentPrice,
 
           color:
-            '#4aa8ff',
+            chartPriceLineColor,
 
           title:
-            'LAST',
+            chartPriceLineTitle,
 
           lineStyle:
             'dashed',
@@ -191,6 +276,8 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
       },
       [
         chartCurrentPrice,
+        chartPriceLineColor,
+        chartPriceLineTitle,
         chartLevelCenter,
         chartZoneHigh,
         chartZoneLow,
@@ -514,10 +601,25 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
 
         <div className={styles.headerRight}>
           <div className={styles.priceBlock}>
-            <span>Текущая цена</span>
-            <strong>{formatChartPrice(chartCurrentPrice)}</strong>
-            <em className={styles.priceSourceTest}>
-              ПОСЛЕДНЯЯ СВЕЧА
+            <span>{chartPriceHeading}</span>
+            <strong>
+              {formatChartPrice(chartCurrentPrice)}
+            </strong>
+            <em
+              className={[
+                styles.priceSource,
+                styles[
+                  `priceSource_${candleFreshness.tone}`
+                ],
+              ].join(' ')}
+              title={
+                [
+                  candleFreshness.message,
+                  chartUpdatedAtLabel,
+                ].join(' ')
+              }
+            >
+              {chartPriceSource}
             </em>
           </div>
           <div className={styles.headerActions}>
@@ -568,6 +670,29 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 </span>
                 <span
                   className={[
+                    styles.freshnessBadge,
+                    styles[
+                      `freshnessBadge_${candleFreshness.tone}`
+                    ],
+                  ].join(' ')}
+                  title={
+                    [
+                      candleFreshness.message,
+                      chartUpdatedAtLabel,
+                    ].join(' ')
+                  }
+                  aria-live="polite"
+                >
+                  <i />
+                  {candleFreshness.label}
+                  {' · '}
+                  {
+                    candleFreshness
+                      .lastUpdatedLabel
+                  }
+                </span>
+                <span
+                  className={[
                     styles.liveIndicator,
                     styles[`liveIndicator_${realtimeWorkspace.connectionTone}`],
                   ].join(' ')}
@@ -578,52 +703,109 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             </div>
 
             <div className={styles.chartCanvas}>
-              {candlesQuery.status === 'loading' && (
-                <div className={styles.chartState}>
-                  Загружаем реальные свечи…
-                </div>
-              )}
-
-              {candlesQuery.status === 'error' && (
-                <div className={styles.chartState}>
-                  <span>Свечи не загрузились.</span>
-                  <button
-                    type="button"
-                    onClick={candlesQuery.retry}
+              {!hasCandleData
+                && (
+                  candleFreshness.state
+                    === 'error'
+                  || candleFreshness.state
+                    === 'offline'
+                ) && (
+                  <div
+                    className={[
+                      styles.chartState,
+                      styles.chartStateError,
+                    ].join(' ')}
                   >
-                    Повторить
-                  </button>
-                </div>
-              )}
+                    <strong>
+                      {candleFreshness.label}
+                    </strong>
+                    <span>
+                      {candleFreshness.message}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={candlesQuery.retry}
+                    >
+                      Повторить
+                    </button>
+                  </div>
+                )}
 
-              {candlesQuery.status === 'success'
-                && candlesQuery.data?.length === 0 && (
+              {!hasCandleData
+                && candleFreshness.state
+                  === 'collecting'
+                && candlesQuery.status
+                  !== 'success' && (
+                  <div className={styles.chartState}>
+                    <strong>COLLECTING</strong>
+                    <span>
+                      {candleFreshness.message}
+                    </span>
+                  </div>
+                )}
+
+              {!hasCandleData
+                && candlesQuery.status
+                  === 'success'
+                && candleFreshness.state
+                  === 'collecting' && (
                   <div className={styles.chartState}>
                     Для выбранного периода нет свечей.
                   </div>
                 )}
 
-              {candlesQuery.status === 'success'
-                && candlesQuery.data
+              {candlesQuery.data
                 && candlesQuery.data.length > 0 && (
-                  <NexusCandlestickChart
-                    candles={candlesQuery.data}
-                    symbol={contractSetup.symbol}
-                    fillContainer
-                    priceLines={chartPriceLines}
-                    showSeriesPriceLine={false}
-                    enableDrawingTools
-                    drawingScope={`${contractSetup.symbol}:${timeframe}`}
-                    onLoadOlder={
-                      candlesQuery.loadOlder
-                    }
-                    isLoadingOlder={
-                      candlesQuery.isLoadingOlder
-                    }
-                    hasMore={
-                      candlesQuery.hasMore
-                    }
-                  />
+                  <>
+                    {candleFreshness.state
+                      === 'stale' && (
+                        <div
+                          className={
+                            styles.chartFreshnessNotice
+                          }
+                          role="status"
+                        >
+                          <strong>STALE</strong>
+                          <span>
+                            {candleFreshness.message}
+                            {' '}
+                            {
+                              candleFreshness
+                                .lastUpdatedLabel
+                            }
+                            {' · '}
+                            {chartUpdatedAtLabel}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={
+                              candlesQuery.retry
+                            }
+                          >
+                            Обновить
+                          </button>
+                        </div>
+                      )}
+
+                    <NexusCandlestickChart
+                      candles={candlesQuery.data}
+                      symbol={contractSetup.symbol}
+                      fillContainer
+                      priceLines={chartPriceLines}
+                      showSeriesPriceLine={false}
+                      enableDrawingTools
+                      drawingScope={`${contractSetup.symbol}:${timeframe}`}
+                      onLoadOlder={
+                        candlesQuery.loadOlder
+                      }
+                      isLoadingOlder={
+                        candlesQuery.isLoadingOlder
+                      }
+                      hasMore={
+                        candlesQuery.hasMore
+                      }
+                    />
+                  </>
                 )}
             </div>
 
@@ -876,7 +1058,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                     <strong>{mapReferencePrice(level.price)}</strong><span>{level.size}</span><span>{level.age}</span><span>{level.state}</span><span>{level.fillPercent}%</span>
                   </div>
                 ))}
-                <div className={styles.currentPriceDivider}><span>ТЕКУЩАЯ ЦЕНА</span><strong>{formatChartPrice(chartCurrentPrice)}</strong></div>
+                <div className={styles.currentPriceDivider}><span>{chartPriceHeading.toLocaleUpperCase('ru-RU')}</span><strong>{formatChartPrice(chartCurrentPrice)}</strong></div>
                 {liquidity.slice(5).map((level) => (
                   <div key={level.id} className={`${styles.liquidityRow} ${styles.buyerRow}`}>
                     <span className={styles.liquidityBar} style={{ width: `${level.intensity * 100}%` }} />
@@ -970,7 +1152,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                     </div>
                     <ul className={styles.reasonList}>
                       <li>Реальные свечи Binance Futures.</li>
-                      <li>Текущая цена и realtime-подключение.</li>
+                      <li>Цена со статусом свежести и realtime-подключение.</li>
                       <li>Инструменты ручного анализа графика.</li>
                     </ul>
                   </section>
