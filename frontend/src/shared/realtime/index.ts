@@ -17,3 +17,4 @@ export * from './marketWideScannerMetrics';
 export * from './useMarketWideScannerMetrics';
 export * from './marketVolumeSpikes';
 export * from './useMarketVolumeSpikes';
+export * from './dataFreshness';

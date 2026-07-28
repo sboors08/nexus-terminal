@@ -12,9 +12,14 @@ import type {
   ApiQueryResult,
 } from '../../api/useApiQuery.js';
 import {
+  resolveDataFreshness,
+  type DataFreshness,
+} from '../../realtime/dataFreshness.js';
+import {
   liveMarketCandleStore,
   mergeLiveMarketCandle,
   type LiveMarketCandle,
+  type LiveMarketCandleConnectionState,
 } from '../api/liveMarketCandles.js';
 import {
   buildMarketCandlesUrl,
@@ -32,6 +37,7 @@ export interface UseMarketCandlesOptions {
 
 export interface UseMarketCandlesResult
   extends ApiQueryResult<Candle[]> {
+  freshness: DataFreshness;
   loadOlder: () => void;
   isLoadingOlder: boolean;
   hasMore: boolean;
@@ -48,6 +54,9 @@ interface MarketCandlesState {
     | null;
   error:
     | Error
+    | null;
+  updatedAt:
+    | string
     | null;
   isLoadingOlder: boolean;
   hasMore: boolean;
@@ -78,6 +87,9 @@ export interface MarketCandlesCacheEntry {
 
   hasMore:
     boolean;
+
+  updatedAt:
+    string;
 }
 
 const marketCandlesCache =
@@ -116,6 +128,9 @@ export function readMarketCandlesCache(
 
     hasMore:
       cached.hasMore,
+
+    updatedAt:
+      cached.updatedAt,
   };
 }
 
@@ -128,6 +143,10 @@ export function writeMarketCandlesCache(
 
   hasMore:
     boolean,
+
+  updatedAt:
+    string = new Date()
+      .toISOString(),
 ): void {
   marketCandlesCache.delete(
     key,
@@ -142,6 +161,8 @@ export function writeMarketCandlesCache(
         ],
 
       hasMore,
+
+      updatedAt,
     },
   );
 
@@ -176,6 +197,44 @@ export function getMarketCandlesCacheSize(): number {
   return marketCandlesCache.size;
 }
 
+export const MARKET_CANDLES_STALE_AFTER_MS =
+  15_000;
+
+export interface MarketCandlesFreshnessInput {
+  hasData: boolean;
+  connectionState:
+    LiveMarketCandleConnectionState;
+  updatedAt:
+    string
+    | null;
+  error:
+    unknown;
+  isOnline: boolean;
+  now?: number;
+}
+
+export function resolveMarketCandlesFreshness(
+  input:
+    MarketCandlesFreshnessInput,
+): DataFreshness {
+  return resolveDataFreshness({
+    hasData:
+      input.hasData,
+    sourceState:
+      input.isOnline
+        ? input.connectionState
+        : 'offline',
+    updatedAt:
+      input.updatedAt,
+    error:
+      input.error,
+    staleAfterMs:
+      MARKET_CANDLES_STALE_AFTER_MS,
+    now:
+      input.now,
+  });
+}
+
 export function useMarketCandles(
   options: UseMarketCandlesOptions,
 ): UseMarketCandlesResult {
@@ -198,6 +257,8 @@ export function useMarketCandles(
     data:
       null,
     error:
+      null,
+    updatedAt:
       null,
     isLoadingOlder:
       false,
@@ -226,6 +287,46 @@ export function useMarketCandles(
       null,
     );
 
+  const [
+    liveFreshnessState,
+    setLiveFreshnessState,
+  ] = useState<{
+    connectionState:
+      LiveMarketCandleConnectionState;
+    updatedAt:
+      string
+      | null;
+    error:
+      Error
+      | null;
+  }>({
+    connectionState:
+      'connecting',
+    updatedAt:
+      null,
+    error:
+      null,
+  });
+
+  const [
+    browserOnline,
+    setBrowserOnline,
+  ] = useState(
+    () =>
+      typeof navigator
+        === 'undefined'
+        ? true
+        : navigator.onLine,
+  );
+
+  const [
+    freshnessNow,
+    setFreshnessNow,
+  ] = useState(
+    () =>
+      Date.now(),
+  );
+
   const commitState = (
     next: MarketCandlesState,
   ) => {
@@ -236,8 +337,94 @@ export function useMarketCandles(
   };
 
   useEffect(() => {
+    if (
+      typeof window
+      === 'undefined'
+    ) {
+      return;
+    }
+
+    const handleOnline =
+      () => {
+        setBrowserOnline(
+          true,
+        );
+
+        setFreshnessNow(
+          Date.now(),
+        );
+      };
+
+    const handleOffline =
+      () => {
+        setBrowserOnline(
+          false,
+        );
+
+        setFreshnessNow(
+          Date.now(),
+        );
+      };
+
+    window.addEventListener(
+      'online',
+      handleOnline,
+    );
+
+    window.addEventListener(
+      'offline',
+      handleOffline,
+    );
+
+    return () => {
+      window.removeEventListener(
+        'online',
+        handleOnline,
+      );
+
+      window.removeEventListener(
+        'offline',
+        handleOffline,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer =
+      globalThis.setInterval(
+        () => {
+          setFreshnessNow(
+            Date.now(),
+          );
+        },
+        5_000,
+      );
+
+    return () => {
+      globalThis.clearInterval(
+        timer,
+      );
+    };
+  }, [
+    key,
+  ]);
+
+  useEffect(() => {
     liveCandleRef.current =
       null;
+
+    setLiveFreshnessState({
+      connectionState:
+        'connecting',
+      updatedAt:
+        null,
+      error:
+        null,
+    });
+
+    setFreshnessNow(
+      Date.now(),
+    );
 
     const unsubscribe =
       liveMarketCandleStore
@@ -255,6 +442,23 @@ export function useMarketCandles(
           ) => {
             const candle =
               liveState.candle;
+
+            setLiveFreshnessState(
+              (current) => ({
+                connectionState:
+                  liveState
+                    .connectionState,
+                updatedAt:
+                  candle?.updatedAt
+                  ?? current.updatedAt,
+                error:
+                  liveState.error,
+              }),
+            );
+
+            setFreshnessNow(
+              Date.now(),
+            );
 
             if (!candle) {
               return;
@@ -292,6 +496,7 @@ export function useMarketCandles(
               key,
               data,
               current.hasMore,
+              candle.updatedAt,
             );
 
             commitState({
@@ -299,6 +504,8 @@ export function useMarketCandles(
               data,
               error:
                 null,
+              updatedAt:
+                candle.updatedAt,
             });
           },
         );
@@ -347,6 +554,9 @@ export function useMarketCandles(
             error:
               null,
 
+            updatedAt:
+              cached.updatedAt,
+
             isLoadingOlder:
               false,
 
@@ -364,6 +574,9 @@ export function useMarketCandles(
               null,
 
             error:
+              null,
+
+            updatedAt:
               null,
 
             isLoadingOlder:
@@ -426,10 +639,16 @@ export function useMarketCandles(
           page.length
           === MARKET_CANDLES_PAGE_SIZE;
 
+        const updatedAt =
+          liveCandle?.updatedAt
+          ?? new Date()
+            .toISOString();
+
         writeMarketCandlesCache(
           key,
           data,
           hasMore,
+          updatedAt,
         );
 
         commitState({
@@ -440,6 +659,8 @@ export function useMarketCandles(
 
           error:
             null,
+
+          updatedAt,
 
           isLoadingOlder:
             false,
@@ -478,10 +699,15 @@ export function useMarketCandles(
                 )
               : cached.data;
 
+          const fallbackUpdatedAt =
+            liveCandle?.updatedAt
+            ?? cached.updatedAt;
+
           writeMarketCandlesCache(
             key,
             fallbackData,
             cached.hasMore,
+            fallbackUpdatedAt,
           );
 
           commitState({
@@ -492,7 +718,16 @@ export function useMarketCandles(
               fallbackData,
 
             error:
-              null,
+              timedOut
+                ? new Error(
+                    'Превышено время загрузки свечей',
+                  )
+                : asError(
+                    error,
+                  ),
+
+            updatedAt:
+              fallbackUpdatedAt,
 
             isLoadingOlder:
               false,
@@ -517,11 +752,14 @@ export function useMarketCandles(
           error:
             timedOut
               ? new Error(
-                  '\u041f\u0440\u0435\u0432\u044b\u0448\u0435\u043d\u043e \u0432\u0440\u0435\u043c\u044f \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438 \u0441\u0432\u0435\u0447\u0435\u0439',
+                  'Превышено время загрузки свечей',
                 )
               : asError(
                   error,
                 ),
+
+          updatedAt:
+            null,
 
           isLoadingOlder:
             false,
@@ -648,6 +886,8 @@ export function useMarketCandles(
             requestKey,
             merged,
             hasMore,
+            latestState.updatedAt
+              ?? undefined,
           );
 
           commitState({
@@ -657,6 +897,8 @@ export function useMarketCandles(
               merged,
             error:
               null,
+            updatedAt:
+              latestState.updatedAt,
             isLoadingOlder:
               false,
             hasMore,
@@ -708,6 +950,27 @@ export function useMarketCandles(
       );
     }, []);
 
+  const freshness =
+    resolveMarketCandlesFreshness({
+      hasData:
+        state.data !== null
+        && state.data.length > 0,
+      connectionState:
+        liveFreshnessState
+          .connectionState,
+      updatedAt:
+        liveFreshnessState
+          .updatedAt
+        ?? state.updatedAt,
+      error:
+        liveFreshnessState.error
+        ?? state.error,
+      isOnline:
+        browserOnline,
+      now:
+        freshnessNow,
+    });
+
   return {
     status:
       state.status,
@@ -715,6 +978,7 @@ export function useMarketCandles(
       state.data,
     error:
       state.error,
+    freshness,
     retry,
     loadOlder,
     isLoadingOlder:

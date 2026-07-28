@@ -7,7 +7,9 @@ import {
   getMarketCandlesCacheSize,
   MARKET_CANDLES_CACHE_MAX_ENTRIES,
   MARKET_CANDLES_REQUEST_TIMEOUT_MS,
+  MARKET_CANDLES_STALE_AFTER_MS,
   readMarketCandlesCache,
+  resolveMarketCandlesFreshness,
   writeMarketCandlesCache,
 } from '../node_modules/.tmp/realtime-test/charts/hooks/useMarketCandles.js';
 
@@ -193,6 +195,34 @@ test(
 );
 
 test(
+  'preserves the market update timestamp in cache',
+  () => {
+    clearMarketCandlesCache();
+
+    const updatedAt =
+      '2026-07-28T18:15:00.000Z';
+
+    writeMarketCandlesCache(
+      'LAUSDT-1m-timestamp',
+      [
+        createCandle(
+          1,
+        ),
+      ],
+      true,
+      updatedAt,
+    );
+
+    assert.equal(
+      readMarketCandlesCache(
+        'LAUSDT-1m-timestamp',
+      )?.updatedAt,
+      updatedAt,
+    );
+  },
+);
+
+test(
   'uses a finite candle request timeout',
   () => {
     assert.equal(
@@ -266,6 +296,375 @@ test(
         effectStart,
       ),
       /let active\s*=\s*true;/u,
+    );
+  },
+);
+
+test(
+  'preserves the request error while cached candles remain visible',
+  () => {
+    const source =
+      fs
+        .readFileSync(
+          new URL(
+            '../src/shared/charts/hooks/useMarketCandles.ts',
+            import.meta.url,
+          ),
+          'utf8',
+        )
+        .replace(
+          /\r\n/g,
+          '\n',
+        );
+
+    const fallbackStart =
+      source.indexOf(
+        '        if (cached) {',
+      );
+
+    const fallbackEnd =
+      source.indexOf(
+        '          return;',
+        fallbackStart,
+      );
+
+    assert.ok(
+      fallbackStart >= 0,
+    );
+
+    assert.ok(
+      fallbackEnd > fallbackStart,
+    );
+
+    const fallback =
+      source.slice(
+        fallbackStart,
+        fallbackEnd,
+      );
+
+    assert.match(
+      fallback,
+      /error:\s*timedOut/u,
+    );
+
+    assert.doesNotMatch(
+      fallback,
+      /error:\s*null,/u,
+    );
+  },
+);
+test(
+  'resolves candle freshness from connection and market timestamps',
+  () => {
+    assert.equal(
+      MARKET_CANDLES_STALE_AFTER_MS,
+      15_000,
+    );
+
+    const live =
+      resolveMarketCandlesFreshness({
+        hasData:
+          true,
+        connectionState:
+          'open',
+        updatedAt:
+          '2026-07-28T18:00:00.000Z',
+        error:
+          null,
+        isOnline:
+          true,
+        now:
+          Date.parse(
+            '2026-07-28T18:00:05.000Z',
+          ),
+      });
+
+    assert.equal(
+      live.state,
+      'live',
+    );
+
+    assert.equal(
+      live.label,
+      'LIVE',
+    );
+
+    const stale =
+      resolveMarketCandlesFreshness({
+        hasData:
+          true,
+        connectionState:
+          'reconnecting',
+        updatedAt:
+          '2026-07-28T18:00:00.000Z',
+        error:
+          new Error(
+            'Live candle connection interrupted',
+          ),
+        isOnline:
+          true,
+        now:
+          Date.parse(
+            '2026-07-28T18:00:30.000Z',
+          ),
+      });
+
+    assert.equal(
+      stale.state,
+      'stale',
+    );
+
+    assert.equal(
+      stale.errorKind,
+      'network',
+    );
+
+    const offline =
+      resolveMarketCandlesFreshness({
+        hasData:
+          false,
+        connectionState:
+          'connecting',
+        updatedAt:
+          null,
+        error:
+          null,
+        isOnline:
+          false,
+        now:
+          Date.parse(
+            '2026-07-28T18:00:30.000Z',
+          ),
+      });
+
+    assert.equal(
+      offline.state,
+      'offline',
+    );
+  },
+);
+
+test(
+  'connects candle freshness to the runtime hook',
+  () => {
+    const source =
+      fs
+        .readFileSync(
+          new URL(
+            '../src/shared/charts/hooks/useMarketCandles.ts',
+            import.meta.url,
+          ),
+          'utf8',
+        )
+        .replace(
+          /\r\n/g,
+          '\n',
+        );
+
+    assert.match(
+      source,
+      /freshness:\s*DataFreshness;/u,
+    );
+
+    assert.match(
+      source,
+      /setLiveFreshnessState/u,
+    );
+
+    assert.match(
+      source,
+      /liveState\s*\.connectionState/u,
+    );
+
+    assert.match(
+      source,
+      /\?\? state\.updatedAt/u,
+    );
+
+    assert.doesNotMatch(
+      source,
+      /latestCandle\?\.closeTime/u,
+    );
+
+    assert.match(
+      source,
+      /isOnline:\s*browserOnline/u,
+    );
+
+    assert.match(
+      source,
+      /error:\s*state\.error,\s*freshness,/u,
+    );
+  },
+);
+
+test(
+  'refreshes candle freshness over time and browser connection changes',
+  () => {
+    const source =
+      fs
+        .readFileSync(
+          new URL(
+            '../src/shared/charts/hooks/useMarketCandles.ts',
+            import.meta.url,
+          ),
+          'utf8',
+        )
+        .replace(
+          /\r\n/g,
+          '\n',
+        );
+
+    assert.match(
+      source,
+      /setBrowserOnline/u,
+    );
+
+    assert.match(
+      source,
+      /window\.addEventListener\(\s*'online'/u,
+    );
+
+    assert.match(
+      source,
+      /window\.addEventListener\(\s*'offline'/u,
+    );
+
+    assert.match(
+      source,
+      /globalThis\.setInterval/u,
+    );
+
+    assert.match(
+      source,
+      /5_000/u,
+    );
+
+    assert.match(
+      source,
+      /isOnline:\s*browserOnline/u,
+    );
+
+    assert.match(
+      source,
+      /now:\s*freshnessNow/u,
+    );
+
+    assert.match(
+      source,
+      /setLiveFreshnessState\(\{\s*connectionState:\s*'connecting'/u,
+    );
+  },
+);
+
+test(
+  'shows Workspace candle freshness without presenting stale prices as live',
+  () => {
+    const page =
+      fs
+        .readFileSync(
+          new URL(
+            '../src/pages/WorkspacePage.tsx',
+            import.meta.url,
+          ),
+          'utf8',
+        )
+        .replace(
+          /\r\n/g,
+          '\n',
+        );
+
+    const css =
+      fs
+        .readFileSync(
+          new URL(
+            '../src/pages/WorkspacePage.module.css',
+            import.meta.url,
+          ),
+          'utf8',
+        )
+        .replace(
+          /\r\n/g,
+          '\n',
+        );
+
+    assert.equal(
+      page.includes(
+        'ПОСЛЕДНЯЯ СВЕЧА',
+      ),
+      false,
+    );
+
+    assert.equal(
+      page.includes(
+        "title:\n            'LAST'",
+      ),
+      false,
+    );
+
+    assert.match(
+      page,
+      /const chartPriceHeading/u,
+    );
+
+    assert.match(
+      page,
+      /Цена сетапа/u,
+    );
+
+    assert.match(
+      page,
+      /chartPriceLineTitle/u,
+    );
+
+    assert.match(
+      page,
+      /candleFreshness\s*\.lastUpdatedLabel/u,
+    );
+
+    assert.match(
+      page,
+      /candleFreshness\s*\.lastUpdatedAt/u,
+    );
+
+    assert.match(
+      page,
+      /candleFreshness\.state\s*===\s*'stale'/u,
+    );
+
+    assert.match(
+      page,
+      /candleFreshness\.state\s*===\s*'offline'/u,
+    );
+
+    assert.match(
+      page,
+      /styles\.chartFreshnessNotice/u,
+    );
+
+    assert.match(
+      page,
+      /onClick=\{candlesQuery\.retry\}/u,
+    );
+
+    assert.match(
+      css,
+      /\.freshnessBadge_live/u,
+    );
+
+    assert.match(
+      css,
+      /\.freshnessBadge_warning/u,
+    );
+
+    assert.match(
+      css,
+      /\.freshnessBadge_error/u,
+    );
+
+    assert.match(
+      css,
+      /\.chartFreshnessNotice/u,
     );
   },
 );
