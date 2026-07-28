@@ -18,6 +18,7 @@
     "src/shared/realtime/orderBookDepthClient.ts",
     "src/shared/realtime/useOrderBookDepth.ts",
     "src/shared/realtime/workspaceLiquidityMap.ts",
+    "src/shared/realtime/workspaceMarketDynamics.ts",
     "src/shared/realtime/dashboardRealtime.ts",
     "src/shared/realtime/dashboardScannerMetrics.ts",
     "src/shared/realtime/scannerFilters.ts",

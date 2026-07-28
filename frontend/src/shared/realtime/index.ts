@@ -9,6 +9,7 @@ export * from './workspaceTradeTape';
 export * from './orderBookDepthClient';
 export * from './useOrderBookDepth';
 export * from './workspaceLiquidityMap';
+export * from './workspaceMarketDynamics';
 export * from './dashboardRealtime';
 export * from './dashboardScannerMetrics';
 export * from './useDashboardScannerMetrics';
