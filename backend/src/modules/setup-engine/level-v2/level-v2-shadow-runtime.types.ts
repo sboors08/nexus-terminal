@@ -11,6 +11,10 @@ import type {
   LevelV2ZonesScoreOptions,
 } from './level-v2-zones-score.types.js';
 import type {
+  LevelV2ShadowEvaluation,
+  LevelV2ShadowEvaluationOptions,
+} from './level-v2-shadow-evaluation.types.js';
+import type {
   SetupDetectionRuntimeSource,
   SetupDetectionTriggerSource,
 } from '../setup-detection-runtime.types.js';
@@ -25,6 +29,8 @@ export interface LevelV2ShadowRuntimeOptions {
   foundationOptions: LevelV2FoundationOptions;
   zonesScoreOptions: LevelV2ZonesScoreOptions;
   lifecycleOptions: LevelV2LifecycleOptions;
+  evaluationOptions?:
+    LevelV2ShadowEvaluationOptions;
   now: () => Date;
 }
 
@@ -45,6 +51,7 @@ export interface LevelV2ShadowSnapshot {
   detectedZonesCount: number;
   rejectedZonesCount: number;
   rejectionCounts: LevelV2ShadowRejectionCounts;
+  evaluation: LevelV2ShadowEvaluation;
   levels: readonly LevelV2LifecycleState[];
   lifecycleEvents: readonly LevelV2LifecycleEvent[];
 }

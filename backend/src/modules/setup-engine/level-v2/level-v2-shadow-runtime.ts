@@ -10,6 +10,11 @@ import {
   buildLevelV2ZonesScore,
   DEFAULT_LEVEL_V2_ZONES_SCORE_OPTIONS,
 } from './level-v2-zones-score.js';
+import {
+  cloneLevelV2ShadowEvaluation,
+  DEFAULT_LEVEL_V2_SHADOW_EVALUATION_OPTIONS,
+  evaluateLevelV2ShadowComparison,
+} from './level-v2-shadow-evaluation.js';
 import type {
   LevelV2Candle,
   LevelV2TouchEvent,
@@ -50,6 +55,13 @@ LevelV2ShadowRuntimeOptions = {
   },
   lifecycleOptions: {
     ...DEFAULT_LEVEL_V2_LIFECYCLE_OPTIONS,
+  },
+  evaluationOptions: {
+    ...DEFAULT_LEVEL_V2_SHADOW_EVALUATION_OPTIONS,
+    v1DetectorOptions: {
+      ...DEFAULT_LEVEL_V2_SHADOW_EVALUATION_OPTIONS
+        .v1DetectorOptions,
+    },
   },
   now: () =>
     new Date(),
@@ -155,6 +167,10 @@ function cloneSnapshot(
     rejectionCounts: {
       ...snapshot.rejectionCounts,
     },
+    evaluation:
+      cloneLevelV2ShadowEvaluation(
+        snapshot.evaluation,
+      ),
     levels:
       snapshot.levels.map(
         cloneState,
@@ -609,6 +625,61 @@ implements LevelV2ShadowRuntimeReader {
       }
     }
 
+    const sortedLifecycleStates =
+      lifecycleStates.sort(
+        (
+          left,
+          right,
+        ) =>
+          right.level.score.total
+          - left.level.score.total
+          || right.level
+            .lastTouchCandleIndex
+          - left.level
+            .lastTouchCandleIndex,
+      );
+
+    const evaluation =
+      evaluateLevelV2ShadowComparison(
+        symbol,
+        '1m',
+        candles,
+        sortedLifecycleStates.map(
+          (state) => ({
+            id:
+              state.level.id,
+            symbol:
+              state.level.symbol,
+            timeframe:
+              state.level.timeframe,
+            kind:
+              state.level.kind,
+            referencePrice:
+              state.level.zone
+                .referencePrice,
+            zoneLow:
+              state.level.zone
+                .outerLow,
+            zoneHigh:
+              state.level.zone
+                .outerHigh,
+            touchesCount:
+              state.level
+                .touchesCount,
+            status:
+              state.status,
+            eligibleForSetups:
+              state
+                .eligibleForSetups,
+            score:
+              state.level.score.total,
+          }),
+        ),
+        this.options
+          .evaluationOptions
+        ?? DEFAULT_LEVEL_V2_SHADOW_EVALUATION_OPTIONS,
+      );
+
     const generatedAt =
       this.readNow()
         .toISOString();
@@ -628,19 +699,9 @@ implements LevelV2ShadowRuntimeReader {
       rejectedZonesCount:
         zones.rejected.length,
       rejectionCounts,
+      evaluation,
       levels:
-        lifecycleStates.sort(
-          (
-            left,
-            right,
-          ) =>
-            right.level.score.total
-            - left.level.score.total
-            || right.level
-              .lastTouchCandleIndex
-            - left.level
-              .lastTouchCandleIndex,
-        ),
+        sortedLifecycleStates,
       lifecycleEvents:
         lifecycleEvents.sort(
           (
