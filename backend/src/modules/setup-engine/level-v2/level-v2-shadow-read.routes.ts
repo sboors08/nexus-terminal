@@ -18,6 +18,7 @@ import type {
 } from './level-v2-shadow-runtime.types.js';
 import type {
   LevelV2ShadowDiagnostics,
+  LevelV2ShadowHistoryListResponse,
   LevelV2ShadowSnapshotFilters,
   LevelV2ShadowSnapshotListResponse,
 } from './level-v2-shadow-read.types.js';
@@ -441,6 +442,238 @@ FastifyPluginAsync<
       return buildDiagnostics(
         runtime,
       );
+    },
+  );
+
+  app.get(
+    '/setups/levels-v2/shadow/history/status',
+    async (
+      request,
+      reply,
+    ) => {
+      const runtime =
+        options
+          .levelV2ShadowRuntimeReader;
+
+      if (
+        !runtime
+        || typeof runtime
+          .getEvaluationHistoryStatus
+          !== 'function'
+      ) {
+        return sendError(
+          request,
+          reply,
+          503,
+          'level_v2_shadow_history_unavailable',
+          'Level v2 shadow evaluation history is unavailable',
+        );
+      }
+
+      return runtime
+        .getEvaluationHistoryStatus();
+    },
+  );
+
+  app.get<{
+    Querystring: {
+      symbol?: string;
+      limit?: string;
+    };
+  }>(
+    '/setups/levels-v2/shadow/history',
+    async (
+      request,
+      reply,
+    ) => {
+      const symbol =
+        normalizeSymbol(
+          request.query.symbol,
+        );
+
+      if (symbol === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_level_v2_shadow_history_symbol',
+          'Invalid Level v2 shadow history symbol',
+        );
+      }
+
+      const limit =
+        parseLimit(
+          request.query.limit,
+        );
+
+      if (limit === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_level_v2_shadow_history_limit',
+          'Level v2 shadow history limit must be an integer from 1 to 500',
+        );
+      }
+
+      const runtime =
+        options
+          .levelV2ShadowRuntimeReader;
+
+      if (
+        !runtime
+        || typeof runtime
+          .getEvaluationHistory
+          !== 'function'
+        || typeof runtime
+          .getEvaluationHistoryStatus
+          !== 'function'
+      ) {
+        return sendError(
+          request,
+          reply,
+          503,
+          'level_v2_shadow_history_unavailable',
+          'Level v2 shadow evaluation history is unavailable',
+        );
+      }
+
+      const status =
+        runtime
+          .getEvaluationHistoryStatus();
+
+      const items =
+        runtime
+          .getEvaluationHistory(
+            symbol
+            ?? undefined,
+            limit,
+          );
+
+      const response:
+      LevelV2ShadowHistoryListResponse = {
+        items,
+        count:
+          items.length,
+        totalEntries:
+          status.entriesCount,
+        status,
+        filters: {
+          symbol:
+            symbol
+            ?? null,
+          limit,
+        },
+      };
+
+      return response;
+    },
+  );
+
+  app.get<{
+    Params: {
+      symbol: string;
+    };
+    Querystring: {
+      limit?: string;
+    };
+  }>(
+    '/setups/levels-v2/shadow/history/:symbol',
+    async (
+      request,
+      reply,
+    ) => {
+      const symbol =
+        normalizeSymbol(
+          request.params.symbol,
+        );
+
+      if (
+        symbol === null
+        || symbol === undefined
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_level_v2_shadow_history_symbol',
+          'Invalid Level v2 shadow history symbol',
+        );
+      }
+
+      const limit =
+        parseLimit(
+          request.query.limit,
+        );
+
+      if (limit === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_level_v2_shadow_history_limit',
+          'Level v2 shadow history limit must be an integer from 1 to 500',
+        );
+      }
+
+      const runtime =
+        options
+          .levelV2ShadowRuntimeReader;
+
+      if (
+        !runtime
+        || typeof runtime
+          .getEvaluationHistory
+          !== 'function'
+        || typeof runtime
+          .getEvaluationHistoryStatus
+          !== 'function'
+      ) {
+        return sendError(
+          request,
+          reply,
+          503,
+          'level_v2_shadow_history_unavailable',
+          'Level v2 shadow evaluation history is unavailable',
+        );
+      }
+
+      const items =
+        runtime
+          .getEvaluationHistory(
+            symbol,
+            limit,
+          );
+
+      if (items.length === 0) {
+        return sendError(
+          request,
+          reply,
+          404,
+          'level_v2_shadow_history_not_found',
+          `Level v2 shadow history ${symbol} was not found`,
+        );
+      }
+
+      const status =
+        runtime
+          .getEvaluationHistoryStatus();
+
+      const response:
+      LevelV2ShadowHistoryListResponse = {
+        items,
+        count:
+          items.length,
+        totalEntries:
+          status.entriesCount,
+        status,
+        filters: {
+          symbol,
+          limit,
+        },
+      };
+
+      return response;
     },
   );
 

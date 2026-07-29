@@ -15,6 +15,11 @@ import type {
   LevelV2ShadowEvaluationOptions,
 } from './level-v2-shadow-evaluation.types.js';
 import type {
+  LevelV2ShadowHistoryEntry,
+  LevelV2ShadowHistoryOptions,
+  LevelV2ShadowHistoryStatus,
+} from './level-v2-shadow-history.types.js';
+import type {
   SetupDetectionRuntimeSource,
   SetupDetectionTriggerSource,
 } from '../setup-detection-runtime.types.js';
@@ -29,6 +34,8 @@ export interface LevelV2ShadowRuntimeOptions {
   foundationOptions: LevelV2FoundationOptions;
   zonesScoreOptions: LevelV2ZonesScoreOptions;
   lifecycleOptions: LevelV2LifecycleOptions;
+  historyOptions?:
+    LevelV2ShadowHistoryOptions;
   evaluationOptions?:
     LevelV2ShadowEvaluationOptions;
   now: () => Date;
@@ -77,6 +84,11 @@ export interface LevelV2ShadowRuntimeReader {
   getStatus(): LevelV2ShadowRuntimeStatus;
   getSnapshots(): LevelV2ShadowSnapshot[];
   getSnapshot(symbol: string): LevelV2ShadowSnapshot | null;
+  getEvaluationHistory?(
+    symbol?: string,
+    limit?: number,
+  ): LevelV2ShadowHistoryEntry[];
+  getEvaluationHistoryStatus?(): LevelV2ShadowHistoryStatus;
 }
 
 export type LevelV2ShadowRuntimeSource =

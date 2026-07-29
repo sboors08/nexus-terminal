@@ -3,6 +3,8 @@ export * from './level-v2-lifecycle.js';
 export * from './level-v2-lifecycle.types.js';
 export * from './level-v2-shadow-evaluation.js';
 export * from './level-v2-shadow-evaluation.types.js';
+export * from './level-v2-shadow-history.js';
+export * from './level-v2-shadow-history.types.js';
 export * from './level-v2-shadow-runtime.js';
 export * from './level-v2-shadow-runtime.types.js';
 export * from './level-v2-zones-score.js';

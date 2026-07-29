@@ -15,6 +15,14 @@ import {
   DEFAULT_LEVEL_V2_SHADOW_EVALUATION_OPTIONS,
   evaluateLevelV2ShadowComparison,
 } from './level-v2-shadow-evaluation.js';
+import {
+  DEFAULT_LEVEL_V2_SHADOW_HISTORY_OPTIONS,
+  LevelV2ShadowHistoryStore,
+} from './level-v2-shadow-history.js';
+import type {
+  LevelV2ShadowHistoryEntry,
+  LevelV2ShadowHistoryStatus,
+} from './level-v2-shadow-history.types.js';
 import type {
   LevelV2Candle,
   LevelV2TouchEvent,
@@ -55,6 +63,9 @@ LevelV2ShadowRuntimeOptions = {
   },
   lifecycleOptions: {
     ...DEFAULT_LEVEL_V2_LIFECYCLE_OPTIONS,
+  },
+  historyOptions: {
+    ...DEFAULT_LEVEL_V2_SHADOW_HISTORY_OPTIONS,
   },
   evaluationOptions: {
     ...DEFAULT_LEVEL_V2_SHADOW_EVALUATION_OPTIONS,
@@ -280,6 +291,9 @@ implements LevelV2ShadowRuntimeReader {
       LevelV2ShadowSnapshot
     >();
 
+  private readonly historyStore:
+    LevelV2ShadowHistoryStore;
+
   private state:
     LevelV2ShadowRuntimeState =
       'idle';
@@ -310,6 +324,12 @@ implements LevelV2ShadowRuntimeReader {
         DEFAULT_LEVEL_V2_SHADOW_RUNTIME_OPTIONS,
   ) {
     validateOptions(options);
+
+    this.historyStore =
+      new LevelV2ShadowHistoryStore(
+        options.historyOptions
+        ?? DEFAULT_LEVEL_V2_SHADOW_HISTORY_OPTIONS,
+      );
   }
 
   start(): void {
@@ -443,6 +463,24 @@ implements LevelV2ShadowRuntimeReader {
       : null;
   }
 
+  getEvaluationHistory(
+    symbol?: string,
+    limit?: number,
+  ):
+  LevelV2ShadowHistoryEntry[] {
+    return this.historyStore
+      .getHistory(
+        symbol,
+        limit,
+      );
+  }
+
+  getEvaluationHistoryStatus():
+  LevelV2ShadowHistoryStatus {
+    return this.historyStore
+      .getStatus();
+  }
+
   private processSymbols(
     symbolValues:
       readonly string[],
@@ -483,6 +521,10 @@ implements LevelV2ShadowRuntimeReader {
           cloneSnapshot(
             snapshot,
           ),
+        );
+
+        this.historyStore.record(
+          snapshot,
         );
 
         this.scansCount += 1;
@@ -653,7 +695,7 @@ implements LevelV2ShadowRuntimeReader {
             timeframe:
               state.level.timeframe,
             kind:
-              state.level.kind,
+              state.currentKind,
             referencePrice:
               state.level.zone
                 .referencePrice,
