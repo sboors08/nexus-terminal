@@ -12,6 +12,8 @@ import { MarketWideHistoryWarmupService } from './modules/realtime-market-data/m
 import { MarketWideRealtimeService } from './modules/realtime-market-data/market-wide-realtime.service.js';
 import { MarketWideRuntimeCoordinator } from './modules/realtime-market-data/market-wide-runtime-coordinator.js';
 import { SetupDetectionRuntimeService } from './modules/setup-engine/setup-detection-runtime.service.js';
+import { LevelV2ShadowRuntimeService } from './modules/setup-engine/level-v2/level-v2-shadow-runtime.js';
+import type { LevelV2ShadowRuntimeLifecycle } from './modules/setup-engine/level-v2/level-v2-shadow-runtime.types.js';
 import type {
   SetupDetectionRuntimeEventSource,
   SetupDetectionRuntimeLifecycle,
@@ -38,6 +40,7 @@ export interface BuildAppOptions {
   setupDetectionRuntimeService?: SetupDetectionRuntimeLifecycle | null;
   setupDetectionRuntimeReader?: SetupDetectionRuntimeReader | null;
   setupDetectionRuntimeEventSource?: SetupDetectionRuntimeEventSource | null;
+  levelV2ShadowRuntimeService?: LevelV2ShadowRuntimeLifecycle | null;
   setupEventHistoryService?: SetupEventHistoryLifecycle | null;
   setupEventHistoryReader?: SetupEventHistoryReader | null;
 }
@@ -215,6 +218,17 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         : null
       : options.setupDetectionRuntimeService;
 
+  const levelV2ShadowRuntimeService =
+    options.levelV2ShadowRuntimeService
+    === undefined
+      ? env.nodeEnv !== 'test'
+        && marketWideRealtimeService
+          ? new LevelV2ShadowRuntimeService(
+              marketWideRealtimeService,
+            )
+          : null
+      : options.levelV2ShadowRuntimeService;
+
   const setupDetectionRuntimeReader =
     options.setupDetectionRuntimeReader
     === undefined
@@ -327,6 +341,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       'onClose',
       async () => {
         setupDetectionRuntimeService.stop();
+      },
+    );
+  }
+
+  if (levelV2ShadowRuntimeService) {
+    app.addHook(
+      'onReady',
+      async () => {
+        levelV2ShadowRuntimeService.start();
+      },
+    );
+
+    app.addHook(
+      'onClose',
+      async () => {
+        levelV2ShadowRuntimeService.stop();
       },
     );
   }
