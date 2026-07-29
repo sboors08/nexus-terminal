@@ -46,6 +46,12 @@ import {
 import {
   setupLifecycleSseRoutes,
 } from './setup-engine/setup-lifecycle-sse.routes.js';
+import {
+  levelV2ShadowReadRoutes,
+} from './setup-engine/level-v2/level-v2-shadow-read.routes.js';
+import type {
+  LevelV2ShadowRuntimeReader,
+} from './setup-engine/level-v2/level-v2-shadow-runtime.types.js';
 import type {
   SetupDetectionRuntimeEventSource,
   SetupDetectionRuntimeReader,
@@ -78,6 +84,9 @@ interface ApiModulesOptions {
 
   setupDetectionRuntimeEventSource?:
     SetupDetectionRuntimeEventSource;
+
+  levelV2ShadowRuntimeReader?:
+    LevelV2ShadowRuntimeReader;
 
   setupEventHistoryReader?:
     SetupEventHistoryReader;
@@ -112,6 +121,22 @@ FastifyPluginAsync<
               setupDetectionRuntimeReader:
                 options
                   .setupDetectionRuntimeReader,
+            }
+          : {}
+      ),
+    },
+  );
+
+  await app.register(
+    levelV2ShadowReadRoutes,
+    {
+      ...(
+        options
+          .levelV2ShadowRuntimeReader
+          ? {
+              levelV2ShadowRuntimeReader:
+                options
+                  .levelV2ShadowRuntimeReader,
             }
           : {}
       ),
