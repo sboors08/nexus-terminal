@@ -316,11 +316,23 @@ function buildGeometry(
   const liquidityPadding = averageAtrValue * options.liquidityPaddingAtr;
 
   const coreLow = kind === 'resistance'
-    ? lowerQuartile - corePadding
-    : lowerQuartile;
+    ? Math.min(
+        lowerQuartile,
+        referencePrice,
+      ) - corePadding
+    : Math.min(
+        lowerQuartile,
+        referencePrice,
+      );
   const coreHigh = kind === 'resistance'
-    ? upperQuartile
-    : upperQuartile + corePadding;
+    ? Math.max(
+        upperQuartile,
+        referencePrice,
+      )
+    : Math.max(
+        upperQuartile,
+        referencePrice,
+      ) + corePadding;
   const outerLow = kind === 'resistance'
     ? coreLow - outerPadding
     : minimum - outerPadding;
