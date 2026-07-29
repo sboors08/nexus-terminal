@@ -9,6 +9,10 @@ import type {
   LevelV2ShadowRuntimeStatus,
   LevelV2ShadowSnapshot,
 } from './level-v2-shadow-runtime.types.js';
+import type {
+  LevelV2ShadowHistoryEntry,
+  LevelV2ShadowHistoryStatus,
+} from './level-v2-shadow-history.types.js';
 
 export interface LevelV2ShadowSnapshotFilters {
   symbol: string | null;
@@ -39,4 +43,17 @@ export interface LevelV2ShadowDiagnostics {
   kindCounts: Record<LevelV2Kind, number>;
   rejectionCounts: LevelV2ShadowRejectionCounts;
   latestGeneratedAt: string | null;
+}
+
+export interface LevelV2ShadowHistoryFilters {
+  symbol: string | null;
+  limit: number;
+}
+
+export interface LevelV2ShadowHistoryListResponse {
+  items: readonly LevelV2ShadowHistoryEntry[];
+  count: number;
+  totalEntries: number;
+  status: LevelV2ShadowHistoryStatus;
+  filters: LevelV2ShadowHistoryFilters;
 }
