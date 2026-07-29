@@ -13,7 +13,10 @@ import { MarketWideRealtimeService } from './modules/realtime-market-data/market
 import { MarketWideRuntimeCoordinator } from './modules/realtime-market-data/market-wide-runtime-coordinator.js';
 import { SetupDetectionRuntimeService } from './modules/setup-engine/setup-detection-runtime.service.js';
 import { LevelV2ShadowRuntimeService } from './modules/setup-engine/level-v2/level-v2-shadow-runtime.js';
-import type { LevelV2ShadowRuntimeLifecycle } from './modules/setup-engine/level-v2/level-v2-shadow-runtime.types.js';
+import type {
+  LevelV2ShadowRuntimeLifecycle,
+  LevelV2ShadowRuntimeReader,
+} from './modules/setup-engine/level-v2/level-v2-shadow-runtime.types.js';
 import type {
   SetupDetectionRuntimeEventSource,
   SetupDetectionRuntimeLifecycle,
@@ -41,6 +44,7 @@ export interface BuildAppOptions {
   setupDetectionRuntimeReader?: SetupDetectionRuntimeReader | null;
   setupDetectionRuntimeEventSource?: SetupDetectionRuntimeEventSource | null;
   levelV2ShadowRuntimeService?: LevelV2ShadowRuntimeLifecycle | null;
+  levelV2ShadowRuntimeReader?: LevelV2ShadowRuntimeReader | null;
   setupEventHistoryService?: SetupEventHistoryLifecycle | null;
   setupEventHistoryReader?: SetupEventHistoryReader | null;
 }
@@ -229,6 +233,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           : null
       : options.levelV2ShadowRuntimeService;
 
+  const levelV2ShadowRuntimeReader =
+    options.levelV2ShadowRuntimeReader
+    === undefined
+      ? levelV2ShadowRuntimeService
+        instanceof LevelV2ShadowRuntimeService
+          ? levelV2ShadowRuntimeService
+          : null
+      : options.levelV2ShadowRuntimeReader;
+
   const setupDetectionRuntimeReader =
     options.setupDetectionRuntimeReader
     === undefined
@@ -413,6 +426,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : {}),
     ...(setupDetectionRuntimeEventSource
       ? { setupDetectionRuntimeEventSource }
+      : {}),
+    ...(levelV2ShadowRuntimeReader
+      ? { levelV2ShadowRuntimeReader }
       : {}),
     ...(setupEventHistoryReader
       ? { setupEventHistoryReader }
