@@ -114,6 +114,9 @@ FastifyPluginAsync<
   await app.register(
     setupReadRoutes,
     {
+      marketDataProvider:
+        options.marketDataProvider,
+
       ...(
         options
           .setupDetectionRuntimeReader

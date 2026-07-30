@@ -73,7 +73,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const marketDataProvider = options.marketDataProvider ?? new BinanceMarketDataClient({
     baseUrl: env.binanceBaseUrl ?? 'https://fapi.binance.com',
     requestTimeoutMs: env.binanceRequestTimeoutMs ?? 5_000,
-    symbolsLimit: env.binanceSymbolsLimit ?? 100,
+    symbolsLimit: env.binanceSymbolsLimit ?? 1_000,
     cacheTtlMs: env.binanceCacheTtlMs ?? 15_000,
   });
   const webSocketEnabled = env.binanceWebSocketEnabled ?? env.nodeEnv !== 'test';

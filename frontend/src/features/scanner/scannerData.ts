@@ -2,10 +2,25 @@ import type { TradeDirection } from '@/shared/ui/DirectionBadge';
 import type { SetupStage } from '@/shared/ui/SetupStageBadge';
 
 export type ScannerSetupKind =
-  | 'Пробой сопротивления'
-  | 'Пробой поддержки'
-  | 'Отскок от поддержки'
-  | 'Отскок от сопротивления';
+  | '\u041f\u0440\u043e\u0431\u043e\u0439 \u0441\u043e\u043f\u0440\u043e\u0442\u0438\u0432\u043b\u0435\u043d\u0438\u044f'
+  | '\u041f\u0440\u043e\u0431\u043e\u0439 \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u043a\u0438'
+  | '\u041e\u0442\u0441\u043a\u043e\u043a \u043e\u0442 \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u043a\u0438'
+  | '\u041e\u0442\u0441\u043a\u043e\u043a \u043e\u0442 \u0441\u043e\u043f\u0440\u043e\u0442\u0438\u0432\u043b\u0435\u043d\u0438\u044f'
+  | '\u0423\u0440\u043e\u0432\u0435\u043d\u044c \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u043a\u0438'
+  | '\u0423\u0440\u043e\u0432\u0435\u043d\u044c \u0441\u043e\u043f\u0440\u043e\u0442\u0438\u0432\u043b\u0435\u043d\u0438\u044f';
+
+export type ScannerSetupSource =
+  | 'v1'
+  | 'v2-shadow';
+
+export type ScannerShadowLifecycleStatus =
+  | 'forming'
+  | 'active'
+  | 'testing'
+  | 'broken'
+  | 'retest_pending'
+  | 'flipped'
+  | 'expired';
 
 export type ScannerTimeframe = '1m' | '5m' | '15m';
 
@@ -26,6 +41,7 @@ export type ScannerSetup = {
   formationMinutes: number;
   formationLabel: string;
   pullbackDepth: 'Глубокие' | 'Неглубокие' | '—';
+  quoteVolume24h?: number | null;
   volumeAnomaly: number | null;
   tradesAnomaly: number | null;
   tradeSpeed: string;
@@ -39,6 +55,12 @@ export type ScannerSetup = {
   levelY: number;
   touchPoints: Array<{ x: number; y: number }>;
   runtimeData?: boolean;
+  source?: ScannerSetupSource;
+  levelLow?: number;
+  levelHigh?: number;
+  levelReferencePrice?: number;
+  shadowScore?: number;
+  shadowStatus?: ScannerShadowLifecycleStatus;
 };
 
 export const SCANNER_SETUPS: ScannerSetup[] = [

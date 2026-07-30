@@ -1682,3 +1682,794 @@
     grid-column: 1 / -1;
   }
 }
+
+
+.headerControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--nexus-space-2);
+  flex-wrap: wrap;
+}
+
+.shadowModeControl {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+
+.shadowModeButtons {
+  display: grid;
+  grid-template-columns: auto auto;
+  padding: 3px;
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+  background: var(--nexus-color-bg-canvas);
+}
+
+.shadowModeButtons button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--nexus-color-text-muted);
+  background: transparent;
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+  font-weight: var(--nexus-font-weight-bold);
+  cursor: pointer;
+}
+
+.shadowModeButtons button:hover {
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-hover);
+}
+
+.shadowModeButtons .shadowModeActive {
+  color: #98e9ff;
+  background: rgb(92 75 255 / 18%);
+  box-shadow: inset 0 0 0 1px rgb(119 103 255 / 40%);
+}
+
+.shadowModeMeta {
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+}
+
+.shadowModeMeta button {
+  padding: 2px 6px;
+  border: 1px solid rgb(119 103 255 / 55%);
+  border-radius: 4px;
+  color: #98e9ff;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.v1SourceBadge,
+.shadowSourceBadge {
+  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 3px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  font-weight: var(--nexus-font-weight-bold);
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.v1SourceBadge {
+  border: 1px solid var(--nexus-color-border-subtle);
+  color: var(--nexus-color-text-muted);
+  opacity: 0.72;
+}
+
+.shadowSourceBadge {
+  border: 1px dashed #7767ff;
+  color: #98e9ff;
+  background: rgb(92 75 255 / 13%);
+}
+
+.tableRowShadow {
+  border-left-color: #7767ff;
+  background:
+    linear-gradient(
+      90deg,
+      rgb(92 75 255 / 9%),
+      transparent 28%
+    );
+}
+
+.tableRowShadow:not(.tableRowSelected) {
+  opacity: 0.88;
+}
+
+.shadowOnlyNotice {
+  display: grid;
+  gap: 5px;
+  margin-top: var(--nexus-space-2);
+  padding: 11px 12px;
+  border: 1px dashed #7767ff;
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-muted);
+  background: rgb(92 75 255 / 9%);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.shadowOnlyNotice strong {
+  color: #98e9ff;
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+}
+
+@media (max-width: 900px) {
+  .headerControls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .shadowModeControl {
+    justify-items: start;
+  }
+}
+
+
+/* Scanner UX v2 desktop master-detail */
+.nexusContextHeader {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: var(--nexus-space-2);
+  border: var(--nexus-border-width) solid var(--nexus-color-border-accent);
+  border-radius: var(--nexus-radius-md);
+  background:
+    linear-gradient(
+      145deg,
+      var(--nexus-color-bg-selected),
+      transparent 64%
+    ),
+    var(--nexus-color-bg-canvas);
+}
+
+.nexusContextHeader h3 {
+  margin: 0;
+  color: var(--nexus-color-text-primary);
+  font-size: var(--nexus-font-size-md);
+}
+
+.nexusContextHeader > span {
+  color: var(--nexus-color-text-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+@media (min-width: 1280px) {
+  .scannerGrid {
+    grid-template-columns:
+      minmax(310px, 360px)
+      minmax(620px, 1fr)
+      minmax(280px, 340px);
+    gap: var(--nexus-space-2);
+    align-items: start;
+  }
+
+  .tablePanel {
+    position: sticky;
+    top:
+      calc(
+        var(--nexus-topbar-height)
+        + var(--nexus-space-2)
+      );
+    grid-column: 1;
+    max-height:
+      calc(
+        100vh
+        - var(--nexus-topbar-height)
+        - var(--nexus-space-3)
+      );
+    overflow: hidden;
+  }
+
+  .tableViewport {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .tableHeader {
+    display: none;
+  }
+
+  .tableBody {
+    max-height:
+      calc(
+        100vh
+        - var(--nexus-topbar-height)
+        - 116px
+      );
+    gap: 6px;
+    padding-right: 4px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-color:
+      var(--nexus-color-border-strong)
+      transparent;
+    scrollbar-width: thin;
+  }
+
+  .tableRow {
+    min-width: 0;
+    min-height: 112px;
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto
+      auto;
+    grid-template-rows:
+      auto
+      auto
+      auto
+      auto;
+    gap: 6px 9px;
+    padding: 10px;
+    border:
+      var(--nexus-border-width)
+      solid
+      var(--nexus-color-border-subtle);
+    background:
+      var(--nexus-color-bg-canvas);
+  }
+
+  .tableRow:hover {
+    border-color:
+      var(--nexus-color-border-strong);
+  }
+
+  .tableRowSelected {
+    border-color:
+      var(--nexus-color-border-accent);
+    background:
+      linear-gradient(
+        135deg,
+        var(--nexus-color-bg-selected),
+        transparent 72%
+      ),
+      var(--nexus-color-bg-canvas);
+  }
+
+  .tableRow > :nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .tableRow > :nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .tableRow > :nth-child(4) {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .tableRow > :nth-child(3) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    color: var(--nexus-color-text-secondary);
+    font-size: 9px;
+    white-space: normal;
+  }
+
+  .tableRow > :nth-child(5),
+  .tableRow > :nth-child(6),
+  .tableRow > :nth-child(9),
+  .tableRow > :nth-child(11),
+  .tableRow > :nth-child(12),
+  .tableRow > :nth-child(13) {
+    position: relative;
+    min-width: 0;
+    display: grid;
+    align-content: end;
+    gap: 2px;
+    padding-top: 11px;
+    font-family:
+      var(--nexus-font-family-mono);
+    font-size: 9px;
+  }
+
+  .tableRow > :nth-child(5)::before,
+  .tableRow > :nth-child(6)::before,
+  .tableRow > :nth-child(9)::before,
+  .tableRow > :nth-child(11)::before,
+  .tableRow > :nth-child(12)::before,
+  .tableRow > :nth-child(13)::before {
+    position: absolute;
+    top: 0;
+    left: 0;
+    color: var(--nexus-color-text-muted);
+    font-family:
+      var(--nexus-font-family-sans);
+    font-size: 7px;
+    font-weight:
+      var(--nexus-font-weight-semibold);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .tableRow > :nth-child(5) {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .tableRow > :nth-child(6) {
+    grid-column: 2;
+    grid-row: 3;
+    text-align: center;
+  }
+
+  .tableRow > :nth-child(9) {
+    grid-column: 3;
+    grid-row: 3;
+    text-align: right;
+  }
+
+  .tableRow > :nth-child(11) {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  .tableRow > :nth-child(12) {
+    grid-column: 2;
+    grid-row: 4;
+    text-align: center;
+  }
+
+  .tableRow > :nth-child(13) {
+    grid-column: 3;
+    grid-row: 4;
+    text-align: right;
+  }
+
+  .tableRow > :nth-child(5)::before {
+    content: 'TF';
+  }
+
+  .tableRow > :nth-child(6)::before {
+    content: 'Уровень';
+  }
+
+  .tableRow > :nth-child(9)::before {
+    content: 'До уровня';
+  }
+
+  .tableRow > :nth-child(11)::before {
+    content: 'Объём';
+  }
+
+  .tableRow > :nth-child(12)::before {
+    content: 'Сделки';
+  }
+
+  .tableRow > :nth-child(13)::before {
+    content: 'К BTC';
+  }
+
+  .tableRow > :nth-child(7),
+  .tableRow > :nth-child(8),
+  .tableRow > :nth-child(10) {
+    display: none;
+  }
+
+  .previewPanel {
+    position: static;
+    grid-column: 2 / 4;
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(280px, 340px);
+    grid-auto-flow: row;
+    align-items: start;
+    gap: var(--nexus-space-2);
+  }
+
+  .previewHeader,
+  .stageLine,
+  .realtimeStrip,
+  .chartCanvas,
+  .tradesPanel {
+    grid-column: 1;
+  }
+
+  .nexusContextHeader,
+  .previewMetrics,
+  .reasonBlock,
+  .previewActions,
+  .shadowOnlyNotice {
+    grid-column: 2;
+  }
+
+  .previewHeader,
+  .nexusContextHeader {
+    grid-row: 1;
+  }
+
+  .stageLine,
+  .previewMetrics {
+    grid-row: 2;
+  }
+
+  .realtimeStrip,
+  .reasonBlock {
+    grid-row: 3;
+  }
+
+  .chartCanvas,
+  .previewActions,
+  .shadowOnlyNotice {
+    grid-row: 4;
+  }
+
+  .tradesPanel {
+    grid-row: 5;
+  }
+
+  .chartCanvas {
+    height:
+      clamp(
+        430px,
+        52vh,
+        640px
+      );
+    min-height: 430px;
+    margin-top: 0;
+  }
+
+  .previewMetrics,
+  .reasonBlock,
+  .previewActions,
+  .shadowOnlyNotice,
+  .tradesPanel,
+  .realtimeStrip {
+    margin-top: 0;
+  }
+
+  .previewMetrics {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  .previewActions {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* Scanner UX v2 independent columns */
+@media (min-width: 1280px) {
+  .previewPanel {
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(280px, 340px);
+    gap: var(--nexus-space-2);
+    align-items: start;
+  }
+
+  .chartColumn {
+    min-width: 0;
+    display: grid;
+    align-content: start;
+    gap: 8px;
+  }
+
+  .nexusColumn {
+    min-width: 0;
+    position: sticky;
+    top:
+      calc(
+        var(--nexus-topbar-height)
+        + var(--nexus-space-2)
+      );
+    max-height:
+      calc(
+        100vh
+        - var(--nexus-topbar-height)
+        - var(--nexus-space-3)
+      );
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    padding-right: 3px;
+    overflow-y: auto;
+    scrollbar-color:
+      var(--nexus-color-border-strong)
+      transparent;
+    scrollbar-width: thin;
+  }
+
+  .chartColumn > .previewHeader,
+  .chartColumn > .stageLine,
+  .chartColumn > .realtimeStrip,
+  .chartColumn > .chartCanvas,
+  .chartColumn > .tradesPanel,
+  .nexusColumn > .nexusContextHeader,
+  .nexusColumn > .previewMetrics,
+  .nexusColumn > .reasonBlock,
+  .nexusColumn > .previewActions,
+  .nexusColumn > .shadowOnlyNotice {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .chartColumn .previewHeader {
+    min-height: 42px;
+  }
+
+  .chartColumn .stageLine {
+    min-height: 28px;
+    margin-top: 0;
+    padding: 5px 8px;
+  }
+
+  .chartColumn .realtimeStrip {
+    margin-top: 0;
+    padding: 5px;
+    gap: 5px;
+  }
+
+  .chartColumn .realtimeStrip > div {
+    padding: 5px 7px;
+  }
+
+  .chartColumn .realtimeStripFooter {
+    min-height: 18px;
+  }
+
+  .chartColumn .chartCanvas {
+    height:
+      clamp(
+        460px,
+        58vh,
+        680px
+      );
+    min-height: 460px;
+    margin-top: 0;
+  }
+
+  .chartColumn .tradesPanel,
+  .nexusColumn .previewMetrics,
+  .nexusColumn .reasonBlock,
+  .nexusColumn .previewActions,
+  .nexusColumn .shadowOnlyNotice {
+    margin-top: 0;
+  }
+
+  .nexusColumn .previewMetrics {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  .nexusColumn .previewActions {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* Scanner UX v2 market pulse placement */
+@media (min-width: 1280px) {
+  .volumeSpikesPanel {
+    margin-top: var(--nexus-space-2);
+    margin-bottom: 0;
+  }
+}
+
+
+/* Scanner UX v2 compact preset row */
+@media (min-width: 1100px) {
+  .presetFilter {
+    grid-template-columns:
+      max-content
+      minmax(330px, 1fr)
+      max-content
+      minmax(280px, 0.8fr);
+    gap: 10px 14px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+  }
+
+  .presetControl,
+  .scannerWindowControl {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+@media (max-width: 1099px) {
+  .presetFilter {
+    grid-template-columns:
+      max-content
+      minmax(0, 1fr);
+  }
+}
+
+
+/* Scanner UX v2 compact vertical rhythm */
+@media (min-width: 1280px) {
+  .filtersPanel {
+    padding: 9px 12px;
+    margin-bottom: 7px;
+  }
+
+  .presetFilter {
+    gap: 7px 12px;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+  }
+
+  .filterTopRow {
+    gap: 8px;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+  }
+
+  .filterBottomRow {
+    gap: 8px;
+  }
+
+  .scannerGrid {
+    gap: 8px;
+  }
+
+  .tablePanel,
+  .previewPanel {
+    padding: 10px;
+  }
+
+  .chartColumn {
+    gap: 4px;
+  }
+
+  .chartColumn .previewHeader {
+    min-height: 34px;
+    margin-bottom: 0;
+  }
+
+  .chartColumn .stageLine {
+    min-height: 22px;
+    padding: 3px 7px;
+  }
+
+  .chartColumn .realtimeStrip {
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .chartColumn .realtimeStrip > div {
+    padding: 4px 7px;
+  }
+
+  .chartColumn .realtimeStripFooter {
+    min-height: 14px;
+  }
+
+  .chartColumn .chartCanvas {
+    margin-top: 0;
+  }
+}
+
+
+/* Scanner UX v2 single-line setup header */
+.setupHeaderLine {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.setupKindInline,
+.setupZoneInline,
+.marketPreviewInline {
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.setupKindInline::before,
+.setupZoneInline::before,
+.marketPreviewInline::before {
+  content: '?';
+  margin-right: 7px;
+  color: var(--nexus-color-border-strong);
+}
+
+.setupZoneInline {
+  font-family: var(--nexus-font-family-mono);
+  white-space: nowrap;
+}
+
+@media (min-width: 1280px) {
+  .chartColumn .previewHeader {
+    min-height: 28px;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .setupHeaderLine {
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+
+  .setupKindInline {
+    max-width: 230px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .priceBlock {
+    flex: 0 0 auto;
+  }
+}
+
+
+/* Scanner UX v2 minimum quote volume */
+.volumeFilterField {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.volumeFilterField > span {
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.volumeFilterField input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--nexus-color-border-strong);
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.volumeFilterField input:focus {
+  border-color: var(--nexus-color-accent);
+}
+
+@media (min-width: 1280px) {
+  .filterTopRow {
+    display: grid;
+    grid-template-columns:
+      minmax(210px, 1.35fr)
+      minmax(125px, 0.55fr)
+      minmax(140px, 0.65fr)
+      minmax(210px, 1fr)
+      minmax(170px, 0.85fr)
+      minmax(140px, 0.65fr);
+    gap: 8px;
+  }
+}

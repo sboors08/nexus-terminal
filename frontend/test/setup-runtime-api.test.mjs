@@ -271,6 +271,36 @@ test(
 );
 
 test(
+  'builds a volume-filtered runtime candidates URL',
+  () => {
+    assert.equal(
+      buildSetupRuntimeCandidatesUrl({
+        baseUrl:
+          'http://localhost:4100/',
+
+        limit:
+          1_000,
+
+        minQuoteVolume24h:
+          18_000_000,
+      }),
+      'http://localhost:4100/api/v1/setups/candidates'
+        + '?limit=1000'
+        + '&minQuoteVolume24h=18000000',
+    );
+
+    assert.throws(
+      () =>
+        buildSetupRuntimeCandidatesUrl({
+          minQuoteVolume24h:
+            -1,
+        }),
+      /Invalid setup runtime minimum 24h quote volume/,
+    );
+  },
+);
+
+test(
   'selects the most advanced eligible runtime candidate',
   () => {
     const base =

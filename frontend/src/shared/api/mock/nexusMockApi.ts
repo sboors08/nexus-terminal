@@ -61,6 +61,8 @@ import {
   fetchSetupRuntimeCandidates,
   selectPreferredSetupRuntimeCandidate,
 } from '../runtime/setupRuntimeApi';
+import { fetchLevelV2ShadowSnapshots } from '../runtime/levelV2ShadowApi';
+import { mapLevelV2ShadowSnapshotsToScannerSetups } from '../runtime/levelV2ShadowScanner';
 import {
   DASHBOARD_VIEW_DATA,
   type DashboardActivityPeriod,
@@ -120,7 +122,12 @@ export interface MarketHistoryViewData {
 
 export interface NexusViewApi {
   getDashboardView(): Promise<DashboardViewData | null>;
-  getScannerSetups(): Promise<ScannerSetup[]>;
+  getScannerSetups(
+    options?: {
+      minQuoteVolume24h?: number;
+    },
+  ): Promise<ScannerSetup[]>;
+  getLevelV2ShadowScannerSetups(): Promise<ScannerSetup[]>;
   getWorkspaceView(setupId?: string | null, symbol?: string | null): Promise<WorkspaceViewData | null>;
   getAlertsView(): Promise<AlertsViewData>;
   getMarketHistoryView(): Promise<MarketHistoryViewData>;
@@ -1373,11 +1380,24 @@ const contractApi: NexusApi = {
 const viewApi: NexusViewApi = {
   getDashboardView: () => deliver('dashboard', DASHBOARD_VIEW_DATA, null),
   getScannerSetups:
-    async () => {
+    async (
+      options = {},
+    ) => {
       const setups =
         await fetchSetupRuntimeCandidates({
           limit:
-            100,
+            1_000,
+
+          ...(
+            options.minQuoteVolume24h
+            !== undefined
+              ? {
+                  minQuoteVolume24h:
+                    options
+                      .minQuoteVolume24h,
+                }
+              : {}
+          ),
         });
 
       return setups
@@ -1389,6 +1409,23 @@ const viewApi: NexusViewApi = {
         .map(
           runtimeContractSetupToScannerSetup,
         );
+    },
+
+  getLevelV2ShadowScannerSetups:
+    async () => {
+      const response =
+        await fetchLevelV2ShadowSnapshots({
+          eligibleForSetups:
+            true,
+          minScore:
+            90,
+          limit:
+            500,
+        });
+
+      return mapLevelV2ShadowSnapshotsToScannerSetups(
+        response.items,
+      );
     },
 
   getWorkspaceView:
