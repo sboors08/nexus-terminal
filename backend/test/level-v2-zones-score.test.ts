@@ -333,9 +333,35 @@ test('does not count touches that are too close in time', () => {
   );
 
   assert.equal(result.levels.length, 0);
-  assert.equal(result.rejected.length, 2);
-  assert.ok(result.rejected.every((item) =>
-    item.reasons.includes('insufficient_touches')));
+  assert.equal(result.rejected.length, 1);
+  assert.equal(result.rejected[0]?.touches.length, 1);
+  assert.ok(result.rejected[0]?.reasons.includes('insufficient_touches'));
+});
+
+test('does not seed parallel clusters from non-independent touches', () => {
+  const candles = resistanceCandles();
+  const extrema = [
+    extremum('h1', 'swing_high', 5, 100),
+    extremum('h2', 'swing_high', 15, 100),
+    extremum('h3', 'swing_high', 16, 100),
+    extremum('h4', 'swing_high', 25, 100),
+    extremum('h5', 'swing_high', 26, 100),
+    extremum('h6', 'swing_high', 35, 100),
+  ];
+  const result = buildLevelV2ZonesScore(
+    'SPELLUSDT',
+    '1m',
+    candles,
+    foundation(candles, extrema),
+    options,
+  );
+  const zones = [
+    ...result.levels,
+    ...result.rejected,
+  ];
+
+  assert.equal(zones.length, 1);
+  assert.equal(zones[0]?.touches.length, 4);
 });
 
 test('scores stronger reactions higher', () => {

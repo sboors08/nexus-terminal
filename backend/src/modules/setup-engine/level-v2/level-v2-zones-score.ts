@@ -252,17 +252,10 @@ function clusterTouches(
 
     let bestCluster: MutableCluster | null = null;
     let bestDistance = Number.POSITIVE_INFINITY;
+    let blockedBySpacing = false;
 
     for (const cluster of clusters) {
       if (cluster.kind !== touch.kind) {
-        continue;
-      }
-      const lastTouch = cluster.touches.at(-1);
-      if (
-        !lastTouch
-        || touch.firstCandleIndex - lastTouch.lastCandleIndex
-          < options.minTouchSpacingCandles
-      ) {
         continue;
       }
 
@@ -275,7 +268,22 @@ function clusterTouches(
         / 100;
       const tolerance = Math.min(atrTolerance, percentageCap);
       const distance = Math.abs(touch.extremePrice - reference);
-      if (distance <= tolerance && distance < bestDistance) {
+
+      if (distance > tolerance) {
+        continue;
+      }
+
+      const lastTouch = cluster.touches.at(-1);
+      if (
+        !lastTouch
+        || touch.firstCandleIndex - lastTouch.lastCandleIndex
+          < options.minTouchSpacingCandles
+      ) {
+        blockedBySpacing = true;
+        continue;
+      }
+
+      if (distance < bestDistance) {
         bestCluster = cluster;
         bestDistance = distance;
       }
@@ -283,7 +291,7 @@ function clusterTouches(
 
     if (bestCluster) {
       bestCluster.touches.push(touch);
-    } else {
+    } else if (!blockedBySpacing) {
       clusters.push({
         kind: touch.kind,
         touches: [touch],
