@@ -7,6 +7,9 @@ import {
   LevelV2LifecycleRegistry,
 } from './level-v2-lifecycle.js';
 import {
+  resolveLevelV2LifecycleCollisions,
+} from './level-v2-lifecycle-collisions.js';
+import {
   buildLevelV2ZonesScore,
   DEFAULT_LEVEL_V2_ZONES_SCORE_OPTIONS,
 } from './level-v2-zones-score.js';
@@ -668,7 +671,9 @@ implements LevelV2ShadowRuntimeReader {
     }
 
     const sortedLifecycleStates =
-      lifecycleStates.sort(
+      resolveLevelV2LifecycleCollisions(
+        lifecycleStates,
+      ).sort(
         (
           left,
           right,
