@@ -8,6 +8,9 @@ import type {
   AppEnv,
 } from '../src/config/env.js';
 import type {
+  MarketDataProvider,
+} from '../src/modules/market-data/market-data.provider.js';
+import type {
   SetupDetectionRuntimeLifecycle,
   SetupDetectionRuntimeReader,
   SetupDetectionRuntimeStatus,
@@ -235,6 +238,9 @@ implements SetupDetectionRuntimeLifecycle {
 async function createRouteApp(
   reader?:
     SetupDetectionRuntimeReader,
+
+  marketDataProvider?:
+    MarketDataProvider,
 ) {
   const app =
     Fastify({
@@ -251,6 +257,14 @@ async function createRouteApp(
           ? {
               setupDetectionRuntimeReader:
                 reader,
+            }
+          : {}
+      ),
+
+      ...(
+        marketDataProvider
+          ? {
+              marketDataProvider,
             }
           : {}
       ),
@@ -438,6 +452,211 @@ test(
 );
 
 test(
+  'setup candidates route applies 24h volume filter before limit',
+  async () => {
+    const marketDataProvider:
+    MarketDataProvider = {
+      getMarketSymbols:
+        async () => [
+          {
+            symbol:
+              'SOLUSDT',
+
+            baseAsset:
+              'SOL',
+
+            quoteAsset:
+              'USDT',
+
+            exchange:
+              'binance',
+
+            price:
+              100,
+
+            priceChangePct:
+              0,
+
+            volumeQuote:
+              500_000,
+
+            tradesCount:
+              100,
+
+            tradeRate:
+              1,
+
+            volatilityPct:
+              1,
+
+            btcCorrelation:
+              0,
+
+            btcRelativeStrength:
+              0,
+
+            updatedAt:
+              '2026-07-26T12:10:00.000Z',
+          },
+          {
+            symbol:
+              'ETHUSDT',
+
+            baseAsset:
+              'ETH',
+
+            quoteAsset:
+              'USDT',
+
+            exchange:
+              'binance',
+
+            price:
+              2_000,
+
+            priceChangePct:
+              0,
+
+            volumeQuote:
+              20_000_000,
+
+            tradesCount:
+              100,
+
+            tradeRate:
+              1,
+
+            volatilityPct:
+              1,
+
+            btcCorrelation:
+              0,
+
+            btcRelativeStrength:
+              0,
+
+            updatedAt:
+              '2026-07-26T12:10:00.000Z',
+          },
+        ],
+
+      getCandles:
+        async () => [],
+    };
+
+    const app =
+      await createRouteApp(
+        new TestSetupRuntimeReader(),
+        marketDataProvider,
+      );
+
+    const response =
+      await app.inject({
+        method:
+          'GET',
+
+        url:
+          '/api/v1/setups/candidates'
+          + '?limit=1'
+          + '&minQuoteVolume24h=1000000',
+      });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+
+    const payload =
+      response.json();
+
+    assert.equal(
+      payload.length,
+      1,
+    );
+
+    assert.equal(
+      payload[0].symbol,
+      'ETHUSDT',
+    );
+
+    await app.close();
+  },
+);
+
+test(
+  'setup volume filter returns 503 when market data is unavailable',
+  async () => {
+    const withoutProvider =
+      await createRouteApp(
+        new TestSetupRuntimeReader(),
+      );
+
+    const missingProviderResponse =
+      await withoutProvider.inject({
+        method:
+          'GET',
+
+        url:
+          '/api/v1/setups/candidates'
+          + '?minQuoteVolume24h=1000000',
+      });
+
+    assert.equal(
+      missingProviderResponse.statusCode,
+      503,
+    );
+
+    assert.equal(
+      missingProviderResponse.json().error,
+      'setup_market_data_unavailable',
+    );
+
+    await withoutProvider.close();
+
+    const failingProvider:
+    MarketDataProvider = {
+      getMarketSymbols:
+        async () => {
+          throw new Error(
+            'market data offline',
+          );
+        },
+
+      getCandles:
+        async () => [],
+    };
+
+    const withFailingProvider =
+      await createRouteApp(
+        new TestSetupRuntimeReader(),
+        failingProvider,
+      );
+
+    const failedProviderResponse =
+      await withFailingProvider.inject({
+        method:
+          'GET',
+
+        url:
+          '/api/v1/setups/candidates'
+          + '?minQuoteVolume24h=1000000',
+      });
+
+    assert.equal(
+      failedProviderResponse.statusCode,
+      503,
+    );
+
+    assert.equal(
+      failedProviderResponse.json().error,
+      'setup_market_data_unavailable',
+    );
+
+    await withFailingProvider.close();
+  },
+);
+
+test(
   'setup candidate detail route returns one candidate',
   async () => {
     const app =
@@ -538,7 +757,7 @@ test(
       },
       {
         query:
-          'limit=101',
+          'limit=1001',
         error:
           'invalid_setup_limit',
       },
@@ -547,6 +766,24 @@ test(
           'limit=1.5',
         error:
           'invalid_setup_limit',
+      },
+      {
+        query:
+          'minQuoteVolume24h=-1',
+        error:
+          'invalid_setup_min_quote_volume_24h',
+      },
+      {
+        query:
+          'minQuoteVolume24h=wrong',
+        error:
+          'invalid_setup_min_quote_volume_24h',
+      },
+      {
+        query:
+          'minQuoteVolume24h=',
+        error:
+          'invalid_setup_min_quote_volume_24h',
       },
     ];
 

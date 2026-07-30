@@ -451,3 +451,201 @@ test(
     );
   },
 );
+
+
+test(
+  'updates Level v2 Shadow price and distance from live metrics',
+  () => {
+    const metrics =
+      indexScannerSetupMetrics([
+        {
+          SOLUSDT:
+            createMetric(
+              'SOLUSDT',
+              '1m',
+              {
+                price:
+                  100,
+                priceChangePct:
+                  1.25,
+                btcCorrelation:
+                  0.8,
+                relativeStrengthPct:
+                  2.5,
+                volumeAnomaly:
+                  1.8,
+                tradesAnomaly:
+                  1.6,
+                tradesPerMinute:
+                  42.5,
+              },
+            ),
+        },
+      ]);
+
+    const [result] =
+      applyScannerSetupLiveMetrics(
+        [
+          createRow({
+            id:
+              'v2-shadow-sol-support',
+            symbol:
+              'SOLUSDT',
+            timeframe:
+              '1m',
+            source:
+              'v2-shadow',
+            price:
+              '\u2014',
+            priceChange:
+              '\u2014',
+            levelLow:
+              101,
+            levelHigh:
+              102,
+            levelReferencePrice:
+              101.5,
+            distancePercent:
+              Number.POSITIVE_INFINITY,
+            distanceLabel:
+              '\u2014',
+            btcCorrelation:
+              '\u2014',
+            tradeSpeed:
+              '\u0414\u0430\u043d\u043d\u044b\u0435 \u0441\u043e\u0431\u0438\u0440\u0430\u044e\u0442\u0441\u044f',
+          }),
+        ],
+        metrics,
+      );
+
+    assert.equal(
+      result?.price,
+      '100',
+    );
+
+    assert.equal(
+      result?.priceChange,
+      '+1.25%',
+    );
+
+    assert.equal(
+      result?.distancePercent,
+      1,
+    );
+
+    assert.equal(
+      result?.distanceLabel,
+      '1.0000%',
+    );
+
+    assert.equal(
+      result?.btcCorrelation,
+      '0.80',
+    );
+
+    assert.equal(
+      result?.tradeSpeed,
+      '42.5 \u0441\u0434\u0435\u043b/\u043c\u0438\u043d',
+    );
+
+    assert.equal(
+      result?.volumeAnomaly,
+      1.8,
+    );
+
+    assert.equal(
+      result?.tradesAnomaly,
+      1.6,
+    );
+
+    assert.equal(
+      result?.btcStrengthLabel,
+      '+2.50%',
+    );
+  },
+);
+
+test(
+  'does not replace V1 price and distance with market-wide metrics',
+  () => {
+    const metrics =
+      indexScannerSetupMetrics([
+        {
+          SOLUSDT:
+            createMetric(
+              'SOLUSDT',
+              '1m',
+              {
+                price:
+                  120,
+                priceChangePct:
+                  5,
+                btcCorrelation:
+                  0.95,
+                tradesPerMinute:
+                  250,
+              },
+            ),
+        },
+      ]);
+
+    const [result] =
+      applyScannerSetupLiveMetrics(
+        [
+          createRow({
+            id:
+              'v1-sol-setup',
+            symbol:
+              'SOLUSDT',
+            timeframe:
+              '1m',
+            source:
+              'v1',
+            price:
+              '99.50',
+            priceChange:
+              '-0.25%',
+            distancePercent:
+              0.45,
+            distanceLabel:
+              '0.4500%',
+            btcCorrelation:
+              '0.44',
+            tradeSpeed:
+              '18.0 \u0441\u0434\u0435\u043b/\u043c\u0438\u043d',
+          }),
+        ],
+        metrics,
+      );
+
+    assert.equal(
+      result?.price,
+      '99.50',
+    );
+
+    assert.equal(
+      result?.priceChange,
+      '-0.25%',
+    );
+
+    assert.equal(
+      result?.distancePercent,
+      0.45,
+    );
+
+    assert.equal(
+      result?.distanceLabel,
+      '0.4500%',
+    );
+
+    assert.equal(
+      result?.btcCorrelation,
+      '0.44',
+    );
+
+    assert.equal(
+      result?.tradeSpeed,
+      '18.0 \u0441\u0434\u0435\u043b/\u043c\u0438\u043d',
+    );
+  },
+);

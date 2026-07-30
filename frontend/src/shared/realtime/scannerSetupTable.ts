@@ -57,11 +57,23 @@ export interface ScannerSetupTableRow {
   formationMinutes: number;
   distancePercent: number;
   pullbackDepth: string;
+  quoteVolume24h?: number | null;
   volumeAnomaly: number | null;
   tradesAnomaly: number | null;
   btcStrength: number | null;
   btcStrengthLabel: string;
   runtimeData?: boolean;
+  source?: 'v1' | 'v2-shadow';
+  price?: string;
+  priceChange?: string;
+  distanceLabel?: string;
+  btcCorrelation?: string;
+  tradeSpeed?: string;
+  levelLow?: number;
+  levelHigh?: number;
+  levelReferencePrice?: number;
+  shadowScore?: number;
+  shadowStatus?: string;
 }
 
 export type ScannerSetupMetricsIndex =
@@ -170,6 +182,62 @@ function formatRelativeStrength(
   );
 }
 
+function formatScannerMetricPrice(
+  value: number,
+): string {
+  const absolute =
+    Math.abs(value);
+
+  const digits =
+    absolute >= 1000
+      ? 2
+      : absolute >= 1
+        ? 4
+        : 8;
+
+  return value.toLocaleString(
+    'en-US',
+    {
+      useGrouping:
+        false,
+      maximumFractionDigits:
+        digits,
+    },
+  );
+}
+
+function calculateDistanceToZonePct(
+  price: number,
+  low: number,
+  high: number,
+): number {
+  if (price <= 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  if (price < low) {
+    return (
+      (
+        low
+        - price
+      )
+      / price
+    ) * 100;
+  }
+
+  if (price > high) {
+    return (
+      (
+        price
+        - high
+      )
+      / price
+    ) * 100;
+  }
+
+  return 0;
+}
+
 export function applyScannerSetupLiveMetrics<
   T extends ScannerSetupTableRow,
 >(
@@ -177,6 +245,10 @@ export function applyScannerSetupLiveMetrics<
     readonly T[],
   metrics:
     ScannerSetupMetricsIndex,
+  quoteVolumes24h:
+    Readonly<
+      Record<string, number>
+    > = {},
 ): T[] {
   return setups.map(
     (setup) => {
@@ -195,14 +267,78 @@ export function applyScannerSetupLiveMetrics<
           )
         ];
 
+      const quoteVolume24h =
+        quoteVolumes24h[
+          normalizeMetricSymbol(
+            setup.symbol,
+          )
+        ]
+        ?? null;
+
       const btcStrength =
         metric
           ?.relativeStrengthPct
         ?? null;
 
+      const shadowPatch:
+      Partial<ScannerSetupTableRow> = {};
+
+      if (
+        setup.source === 'v2-shadow'
+        && metric?.price !== null
+        && metric?.price !== undefined
+        && setup.levelLow !== undefined
+        && setup.levelHigh !== undefined
+      ) {
+        const distancePercent =
+          calculateDistanceToZonePct(
+            metric.price,
+            setup.levelLow,
+            setup.levelHigh,
+          );
+
+        shadowPatch.price =
+          formatScannerMetricPrice(
+            metric.price,
+          );
+
+        shadowPatch.priceChange =
+          metric.priceChangePct === null
+            ? '\u2014'
+            : (
+                metric.priceChangePct > 0
+                  ? '+'
+                  : ''
+              )
+              + metric.priceChangePct
+                  .toFixed(2)
+              + '%';
+
+        shadowPatch.distancePercent =
+          distancePercent;
+
+        shadowPatch.distanceLabel =
+          distancePercent
+            .toFixed(4)
+          + '%';
+
+        shadowPatch.btcCorrelation =
+          metric.btcCorrelation === null
+            ? '\u2014'
+            : metric.btcCorrelation
+                .toFixed(2);
+
+        shadowPatch.tradeSpeed =
+          metric.tradesPerMinute
+            .toFixed(1)
+          + ' \u0441\u0434\u0435\u043b/\u043c\u0438\u043d';
+      }
+
       return {
         ...setup,
+        ...shadowPatch,
 
+        quoteVolume24h,
         volumeAnomaly:
           metric
             ?.volumeAnomaly

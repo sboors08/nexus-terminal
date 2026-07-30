@@ -7,6 +7,9 @@ import type {
   ApiErrorResponse,
 } from '../../contracts/nexus-api.js';
 import type {
+  MarketDataProvider,
+} from '../market-data/market-data.provider.js';
+import type {
   SetupDetectionRuntimeReader,
 } from './setup-detection-runtime.types.js';
 import type {
@@ -18,6 +21,9 @@ import type {
 export interface SetupReadRoutesOptions {
   setupDetectionRuntimeReader?:
     SetupDetectionRuntimeReader;
+
+  marketDataProvider?:
+    MarketDataProvider;
 }
 
 const SYMBOL_PATTERN =
@@ -176,7 +182,34 @@ function parseLimit(
   return (
     Number.isInteger(parsed)
     && parsed >= 1
-    && parsed <= 100
+    && parsed <= 1_000
+  )
+    ? parsed
+    : null;
+}
+
+function parseMinQuoteVolume24h(
+  value:
+    string
+    | undefined,
+):
+  number
+  | null
+  | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value.trim().length === 0) {
+    return null;
+  }
+
+  const parsed =
+    Number(value);
+
+  return (
+    Number.isFinite(parsed)
+    && parsed >= 0
   )
     ? parsed
     : null;
@@ -231,6 +264,7 @@ FastifyPluginAsync<
       setupType?: string;
       direction?: string;
       levelKind?: string;
+      minQuoteVolume24h?: string;
       limit?: string;
     };
   }>(
@@ -311,7 +345,23 @@ FastifyPluginAsync<
           reply,
           400,
           'invalid_setup_limit',
-          'Setup candidate limit must be an integer from 1 to 100',
+          'Setup candidate limit must be an integer from 1 to 1000',
+        );
+      }
+
+      const minQuoteVolume24h =
+        parseMinQuoteVolume24h(
+          request.query
+            .minQuoteVolume24h,
+        );
+
+      if (minQuoteVolume24h === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_setup_min_quote_volume_24h',
+          'Minimum 24h quote volume must be a non-negative number',
         );
       }
 
@@ -329,36 +379,101 @@ FastifyPluginAsync<
         );
       }
 
-      return runtime
-        .getCandidates(
-          symbol
-          ?? undefined,
-        )
-        .filter(
-          (candidate) =>
-            (
-              setupType
-              === undefined
-              || candidate.setupType
-                === setupType
-            )
-            && (
-              direction
-              === undefined
-              || candidate.direction
-                === direction
-            )
-            && (
-              levelKind
-              === undefined
-              || candidate.level.kind
-                === levelKind
-            ),
-        )
-        .slice(
-          0,
-          limit,
-        );
+      let candidates =
+        runtime
+          .getCandidates(
+            symbol
+            ?? undefined,
+          )
+          .filter(
+            (candidate) =>
+              (
+                setupType
+                === undefined
+                || candidate.setupType
+                  === setupType
+              )
+              && (
+                direction
+                === undefined
+                || candidate.direction
+                  === direction
+              )
+              && (
+                levelKind
+                === undefined
+                || candidate.level.kind
+                  === levelKind
+              ),
+          );
+
+      if (
+        minQuoteVolume24h !== undefined
+        && minQuoteVolume24h > 0
+      ) {
+        const marketDataProvider =
+          options.marketDataProvider;
+
+        if (!marketDataProvider) {
+          return sendError(
+            request,
+            reply,
+            503,
+            'setup_market_data_unavailable',
+            'Market data is unavailable for 24h volume filtering',
+          );
+        }
+
+        try {
+          const marketSymbols =
+            await marketDataProvider
+              .getMarketSymbols();
+
+          const volumeBySymbol =
+            new Map(
+              marketSymbols.map(
+                (marketSymbol) => [
+                  marketSymbol.symbol
+                    .trim()
+                    .toUpperCase(),
+                  marketSymbol.volumeQuote,
+                ] as const,
+              ),
+            );
+
+          candidates =
+            candidates.filter(
+              (candidate) =>
+                (
+                  volumeBySymbol.get(
+                    candidate.symbol
+                      .trim()
+                      .toUpperCase(),
+                  )
+                  ?? -1
+                )
+                >= minQuoteVolume24h,
+            );
+        } catch (error) {
+          request.log.warn(
+            { error },
+            'Market data provider failed during setup volume filtering',
+          );
+
+          return sendError(
+            request,
+            reply,
+            503,
+            'setup_market_data_unavailable',
+            'Market data is temporarily unavailable for 24h volume filtering',
+          );
+        }
+      }
+
+      return candidates.slice(
+        0,
+        limit,
+      );
     },
   );
 

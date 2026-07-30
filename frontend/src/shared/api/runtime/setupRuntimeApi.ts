@@ -78,6 +78,7 @@ export interface FetchSetupRuntimeCandidatesOptions
   extends SetupRuntimeFetchOptions {
   limit?: number;
   symbol?: string;
+  minQuoteVolume24h?: number;
 }
 
 export interface FetchSetupRuntimeCandidateOptions
@@ -282,6 +283,7 @@ export function buildSetupRuntimeCandidatesUrl(
       | 'baseUrl'
       | 'limit'
       | 'symbol'
+      | 'minQuoteVolume24h'
     > = {},
 ): string {
   const limit =
@@ -290,10 +292,10 @@ export function buildSetupRuntimeCandidatesUrl(
   if (
     !Number.isInteger(limit)
     || limit < 1
-    || limit > 100
+    || limit > 1_000
   ) {
     throw new Error(
-      'Setup runtime limit must be between 1 and 100',
+      'Setup runtime limit must be between 1 and 1000',
     );
   }
 
@@ -302,6 +304,32 @@ export function buildSetupRuntimeCandidatesUrl(
       limit:
         String(limit),
     });
+
+  const minQuoteVolume24h =
+    options.minQuoteVolume24h;
+
+  if (
+    minQuoteVolume24h !== undefined
+    && (
+      !Number.isFinite(
+        minQuoteVolume24h,
+      )
+      || minQuoteVolume24h < 0
+    )
+  ) {
+    throw new Error(
+      'Invalid setup runtime minimum 24h quote volume',
+    );
+  }
+
+  if (minQuoteVolume24h !== undefined) {
+    query.set(
+      'minQuoteVolume24h',
+      String(
+        minQuoteVolume24h,
+      ),
+    );
+  }
 
   if (
     options.symbol
