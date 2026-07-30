@@ -16,6 +16,10 @@ import type {
   LevelV2ShadowRuntimeReader,
   LevelV2ShadowSnapshot,
 } from './level-v2-shadow-runtime.types.js';
+import {
+  buildLevelV2ShadowOverlapDiagnostics,
+  DEFAULT_LEVEL_V2_SHADOW_OVERLAP_DIAGNOSTICS_OPTIONS,
+} from './level-v2-shadow-overlap-diagnostics.js';
 import type {
   LevelV2ShadowDiagnostics,
   LevelV2ShadowHistoryListResponse,
@@ -171,6 +175,32 @@ function parseMinScore(
   return Number.isFinite(parsed)
     && parsed >= 0
     && parsed <= 100
+      ? parsed
+      : null;
+}
+
+function parseBoundedNumber(
+  value:
+    string
+    | undefined,
+  defaultValue: number,
+  min: number,
+  max: number,
+): number | null {
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  if (value.trim().length === 0) {
+    return null;
+  }
+
+  const parsed =
+    Number(value);
+
+  return Number.isFinite(parsed)
+    && parsed >= min
+    && parsed <= max
       ? parsed
       : null;
 }
@@ -441,6 +471,159 @@ FastifyPluginAsync<
 
       return buildDiagnostics(
         runtime,
+      );
+    },
+  );
+
+  app.get<{
+    Querystring: {
+      symbol?: string;
+      maxReferenceDistancePct?: string;
+      minOverlapPct?: string;
+      includeOppositeKind?: string;
+      onlyReviewCandidates?: string;
+      limit?: string;
+    };
+  }>(
+    '/setups/levels-v2/shadow/overlap-diagnostics',
+    async (
+      request,
+      reply,
+    ) => {
+      const symbol =
+        normalizeSymbol(
+          request.query.symbol,
+        );
+
+      if (symbol === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_level_v2_shadow_overlap_symbol',
+          'Invalid Level v2 shadow overlap diagnostics symbol',
+        );
+      }
+
+      const maxReferenceDistancePct =
+        parseBoundedNumber(
+          request.query
+            .maxReferenceDistancePct,
+          DEFAULT_LEVEL_V2_SHADOW_OVERLAP_DIAGNOSTICS_OPTIONS
+            .maxReferenceDistancePct,
+          0,
+          5,
+        );
+
+      if (maxReferenceDistancePct === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_level_v2_shadow_overlap_distance',
+          'maxReferenceDistancePct must be between 0 and 5',
+        );
+      }
+
+      const minOverlapPct =
+        parseBoundedNumber(
+          request.query
+            .minOverlapPct,
+          DEFAULT_LEVEL_V2_SHADOW_OVERLAP_DIAGNOSTICS_OPTIONS
+            .minOverlapPct,
+          0,
+          100,
+        );
+
+      if (minOverlapPct === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_level_v2_shadow_overlap_threshold',
+          'minOverlapPct must be between 0 and 100',
+        );
+      }
+
+      const includeOppositeKind =
+        parseBoolean(
+          request.query
+            .includeOppositeKind,
+        );
+
+      if (includeOppositeKind === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_level_v2_shadow_overlap_opposite_kind',
+          'includeOppositeKind must be true or false',
+        );
+      }
+
+      const onlyReviewCandidates =
+        parseBoolean(
+          request.query
+            .onlyReviewCandidates,
+        );
+
+      if (onlyReviewCandidates === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_level_v2_shadow_overlap_review_filter',
+          'onlyReviewCandidates must be true or false',
+        );
+      }
+
+      const limit =
+        parseLimit(
+          request.query.limit,
+        );
+
+      if (limit === null) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_level_v2_shadow_overlap_limit',
+          'Level v2 shadow overlap limit must be an integer from 1 to 500',
+        );
+      }
+
+      const runtime =
+        options
+          .levelV2ShadowRuntimeReader;
+
+      if (!runtime) {
+        return sendError(
+          request,
+          reply,
+          503,
+          'level_v2_shadow_runtime_unavailable',
+          'Level v2 shadow runtime is unavailable',
+        );
+      }
+
+      return buildLevelV2ShadowOverlapDiagnostics(
+        runtime,
+        {
+          symbol:
+            symbol
+            ?? null,
+          maxReferenceDistancePct,
+          minOverlapPct,
+          includeOppositeKind:
+            includeOppositeKind
+            ?? DEFAULT_LEVEL_V2_SHADOW_OVERLAP_DIAGNOSTICS_OPTIONS
+              .includeOppositeKind,
+          onlyReviewCandidates:
+            onlyReviewCandidates
+            ?? DEFAULT_LEVEL_V2_SHADOW_OVERLAP_DIAGNOSTICS_OPTIONS
+              .onlyReviewCandidates,
+          limit,
+        },
       );
     },
   );
