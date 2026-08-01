@@ -98,7 +98,7 @@ function MarketHistoryPageContent({ data }: { data: MarketHistoryViewData }) {
       if (sortKey === 'fastest') return (a.timeToTargetSec ?? Infinity) - (b.timeToTargetSec ?? Infinity);
       return new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime();
     });
-  }, [direction, result, search, setupType, sortKey, timeframe]);
+  }, [direction, historyItems, result, search, setupType, sortKey, timeframe]);
 
   const selectedItem = useMemo(() => (
     filteredItems.find((item) => item.id === requestedHistoryId)
@@ -132,11 +132,15 @@ function MarketHistoryPageContent({ data }: { data: MarketHistoryViewData }) {
     replayId: selectedItem.replayId,
   });
 
-  const successfulCount = historyItems.filter((item) => item.result === 'successful').length;
+  const successfulItems = historyItems.filter((item) => item.result === 'successful');
+  const successfulCount = successfulItems.length;
   const completedCount = historyItems.filter((item) => ['successful', 'failed'].includes(item.result)).length;
-  const averageMove = historyItems
-    .filter((item) => item.result === 'successful' && item.maxMovePct !== null)
-    .reduce((sum, item) => sum + (item.maxMovePct ?? 0), 0) / successfulCount;
+  const successfulMoves = successfulItems
+    .map((item) => item.maxMovePct)
+    .filter((value): value is number => value !== null);
+  const averageMove = successfulMoves.length > 0
+    ? successfulMoves.reduce((sum, value) => sum + value, 0) / successfulMoves.length
+    : null;
   const replayCount = historyItems.filter((item) => item.replayAvailable).length;
   const successRate = completedCount > 0 ? Math.round((successfulCount / completedCount) * 100) : 0;
 
@@ -153,15 +157,27 @@ function MarketHistoryPageContent({ data }: { data: MarketHistoryViewData }) {
     <section className={styles.historyPage}>
       <header className={styles.pageHeader}>
         <div>
-          <p className={styles.eyebrow}>Архив сетапов · тестовые данные</p>
+          <p className={styles.eyebrow}>Fixture-архив сетапов · тестовые результаты и Replay</p>
           <h1 className={styles.title}>Market History</h1>
           <p className={styles.subtitle}>История обнаружения, реализации и отмены торговых сетапов NEXUS.</p>
         </div>
         <div className={styles.headerMeta}>
           <span className={styles.testBadge}>TEST DATA</span>
-          <span>Обновлено 15.07.26 · 17:32 UTC</span>
+          <span>Fixture-снимок: 15.07.26 · 17:32 UTC</span>
         </div>
       </header>
+
+      <section
+        className={styles.dataNotice}
+        aria-label="Источник данных Market History"
+      >
+        <strong>TEST DATA: результаты, метрики, графики, выводы и Replay</strong>
+        <span>
+          Эта страница использует фиксированные frontend-сценарии.
+          Lifecycle-события Setup Engine пока не преобразуются
+          в оценённую и сохраняемую историю результатов.
+        </span>
+      </section>
 
       <section className={styles.summaryGrid} aria-label="Сводка истории сетапов">
         <article className={styles.summaryCard}>
@@ -176,13 +192,15 @@ function MarketHistoryPageContent({ data }: { data: MarketHistoryViewData }) {
         </article>
         <article className={styles.summaryCard}>
           <p>Среднее движение</p>
-          <strong className={styles.positiveValue}>+{averageMove.toFixed(2)}%</strong>
+          <strong className={averageMove !== null ? styles.positiveValue : styles.mutedValue}>
+            {formatSignedPercent(averageMove)}
+          </strong>
           <span>по успешным сетапам</span>
         </article>
         <article className={styles.summaryCard}>
           <p>Доступен Replay</p>
           <strong>{replayCount}</strong>
-          <span>историй с полным воспроизведением</span>
+          <span>доступных тестовых сценариев</span>
         </article>
       </section>
 
@@ -387,7 +405,7 @@ function MarketHistoryPageContent({ data }: { data: MarketHistoryViewData }) {
                 symbol: selectedItem.symbol,
                 timeframe: selectedItem.timeframe,
               })}>
-                Открыть Replay →
+                Открыть тестовый Replay →
               </Link>
             ) : (
               <button className={styles.primaryButton} type="button" disabled>Replay недоступен</button>
