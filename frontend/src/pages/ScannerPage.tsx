@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
@@ -292,6 +292,11 @@ function ScannerPageContent({
   setMinQuoteVolumeMillions:
     (value: string) => void;
 }) {
+  const selectedRowRef =
+    useRef<HTMLButtonElement | null>(
+      null,
+    );
+
   const [
     shadowEnabled,
     setShadowEnabled,
@@ -723,6 +728,22 @@ function ScannerPageContent({
     filteredSetups,
     requestedSetupId,
   ]);
+
+  useEffect(() => {
+    if (
+      typeof globalThis.matchMedia !== 'function'
+      || !globalThis
+        .matchMedia('(min-width: 1280px)')
+        .matches
+    ) {
+      return;
+    }
+
+    selectedRowRef.current?.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+    });
+  }, [selectedSetup.id]);
 
   const selectedSymbol = requestedSymbol ?? selectedSetup.symbol;
   const isMarketPreview = selectedSymbol !== selectedSetup.symbol;
@@ -1460,6 +1481,7 @@ function ScannerPageContent({
                   <button
                     key={setup.id}
                     type="button"
+                    ref={selected ? selectedRowRef : undefined}
                     className={`${styles.tableRow} ${setup.source === 'v2-shadow' ? styles.tableRowShadow : ''} ${selected ? styles.tableRowSelected : ''}`}
                     onClick={() => selectSetup(setup.id)}
                     aria-pressed={selected}
