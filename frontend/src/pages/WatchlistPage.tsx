@@ -43,18 +43,49 @@ const WATCHLIST_INSTRUMENTS: WatchlistInstrument[] = [
   },
 ];
 
-function getStatusClass(tone: WatchlistRealtimeTone): string {
+const WATCHLIST_SYMBOLS =
+  WATCHLIST_INSTRUMENTS.map(
+    (instrument) => instrument.symbol,
+  );
+
+type WatchlistRealtimeState =
+  ReturnType<typeof useRealtimeMarketData>;
+
+interface WatchlistRowProps {
+  instrument: WatchlistInstrument;
+  realtime: WatchlistRealtimeState;
+}
+
+function getStatusClass(
+  tone: WatchlistRealtimeTone,
+): string {
   if (tone === 'live') return styles.statusLive;
   if (tone === 'error') return styles.statusError;
   return styles.statusPending;
 }
 
-function WatchlistRow({ instrument }: { instrument: WatchlistInstrument }) {
-  const realtime = useRealtimeMarketData({
-    symbol: instrument.symbol,
-  });
+function getPanelStatusClass(
+  tone: WatchlistRealtimeTone,
+): string {
+  if (tone === 'live') return styles.panelStatusLive;
+  if (tone === 'error') return styles.panelStatusError;
+  return styles.panelStatusPending;
+}
 
-  const snapshot = realtime.snapshots[instrument.symbol];
+function getPanelStatusLabel(
+  tone: WatchlistRealtimeTone,
+): string {
+  if (tone === 'live') return 'LIVE MARKET DATA';
+  if (tone === 'error') return 'ОШИБКА ПОТОКА';
+  return 'ОЖИДАНИЕ ПОТОКА';
+}
+
+function WatchlistRow({
+  instrument,
+  realtime,
+}: WatchlistRowProps) {
+  const snapshot =
+    realtime.snapshots[instrument.symbol];
 
   const view = useMemo(
     () => buildWatchlistRealtimeView(
@@ -91,17 +122,23 @@ function WatchlistRow({ instrument }: { instrument: WatchlistInstrument }) {
       <div className={styles.priceCell}>
         <span>Цена</span>
         <strong>{view.priceLabel}</strong>
-        <small>{view.isLive ? 'LIVE' : 'Ожидание данных'}</small>
+        <small>
+          {view.isLive ? 'LIVE' : 'Ожидание данных'}
+        </small>
       </div>
 
       <div className={styles.marketCell}>
         <span>Bid</span>
-        <strong className={styles.bidValue}>{view.bidLabel}</strong>
+        <strong className={styles.bidValue}>
+          {view.bidLabel}
+        </strong>
       </div>
 
       <div className={styles.marketCell}>
         <span>Ask</span>
-        <strong className={styles.askValue}>{view.askLabel}</strong>
+        <strong className={styles.askValue}>
+          {view.askLabel}
+        </strong>
       </div>
 
       <div className={styles.spreadCell}>
@@ -110,7 +147,13 @@ function WatchlistRow({ instrument }: { instrument: WatchlistInstrument }) {
       </div>
 
       <div className={styles.connectionCell}>
-        <span className={`${styles.statusDot} ${getStatusClass(view.connectionTone)}`} />
+        <span
+          className={
+            `${styles.statusDot} `
+            + getStatusClass(view.connectionTone)
+          }
+        />
+
         <span>
           <strong>{view.connectionLabel}</strong>
           <small>
@@ -121,19 +164,12 @@ function WatchlistRow({ instrument }: { instrument: WatchlistInstrument }) {
         </span>
       </div>
 
-      <Link className={styles.openButton} to={workspaceUrl}>
+      <Link
+        className={styles.openButton}
+        to={workspaceUrl}
+      >
         Открыть
       </Link>
-
-      {realtime.error && (
-        <button
-          className={styles.reconnectButton}
-          type="button"
-          onClick={realtime.reconnect}
-        >
-          Повторить
-        </button>
-      )}
     </article>
   );
 }
@@ -143,57 +179,117 @@ export function WatchlistPage() {
     screen: 'Watchlist',
   });
 
+  const realtime = useRealtimeMarketData({
+    symbols: WATCHLIST_SYMBOLS,
+  });
+
+  const connectionView = useMemo(
+    () => buildWatchlistRealtimeView(
+      undefined,
+      realtime.lifecycleState,
+      realtime.status?.state ?? null,
+    ),
+    [
+      realtime.lifecycleState,
+      realtime.status?.state,
+    ],
+  );
+
   return (
     <section className={styles.watchlistPage}>
       <header className={styles.pageHeader}>
         <div>
           <p className={styles.eyebrow}>
-            Избранные инструменты · Binance Spot · realtime
+            Предустановленный список · Binance USDⓈ-M Futures · realtime
           </p>
-          <h1 className={styles.title}>Watchlist</h1>
+
+          <h1 className={styles.title}>
+            Watchlist
+          </h1>
+
           <p className={styles.subtitle}>
-            Живые цены, Bid, Ask и спред по инструментам,
-            за которыми ты следишь.
+            Живые цены, Bid, Ask и спред по предустановленным инструментам.
           </p>
         </div>
 
         <div className={styles.headerStatus}>
-          <span className={styles.liveDot} />
-          {WATCHLIST_INSTRUMENTS.length} инструментов
+          <span
+            className={
+              `${styles.statusDot} `
+              + getStatusClass(
+                connectionView.connectionTone,
+              )
+            }
+          />
+
+          <span>
+            {connectionView.connectionLabel}
+            {' · '}
+            {WATCHLIST_INSTRUMENTS.length}
+            {' инструментов'}
+          </span>
+
+          {realtime.error && (
+            <button
+              className={styles.reconnectButton}
+              type="button"
+              onClick={realtime.reconnect}
+            >
+              Повторить
+            </button>
+          )}
         </div>
       </header>
 
       <section className={styles.summaryGrid}>
         <article>
           <span>Инструменты</span>
-          <strong>{WATCHLIST_INSTRUMENTS.length}</strong>
-          <small>в текущем списке</small>
+          <strong>
+            {WATCHLIST_INSTRUMENTS.length}
+          </strong>
+          <small>предустановленный список</small>
         </article>
 
         <article>
           <span>Источник</span>
           <strong>Binance</strong>
-          <small>публичный Spot-поток</small>
+          <small>USDⓈ-M perpetual futures</small>
         </article>
 
         <article>
           <span>Режим</span>
-          <strong>Realtime</strong>
-          <small>динамические подписки</small>
+          <strong>Один поток</strong>
+          <small>групповая SSE-подписка</small>
         </article>
       </section>
 
       <section className={styles.watchlistPanel}>
         <div className={styles.panelHeader}>
           <div>
-            <p className={styles.panelEyebrow}>Рынок</p>
-            <h2>Избранные инструменты</h2>
+            <p className={styles.panelEyebrow}>
+              Рынок
+            </p>
+            <h2>Предустановленные инструменты</h2>
           </div>
 
-          <span>LIVE MARKET DATA</span>
+          <span
+            className={
+              `${styles.panelStatus} `
+              + getPanelStatusClass(
+                connectionView.connectionTone,
+              )
+            }
+          >
+            {getPanelStatusLabel(
+              connectionView.connectionTone,
+            )}
+          </span>
         </div>
 
-        <div className={styles.tableHeader} aria-hidden="true">
+        <div
+          className={styles.tableHeader}
+          aria-hidden="true"
+        >
           <span>Инструмент</span>
           <span>Цена</span>
           <span>Bid</span>
@@ -204,12 +300,15 @@ export function WatchlistPage() {
         </div>
 
         <div className={styles.instrumentList}>
-          {WATCHLIST_INSTRUMENTS.map((instrument) => (
-            <WatchlistRow
-              key={instrument.symbol}
-              instrument={instrument}
-            />
-          ))}
+          {WATCHLIST_INSTRUMENTS.map(
+            (instrument) => (
+              <WatchlistRow
+                key={instrument.symbol}
+                instrument={instrument}
+                realtime={realtime}
+              />
+            ),
+          )}
         </div>
       </section>
     </section>
