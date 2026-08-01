@@ -340,6 +340,8 @@ export function toMarketCandle(
       candle.volume,
     tradesCount:
       candle.tradesCount,
+    isClosed:
+      candle.isClosed,
   };
 }
 

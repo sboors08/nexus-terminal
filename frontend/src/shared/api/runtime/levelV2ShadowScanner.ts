@@ -269,6 +269,9 @@ function mapShadowLevel(
     levelReferencePrice:
       zone.referencePrice,
 
+    levelActiveFrom:
+      state.registeredAt,
+
     shadowScore:
       state.level.score.total,
 

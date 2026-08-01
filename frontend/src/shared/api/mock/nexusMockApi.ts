@@ -521,6 +521,9 @@ function runtimeContractSetupToScannerSetup(
       },
     ],
 
+    levelActiveFrom:
+      setup.level.formedAt,
+
     runtimeData:
       true,
   };

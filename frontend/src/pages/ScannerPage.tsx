@@ -6,7 +6,7 @@ import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   NexusCandlestickChart,
   useMarketCandles,
-  type NexusChartPriceLine,
+  type NexusChartHorizontalSegment,
 } from '@/shared/charts';
 import {
   DEFAULT_SCANNER_SETUP_TABLE_SORT_STATE,
@@ -730,10 +730,22 @@ function ScannerPageContent({
     ? `market-${selectedSymbol.toLowerCase()}`
     : selectedSetup.id;
 
-  const selectedLevelPriceLines =
-    useMemo<NexusChartPriceLine[]>(
+  const selectedLevelSegments =
+    useMemo<NexusChartHorizontalSegment[]>(
       () => {
         if (isMarketPreview) {
+          return [];
+        }
+
+        const startTime =
+          selectedSetup.levelActiveFrom;
+
+        if (
+          !startTime
+          || !Number.isFinite(
+            Date.parse(startTime),
+          )
+        ) {
           return [];
         }
 
@@ -781,18 +793,20 @@ function ScannerPageContent({
                 : '#ff5c71';
 
         const lineStyle:
-        NexusChartPriceLine['lineStyle'] =
+        NexusChartHorizontalSegment['lineStyle'] =
           isShadow
             ? 'dashed'
             : 'solid';
 
         const lines:
-        NexusChartPriceLine[] = [];
+        NexusChartHorizontalSegment[] = [];
 
         if (low === high) {
           lines.push({
             price:
               low,
+
+            startTime,
 
             color,
 
@@ -810,6 +824,8 @@ function ScannerPageContent({
               price:
                 low,
 
+              startTime,
+
               color,
 
               lineStyle,
@@ -824,6 +840,8 @@ function ScannerPageContent({
             {
               price:
                 high,
+
+              startTime,
 
               color,
 
@@ -857,6 +875,8 @@ function ScannerPageContent({
             price:
               referencePrice,
 
+            startTime,
+
             color,
 
             lineStyle:
@@ -875,6 +895,7 @@ function ScannerPageContent({
       [
         isMarketPreview,
         selectedSetup.direction,
+        selectedSetup.levelActiveFrom,
         selectedSetup.level,
         selectedSetup.levelHigh,
         selectedSetup.levelLow,
@@ -1684,7 +1705,7 @@ function ScannerPageContent({
                   <NexusCandlestickChart
                     candles={candlesQuery.data}
                     symbol={selectedSymbol}
-                    priceLines={selectedLevelPriceLines}
+                    horizontalSegments={selectedLevelSegments}
                     fillContainer
                     enableDrawingTools
                     drawingScope={`scanner:${selectedSymbol}:${selectedSetup.timeframe}`}
