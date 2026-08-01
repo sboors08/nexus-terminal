@@ -222,3 +222,338 @@ export function cloneSettings(settings: NexusSettings): NexusSettings {
     additionalTimeframes: [...settings.additionalTimeframes],
   };
 }
+
+const PRIMARY_TIMEFRAMES: PrimaryTimeframe[] = [
+  '1m',
+  '5m',
+  '15m',
+  '1h',
+];
+
+const PULLBACK_DEPTHS: PullbackDepth[] = [
+  'any',
+  'shallow',
+  'deep',
+];
+
+const EXTERNAL_TERMINALS: ExternalTerminal[] = [
+  'none',
+  'tiger',
+  'cscalp',
+  'atas',
+];
+
+function isPrimaryTimeframe(
+  value: unknown,
+): value is PrimaryTimeframe {
+  return PRIMARY_TIMEFRAMES.includes(
+    value as PrimaryTimeframe,
+  );
+}
+
+function isPullbackDepth(
+  value: unknown,
+): value is PullbackDepth {
+  return PULLBACK_DEPTHS.includes(
+    value as PullbackDepth,
+  );
+}
+
+function isExternalTerminal(
+  value: unknown,
+): value is ExternalTerminal {
+  return EXTERNAL_TERMINALS.includes(
+    value as ExternalTerminal,
+  );
+}
+
+function readBoolean(
+  source: Record<string, unknown>,
+  key: keyof NexusSettings,
+  fallback: boolean,
+): boolean {
+  return typeof source[key] === 'boolean'
+    ? source[key]
+    : fallback;
+}
+
+function readNumber(
+  source: Record<string, unknown>,
+  key: keyof NexusSettings,
+  fallback: number,
+  min: number,
+  max: number,
+  integer = false,
+): number {
+  const value =
+    source[key];
+
+  if (
+    typeof value !== 'number'
+    || !Number.isFinite(
+      value,
+    )
+  ) {
+    return fallback;
+  }
+
+  const normalized =
+    integer
+      ? Math.round(
+          value,
+        )
+      : value;
+
+  return Math.min(
+    max,
+    Math.max(
+      min,
+      normalized,
+    ),
+  );
+}
+
+export function normalizeSettings(
+  value: unknown,
+): NexusSettings {
+  const fallback =
+    cloneSettings(
+      DEFAULT_SETTINGS,
+    );
+
+  if (
+    !value
+    || typeof value !== 'object'
+    || Array.isArray(
+      value,
+    )
+  ) {
+    return fallback;
+  }
+
+  const source =
+    value as Record<string, unknown>;
+
+  const primaryTimeframe =
+    isPrimaryTimeframe(
+      source.primaryTimeframe,
+    )
+      ? source.primaryTimeframe
+      : fallback.primaryTimeframe;
+
+  const additionalTimeframes =
+    Array.isArray(
+      source.additionalTimeframes,
+    )
+      ? [
+          ...new Set(
+            source.additionalTimeframes
+              .filter(
+                isPrimaryTimeframe,
+              )
+              .filter(
+                (timeframe) =>
+                  timeframe
+                    !== primaryTimeframe,
+              ),
+          ),
+        ]
+      : fallback.additionalTimeframes.filter(
+          (timeframe) =>
+            timeframe
+              !== primaryTimeframe,
+        );
+
+  return {
+    primaryTimeframe,
+    additionalTimeframes,
+
+    breakoutEnabled:
+      readBoolean(
+        source,
+        'breakoutEnabled',
+        fallback.breakoutEnabled,
+      ),
+
+    bounceEnabled:
+      readBoolean(
+        source,
+        'bounceEnabled',
+        fallback.bounceEnabled,
+      ),
+
+    longEnabled:
+      readBoolean(
+        source,
+        'longEnabled',
+        fallback.longEnabled,
+      ),
+
+    shortEnabled:
+      readBoolean(
+        source,
+        'shortEnabled',
+        fallback.shortEnabled,
+      ),
+
+    levelTolerancePct:
+      readNumber(
+        source,
+        'levelTolerancePct',
+        fallback.levelTolerancePct,
+        0.1,
+        1,
+      ),
+
+    minTouches:
+      readNumber(
+        source,
+        'minTouches',
+        fallback.minTouches,
+        2,
+        6,
+        true,
+      ),
+
+    pullbackDepth:
+      isPullbackDepth(
+        source.pullbackDepth,
+      )
+        ? source.pullbackDepth
+        : fallback.pullbackDepth,
+
+    formationMinutes:
+      readNumber(
+        source,
+        'formationMinutes',
+        fallback.formationMinutes,
+        15,
+        720,
+        true,
+      ),
+
+    minLevelStrength:
+      readNumber(
+        source,
+        'minLevelStrength',
+        fallback.minLevelStrength,
+        30,
+        100,
+        true,
+      ),
+
+    minActivity:
+      readNumber(
+        source,
+        'minActivity',
+        fallback.minActivity,
+        0.5,
+        3,
+      ),
+
+    useVolumeAnomaly:
+      readBoolean(
+        source,
+        'useVolumeAnomaly',
+        fallback.useVolumeAnomaly,
+      ),
+
+    useTradesAnomaly:
+      readBoolean(
+        source,
+        'useTradesAnomaly',
+        fallback.useTradesAnomaly,
+      ),
+
+    useBtcContext:
+      readBoolean(
+        source,
+        'useBtcContext',
+        fallback.useBtcContext,
+      ),
+
+    notifyNearLevel:
+      readBoolean(
+        source,
+        'notifyNearLevel',
+        fallback.notifyNearLevel,
+      ),
+
+    notifyConfirmation:
+      readBoolean(
+        source,
+        'notifyConfirmation',
+        fallback.notifyConfirmation,
+      ),
+
+    notifyPrints:
+      readBoolean(
+        source,
+        'notifyPrints',
+        fallback.notifyPrints,
+      ),
+
+    notifyLiquidity:
+      readBoolean(
+        source,
+        'notifyLiquidity',
+        fallback.notifyLiquidity,
+      ),
+
+    notifyTriggered:
+      readBoolean(
+        source,
+        'notifyTriggered',
+        fallback.notifyTriggered,
+      ),
+
+    notifyInvalidated:
+      readBoolean(
+        source,
+        'notifyInvalidated',
+        fallback.notifyInvalidated,
+      ),
+
+    soundEnabled:
+      readBoolean(
+        source,
+        'soundEnabled',
+        fallback.soundEnabled,
+      ),
+
+    externalTerminal:
+      isExternalTerminal(
+        source.externalTerminal,
+      )
+        ? source.externalTerminal
+        : fallback.externalTerminal,
+
+    autoOpenWorkspace:
+      readBoolean(
+        source,
+        'autoOpenWorkspace',
+        fallback.autoOpenWorkspace,
+      ),
+
+    compactMode:
+      readBoolean(
+        source,
+        'compactMode',
+        fallback.compactMode,
+      ),
+
+    showTooltips:
+      readBoolean(
+        source,
+        'showTooltips',
+        fallback.showTooltips,
+      ),
+
+    reduceMotion:
+      readBoolean(
+        source,
+        'reduceMotion',
+        fallback.reduceMotion,
+      ),
+  };
+}

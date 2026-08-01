@@ -2,6 +2,7 @@ import { useMemo, useState, type ChangeEvent, type CSSProperties } from 'react';
 import {
   cloneSettings,
   DEFAULT_SETTINGS,
+  normalizeSettings,
   SETTINGS_GROUPS,
   SETTINGS_PRESETS,
   type ExternalTerminal,
@@ -24,26 +25,38 @@ function readStoredSettings(): NexusSettings {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return cloneSettings(DEFAULT_SETTINGS);
-    const parsed = JSON.parse(raw) as Partial<NexusSettings>;
-
-    return {
-      ...cloneSettings(DEFAULT_SETTINGS),
-      ...parsed,
-      additionalTimeframes: Array.isArray(parsed.additionalTimeframes)
-        ? parsed.additionalTimeframes
-        : [...DEFAULT_SETTINGS.additionalTimeframes],
-    };
+    return normalizeSettings(
+      JSON.parse(
+        raw,
+      ),
+    );
   } catch {
     return cloneSettings(DEFAULT_SETTINGS);
   }
 }
 
 function readStoredPreset(): SettingsPresetId {
-  if (typeof window === 'undefined') return 'intraday';
-  const stored = window.localStorage.getItem(PRESET_KEY);
-  return stored === 'scalping' || stored === 'intraday' || stored === 'swing' || stored === 'custom'
-    ? stored
-    : 'intraday';
+  if (
+    typeof window === 'undefined'
+  ) {
+    return 'intraday';
+  }
+
+  try {
+    const stored =
+      window.localStorage.getItem(
+        PRESET_KEY,
+      );
+
+    return stored === 'scalping'
+      || stored === 'intraday'
+      || stored === 'swing'
+      || stored === 'custom'
+      ? stored
+      : 'intraday';
+  } catch {
+    return 'intraday';
+  }
 }
 
 function Toggle({
@@ -125,6 +138,8 @@ export function SettingsPage() {
   const [activePreset, setActivePreset] = useState<SettingsPresetId>(readStoredPreset);
   const [settings, setSettings] = useState<NexusSettings>(readStoredSettings);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const activeGroupMeta = useMemo(
     () => SETTINGS_GROUPS.find((group) => group.id === activeGroup) ?? SETTINGS_GROUPS[0],
@@ -135,6 +150,8 @@ export function SettingsPage() {
     setSettings((current) => ({ ...current, ...patch }));
     setActivePreset('custom');
     setSavedAt(null);
+    setHasUnsavedChanges(true);
+    setSaveError(null);
   };
 
   const applyPreset = (presetId: Exclude<SettingsPresetId, 'custom'>) => {
@@ -144,6 +161,8 @@ export function SettingsPage() {
     setSettings(cloneSettings(preset.settings));
     setActivePreset(presetId);
     setSavedAt(null);
+    setHasUnsavedChanges(true);
+    setSaveError(null);
   };
 
   const toggleAdditionalTimeframe = (timeframe: PrimaryTimeframe) => {
@@ -156,13 +175,47 @@ export function SettingsPage() {
   };
 
   const saveSettings = () => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    window.localStorage.setItem(PRESET_KEY, activePreset);
-    setSavedAt(new Date().toLocaleTimeString('ru-RU', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }));
+    try {
+      const normalizedSettings =
+        normalizeSettings(
+          settings,
+        );
+
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(
+          normalizedSettings,
+        ),
+      );
+
+      window.localStorage.setItem(
+        PRESET_KEY,
+        activePreset,
+      );
+
+      setSettings(
+        normalizedSettings,
+      );
+
+      setSavedAt(
+        new Date().toLocaleTimeString(
+          'ru-RU',
+          {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          },
+        ),
+      );
+
+      setHasUnsavedChanges(false);
+      setSaveError(null);
+    } catch {
+      setSavedAt(null);
+      setSaveError(
+        'Браузер не разрешил сохранить локальную конфигурацию.',
+      );
+    }
   };
 
   const resetSettings = () => {
@@ -173,6 +226,8 @@ export function SettingsPage() {
     setSettings(cloneSettings(fallbackPreset?.settings ?? DEFAULT_SETTINGS));
     setActivePreset(fallbackPreset?.id ?? 'intraday');
     setSavedAt(null);
+    setHasUnsavedChanges(true);
+    setSaveError(null);
   };
 
   const renderGroup = () => {
@@ -184,7 +239,7 @@ export function SettingsPage() {
               <div>
                 <p className={styles.sectionEyebrow}>Рабочий период</p>
                 <h2>Таймфреймы</h2>
-                <span>При смене основного периода NEXUS будет пересчитывать активность и параметры сетапов.</span>
+                <span>Локальное предпочтение для будущей интеграции. Scanner и Workspace пока используют собственные переключатели периода.</span>
               </div>
             </div>
 
@@ -245,7 +300,7 @@ export function SettingsPage() {
               checked={settings.autoOpenWorkspace}
               onChange={(checked) => updateSettings({ autoOpenWorkspace: checked })}
               label="Автоматически открывать Workspace"
-              description="После выбора сетапа в Scanner сразу переходить в рабочее пространство."
+              description="Флаг сохраняется локально, но текущая навигация Scanner пока его не использует."
             />
           </section>
         </>
@@ -510,14 +565,14 @@ export function SettingsPage() {
               <div>
                 <p className={styles.sectionEyebrow}>Источник данных</p>
                 <h2>Binance</h2>
-                <span>Подключение реальных потоков будет выполнено отдельным этапом.</span>
+                <span>Рыночные потоки подключаются через backend runtime. Эта страница не управляет соединением.</span>
               </div>
-              <span className={styles.testStatus}>TEST DATA</span>
+              <span className={styles.runtimeStatus}>BACKEND RUNTIME</span>
             </div>
             <div className={styles.integrationInfo}>
-              <div><span>Режим</span><strong>Тестовый контур</strong></div>
-              <div><span>Потоки</span><strong>Не подключены</strong></div>
-              <div><span>API-ключ</span><strong>Не требуется</strong></div>
+              <div><span>Управление</span><strong>Backend NEXUS</strong></div>
+              <div><span>Назначение</span><strong>Публичные market-data потоки</strong></div>
+              <div><span>API-ключ пользователя</span><strong>Не требуется для просмотра</strong></div>
             </div>
           </section>
 
@@ -557,7 +612,7 @@ export function SettingsPage() {
           <div>
             <p className={styles.sectionEyebrow}>Интерфейс</p>
             <h2>Отображение терминала</h2>
-            <span>Тёмная тема и базовая дизайн-система NEXUS остаются неизменными.</span>
+            <span>Эти флаги сохраняются локально, но пока не подключены к глобальным стилям терминала.</span>
           </div>
         </div>
         <Toggle
@@ -586,7 +641,7 @@ export function SettingsPage() {
     <section className={styles.settingsPage}>
       <header className={styles.pageHeader}>
         <div>
-          <p className={styles.eyebrow}>Конфигурация терминала · локальное сохранение</p>
+          <p className={styles.eyebrow}>Локальный прототип конфигурации · не подключён к runtime</p>
           <h1>Settings</h1>
           <p>Настройка логики поиска сетапов, уровней, индикаторов и уведомлений.</p>
         </div>
@@ -596,9 +651,26 @@ export function SettingsPage() {
               ? 'Пользовательские настройки'
               : `Пресет: ${SETTINGS_PRESETS.find((item) => item.id === activePreset)?.name}`}
           </span>
-          {savedAt && <small>Сохранено локально в {savedAt}</small>}
+          {hasUnsavedChanges && (
+            <small>Есть несохранённые локальные изменения</small>
+          )}
+          {!hasUnsavedChanges && savedAt && (
+            <small>Сохранено в этом браузере в {savedAt}</small>
+          )}
         </div>
       </header>
+
+      <section
+        className={styles.localNotice}
+        aria-label="Ограничения текущих настроек"
+      >
+        <strong>Локальный прототип настроек</strong>
+        <span>
+          Параметры сохраняются только в этом браузере.
+          Они пока не передаются в Scanner, Workspace, Alerts,
+          Setup Engine, backend-фильтры или глобальные стили.
+        </span>
+      </section>
 
       <section className={styles.presetSection} aria-label="Пресеты настроек">
         <div className={styles.presetHeading}>
@@ -661,15 +733,23 @@ export function SettingsPage() {
 
           <footer className={styles.actionBar}>
             <div>
-              <strong>Изменения сохраняются только в этом браузере</strong>
-              <span>Backend и профиль пользователя будут подключены отдельным этапом.</span>
+              <strong>Локальный черновик конфигурации</strong>
+              <span>Сохранение не меняет параметры работающих frontend- и backend-сервисов.</span>
+              {saveError && (
+                <span className={styles.saveError}>{saveError}</span>
+              )}
             </div>
             <div>
               <button className={styles.secondaryButton} type="button" onClick={resetSettings}>
-                Вернуть значения
+                Вернуть значения пресета
               </button>
-              <button className={styles.primaryButton} type="button" onClick={saveSettings}>
-                Сохранить локально
+              <button
+                className={styles.primaryButton}
+                type="button"
+                onClick={saveSettings}
+                disabled={!hasUnsavedChanges}
+              >
+                {hasUnsavedChanges ? 'Сохранить в браузере' : 'Сохранено локально'}
               </button>
             </div>
           </footer>

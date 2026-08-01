@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "./src/features",
+    "outDir": "./node_modules/.tmp/settings-test",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.settings-test.tsbuildinfo"
+  },
+  "include": [
+    "src/features/settings/settingsData.ts"
+  ]
+}
