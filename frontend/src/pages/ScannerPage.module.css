@@ -2591,3 +2591,229 @@
     min-height: 32px;
   }
 }
+
+.panelHeaderActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--nexus-space-1);
+  flex-wrap: wrap;
+}
+
+.viewModeControl {
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(62px, 1fr));
+  padding: 3px;
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+  background: var(--nexus-color-bg-canvas);
+}
+
+.viewModeControl button {
+  min-height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--nexus-color-text-muted);
+  background: transparent;
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+  font-weight: var(--nexus-font-weight-semibold);
+  cursor: pointer;
+}
+
+.viewModeControl button:hover,
+.viewModeControl button:focus-visible {
+  color: var(--nexus-color-text-primary);
+}
+
+.viewModeControl .viewModeActive {
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-selected);
+  box-shadow: inset 0 0 0 1px var(--nexus-color-border-accent);
+}
+
+.chartGridPanel {
+  min-width: 0;
+  padding: var(--nexus-space-2);
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-lg);
+  background: var(--nexus-color-bg-surface);
+}
+
+.chartGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--nexus-space-2);
+}
+
+.chartGridCard {
+  min-width: 0;
+  display: grid;
+  gap: var(--nexus-space-1);
+  padding: var(--nexus-space-2);
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-md);
+  color: var(--nexus-color-text-secondary);
+  background: var(--nexus-color-bg-canvas);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--nexus-duration-fast),
+    background var(--nexus-duration-fast),
+    transform var(--nexus-duration-fast);
+}
+
+.chartGridCard:hover {
+  border-color: var(--nexus-color-border-strong);
+  background: var(--nexus-color-bg-hover);
+  transform: translateY(-1px);
+}
+
+.chartGridCard:focus-visible {
+  outline: 1px solid var(--nexus-color-border-accent);
+  outline-offset: 2px;
+}
+
+.chartGridCardSelected {
+  border-color: var(--nexus-color-border-accent);
+  background:
+    linear-gradient(
+      135deg,
+      var(--nexus-color-bg-selected),
+      transparent 72%
+    ),
+    var(--nexus-color-bg-canvas);
+}
+
+.chartGridCardHeader,
+.chartGridSetupMeta,
+.chartGridMetrics {
+  display: flex;
+  align-items: center;
+}
+
+.chartGridCardHeader {
+  justify-content: space-between;
+  gap: var(--nexus-space-1);
+}
+
+.chartGridIdentity {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.chartGridIdentity strong {
+  color: var(--nexus-color-text-primary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: var(--nexus-font-size-md);
+}
+
+.chartGridIdentity small {
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+}
+
+.chartGridSetupMeta {
+  min-width: 0;
+  gap: var(--nexus-space-1);
+  color: var(--nexus-color-text-secondary);
+  font-size: 10px;
+}
+
+.chartGridSetupMeta > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chartGridChart {
+  height: 220px;
+  display: block;
+  overflow: hidden;
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+}
+
+.chartGridMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.chartGridMetrics > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 7px;
+  border-radius: var(--nexus-radius-sm);
+  background: var(--nexus-color-bg-surface-raised);
+}
+
+.chartGridMetrics small {
+  overflow: hidden;
+  color: var(--nexus-color-text-muted);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.chartGridMetrics strong {
+  overflow: hidden;
+  color: var(--nexus-color-text-primary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chartGridEmpty {
+  min-height: 280px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--nexus-space-1);
+  color: var(--nexus-color-text-muted);
+  text-align: center;
+}
+
+.chartGridEmpty strong {
+  color: var(--nexus-color-text-primary);
+}
+
+.chartGridEmpty button {
+  min-height: 34px;
+  margin-top: var(--nexus-space-1);
+  padding: 0 12px;
+  border: var(--nexus-border-width) solid var(--nexus-color-border-strong);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-surface-raised);
+  cursor: pointer;
+}
+
+@media (max-width: 1080px) {
+  .chartGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .panelHeaderActions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .chartGridMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chartGridChart {
+    height: 200px;
+  }
+}
