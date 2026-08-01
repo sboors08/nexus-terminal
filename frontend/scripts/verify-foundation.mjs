@@ -55,7 +55,13 @@ const requiredMarketModeMarkers = [
   "title: 'BEARISH'",
   "trend: 'TRENDING DOWN'",
   "risk: 'RISK OFF'",
-  'automaticScore',
+  'calculateMedian',
+  'marketBreadthPct',
+  'marketVolatilityPct',
+  'liveMarketCount',
+  "title: 'СБОР ДАННЫХ'",
+  "title: 'NEUTRAL'",
+  'MARKET BREADTH',
 ];
 
 

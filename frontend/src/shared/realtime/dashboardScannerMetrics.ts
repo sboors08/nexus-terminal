@@ -94,7 +94,7 @@ export interface DashboardScannerMetricView {
   updatedAtLabel: string;
   sourceLabel:
     | 'LIVE'
-    | 'TEST'
+    | 'UNAVAILABLE'
     | 'BINANCE'
     | 'NEW';
 }
@@ -826,48 +826,34 @@ export function buildDashboardScannerMetricView(
       symbol,
       isLive: false,
       priceValue: null,
-      priceLabel: '\u2014',
+      priceLabel: '—',
       priceChangePct: null,
-      priceChangeLabel:
-        fallback.priceChangeLabel,
+      priceChangeLabel: 'нет данных',
       btcCorrelation: null,
-      btcCorrelationLabel:
-        'нет данных',
+      btcCorrelationLabel: 'нет данных',
       relativeStrengthPct: null,
-      relativeStrengthLabel:
-        'нет данных',
-      quoteVolumeLabel:
-        fallback.quoteVolumeLabel,
+      relativeStrengthLabel: 'нет данных',
+      quoteVolumeLabel: 'нет данных',
       quoteVolumeValue: null,
-      tradesCountLabel:
-        fallback.tradesCountLabel,
+      tradesCountLabel: 'нет данных',
       tradesCountValue: null,
-      speedLabel:
-        fallback.speedLabel,
+      speedLabel: 'нет данных',
       tradesPerMinuteValue: null,
       volatilityPct: null,
-      volatilityLabel:
-        fallback.volatilityLabel,
+      volatilityLabel: 'нет данных',
       spreadPct: null,
       topBookQuoteValue: null,
       orderBookImbalancePct: null,
       liquidityIsLive: false,
-      liquidityScore:
-        normalizeLiquidityScore(
-          fallback.liquidityScore,
-        ),
+      liquidityScore: 0,
       liquidityTitle:
-        'TEST · тестовая ликвидность',
+        'НЕТ ДАННЫХ · ожидание данных стакана',
       activityIsLive: false,
-      activityScore:
-        normalizeActivityScore(
-          fallback.activityScore,
-        ),
+      activityScore: 0,
       activityTitle:
-        'TEST · тестовая оценка активности',
-      updatedAtLabel:
-        '\u043e\u0436\u0438\u0434\u0430\u043d\u0438\u0435 \u0434\u0430\u043d\u043d\u044b\u0445',
-      sourceLabel: 'TEST',
+        'НЕТ ДАННЫХ · ожидание метрик активности',
+      updatedAtLabel: 'нет данных',
+      sourceLabel: 'UNAVAILABLE',
     };
   }
 
@@ -950,7 +936,7 @@ export function buildDashboardScannerMetricView(
     liquidityScore:
       normalizeLiquidityScore(
         matchingMetric.liquidityScore
-        ?? fallback.liquidityScore,
+        ?? 0,
       ),
     liquidityTitle:
       buildLiquidityTitle(
@@ -961,7 +947,7 @@ export function buildDashboardScannerMetricView(
     activityScore:
       normalizeActivityScore(
         matchingMetric.activityScore
-        ?? fallback.activityScore,
+        ?? 0,
       ),
     activityTitle:
       buildActivityTitle(
