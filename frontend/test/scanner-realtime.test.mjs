@@ -14,12 +14,13 @@ test('formats realtime prices and quantities for Scanner', () => {
   assert.equal(formatScannerQuantity(0.00388), '0.00388');
 });
 
-test('uses the mock price while a realtime snapshot is unavailable', () => {
-  const view = buildScannerRealtimeMarketView(undefined, '187.42');
+test('shows unavailable market values while a realtime snapshot is unavailable', () => {
+  const view = buildScannerRealtimeMarketView(undefined);
 
   assert.equal(view.isLive, false);
-  assert.equal(view.priceLabel, '187.42');
+  assert.equal(view.priceLabel, '—');
   assert.equal(view.bidLabel, '—');
+  assert.equal(view.updatedAtLabel, 'нет данных');
   assert.deepEqual(view.recentTrades, []);
 });
 
@@ -69,7 +70,7 @@ test('builds bid, ask, spread and a newest-first trade tape', () => {
       },
     ],
     updatedAt: '2026-07-18T17:08:51.000Z',
-  }, '64 000.00');
+  });
 
   assert.equal(view.isLive, true);
   assert.equal(view.priceLabel, '64 292.81');

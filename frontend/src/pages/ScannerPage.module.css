@@ -1082,7 +1082,7 @@
   background: var(--nexus-color-long-soft);
 }
 
-.priceSourceFallback {
+.priceSourceUnavailable {
   color: var(--nexus-color-text-muted);
   background: var(--nexus-color-bg-hover);
 }
