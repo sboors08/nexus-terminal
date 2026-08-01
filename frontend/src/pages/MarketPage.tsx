@@ -24,14 +24,6 @@ type SortKey = 'change' | 'volume' | 'trades' | 'strength' | 'volatility';
 
 const TIMEFRAMES: MarketTimeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
-function formatPrice(value: number) {
-  const fractionDigits = value >= 1000 ? 2 : value >= 1 ? 4 : 6;
-  return new Intl.NumberFormat('ru-RU', {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  }).format(value);
-}
-
 function formatCompact(value: number) {
   return new Intl.NumberFormat('ru-RU', {
     notation: 'compact',
@@ -43,27 +35,6 @@ function formatSigned(value: number | null, suffix = '') {
   if (value === null) return '—';
   const prefix = value > 0 ? '+' : '';
   return `${prefix}${value.toFixed(2)}${suffix}`;
-}
-
-function getSparklinePath(symbol: MarketSymbol, index: number) {
-  const points = Array.from({ length: 20 }, (_, pointIndex) => {
-    const x = (pointIndex / 19) * 92;
-    const trend = symbol.priceChangePct * 1.7 * (pointIndex / 19);
-    const wave = Math.sin(pointIndex * 0.82 + index * 0.64) * 4.2;
-    return { x, value: trend + wave };
-  });
-
-  const values = points.map((point) => point.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = Math.max(max - min, 0.001);
-
-  return points
-    .map((point, pointIndex) => {
-      const y = 25 - ((point.value - min) / range) * 21;
-      return `${pointIndex === 0 ? 'M' : 'L'}${point.x.toFixed(2)} ${y.toFixed(2)}`;
-    })
-    .join(' ');
 }
 
 function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
@@ -155,13 +126,11 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
     () =>
       buildMarketRealtimeView(
         realtimeSnapshot,
-        formatPrice(selected.price),
         realtime.lifecycleState,
         realtime.status?.state ?? null,
       ),
     [
       realtimeSnapshot,
-      selected.price,
       realtime.lifecycleState,
       realtime.status?.state,
     ],
@@ -204,7 +173,7 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
     <section className={styles.market}>
       <header className={styles.pageHeader}>
         <div>
-          <p className={styles.eyebrow}>Ручной обзор рынка · тестовые данные</p>
+          <p className={styles.eyebrow}>Ручной обзор рынка · данные backend NEXUS</p>
           <h1>Market</h1>
           <p className={styles.subtitle}>Просматривайте динамику монет, сравнивайте активность и открывайте выбранный инструмент в Workspace.</p>
         </div>
@@ -264,10 +233,10 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
                 className={
                   realtimeMarket.isLive
                     ? styles.priceSourceLive
-                    : styles.priceSourceTest
+                    : styles.priceSourceUnavailable
                 }
               >
-                {realtimeMarket.isLive ? 'LIVE' : 'TEST'}
+                {realtimeMarket.isLive ? 'LIVE' : 'UNAVAILABLE'}
               </small>
             </div>
           </header>
@@ -373,7 +342,6 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
                 const isPositive = symbol.priceChangePct >= 0;
                 const rowRealtime = buildMarketRealtimeView(
                   realtime.snapshots[symbol.symbol],
-                  formatPrice(symbol.price),
                   realtime.lifecycleState,
                   realtime.status?.state ?? null,
                 );
@@ -388,13 +356,13 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
                         className={
                           rowRealtime.isLive
                             ? styles.priceSourceLive
-                            : styles.priceSourceTest
+                            : styles.priceSourceUnavailable
                         }
                       >
-                        {rowRealtime.isLive ? 'LIVE' : 'TEST'} ? {formatCompact(symbol.volumeQuote)}
+                        {rowRealtime.isLive ? 'LIVE' : 'UNAVAILABLE'} · {formatCompact(symbol.volumeQuote)}
                       </small>
                     </span>
-                    <svg className={isPositive ? styles.sparkPositive : styles.sparkNegative} viewBox="0 0 92 28" aria-hidden="true"><path d={getSparklinePath(symbol, index)} fill="none" /></svg>
+                    <span className={styles.sparkUnavailable} aria-label="Мини-график недоступен">—</span>
                     <span className={isPositive ? styles.positive : styles.negative}>{formatSigned(symbol.priceChangePct, '%')}</span>
                     <span className={styles.rowMeta}><small>Сила {formatSigned(symbol.btcRelativeStrength)}</small><small>ρ {symbol.btcCorrelation?.toFixed(2) ?? '—'}</small><small>σ {symbol.volatilityPct.toFixed(2)}%</small></span>
                   </button>
@@ -411,9 +379,9 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
 export function MarketPage() {
   const marketQuery = useApiQuery('market-symbols', nexusApi.getMarketSymbols);
 
-  if (marketQuery.status === 'loading') return <AsyncDataState state="loading" title="Загружаем обзор рынка" />;
-  if (marketQuery.status === 'error') return <AsyncDataState state="error" title="Market не загрузился" message={marketQuery.error?.message} onRetry={marketQuery.retry} />;
-  if (!marketQuery.data || marketQuery.data.length === 0) return <AsyncDataState state="empty" title="В Market пока нет монет" />;
+  if (marketQuery.status === 'loading') return <AsyncDataState state="loading" title="Загружаем обзор рынка" message="Получаем актуальные метрики Binance из backend NEXUS." />;
+  if (marketQuery.status === 'error') return <AsyncDataState state="error" title="Market не загрузился" message={marketQuery.error?.message ?? 'Не удалось получить список монет из backend NEXUS.'} onRetry={marketQuery.retry} />;
+  if (!marketQuery.data || marketQuery.data.length === 0) return <AsyncDataState state="empty" title="В Market пока нет монет" message="Backend NEXUS не вернул доступные торговые пары." />;
 
   return <MarketPageContent symbols={marketQuery.data} />;
 }
