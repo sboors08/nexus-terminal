@@ -64,16 +64,20 @@ export function formatScannerTradeTime(timestamp: string): string {
 
 export function buildScannerRealtimeMarketView(
   snapshot: RealtimeSymbolSnapshot | undefined,
-  fallbackPrice: string,
+  fallbackPrice?: string,
 ): ScannerRealtimeMarketView {
+  const unavailablePrice =
+    fallbackPrice
+    ?? '—';
+
   if (!snapshot) {
     return {
       isLive: false,
-      priceLabel: fallbackPrice,
+      priceLabel: unavailablePrice,
       bidLabel: '—',
       askLabel: '—',
       spreadLabel: '—',
-      updatedAtLabel: 'ожидание данных',
+      updatedAtLabel: 'нет данных',
       recentTrades: [],
     };
   }
@@ -82,25 +86,45 @@ export function buildScannerRealtimeMarketView(
   const midpoint = bookTicker
     ? (bookTicker.bidPrice + bookTicker.askPrice) / 2
     : null;
-  const currentPrice = snapshot.lastTrade?.price ?? midpoint;
-  const updatedAt = snapshot.updatedAt
+  const currentPrice =
+    snapshot.lastTrade?.price
+    ?? midpoint;
+  const updatedAt =
+    snapshot.updatedAt
     ?? snapshot.lastTrade?.timestamp
     ?? bookTicker?.updatedAt
     ?? null;
 
   return {
-    isLive: currentPrice !== null || bookTicker !== null,
-    priceLabel: currentPrice === null ? fallbackPrice : formatScannerPrice(currentPrice),
-    bidLabel: bookTicker ? formatScannerPrice(bookTicker.bidPrice) : '—',
-    askLabel: bookTicker ? formatScannerPrice(bookTicker.askPrice) : '—',
-    spreadLabel: bookTicker
-      ? `${formatScannerPrice(bookTicker.spread)} · ${bookTicker.spreadPct.toFixed(5)}%`
-      : '—',
-    updatedAtLabel: updatedAt ? formatScannerTradeTime(updatedAt) : 'ожидание данных',
-    recentTrades: [...snapshot.recentTrades].slice(-6).reverse(),
+    isLive:
+      currentPrice !== null
+      || bookTicker !== null,
+    priceLabel:
+      currentPrice === null
+        ? unavailablePrice
+        : formatScannerPrice(currentPrice),
+    bidLabel:
+      bookTicker
+        ? formatScannerPrice(bookTicker.bidPrice)
+        : '—',
+    askLabel:
+      bookTicker
+        ? formatScannerPrice(bookTicker.askPrice)
+        : '—',
+    spreadLabel:
+      bookTicker
+        ? `${formatScannerPrice(bookTicker.spread)} · ${bookTicker.spreadPct.toFixed(5)}%`
+        : '—',
+    updatedAtLabel:
+      updatedAt
+        ? formatScannerTradeTime(updatedAt)
+        : 'нет данных',
+    recentTrades:
+      [...snapshot.recentTrades]
+        .slice(-6)
+        .reverse(),
   };
 }
-
 export function getScannerRealtimeConnectionLabel(
   lifecycleState: RealtimeClientLifecycleState,
   backendState: RealtimeConnectionState | null,

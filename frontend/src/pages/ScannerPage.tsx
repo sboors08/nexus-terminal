@@ -281,12 +281,19 @@ function ScannerPageContent({
   setups:
     v1Setups,
 
+  setupsDataState,
+
   minQuoteVolumeMillions,
 
   setMinQuoteVolumeMillions,
 }: {
   setups:
     ScannerSetup[];
+
+  setupsDataState:
+    | 'live'
+    | 'retained-loading'
+    | 'retained-error';
 
   minQuoteVolumeMillions:
     string;
@@ -529,6 +536,20 @@ function ScannerPageContent({
         setup.runtimeData
         === true,
     );
+
+  const setupsSourceLabel =
+    setupsDataState === 'retained-error'
+      ? 'SAVED SETUPS · UPDATE ERROR'
+      : setupsDataState === 'retained-loading'
+        ? 'SAVED SETUPS · REFRESHING'
+        : 'REAL SETUPS · BINANCE';
+
+  const setupsSourceDescription =
+    setupsDataState === 'retained-error'
+      ? 'Поиск сетапов · сохранённые кандидаты · ошибка обновления · цены realtime'
+      : setupsDataState === 'retained-loading'
+        ? 'Поиск сетапов · сохранённые кандидаты · обновляем Setup Engine · цены realtime'
+        : 'Поиск сетапов · реальные кандидаты Setup Engine · цены realtime';
 
   const runtimeTimeframes =
     useMemo(
@@ -986,9 +1007,8 @@ function ScannerPageContent({
   const realtimeMarket = useMemo(
     () => buildScannerRealtimeMarketView(
       realtimeSnapshot,
-      isMarketPreview ? '—' : selectedSetup.price,
     ),
-    [isMarketPreview, realtimeSnapshot, selectedSetup.price],
+    [realtimeSnapshot],
   );
   const realtimeLabel = getScannerRealtimeConnectionLabel(
     realtime.lifecycleState,
@@ -1172,11 +1192,7 @@ function ScannerPageContent({
       <header className={styles.pageHeader}>
         <div>
           <p className={styles.eyebrow}>
-          {
-            hasRuntimeSetups
-              ? 'Поиск сетапов · реальные кандидаты Setup Engine · цены realtime'
-              : 'Поиск сетапов · тестовые сетапы · цены realtime'
-          }
+          {setupsSourceDescription}
         </p>
           <h1 className={styles.title}>Scanner</h1>
           <p className={styles.subtitle}>Полный список найденных ситуаций с фильтрацией, сортировкой и предпросмотром.</p>
@@ -1438,11 +1454,7 @@ function ScannerPageContent({
 
                   <div className={styles.panelHeaderActions}>
                     <span className={styles.testBadge}>
-                      {
-                        hasRuntimeSetups
-                          ? 'REAL SETUPS · BINANCE'
-                          : 'TEST SETUPS · LIVE MARKET'
-                      }
+                      {setupsSourceLabel}
                     </span>
 
                     <div
@@ -1617,11 +1629,7 @@ function ScannerPageContent({
 
             <div className={styles.panelHeaderActions}>
               <span className={styles.testBadge}>
-                {
-                  hasRuntimeSetups
-                    ? 'REAL SETUPS · BINANCE'
-                    : 'TEST SETUPS · LIVE MARKET'
-                }
+                {setupsSourceLabel}
               </span>
 
               <div
@@ -1928,18 +1936,10 @@ function ScannerPageContent({
                     className={`${styles.priceSourceBadge} ${
                       realtimeMarket.isLive
                         ? styles.priceSourceLive
-                        : styles.priceSourceFallback
+                        : styles.priceSourceUnavailable
                     }`}
                   >
-                    {
-                      realtimeMarket.isLive
-                        ? 'LIVE'
-                        : isMarketPreview
-                          ? 'WAIT'
-                          : selectedSetup.runtimeData
-                            ? 'API'
-                            : 'TEST'
-                    }
+                    {realtimeMarket.isLive ? 'LIVE' : 'UNAVAILABLE'}
                   </span>
                 </div>
               </div>
@@ -2611,11 +2611,32 @@ export function ScannerPage() {
       query.retry,
   });
 
-  const setupsForDisplay =
+  const currentSetups =
     query.data
-    && query.data.length > 0
-      ? query.data
-      : retainedSetups;
+    ?? [];
+
+  const hasDisplayableSetups =
+    currentSetups.length > 0
+    || retainedSetups.length > 0;
+
+  const setupsDataState:
+    | 'live'
+    | 'retained-loading'
+    | 'retained-error' =
+      query.status === 'error'
+      && hasDisplayableSetups
+        ? 'retained-error'
+        : query.status === 'loading'
+          && hasDisplayableSetups
+            ? 'retained-loading'
+            : 'live';
+
+  const setupsForDisplay =
+    currentSetups.length > 0
+      ? currentSetups
+      : setupsDataState !== 'live'
+        ? retainedSetups
+        : [];
 
   if (
     query.status === 'loading'
@@ -2624,6 +2645,8 @@ export function ScannerPage() {
     return (
       <AsyncDataState
         state="loading"
+        title="Загружаем кандидатов Scanner"
+        message="Получаем активные сетапы из Setup Engine."
       />
     );
   }
@@ -2635,8 +2658,10 @@ export function ScannerPage() {
     return (
       <AsyncDataState
         state="error"
+        title="Кандидаты Scanner не загрузились"
         message={
           query.error?.message
+          ?? 'Не удалось получить активные сетапы из Setup Engine.'
         }
         onRetry={
           query.retry
@@ -2651,6 +2676,8 @@ export function ScannerPage() {
     return (
       <AsyncDataState
         state="empty"
+        title="Активных сетапов сейчас нет"
+        message="Setup Engine не вернул кандидатов для текущего порога объёма."
       />
     );
   }
@@ -2659,6 +2686,9 @@ export function ScannerPage() {
     <ScannerPageContent
       setups={
         setupsForDisplay
+      }
+      setupsDataState={
+        setupsDataState
       }
       minQuoteVolumeMillions={
         minQuoteVolumeMillions
