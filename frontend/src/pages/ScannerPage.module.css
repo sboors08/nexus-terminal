@@ -2473,3 +2473,121 @@
     gap: 8px;
   }
 }
+
+
+/* Scanner UX v2 chart above fold */
+@media (min-width: 1280px) {
+  .pageHeader {
+    min-height: 34px;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .pageHeader > div:first-child {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .pageHeader .eyebrow,
+  .pageHeader .subtitle {
+    display: none;
+  }
+
+  .pageHeader .title {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .headerControls {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .shadowModeControl {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .shadowModeButtons {
+    padding: 2px;
+  }
+
+  .shadowModeButtons button {
+    min-height: 26px;
+    padding-inline: 8px;
+  }
+
+  .shadowModeMeta {
+    min-height: 0;
+    white-space: nowrap;
+  }
+
+  .headerStatus {
+    font-size: 9px;
+  }
+
+  .filtersPanel {
+    padding: 7px 10px;
+    margin-bottom: 6px;
+  }
+
+  .presetFilter {
+    gap: 5px 10px;
+    margin-bottom: 5px;
+    padding-bottom: 5px;
+  }
+
+  .presetFilter > .controlLabel {
+    font-size: 8px;
+  }
+
+  .filterTopRow {
+    gap: 6px;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .filterBottomRow {
+    gap: 6px;
+    margin-top: 5px;
+    padding-top: 5px;
+  }
+
+  .searchField,
+  .selectField,
+  .compactSelect,
+  .volumeFilterField,
+  .directionFilter {
+    gap: 3px;
+  }
+
+  .searchField > span,
+  .selectField > span,
+  .compactSelect > span,
+  .volumeFilterField > span,
+  .directionFilter > .controlLabel {
+    font-size: 8px;
+    line-height: 1;
+  }
+
+  .searchField input,
+  .selectField select,
+  .compactSelect select {
+    min-height: 32px;
+    padding-inline: 9px;
+  }
+
+  .segmentedControl {
+    min-height: 32px;
+    padding: 2px;
+  }
+
+  .filterSummary,
+  .resetButton {
+    min-height: 32px;
+  }
+}
