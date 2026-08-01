@@ -51,18 +51,12 @@
   white-space: nowrap;
 }
 
-.liveDot,
 .statusDot {
+  width: 8px;
+  height: 8px;
   display: inline-block;
   flex: 0 0 auto;
   border-radius: var(--nexus-radius-round);
-}
-
-.liveDot {
-  width: 8px;
-  height: 8px;
-  background: var(--nexus-color-long);
-  box-shadow: 0 0 10px var(--nexus-color-long);
 }
 
 .summaryGrid {
@@ -123,15 +117,32 @@
   font-size: var(--nexus-font-size-md);
 }
 
-.panelHeader > span {
+.panelStatus {
   padding: 4px 8px;
+  border: var(--nexus-border-width) solid transparent;
   border-radius: var(--nexus-radius-round);
-  color: var(--nexus-color-long);
-  background: var(--nexus-color-long-soft);
   font-family: var(--nexus-font-family-mono);
   font-size: 9px;
   font-weight: var(--nexus-font-weight-bold);
   letter-spacing: 0.05em;
+}
+
+.panelStatusLive {
+  border-color: var(--nexus-color-long);
+  color: var(--nexus-color-long);
+  background: var(--nexus-color-long-soft);
+}
+
+.panelStatusPending {
+  border-color: var(--nexus-color-stage-approach);
+  color: var(--nexus-color-stage-approach);
+  background: transparent;
+}
+
+.panelStatusError {
+  border-color: var(--nexus-color-short);
+  color: var(--nexus-color-short);
+  background: transparent;
 }
 
 .tableHeader,
