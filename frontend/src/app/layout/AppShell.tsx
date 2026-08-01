@@ -101,11 +101,13 @@ export function AppShell() {
         </nav>
 
         <div className={styles.terminalStatus}>
-          <span className={styles.live}><i />LIVE</span>
+          <span
+            className={styles.environmentStatus}
+            title="Состояние подключения показывается отдельно на каждой странице"
+          >
+            MVP FRONTEND
+          </span>
           <span className={styles.pageVersion}>{pageVersion}</span>
-          <span className={styles.topIcon} aria-label="Уведомления">♧</span>
-          <span className={styles.topIcon} aria-label="Помощь">?</span>
-          <span className={styles.avatar}>N</span>
         </div>
       </header>
 
@@ -121,7 +123,7 @@ export function AppShell() {
             <RailIcon name={item.icon} />
           </NavLink>
         ))}
-        <span className={styles.railCollapse}>»</span>
+
       </aside>
 
       <main className={styles.terminalContent}><Outlet /></main>

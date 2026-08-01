@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
+import { buildMarketWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   buildWatchlistRealtimeView,
   useRealtimeMarketData,
@@ -101,8 +102,11 @@ function WatchlistRow({
   );
 
   const workspaceUrl =
-    `${ROUTES.workspace}?symbol=${encodeURIComponent(instrument.symbol)}`
-    + `&timeframe=${encodeURIComponent(instrument.timeframe)}`;
+    buildMarketWorkspaceUrl(
+      ROUTES.workspace,
+      instrument.symbol,
+      instrument.timeframe,
+    );
 
   return (
     <article className={styles.instrumentRow}>
