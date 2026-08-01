@@ -33,7 +33,6 @@ import {
   useSetupLifecycleRefresh,
   type PrintSide,
   type Setup,
-  type WorkspaceSnapshot,
   type WorkspaceViewData,
 } from '@/shared/api';
 import {
@@ -51,8 +50,8 @@ type TapeFilter = 'all' | PrintSide;
 
 type WorkspacePageData = {
   contractSetup: Setup;
-  snapshot: WorkspaceSnapshot;
   view: WorkspaceViewData;
+  replayAvailable: boolean;
 };
 
 function ChecklistIcon({ state }: { state: 'passed' | 'warning' | 'waiting' }) {
@@ -62,7 +61,7 @@ function ChecklistIcon({ state }: { state: 'passed' | 'warning' | 'waiting' }) {
 }
 
 function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
-  const { contractSetup, snapshot, view } = data;
+  const { contractSetup, view, replayAvailable } = data;
   const { selectedSetup, stageFlow } = view;
   const isMarketPreview =
     isMarketWorkspaceSetupId(
@@ -291,7 +290,6 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
       ],
     );
   const [tapeFilter, setTapeFilter] = useState<TapeFilter>('all');
-  const [alertCreated, setAlertCreated] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
 
   const realtime = useRealtimeMarketData({
@@ -305,14 +303,14 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     () => buildWorkspaceRealtimeView(
       realtimeSnapshot,
       selectedSetup.price,
-      snapshot.candles,
+      candlesQuery.data ?? [],
       realtime.lifecycleState,
       realtime.status?.state ?? null,
     ),
     [
       realtimeSnapshot,
       selectedSetup.price,
-      snapshot.candles,
+      candlesQuery.data,
       realtime.lifecycleState,
       realtime.status?.state,
     ],
@@ -483,9 +481,8 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     selectedSetup.runtimeData
     === true;
 
-  const usesDemoWorkspaceContext =
-    isRuntimeSetup
-    || isMarketPreview;
+  const hasRuntimeSetupContext =
+    isRuntimeSetup;
 
   const displayedStageFlow =
     stageFlow.map(
@@ -771,7 +768,9 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
       detail:
         selectedSetup.stage
           === 'triggered'
-          ? `${resultLabel} подтверждён Setup Engine.`
+          ? isRuntimeSetup
+            ? `${resultLabel} подтверждён Setup Engine.`
+            : `${resultLabel} отмечен в демонстрационном сетапе.`
           : `Ожидается подтверждение возле зоны ${chartLevelLabel}.`,
 
       state:
@@ -1827,7 +1826,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 isMarketPreview
                   ? 'Рабочее пространство · рыночный обзор Binance'
                   : isRuntimeSetup
-                    ? 'Рабочее пространство · реальный сетап Binance'
+                    ? 'Рабочее пространство · runtime-сетап Setup Engine'
                     : 'Рабочее пространство · тестовые данные'
               }
             </p>
@@ -1879,15 +1878,16 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
           <div className={styles.headerActions}>
             {!isMarketPreview && (
               <button
-                className={alertCreated ? styles.alertButtonActive : styles.secondaryButton}
+                className={styles.secondaryButton}
                 type="button"
-                onClick={() => setAlertCreated((current) => !current)}
+                disabled
+                title="Создание пользовательских алертов из Workspace ещё не подключено"
               >
-                {alertCreated ? 'Алерт создан ✓' : 'Создать алерт'}
+                Алерты пока недоступны
               </button>
             )}
             <button className={styles.primaryButton} type="button" onClick={() => setNoteOpen((current) => !current)}>
-              {noteOpen ? 'Закрыть заметку' : 'Добавить заметку'}
+              {noteOpen ? 'Закрыть черновик' : 'Открыть черновик заметки'}
             </button>
           </div>
         </div>
@@ -2481,10 +2481,13 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               <label htmlFor="workspace-note">
                 {
                   isMarketPreview
-                    ? 'Заметка к рыночному обзору'
-                    : 'Заметка к сетапу'
+                    ? 'Черновик наблюдения по рынку'
+                    : 'Черновик заметки к сетапу'
                 }
               </label>
+              <span className={styles.noteDraftNotice}>
+                Текст существует только до закрытия страницы и не сохраняется.
+              </span>
               <textarea
                 id="workspace-note"
                 placeholder={
@@ -2497,7 +2500,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 type="button"
                 onClick={() => setNoteOpen(false)}
               >
-                Сохранить заметку
+                Закрыть без сохранения
               </button>
             </section>
           )}
@@ -2507,41 +2510,54 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               <button
                 className={styles.primaryButton}
                 type="button"
-                onClick={() => setAlertCreated(true)}
+                disabled
+                title="Создание пользовательских алертов из Workspace ещё не подключено"
               >
-                {
-                  alertCreated
-                    ? 'Алерт активен ✓'
-                    : 'Создать алерт'
-                }
+                Алерты пока недоступны
               </button>
 
-              <Link
-                className={styles.secondaryLink}
-                to={buildReplayUrl(
-                  ROUTES.replay,
-                  {
-                    setupId:
-                      contractSetup.id,
+              {
+                replayAvailable
+                  ? (
+                      <Link
+                        className={styles.secondaryLink}
+                        to={buildReplayUrl(
+                          ROUTES.replay,
+                          {
+                            setupId:
+                              contractSetup.id,
 
-                    symbol:
-                      contractSetup.symbol,
+                            symbol:
+                              contractSetup.symbol,
 
-                    preset,
-                    scannerWindow,
-                    timeframe,
-                  },
-                )}
-              >
-                Открыть в Replay
-              </Link>
+                            preset,
+                            scannerWindow,
+                            timeframe,
+                          },
+                        )}
+                      >
+                        Открыть в Replay
+                      </Link>
+                    )
+                  : (
+                      <button
+                        className={styles.externalButton}
+                        type="button"
+                        disabled
+                        title="Для этого сетапа нет сохранённой Replay-сессии"
+                      >
+                        Replay недоступен
+                      </button>
+                    )
+              }
 
               <button
                 className={styles.externalButton}
                 type="button"
-                title="Интеграция с внешним терминалом будет подключена отдельным этапом"
+                disabled
+                title="Интеграция с внешним терминалом ещё не подключена"
               >
-                Внешний терминал ↗
+                Внешний терминал не подключён
               </button>
             </div>
           )}
@@ -2550,9 +2566,9 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             {
               isMarketPreview
                 ? 'Рыночный режим не является торговым сигналом. NEXUS не выставляет ордера.'
-                : usesDemoWorkspaceContext
-                  ? 'Сетап, стадия и ценовая зона получены из Setup Engine. Лента, стакан, динамика рынка и live-подтверждение поступают из данных Binance. NEXUS не выставляет ордера.'
-                  : 'Сетап демонстрационный. Лента, стакан, динамика рынка и live-подтверждение поступают из данных Binance. NEXUS не выставляет ордера.'
+                : hasRuntimeSetupContext
+                  ? 'Сетап, стадия и ценовая зона получены из Setup Engine. Свечи, лента и стакан загружаются через backend Binance Futures; динамика и live-подтверждение рассчитываются из этих realtime-источников. NEXUS не выставляет ордера.'
+                  : 'Контекст сетапа демонстрационный. Свечи, лента и стакан загружаются через backend Binance Futures; динамика и live-подтверждение рассчитываются из этих realtime-источников. NEXUS не выставляет ордера.'
             }
           </p>
         </aside>
@@ -2617,28 +2633,27 @@ export function WorkspacePage() {
 
       const [
         contractSetup,
-        snapshot,
+        replayView,
       ] = await Promise.all([
         nexusApi.getSetupById(
           resolvedSetupId,
         ),
 
-        nexusApi.getWorkspaceSnapshot(
+        nexusApi.getReplayView(
+          null,
           resolvedSetupId,
         ),
       ]);
 
-      if (
-        !contractSetup
-        || !snapshot
-      ) {
+      if (!contractSetup) {
         return null;
       }
 
       return {
         contractSetup,
-        snapshot,
         view,
+        replayAvailable:
+          replayView !== null,
       };
     },
     {

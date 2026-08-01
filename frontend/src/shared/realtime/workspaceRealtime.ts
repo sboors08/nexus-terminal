@@ -184,15 +184,18 @@ export function buildWorkspaceRealtimeView(
   );
 
   const connectionTone: WorkspaceRealtimeTone =
-    lifecycleState === 'open'
-      && backendState === 'connected'
-      ? 'live'
-      : lifecycleState === 'error'
-        ? 'error'
+    lifecycleState === 'error'
+      || backendState === 'stopped'
+      ? 'error'
+      : lifecycleState === 'open'
+        && backendState === 'connected'
+        ? 'live'
         : 'pending';
 
   return {
-    isLive: market.isLive,
+    isLive:
+      market.isLive
+      && connectionTone === 'live',
     priceValue,
     priceLabel: market.priceLabel,
     priceY: getPriceY(priceValue, range),

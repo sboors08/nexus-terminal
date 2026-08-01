@@ -47,13 +47,6 @@ export const WORKSPACE_LIQUIDITY: LiquidityLevel[] = [
   { id: 'l-9', price: '186.42', side: 'buyer', size: '$193K', age: '41м', state: 'Стоит', fillPercent: 3, intensity: 0.76 },
 ];
 
-export const MARKET_DYNAMICS = [
-  { label: 'Скорость сделок', value: 'Высокая', change: '+38%', tone: 'positive' as const },
-  { label: 'Дельта принтов', value: '+$184K', change: 'Покупатель', tone: 'positive' as const },
-  { label: 'Объём 5m', value: '1.84×', change: 'Выше среднего', tone: 'positive' as const },
-  { label: 'Корреляция с BTC', value: '0.82', change: 'Стабильная', tone: 'neutral' as const },
-];
-
 export const STAGE_FLOW = [
   { id: 'observation', label: 'Наблюдение', description: 'Зона найдена' },
   { id: 'approach', label: 'Подход', description: 'Цена у уровня' },

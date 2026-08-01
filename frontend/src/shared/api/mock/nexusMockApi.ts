@@ -29,7 +29,6 @@ import {
   type ScannerTimeframe,
 } from '@/features/scanner/scannerData';
 import {
-  MARKET_DYNAMICS,
   STAGE_FLOW,
   WORKSPACE_LIQUIDITY,
   WORKSPACE_PRINTS,
@@ -104,12 +103,8 @@ export { getReplayStageView };
 
 export interface WorkspaceViewData {
   selectedSetup: ScannerSetup;
-  prints: TapePrint[];
-  liquidity: WorkspaceLiquidityView[];
-  marketDynamics: typeof MARKET_DYNAMICS;
   stageFlow: typeof STAGE_FLOW;
 }
-
 export interface AlertsViewData {
   alerts: AlertViewItem[];
   rules: AlertRule[];
@@ -1461,15 +1456,6 @@ const viewApi: NexusViewApi = {
           ? {
               selectedSetup,
 
-              prints:
-                WORKSPACE_PRINTS,
-
-              liquidity:
-                WORKSPACE_LIQUIDITY,
-
-              marketDynamics:
-                MARKET_DYNAMICS,
-
               stageFlow:
                 STAGE_FLOW,
             }
@@ -1488,15 +1474,6 @@ const viewApi: NexusViewApi = {
               runtimeContractSetupToScannerSetup(
                 setup,
               ),
-
-            prints:
-              WORKSPACE_PRINTS,
-
-            liquidity:
-              WORKSPACE_LIQUIDITY,
-
-            marketDynamics:
-              MARKET_DYNAMICS,
 
             stageFlow:
               STAGE_FLOW,

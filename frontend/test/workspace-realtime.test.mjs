@@ -133,3 +133,26 @@ test(
     assert.equal(view.connectionTone, 'error');
   },
 );
+
+test(
+  'marks a stopped backend as an error even before the client lifecycle fails',
+  () => {
+    const view = buildWorkspaceRealtimeView(
+      undefined,
+      '188.00',
+      candles,
+      'open',
+      'stopped',
+    );
+
+    assert.equal(
+      view.connectionTone,
+      'error',
+    );
+
+    assert.equal(
+      view.isLive,
+      false,
+    );
+  },
+);
