@@ -77,6 +77,7 @@ export function buildAlertsRealtimeView(
     lifecycleState === 'open' && backendState === 'connected'
       ? 'live'
       : lifecycleState === 'error'
+          || backendState === 'stopped'
         ? 'error'
         : 'pending';
 

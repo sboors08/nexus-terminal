@@ -188,7 +188,7 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
     <section className={styles.alertsPage}>
       <header className={styles.pageHeader}>
         <div>
-          <p className={styles.eyebrow}>Контроль сетапов · тестовые данные</p>
+          <p className={styles.eyebrow}>Тестовые события · live-цены Binance USDⓈ-M Futures</p>
           <h1 className={styles.title}>Alerts</h1>
           <p className={styles.subtitle}>Изменения, которые требуют внимания, с объяснением причины и контекста.</p>
         </div>
@@ -200,8 +200,17 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
             ].join(' ')}
           >
             <span className={styles.liveDot} aria-hidden="true" />
-            {selectedRealtime.connectionLabel} ? {realtimeLiveCount}/{realtimeSymbols.length} монет
+            {selectedRealtime.connectionLabel} · {realtimeLiveCount}/{realtimeSymbols.length} монет
           </div>
+          {selectedRealtime.connectionTone === 'error' && (
+            <button
+              className={styles.secondaryButton}
+              type="button"
+              onClick={realtime.reconnect}
+            >
+              Повторить поток
+            </button>
+          )}
           <button className={styles.secondaryButton} type="button" onClick={markAllViewed} disabled={newCount === 0}>
             Отметить всё прочитанным
           </button>
@@ -215,20 +224,32 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
           <span>ещё не просмотрены</span>
         </article>
         <article className={styles.summaryCard}>
-          <p>Сработали сегодня</p>
+          <p>Тестовые события</p>
           <strong>{alerts.length}</strong>
-          <span>по активным сетапам</span>
+          <span>фиксированный сценарий интерфейса</span>
         </article>
         <article className={styles.summaryCard}>
-          <p>Активные правила</p>
+          <p>Включённые правила</p>
           <strong>{enabledRulesCount}</strong>
-          <span>из {rules.length} настроенных</span>
+          <span>локально до перезагрузки</span>
         </article>
         <article className={`${styles.summaryCard} ${styles.summaryCritical}`}>
           <p>Критичные события</p>
           <strong>{criticalCount}</strong>
           <span>подтверждение или реализация</span>
         </article>
+      </section>
+
+      <section
+        className={styles.dataNotice}
+        aria-label="Источники данных Alerts"
+      >
+        <strong>TEST DATA: события, причины, метрики и правила</strong>
+        <span>
+          Текущие цены поступают из Binance USDⓈ-M Futures.
+          Статусы прочтения и переключатели правил хранятся только
+          в интерфейсе и сбрасываются после перезагрузки.
+        </span>
       </section>
 
       <section className={styles.filtersPanel} aria-label="Фильтры уведомлений">
@@ -476,7 +497,7 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
             <div className={styles.panelHeader}>
               <div>
                 <p className={styles.panelEyebrow}>Логика уведомлений</p>
-                <h2>Активные правила</h2>
+                <h2>Тестовые правила</h2>
               </div>
               <span className={styles.rulesCount}>{enabledRulesCount}/{rules.length}</span>
             </div>
@@ -487,7 +508,7 @@ function AlertsPageContent({ data }: { data: AlertsViewData }) {
                   <div className={styles.ruleCopy}>
                     <strong>{rule.title}</strong>
                     <p>{rule.description}</p>
-                    <span>{rule.scope} · сегодня {rule.matchesToday}</span>
+                    <span>{rule.scope} · тестовых срабатываний: {rule.matchesToday}</span>
                   </div>
                   <button
                     className={`${styles.toggle} ${rule.enabled ? styles.toggleActive : ''}`}

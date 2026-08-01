@@ -948,3 +948,26 @@
 .priceUpdatedAt {
   white-space: nowrap;
 }
+
+.dataNotice {
+  display: grid;
+  gap: 5px;
+  margin-bottom: var(--nexus-space-2);
+  padding: 12px var(--nexus-space-2);
+  border: var(--nexus-border-width) solid var(--nexus-color-info);
+  border-radius: var(--nexus-radius-md);
+  background: var(--nexus-color-info-soft);
+}
+
+.dataNotice strong {
+  color: var(--nexus-color-info);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.dataNotice span {
+  color: var(--nexus-color-text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
