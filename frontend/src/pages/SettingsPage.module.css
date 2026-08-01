@@ -725,3 +725,31 @@
     display: grid;
   }
 }
+
+.localNotice {
+  display: grid;
+  gap: 6px;
+  padding: 12px var(--nexus-space-2);
+  border: var(--nexus-border-width) solid var(--nexus-color-border-info);
+  border-radius: var(--nexus-radius-md);
+  background: var(--nexus-color-info-soft);
+}
+
+.localNotice strong,
+.runtimeStatus {
+  color: var(--nexus-color-info);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.localNotice span {
+  color: var(--nexus-color-text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.saveError {
+  color: var(--nexus-color-danger);
+  font-weight: var(--nexus-font-weight-semibold);
+}
