@@ -2206,12 +2206,14 @@ function ScannerPageContent({
                         <span aria-hidden="true">→</span>
                       </Link>
 
-                      <Link
+                      <button
                         className={styles.secondaryLink}
-                        to={ROUTES.alerts}
+                        type="button"
+                        disabled
+                        title="Создание пользовательских алертов из Scanner ещё не подключено"
                       >
-                        Создать алерт
-                      </Link>
+                        Алерты пока недоступны
+                      </button>
                     </div>
                   )
             }
