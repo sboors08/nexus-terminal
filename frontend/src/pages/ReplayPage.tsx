@@ -100,7 +100,7 @@ function ReplayChart({
   frameIndex: number;
 }) {
   const visibleCandles = session.candles.slice(0, frameIndex + 1);
-  const allPrices = session.candles.flatMap((candle) => [candle.low, candle.high]);
+  const allPrices = visibleCandles.flatMap((candle) => [candle.low, candle.high]);
   const minPrice = Math.min(...allPrices, session.levelLow) * 0.9985;
   const maxPrice = Math.max(...allPrices, session.levelHigh) * 1.0015;
   const priceRange = Math.max(maxPrice - minPrice, Number.EPSILON);
@@ -108,7 +108,7 @@ function ReplayChart({
   const candleWidth = Math.max(5, candleStep * 0.52);
   const currentCandle = visibleCandles.at(-1) ?? session.candles[0];
   const currentX = Math.min(CHART_WIDTH, (frameIndex + 1) * candleStep);
-  const maxVolume = Math.max(...session.candles.map((candle) => candle.volume));
+  const maxVolume = Math.max(...visibleCandles.map((candle) => candle.volume));
 
   const mapY = (price: number) => (
     CHART_BOTTOM - ((price - minPrice) / priceRange) * (CHART_BOTTOM - CHART_TOP)
@@ -123,7 +123,7 @@ function ReplayChart({
         viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
         preserveAspectRatio="none"
         role="img"
-        aria-label={`Replay графика ${session.symbol}. Будущие свечи скрыты.`}
+        aria-label={`Сценарный Replay графика ${session.symbol}. Будущие fixture-свечи скрыты.`}
       >
         <defs>
           <pattern id="replay-future-pattern" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -355,11 +355,18 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
     setActiveTab('detection');
   };
 
+  const stageResultLabel =
+    stage === 'triggered'
+      ? session.resultLabel
+      : session.setupKind === 'bounce'
+        ? 'Отскок'
+        : 'Пробой';
+
   const stageLabels = [
     'Наблюдение',
     'Подход',
     'Подтверждение',
-    session.setupKind === 'bounce' ? 'Отскок' : 'Пробой',
+    stageResultLabel,
   ];
 
   return (
@@ -368,7 +375,7 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
         <div className={styles.headerIdentity}>
           <Link className={styles.backButton} to={buildSetupSelectionUrl(ROUTES.marketHistory, session.setupId)} aria-label="Вернуться в Market History">←</Link>
           <div>
-            <p className={styles.eyebrow}>Историческое воспроизведение · тестовые данные</p>
+            <p className={styles.eyebrow}>Сценарный Replay · программно сгенерированные TEST DATA</p>
             <div className={styles.symbolLine}>
               <h1>{session.symbol}</h1>
               <DirectionBadge direction={session.direction} />
@@ -380,13 +387,28 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
         </div>
 
         <div className={styles.headerResult}>
-          <span>Итог Replay</span>
+          <span>Итог fixture-сценария</span>
           <strong className={session.result === 'successful' ? styles.positive : styles.negative}>{session.resultLabel}</strong>
           <small>{session.result === 'successful' ? `+${session.maxMovePct.toFixed(2)}% макс.` : `${Math.abs(session.adverseMovePct).toFixed(2)}% против сценария`}</small>
         </div>
       </header>
 
-      <section className={styles.playerPanel} aria-label="Управление Replay">
+      <section
+        className={styles.dataNotice}
+        aria-label="Источник данных Replay"
+      >
+        <strong>TEST DATA: программно сгенерированный Replay</strong>
+        <span>
+          Свечи, объёмы, количество сделок, принты, ликвидность,
+          события и результат созданы frontend-генератором.
+          Это не сохранённая запись Binance и не архив потока Setup Engine.
+        </span>
+      </section>
+
+      <section
+        className={styles.playerPanel}
+        aria-label="Управление сценарным Replay"
+      >
         <div className={styles.viewTabs}>
           <button type="button" className={activeTab === 'detection' ? styles.tabActive : ''} onClick={selectDetection}>
             На момент обнаружения
@@ -442,7 +464,7 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
             <div className={styles.panelHeader}>
               <div>
                 <p className={styles.panelEyebrow}>График и объём</p>
-                <h2>История без будущих данных</h2>
+                <h2>Fixture-график без будущих кадров</h2>
               </div>
               <div className={styles.chartLegend}>
                 <span><i className={styles.levelLegend} /> Уровень</span>
@@ -458,8 +480,8 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
             <article className={styles.printsPanel}>
               <div className={styles.compactPanelHeader}>
                 <div>
-                  <p className={styles.panelEyebrow}>Поток сделок</p>
-                  <h2>Лента принтов</h2>
+                  <p className={styles.panelEyebrow}>Сгенерированный поток</p>
+                  <h2>Fixture-лента принтов</h2>
                 </div>
                 <span>{visiblePrints.length} последних</span>
               </div>
@@ -484,10 +506,10 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
             <article className={styles.liquidityPanel}>
               <div className={styles.compactPanelHeader}>
                 <div>
-                  <p className={styles.panelEyebrow}>Значимые плотности</p>
-                  <h2>Карта ликвидности</h2>
+                  <p className={styles.panelEyebrow}>Сценарная модель</p>
+                  <h2>Fixture-карта ликвидности</h2>
                 </div>
-                <span>Оценка NEXUS</span>
+                <span>Расчёт по номеру кадра</span>
               </div>
               <div className={styles.tableHeadLiquidity}>
                 <span>Цена</span>
@@ -509,7 +531,10 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
                   );
                 })}
               </div>
-              <p className={styles.confidenceNote}>Состояния «исполняется» и процент исполнения являются оценкой, а не точным фактом.</p>
+              <p className={styles.confidenceNote}>
+                Состояния и процент исполнения вычисляются из номера fixture-кадра.
+                Они не получены из исторического стакана Binance.
+              </p>
             </article>
           </div>
         </div>
@@ -523,7 +548,7 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
               </div>
               <SetupStageBadge
                 stage={stage}
-                resultLabel={session.setupKind === 'bounce' ? 'Отскок' : 'Пробой'}
+                resultLabel={stageResultLabel}
               />
             </div>
 
@@ -559,17 +584,27 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
             <p className={styles.panelEyebrow}>Снимок контекста</p>
             <div className={styles.snapshotGrid}>
               <div><span>Сетап</span><strong>{session.setupLabel}</strong></div>
-              <div><span>ID сетапа</span><strong>{session.setupId}</strong></div>
-              <div><span>Обнаружен</span><strong>{formatTime(session.detectedAt)} UTC</strong></div>
-              <div><span>Касания</span><strong>3</strong></div>
-              <div><span>Сила к BTC</span><strong className={session.direction === 'long' ? styles.positive : styles.negative}>{session.direction === 'long' ? '+2.7%' : '-1.9%'}</strong></div>
-              <div><span>Корреляция BTC</span><strong>0.82</strong></div>
+              <div><span>ID fixture</span><strong>{session.setupId}</strong></div>
+              <div>
+                <span>Кадр обнаружения</span>
+                <strong>{session.detectedFrameIndex + 1} / {session.candles.length}</strong>
+              </div>
+              <div><span>Fixture-время</span><strong>{formatTime(session.detectedAt)} UTC</strong></div>
+              <div><span>Свечи</span><strong>{session.candles.length} × {session.timeframe}</strong></div>
+              <div>
+                <span>Принты / плотности</span>
+                <strong>{session.prints.length} / {session.liquidity.length}</strong>
+              </div>
             </div>
           </section>
 
           <section className={styles.resultCard}>
-            <p className={styles.panelEyebrow}>Результат сессии</p>
-            <h3>{session.result === 'successful' ? 'Сценарий реализован' : 'Сценарий не реализован'}</h3>
+            <p className={styles.panelEyebrow}>Итог тестового сценария</p>
+            <h3>
+              {session.result === 'successful'
+                ? 'Fixture-сценарий реализован'
+                : 'Fixture-сценарий не реализован'}
+            </h3>
             <p>
               {session.result === 'successful'
                 ? `Максимальное движение после реализации составило +${session.maxMovePct.toFixed(2)}%.`
@@ -591,7 +626,7 @@ function ReplayPageContent({ session }: { session: ReplayViewSession }) {
                   timeframe: session.timeframe,
                 })}
               >
-                Открыть Workspace
+                Открыть текущий Workspace
               </Link>
             </div>
           </section>

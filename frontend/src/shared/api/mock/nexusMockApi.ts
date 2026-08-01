@@ -1262,7 +1262,16 @@ function createCanonicalReplay(sessionId?: string): ReplaySession | null {
     timestamp: candle.timestamp,
     candleUpdates: [{
       openTime: candle.timestamp,
-      closeTime: new Date(new Date(candle.timestamp).getTime() + 5 * 60_000 - 1).toISOString(),
+      closeTime: new Date(
+        new Date(
+          candle.timestamp,
+        ).getTime()
+          + timeframeToMinutes(
+            viewSession.timeframe,
+          )
+            * 60_000
+          - 1,
+      ).toISOString(),
       open: candle.open,
       high: candle.high,
       low: candle.low,

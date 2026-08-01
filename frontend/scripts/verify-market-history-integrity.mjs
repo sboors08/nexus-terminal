@@ -165,7 +165,7 @@ const missingReplaySessions =
 
 const historyBlocks = [
   ...historySource.matchAll(
-    /\{\n\s+id: '(history-[^']+)',([\s\S]*?)\n\s+\},/gu,
+    /\{\r?\n\s+id: '(history-[^']+)',([\s\S]*?)\r?\n\s+\},/gu,
   ),
 ];
 
