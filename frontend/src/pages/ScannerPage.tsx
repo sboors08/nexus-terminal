@@ -5,6 +5,7 @@ import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   NexusCandlestickChart,
+  NexusMiniCandlestickChart,
   useMarketCandles,
   type NexusChartHorizontalSegment,
 } from '@/shared/charts';
@@ -58,6 +59,7 @@ type KindFilter = 'all' | ScannerSetupKind;
 type DistanceFilter = 'all' | '0.5' | '1' | '2';
 type TouchesFilter = 'all' | '2' | '3';
 type BtcStrengthFilter = 'all' | 'positive' | 'negative';
+type ScannerViewMode = 'list' | 'grid';
 
 const STAGE_OPTIONS: Array<{ value: StageFilter; label: string }> = [
   { value: 'all', label: 'Все стадии' },
@@ -459,6 +461,13 @@ function ScannerPageContent({
     && presetDefinition.scannerWindows.includes(requestedScannerWindow)
       ? requestedScannerWindow
       : presetDefinition.defaultScannerWindow;
+  const [
+    viewMode,
+    setViewMode,
+  ] = useState<ScannerViewMode>(
+    'list',
+  );
+
   const [search, setSearch] = useState('');
   const [direction, setDirection] = useState<DirectionFilter>('all');
   const [kind, setKind] = useState<KindFilter>('all');
@@ -717,6 +726,47 @@ function ScannerPageContent({
     touches,
     displayedSetups,
   ]);
+
+  const gridSetups =
+    useMemo(
+      () => {
+        const uniqueSetups =
+          new Map<
+            string,
+            ScannerSetup
+          >();
+
+        for (
+          const setup
+          of filteredSetups
+        ) {
+          if (
+            !uniqueSetups.has(
+              setup.symbol,
+            )
+          ) {
+            uniqueSetups.set(
+              setup.symbol,
+              setup,
+            );
+          }
+
+          if (
+            uniqueSetups.size
+            === 4
+          ) {
+            break;
+          }
+        }
+
+        return [
+          ...uniqueSetups.values(),
+        ];
+      },
+      [
+        filteredSetups,
+      ],
+    );
 
   const selectedSetup = useMemo(() => {
     return filteredSetups.find((setup) => setup.id === requestedSetupId)
@@ -1369,22 +1419,243 @@ function ScannerPageContent({
         </div>
       </section>
 
-      <div className={styles.scannerGrid}>
+      {
+        viewMode === 'grid'
+          ? (
+              <section
+                className={styles.chartGridPanel}
+                aria-label="Сетка графиков кандидатов Scanner"
+              >
+                <div className={styles.panelHeader}>
+                  <div>
+                    <p className={styles.panelEyebrow}>
+                      Результаты поиска
+                    </p>
+                    <h2>
+                      Сетка кандидатов
+                    </h2>
+                  </div>
+
+                  <div className={styles.panelHeaderActions}>
+                    <span className={styles.testBadge}>
+                      {
+                        hasRuntimeSetups
+                          ? 'REAL SETUPS · BINANCE'
+                          : 'TEST SETUPS · LIVE MARKET'
+                      }
+                    </span>
+
+                    <div
+                      className={styles.viewModeControl}
+                      aria-label="Режим отображения кандидатов"
+                    >
+                      <button
+                        type="button"
+                        className={
+                          false
+                            ? styles.viewModeActive
+                            : ''
+                        }
+                        aria-pressed={false}
+                        onClick={() => setViewMode('list')}
+                      >
+                        Список
+                      </button>
+
+                      <button
+                        type="button"
+                        className={
+                          viewMode === 'grid'
+                            ? styles.viewModeActive
+                            : ''
+                        }
+                        aria-pressed={viewMode === 'grid'}
+                        onClick={() => setViewMode('grid')}
+                      >
+                        Сетка
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {
+                  gridSetups.length > 0
+                    ? (
+                        <div className={styles.chartGrid}>
+                          {
+                            gridSetups.map(
+                              (setup) => {
+                                const selected =
+                                  setup.id
+                                  === selectedSetup.id;
+
+                                return (
+                                  <button
+                                    key={setup.id}
+                                    type="button"
+                                    className={`${styles.chartGridCard} ${selected ? styles.chartGridCardSelected : ''}`}
+                                    aria-pressed={selected}
+                                    aria-label={`Открыть ${setup.symbol} в основном графике`}
+                                    onClick={() => {
+                                      selectSetup(
+                                        setup.id,
+                                      );
+
+                                      setViewMode(
+                                        'list',
+                                      );
+                                    }}
+                                  >
+                                    <span className={styles.chartGridCardHeader}>
+                                      <span className={styles.chartGridIdentity}>
+                                        <strong>
+                                          {setup.symbol}
+                                        </strong>
+                                        <small>
+                                          {setup.exchange}
+                                          {' · '}
+                                          {setup.timeframe}
+                                        </small>
+                                      </span>
+
+                                      <DirectionBadge
+                                        direction={setup.direction}
+                                      />
+                                    </span>
+
+                                    <span className={styles.chartGridSetupMeta}>
+                                      <SetupStageBadge
+                                        stage={setup.stage}
+                                        resultLabel={
+                                          setup.source === 'v2-shadow'
+                                            ? 'Отскок'
+                                            : setup.kind.includes('Отскок')
+                                              ? 'Отскок'
+                                              : 'Пробой'
+                                        }
+                                      />
+
+                                      <span>
+                                        {setup.kind}
+                                      </span>
+                                    </span>
+
+                                    <span className={styles.chartGridChart}>
+                                      <NexusMiniCandlestickChart
+                                        symbol={setup.symbol}
+                                        timeframe={setup.timeframe}
+                                      />
+                                    </span>
+
+                                    <span className={styles.chartGridMetrics}>
+                                      <span>
+                                        <small>До уровня</small>
+                                        <strong>
+                                          {setup.distanceLabel}
+                                        </strong>
+                                      </span>
+
+                                      <span>
+                                        <small>Касания</small>
+                                        <strong>
+                                          {setup.touches}
+                                        </strong>
+                                      </span>
+
+                                      <span>
+                                        <small>Объём</small>
+                                        <strong>
+                                          {
+                                            setup.volumeAnomaly === null
+                                              ? '—'
+                                              : `${setup.volumeAnomaly.toFixed(2)}×`
+                                          }
+                                        </strong>
+                                      </span>
+
+                                      <span>
+                                        <small>Сила к BTC</small>
+                                        <strong>
+                                          {setup.btcStrengthLabel}
+                                        </strong>
+                                      </span>
+                                    </span>
+                                  </button>
+                                );
+                              },
+                            )
+                          }
+                        </div>
+                      )
+                    : (
+                        <div className={styles.chartGridEmpty}>
+                          <strong>
+                            Сетапы не найдены
+                          </strong>
+                          <span>
+                            Измени фильтры или сбрось их, чтобы вернуть кандидатов.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={resetFilters}
+                          >
+                            Сбросить фильтры
+                          </button>
+                        </div>
+                      )
+                }
+              </section>
+            )
+          : (
+              <div className={styles.scannerGrid}>
         <article className={styles.tablePanel}>
           <div className={styles.panelHeader}>
             <div>
               <p className={styles.panelEyebrow}>Результаты поиска</p>
               <h2>Кандидаты и уровни</h2>
             </div>
-            <span className={styles.testBadge}>
-              {
-                hasRuntimeSetups
-                  ? 'REAL SETUPS · BINANCE'
-                  : 'TEST SETUPS · LIVE MARKET'
-              }
-            </span>
-          </div>
 
+            <div className={styles.panelHeaderActions}>
+              <span className={styles.testBadge}>
+                {
+                  hasRuntimeSetups
+                    ? 'REAL SETUPS · BINANCE'
+                    : 'TEST SETUPS · LIVE MARKET'
+                }
+              </span>
+
+              <div
+                className={styles.viewModeControl}
+                aria-label="Режим отображения кандидатов"
+              >
+                <button
+                  type="button"
+                  className={
+                    viewMode === 'list'
+                      ? styles.viewModeActive
+                      : ''
+                  }
+                  aria-pressed={viewMode === 'list'}
+                  onClick={() => setViewMode('list')}
+                >
+                  Список
+                </button>
+
+                <button
+                  type="button"
+                  className={
+                    false
+                      ? styles.viewModeActive
+                      : ''
+                  }
+                  aria-pressed={false}
+                  onClick={() => setViewMode('grid')}
+                >
+                  Сетка
+                </button>
+              </div>
+            </div>
+          </div>
           <div className={styles.tableViewport}>
             <div
               className={styles.tableHeader}
@@ -1947,6 +2218,8 @@ function ScannerPageContent({
           </div>
         </aside>
       </div>
+            )
+      }
 
       {/* Scanner UX v2: secondary market pulse below workspace */}
       <section className={styles.volumeSpikesPanel} aria-label="Всплески объёма">

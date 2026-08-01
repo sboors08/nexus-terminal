@@ -21,3 +21,8 @@ export type {
 } from './ui/NexusCandlestickChart.js';
 
 export * from './model/drawingModel.js';
+
+export {
+  NexusMiniCandlestickChart,
+  type NexusMiniCandlestickChartProps,
+} from './ui/NexusMiniCandlestickChart.js';
