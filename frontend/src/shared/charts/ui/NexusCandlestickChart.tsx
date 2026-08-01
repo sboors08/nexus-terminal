@@ -9,6 +9,7 @@ import {
   ColorType,
   CrosshairMode,
   HistogramSeries,
+  LineSeries,
   LineStyle,
   createChart,
   type IChartApi,
@@ -23,6 +24,9 @@ import type {
 import {
   mapCandleChartData,
 } from '../model/candleMapping.js';
+import {
+  buildNexusHorizontalSegmentData,
+} from '../model/horizontalSegment.js';
 import {
   resolveNexusChartPriceFormat,
 } from '../model/priceFormat.js';
@@ -50,11 +54,26 @@ export interface NexusChartPriceLine {
   axisLabelVisible?: boolean;
 }
 
+export interface NexusChartHorizontalSegment {
+  price: number;
+  startTime: string;
+  color: string;
+  title?: string;
+  lineStyle?: 'solid' | 'dashed';
+  axisLabelVisible?: boolean;
+}
+
+interface NexusHorizontalSegmentSeries {
+  series: ISeriesApi<'Line'>;
+  segment: NexusChartHorizontalSegment;
+}
+
 export interface NexusCandlestickChartProps {
   candles: readonly Candle[];
   symbol: string;
   fillContainer?: boolean;
   priceLines?: readonly NexusChartPriceLine[];
+  horizontalSegments?: readonly NexusChartHorizontalSegment[];
   showSeriesPriceLine?: boolean;
   enableDrawingTools?: boolean;
   drawingScope?: string;
@@ -68,6 +87,7 @@ export function NexusCandlestickChart({
   symbol,
   fillContainer = false,
   priceLines = [],
+  horizontalSegments = [],
   showSeriesPriceLine = true,
   enableDrawingTools = false,
   drawingScope = symbol,
@@ -94,6 +114,11 @@ export function NexusCandlestickChart({
     useRef<
       ISeriesApi<'Histogram'> | null
     >(null);
+
+  const horizontalSegmentSeriesRef =
+    useRef<
+      NexusHorizontalSegmentSeries[]
+    >([]);
 
   const [
     chartReadyVersion,
@@ -153,9 +178,15 @@ export function NexusCandlestickChart({
             (line) =>
               line.price,
           ),
+
+          ...horizontalSegments.map(
+            (segment) =>
+              segment.price,
+          ),
         ]),
       [
         candles,
+        horizontalSegments,
         priceLines,
       ],
     );
@@ -355,6 +386,9 @@ export function NexusCandlestickChart({
 
       volumeSeriesRef.current =
         null;
+
+      horizontalSegmentSeriesRef.current =
+        [];
     };
   }, []);
 
@@ -492,6 +526,123 @@ export function NexusCandlestickChart({
         );
     };
   }, [chartReadyVersion]);
+
+  useEffect(() => {
+    const chart =
+      chartRef.current;
+
+    if (!chart) {
+      return;
+    }
+
+    const createdSeries =
+      horizontalSegments
+        .filter(
+          (segment) =>
+            Number.isFinite(
+              segment.price,
+            )
+            && segment.price > 0
+            && Number.isFinite(
+              Date.parse(
+                segment.startTime,
+              ),
+            ),
+        )
+        .map(
+          (
+            segment,
+          ): NexusHorizontalSegmentSeries => {
+            const series =
+              chart.addSeries(
+                LineSeries,
+                {
+                  color:
+                    segment.color,
+
+                  lineWidth:
+                    segment.lineStyle
+                    === 'solid'
+                      ? 2
+                      : 1,
+
+                  lineStyle:
+                    segment.lineStyle
+                    === 'solid'
+                      ? LineStyle.Solid
+                      : LineStyle.Dashed,
+
+                  priceLineVisible:
+                    false,
+
+                  lastValueVisible:
+                    segment
+                      .axisLabelVisible
+                    ?? true,
+
+                  crosshairMarkerVisible:
+                    false,
+
+                  title:
+                    segment.title
+                    ?? '',
+                },
+              );
+
+            return {
+              series,
+              segment,
+            };
+          },
+        );
+
+    horizontalSegmentSeriesRef.current =
+      createdSeries;
+
+    return () => {
+      if (chartRef.current === chart) {
+        for (
+          const entry
+          of createdSeries
+        ) {
+          chart.removeSeries(
+            entry.series,
+          );
+        }
+      }
+
+      horizontalSegmentSeriesRef.current =
+        [];
+    };
+  }, [
+    chartReadyVersion,
+    horizontalSegments,
+  ]);
+
+  useEffect(() => {
+    for (
+      const entry
+      of horizontalSegmentSeriesRef.current
+    ) {
+      entry.series.applyOptions({
+        priceFormat:
+          chartPriceFormat,
+      });
+
+      entry.series.setData(
+        buildNexusHorizontalSegmentData(
+          candles,
+          entry.segment.startTime,
+          entry.segment.price,
+        ),
+      );
+    }
+  }, [
+    candles,
+    chartPriceFormat,
+    chartReadyVersion,
+    horizontalSegments,
+  ]);
 
   useEffect(() => {
     const candleSeries =

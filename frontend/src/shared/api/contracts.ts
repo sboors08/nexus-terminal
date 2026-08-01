@@ -121,6 +121,7 @@ export interface Candle {
   close: number;
   volume: number;
   tradesCount: number;
+  isClosed?: boolean;
 }
 
 export interface WorkspaceSnapshot {

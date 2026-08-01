@@ -39,7 +39,7 @@ const requiredMarkersByFile = {
     'aria-label="Торговый пресет Scanner"',
     'aria-label="Период анализа Scanner"',
     "nextParams.set('scannerWindow', TRADING_PRESETS[value].defaultScannerWindow);",
-    'to={buildWorkspaceUrl(ROUTES.workspace, {',
+    'to={buildWorkspaceUrl(',
     'preset,',
     'scannerWindow,',
   ],

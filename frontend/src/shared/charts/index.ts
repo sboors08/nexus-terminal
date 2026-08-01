@@ -16,6 +16,7 @@ export {
   type NexusCandlestickChartProps,
 } from './ui/NexusCandlestickChart.js';
 export type {
+  NexusChartHorizontalSegment,
   NexusChartPriceLine,
 } from './ui/NexusCandlestickChart.js';
 
