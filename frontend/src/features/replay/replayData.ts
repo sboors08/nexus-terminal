@@ -88,8 +88,6 @@ interface SessionConfig {
   startPrice: number;
   levelLow: number;
   levelHigh: number;
-  maxMovePct: number;
-  adverseMovePct: number;
   pathPct: number[];
 }
 
@@ -116,8 +114,6 @@ const SESSION_CONFIGS: SessionConfig[] = [
     startPrice: 187.42,
     levelLow: 188.10,
     levelHigh: 188.42,
-    maxMovePct: 3.84,
-    adverseMovePct: -0.32,
     pathPct: [...PATHS.longBreakout],
   },
   {
@@ -134,8 +130,6 @@ const SESSION_CONFIGS: SessionConfig[] = [
     startPrice: 0.7498,
     levelLow: 0.7501,
     levelHigh: 0.7520,
-    maxMovePct: 2.16,
-    adverseMovePct: -0.21,
     pathPct: PATHS.longBreakout.map((value) => value * 0.5625),
   },
   {
@@ -152,8 +146,6 @@ const SESSION_CONFIGS: SessionConfig[] = [
     startPrice: 1.607,
     levelLow: 1.603,
     levelHigh: 1.612,
-    maxMovePct: 2.42,
-    adverseMovePct: -0.37,
     pathPct: [...PATHS.shortBreakout],
   },
   {
@@ -170,8 +162,6 @@ const SESSION_CONFIGS: SessionConfig[] = [
     startPrice: 3498.4,
     levelLow: 3492,
     levelHigh: 3506,
-    maxMovePct: 1.72,
-    adverseMovePct: -0.18,
     pathPct: [...PATHS.longBounce],
   },
   {
@@ -188,8 +178,6 @@ const SESSION_CONFIGS: SessionConfig[] = [
     startPrice: 7.14,
     levelLow: 7.12,
     levelHigh: 7.16,
-    maxMovePct: 0.36,
-    adverseMovePct: -1.21,
     pathPct: [...PATHS.shortFailed],
   },
   {
@@ -206,24 +194,147 @@ const SESSION_CONFIGS: SessionConfig[] = [
     startPrice: 16.88,
     levelLow: 16.91,
     levelHigh: 16.96,
-    maxMovePct: 0.28,
-    adverseMovePct: -1.08,
     pathPct: [...PATHS.longFailed],
   },
 ];
 
-function addMinutes(value: string, minutes: number) {
-  return new Date(new Date(value).getTime() + minutes * 60_000).toISOString();
+const DETECTED_FRAME_INDEX = 5;
+
+function timeframeToMinutes(
+  timeframe: ReplaySession['timeframe'],
+): number {
+  return Number.parseInt(
+    timeframe,
+    10,
+  );
 }
 
-function createCandles(config: SessionConfig): ReplayCandle[] {
+function addMinutes(
+  value: string,
+  minutes: number,
+) {
+  return new Date(
+    new Date(
+      value,
+    ).getTime()
+      + minutes
+        * 60_000,
+  ).toISOString();
+}
+
+function calculateDirectionalMoves(
+  candles: ReplayCandle[],
+  direction: TradeDirection,
+  detectedFrameIndex: number,
+) {
+  const detectedCandle =
+    candles[detectedFrameIndex]
+      ?? candles[0];
+
+  if (!detectedCandle) {
+    return {
+      maxMovePct: 0,
+      adverseMovePct: 0,
+    };
+  }
+
+  const resultCandles =
+    candles.slice(
+      detectedFrameIndex + 1,
+    );
+
+  const favorableMoves =
+    resultCandles.map(
+      (candle) => {
+        const targetPrice =
+          direction === 'long'
+            ? candle.high
+            : candle.low;
+
+        return direction === 'long'
+          ? (
+              (
+                targetPrice
+                  - detectedCandle.close
+              )
+              / detectedCandle.close
+            )
+              * 100
+          : (
+              (
+                detectedCandle.close
+                  - targetPrice
+              )
+              / detectedCandle.close
+            )
+              * 100;
+      },
+    );
+
+  const adverseMoves =
+    resultCandles.map(
+      (candle) => {
+        const adversePrice =
+          direction === 'long'
+            ? candle.low
+            : candle.high;
+
+        return direction === 'long'
+          ? (
+              (
+                adversePrice
+                  - detectedCandle.close
+              )
+              / detectedCandle.close
+            )
+              * 100
+          : (
+              (
+                detectedCandle.close
+                  - adversePrice
+              )
+              / detectedCandle.close
+            )
+              * 100;
+      },
+    );
+
+  return {
+    maxMovePct:
+      Math.max(
+        0,
+        ...favorableMoves,
+      ),
+
+    adverseMovePct:
+      Math.min(
+        0,
+        ...adverseMoves,
+      ),
+  };
+}
+function createCandles(
+  config: SessionConfig,
+): ReplayCandle[] {
+  const timeframeMinutes =
+    timeframeToMinutes(
+      config.timeframe,
+    );
+
+  const startedAt =
+    addMinutes(
+      config.detectedAt,
+      -DETECTED_FRAME_INDEX
+        * timeframeMinutes,
+    );
+
   return config.pathPct.map((changePct, index) => {
     const close = config.startPrice * (1 + changePct / 100);
     const previousPct = index === 0 ? changePct - 0.08 : config.pathPct[index - 1];
     const open = config.startPrice * (1 + previousPct / 100);
     const spread = config.startPrice * (0.0007 + (index % 4) * 0.00012);
     return {
-      timestamp: addMinutes(config.detectedAt, index * 2),
+      timestamp: addMinutes(startedAt, index * timeframeMinutes),
       open,
       high: Math.max(open, close) + spread,
       low: Math.min(open, close) - spread,
@@ -318,23 +429,28 @@ function createLiquidity(config: SessionConfig): ReplayLiquidityLevel[] {
   ];
 }
 
-function createEvents(config: SessionConfig, candles: ReplayCandle[]): ReplayEvent[] {
+function createEvents(
+  config: SessionConfig,
+  candles: ReplayCandle[],
+  maxMovePct: number,
+  adverseMovePct: number,
+): ReplayEvent[] {
   const success = config.result === 'successful';
   return [
     {
       id: `${config.id}-event-1`,
       frameIndex: 0,
       timestamp: candles[0].timestamp,
-      title: 'Сетап найден',
-      description: `${config.setupLabel}: NEXUS начал наблюдение за зоной.`,
+      title: 'Наблюдение начато',
+      description: 'Fixture-сценарий начал наблюдение за зоной до кадра обнаружения.',
       tone: 'info',
     },
     {
       id: `${config.id}-event-2`,
-      frameIndex: 5,
-      timestamp: candles[5].timestamp,
-      title: 'Подход к уровню',
-      description: 'Расстояние до зоны сократилось, активность начинает расти.',
+      frameIndex: DETECTED_FRAME_INDEX,
+      timestamp: candles[DETECTED_FRAME_INDEX].timestamp,
+      title: 'Сетап обнаружен',
+      description: `${config.setupLabel}: условия обнаружения зафиксированы на стадии подхода к зоне.`,
       tone: 'warning',
     },
     {
@@ -361,8 +477,8 @@ function createEvents(config: SessionConfig, candles: ReplayCandle[]): ReplayEve
       timestamp: candles.at(-1)?.timestamp ?? config.detectedAt,
       title: 'Replay завершён',
       description: success
-        ? `Максимальное движение составило ${config.maxMovePct.toFixed(2)}%.`
-        : `Сетап завершился неудачно, движение против сценария достигло ${Math.abs(config.adverseMovePct).toFixed(2)}%.`,
+        ? `Максимальное движение составило ${maxMovePct.toFixed(2)}%.`
+        : `Сетап завершился неудачно, движение против сценария достигло ${Math.abs(adverseMovePct).toFixed(2)}%.`,
       tone: success ? 'positive' : 'critical',
     },
   ];
@@ -370,6 +486,16 @@ function createEvents(config: SessionConfig, candles: ReplayCandle[]): ReplayEve
 
 function createSession(config: SessionConfig): ReplaySession {
   const candles = createCandles(config);
+
+  const {
+    maxMovePct,
+    adverseMovePct,
+  } = calculateDirectionalMoves(
+    candles,
+    config.direction,
+    DETECTED_FRAME_INDEX,
+  );
+
   return {
     id: config.id,
     setupId: config.setupId,
@@ -383,15 +509,21 @@ function createSession(config: SessionConfig): ReplaySession {
     result: config.result,
     detectedAt: config.detectedAt,
     endedAt: candles.at(-1)?.timestamp ?? config.detectedAt,
-    detectedFrameIndex: 5,
+    detectedFrameIndex: DETECTED_FRAME_INDEX,
     levelLow: config.levelLow,
     levelHigh: config.levelHigh,
-    maxMovePct: config.maxMovePct,
-    adverseMovePct: config.adverseMovePct,
+    maxMovePct: maxMovePct,
+    adverseMovePct: adverseMovePct,
     candles,
     prints: createPrints(config, candles),
     liquidity: createLiquidity(config),
-    events: createEvents(config, candles),
+    events:
+      createEvents(
+        config,
+        candles,
+        maxMovePct,
+        adverseMovePct,
+      ),
   };
 }
 

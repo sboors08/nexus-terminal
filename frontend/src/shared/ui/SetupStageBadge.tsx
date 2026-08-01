@@ -2,9 +2,15 @@ import styles from './TradingBadges.module.css';
 
 export type SetupStage = 'observation' | 'approach' | 'confirmation' | 'triggered';
 
+export type SetupStageResultLabel =
+  | 'Пробой'
+  | 'Отскок'
+  | 'Ложный пробой'
+  | 'Уровень удержан';
+
 type SetupStageBadgeProps = {
   stage: SetupStage;
-  resultLabel?: 'Пробой' | 'Отскок';
+  resultLabel?: SetupStageResultLabel;
 };
 
 const STAGE_LABELS: Record<Exclude<SetupStage, 'triggered'>, string> = {
