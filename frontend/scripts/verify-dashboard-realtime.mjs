@@ -80,7 +80,7 @@ const requiredMarkers = [
   'dashboardRealtime.connectionLabel',
   'dashboardRealtime.liveCount',
   'btcRealtime.priceLabel',
-  'realtime.sourceLabel',
+  'view.sourceLabel',
   'dashboardChartTimeframe',
   'useMarketCandles({',
   'NexusCandlestickChart',

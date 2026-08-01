@@ -395,7 +395,7 @@ test(
 );
 
 test(
-  'keeps Dashboard scanner fallback values without metrics',
+  'shows unavailable Dashboard scanner values without metrics',
   () => {
     const view =
       buildDashboardScannerMetricView(
@@ -404,14 +404,16 @@ test(
       );
 
     assert.equal(view.isLive, false);
+    assert.equal(view.priceValue, null);
     assert.equal(view.priceLabel, '—');
+    assert.equal(view.priceChangePct, null);
     assert.equal(
       view.priceChangeLabel,
-      '+2.81%',
+      'нет данных',
     );
     assert.equal(
       view.quoteVolumeLabel,
-      '$4.21M',
+      'нет данных',
     );
     assert.equal(
       view.quoteVolumeValue,
@@ -419,25 +421,23 @@ test(
     );
     assert.equal(
       view.tradesCountLabel,
-      '8 420',
+      'нет данных',
     );
-
     assert.equal(
       view.tradesCountValue,
       null,
     );
     assert.equal(
       view.speedLabel,
-      '1 684/мин',
+      'нет данных',
     );
-
     assert.equal(
       view.tradesPerMinuteValue,
       null,
     );
     assert.equal(
       view.volatilityLabel,
-      '3.8%',
+      'нет данных',
     );
     assert.equal(
       view.liquidityIsLive,
@@ -445,11 +445,11 @@ test(
     );
     assert.equal(
       view.liquidityScore,
-      6,
+      0,
     );
     assert.equal(
       view.liquidityTitle,
-      'TEST · тестовая ликвидность',
+      'НЕТ ДАННЫХ · ожидание данных стакана',
     );
     assert.equal(
       view.activityIsLive,
@@ -457,19 +457,22 @@ test(
     );
     assert.equal(
       view.activityScore,
-      96,
+      0,
     );
     assert.equal(
       view.activityTitle,
-      'TEST · тестовая оценка активности',
+      'НЕТ ДАННЫХ · ожидание метрик активности',
+    );
+    assert.equal(
+      view.updatedAtLabel,
+      'нет данных',
     );
     assert.equal(
       view.sourceLabel,
-      'TEST',
+      'UNAVAILABLE',
     );
   },
 );
-
 test(
   'ranks live scanner rows by activity and quote volume',
   () => {

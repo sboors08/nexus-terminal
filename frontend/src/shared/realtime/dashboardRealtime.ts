@@ -28,7 +28,7 @@ export interface DashboardRealtimeCoinView {
   changePct: number | null;
   changeLabel: string;
   updatedAtLabel: string;
-  sourceLabel: 'LIVE' | 'TEST';
+  sourceLabel: 'LIVE' | 'UNAVAILABLE';
 }
 
 export interface DashboardRealtimeView {
@@ -50,46 +50,12 @@ export function normalizeDashboardRealtimeSymbol(
     .replace(/[^A-Z0-9]/g, '');
 }
 
-function parseDashboardNumber(
-  value: string | number,
-): number | null {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-
-  const normalized = value
-    .replace(/\s/g, '')
-    .replace(/[^0-9.-]/g, '');
-
-  const parsed = Number(normalized);
-
-  return Number.isFinite(parsed)
-    ? parsed
-    : null;
-}
-
-function formatFallbackPrice(
-  value: string | number,
-): string {
-  if (typeof value === 'string') return value;
-
-  return formatScannerPrice(value);
-}
-
 function formatDashboardChange(
   value: number,
 ): string {
   if (!Number.isFinite(value)) return '?';
 
   return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
-}
-
-function formatFallbackChange(
-  value: string | number,
-): string {
-  if (typeof value === 'string') return value;
-
-  return formatDashboardChange(value);
 }
 
 function resolveCurrentPrice(
@@ -160,18 +126,12 @@ export function buildDashboardRealtimeCoinView(
   );
 
   const currentPrice = resolveCurrentPrice(snapshot);
-  const fallbackPriceValue = parseDashboardNumber(
-    source.fallbackPrice,
-  );
-
   const isLive = currentPrice !== null;
-  const priceValue = isLive
-    ? currentPrice
-    : fallbackPriceValue;
+  const priceValue = currentPrice;
 
   const changePct = isLive
     ? resolveStreamChangePct(snapshot, currentPrice)
-    : parseDashboardNumber(source.fallbackChange);
+    : null;
 
   const updatedAt = resolveUpdatedAt(snapshot);
 
@@ -181,7 +141,7 @@ export function buildDashboardRealtimeCoinView(
     priceValue,
     priceLabel: isLive
       ? formatScannerPrice(currentPrice)
-      : formatFallbackPrice(source.fallbackPrice),
+      : '—',
     changePct,
     changeLabel: isLive
       ? (
@@ -189,11 +149,11 @@ export function buildDashboardRealtimeCoinView(
             ? '\u043d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445'
             : formatDashboardChange(changePct)
         )
-      : formatFallbackChange(source.fallbackChange),
+      : '\u043d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445',
     updatedAtLabel: updatedAt
       ? formatScannerTradeTime(updatedAt)
-      : '???????? ??????',
-    sourceLabel: isLive ? 'LIVE' : 'TEST',
+      : '\u043d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445',
+    sourceLabel: isLive ? 'LIVE' : 'UNAVAILABLE',
   };
 }
 

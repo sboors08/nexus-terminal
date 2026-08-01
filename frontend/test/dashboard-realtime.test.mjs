@@ -30,7 +30,7 @@ test(
 );
 
 test(
-  'uses Dashboard fallback data while realtime is pending',
+  'shows unavailable Dashboard data while realtime is pending',
   () => {
     const view = buildDashboardRealtimeCoinView(
       {
@@ -43,12 +43,14 @@ test(
 
     assert.equal(view.symbol, 'SOLUSDT');
     assert.equal(view.isLive, false);
-    assert.equal(view.priceLabel, '174.20');
-    assert.equal(view.changeLabel, '+2.81%');
-    assert.equal(view.sourceLabel, 'TEST');
+    assert.equal(view.priceValue, null);
+    assert.equal(view.priceLabel, '—');
+    assert.equal(view.changePct, null);
+    assert.equal(view.changeLabel, 'нет данных');
+    assert.equal(view.updatedAtLabel, 'нет данных');
+    assert.equal(view.sourceLabel, 'UNAVAILABLE');
   },
 );
-
 test(
   'builds live Dashboard price and stream change',
   () => {
