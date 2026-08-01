@@ -4,16 +4,15 @@ import {
   buildMarketRealtimeView,
 } from '../node_modules/.tmp/realtime-test/realtime/marketRealtime.js';
 
-test('uses the Market fallback price while realtime is pending', () => {
+test('shows unavailable price while Market realtime is pending', () => {
   const view = buildMarketRealtimeView(
     undefined,
-    '64 000.00',
     'connecting',
     null,
   );
 
   assert.equal(view.isLive, false);
-  assert.equal(view.priceLabel, '64 000.00');
+  assert.equal(view.priceLabel, '—');
   assert.equal(view.connectionTone, 'pending');
 });
 
@@ -44,7 +43,6 @@ test('builds live Market price, bid, ask and spread', () => {
       recentTrades: [],
       updatedAt: '2026-07-19T09:00:00.000Z',
     },
-    '64 000.00',
     'open',
     'connected',
   );
@@ -59,7 +57,6 @@ test('builds live Market price, bid, ask and spread', () => {
 test('marks a failed Market realtime connection as an error', () => {
   const view = buildMarketRealtimeView(
     undefined,
-    '187.42',
     'error',
     'stopped',
   );

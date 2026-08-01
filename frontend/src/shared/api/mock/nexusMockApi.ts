@@ -62,6 +62,7 @@ import {
   selectPreferredSetupRuntimeCandidate,
 } from '../runtime/setupRuntimeApi';
 import { fetchLevelV2ShadowSnapshots } from '../runtime/levelV2ShadowApi';
+import { fetchRuntimeMarketSymbols } from '../runtime/marketSymbolsApi';
 import { mapLevelV2ShadowSnapshotsToScannerSetups } from '../runtime/levelV2ShadowScanner';
 import {
   DASHBOARD_VIEW_DATA,
@@ -1304,7 +1305,7 @@ function createCanonicalReplay(sessionId?: string): ReplaySession | null {
 }
 
 const contractApi: NexusApi = {
-  getMarketSymbols: () => deliver('market symbols', marketSymbols, []),
+  getMarketSymbols: () => fetchRuntimeMarketSymbols(),
   getMarketCandles: (symbol, timeframe) => {
     const marketSymbol = marketSymbols.find((item) => item.symbol === symbol.toUpperCase()) ?? marketSymbols[0];
     return deliver('market candles', marketSymbol ? createCandles(marketSymbol, 56, timeframe) : [], []);

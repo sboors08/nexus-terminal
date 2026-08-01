@@ -409,20 +409,15 @@
   font-size: 8px;
 }
 
-.sparkPositive,
-.sparkNegative {
+.sparkUnavailable {
   width: 92px;
   height: 28px;
+  display: grid;
+  place-items: center;
+  color: #5f706a;
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
 }
-
-.sparkPositive path,
-.sparkNegative path {
-  stroke-width: 1.5;
-  vector-effect: non-scaling-stroke;
-}
-
-.sparkPositive path { stroke: #32d583; }
-.sparkNegative path { stroke: #ff6273; }
 
 .coinRow > .positive,
 .coinRow > .negative {
@@ -554,8 +549,7 @@
     padding: 9px;
   }
 
-  .sparkPositive,
-  .sparkNegative {
+  .sparkUnavailable {
     display: none;
   }
 
@@ -639,7 +633,7 @@
 }
 
 .priceSourceLive,
-.priceSourceTest {
+.priceSourceUnavailable {
   padding: 3px 6px;
   border: 1px solid;
   border-radius: 5px;
@@ -655,10 +649,10 @@
   background: rgb(50 213 131 / 8%);
 }
 
-.priceSourceTest {
-  color: #f5b942;
-  border-color: rgb(245 185 66 / 30%);
-  background: rgb(245 185 66 / 8%);
+.priceSourceUnavailable {
+  color: #687972;
+  border-color: rgb(104 121 114 / 30%);
+  background: rgb(104 121 114 / 8%);
 }
 
 .realtimeStrip {

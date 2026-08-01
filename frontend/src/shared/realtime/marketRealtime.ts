@@ -23,13 +23,11 @@ export interface MarketRealtimeView {
 
 export function buildMarketRealtimeView(
   snapshot: RealtimeSymbolSnapshot | undefined,
-  fallbackPrice: string,
   lifecycleState: RealtimeClientLifecycleState,
   backendState: RealtimeConnectionState | null,
 ): MarketRealtimeView {
   const market = buildScannerRealtimeMarketView(
     snapshot,
-    fallbackPrice,
   );
 
   const connectionLabel = getScannerRealtimeConnectionLabel(

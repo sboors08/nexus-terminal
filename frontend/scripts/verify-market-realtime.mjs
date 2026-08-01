@@ -10,6 +10,8 @@ const requiredFiles = [
   'src/shared/realtime/realtimeClient.ts',
   'src/shared/realtime/useRealtimeMarketData.ts',
   'test/market-realtime.test.mjs',
+  'src/shared/api/runtime/marketSymbolsApi.ts',
+  'test/market-symbols-api.test.mjs',
   'test/realtime-client.test.mjs',
 ];
 
@@ -49,6 +51,8 @@ const requiredMarkers = [
   'useRealtimeMarketData({',
   'buildMarketRealtimeView',
   'realtimeMarket.priceLabel',
+  'priceSourceUnavailable',
+  'UNAVAILABLE',
   'realtimeMarket.bidLabel',
   'realtimeMarket.askLabel',
   'realtimeMarket.spreadLabel',
