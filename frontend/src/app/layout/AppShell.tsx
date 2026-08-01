@@ -20,7 +20,7 @@ const TOP_NAVIGATION = [
   { label: 'SCANNER', path: ROUTES.scanner, end: false },
   { label: 'MARKET', path: ROUTES.market, end: false },
   { label: 'WORKSPACE', path: ROUTES.workspace, end: false },
-  { label: 'AI ANALYSIS', path: ROUTES.alerts, end: false },
+  { label: 'ALERTS', path: ROUTES.alerts, end: false },
   { label: 'WATCHLIST', path: ROUTES.watchlist, end: false },
   { label: 'SETTINGS', path: ROUTES.settings, end: false },
 ] as const;

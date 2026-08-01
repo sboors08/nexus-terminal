@@ -69,3 +69,15 @@ test('marks a failed Alerts realtime connection as an error', () => {
 
   assert.equal(view.connectionTone, 'error');
 });
+
+test('marks a stopped Alerts backend as an error', () => {
+  const view = buildAlertsRealtimeView(
+    undefined,
+    '7.19',
+    'open',
+    'stopped',
+  );
+
+  assert.equal(view.isLive, false);
+  assert.equal(view.connectionTone, 'error');
+});
