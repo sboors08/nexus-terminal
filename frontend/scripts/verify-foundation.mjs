@@ -84,10 +84,10 @@ const requiredSetupContextMarkerGroups = [
   },
   {
     label:
-      'getWorkspaceSnapshot(...)',
+      'getWorkspaceView(...)',
 
     markers: [
-      'getWorkspaceSnapshot(',
+      'getWorkspaceView(',
     ],
   },
   {
