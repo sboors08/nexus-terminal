@@ -1,12 +1,9 @@
 import type {
-  ApiMutationResult,
   Candle,
-  FeedbackPayload,
   MarketSymbol,
   NexusAlert,
   ReplaySession,
   Setup,
-  SetupFeedback,
   SetupHistoryItem,
   WorkspaceSnapshot,
 } from '../../contracts/nexus-api.js';
@@ -203,9 +200,3 @@ export const replaySessions: ReplaySession[] = setups.map((setup) => {
     })),
   };
 });
-
-let sequence = 0;
-export function acceptFeedback(_payload: FeedbackPayload | SetupFeedback): ApiMutationResult {
-  sequence += 1;
-  return { id: `feedback-${sequence}`, acceptedAt: new Date().toISOString() };
-}

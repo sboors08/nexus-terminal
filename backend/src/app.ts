@@ -2,6 +2,11 @@ import cors from '@fastify/cors';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import { readEnv, type AppEnv } from './config/env.js';
 import { apiModules } from './modules/index.js';
+import {
+  InMemoryFeedbackStore,
+  JsonlFeedbackStore,
+  type FeedbackStore,
+} from './modules/api-contract/feedback-store.js';
 import { BinanceMarketDataClient } from './modules/market-data/binance-market-data.client.js';
 import type { MarketDataProvider } from './modules/market-data/market-data.provider.js';
 import { BinanceWebSocketMarketDataService } from './modules/realtime-market-data/binance-websocket.service.js';
@@ -35,6 +40,7 @@ import type { OrderBookDepthRuntimeService } from './modules/realtime-market-dat
 export interface BuildAppOptions {
   env?: AppEnv;
   marketDataProvider?: MarketDataProvider;
+  feedbackStore?: FeedbackStore;
   realtimeMarketDataService?: RealtimeMarketDataService | null;
   orderBookDepthService?: OrderBookDepthRuntimeService | null;
   binanceSymbolUniverseService?: BinanceSymbolUniverseService | null;
@@ -76,6 +82,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     symbolsLimit: env.binanceSymbolsLimit ?? 1_000,
     cacheTtlMs: env.binanceCacheTtlMs ?? 15_000,
   });
+
+  const feedbackStore =
+    options.feedbackStore
+    ?? (
+      env.nodeEnv === 'test'
+        ? new InMemoryFeedbackStore()
+        : new JsonlFeedbackStore({
+            filePath: env.feedbackStorePath ?? './data/feedback.jsonl',
+          })
+    );
   const webSocketEnabled = env.binanceWebSocketEnabled ?? env.nodeEnv !== 'test';
   const realtimeMarketDataService = options.realtimeMarketDataService === undefined
     ? webSocketEnabled
@@ -408,6 +424,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(apiModules, {
     prefix: env.apiPrefix,
     marketDataProvider,
+    feedbackStore,
     ...(realtimeMarketDataService ? { realtimeMarketDataService } : {}),
     ...(orderBookDepthService
       ? { orderBookDepthService }

@@ -142,7 +142,7 @@ function GeneralFeedbackForm({
       <div className={styles.successState}>
         <span className={styles.successIcon}>✓</span>
         <h3>Спасибо, сообщение принято</h3>
-        <p>В тестовом контуре оно сохранено в Mock API.</p>
+        <p>Сообщение сохранено сервером.</p>
         <small>ID: {resultId}</small>
         <button type="button" onClick={onClose}>Закрыть</button>
       </div>
@@ -261,7 +261,7 @@ function SetupFeedbackForm({
       <div className={styles.successState}>
         <span className={styles.successIcon}>✓</span>
         <h3>Оценка сетапа принята</h3>
-        <p>Она сохранена в тестовом контуре и позже сможет участвовать в обучении рейтинга сетапов.</p>
+        <p>Оценка сохранена сервером.</p>
         <small>ID: {resultId}</small>
         <button type="button" onClick={onClose}>Закрыть</button>
       </div>

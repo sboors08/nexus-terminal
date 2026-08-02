@@ -37,9 +37,7 @@ import {
   type TapePrint,
 } from '@/features/workspace/workspaceData';
 import type {
-  ApiMutationResult,
   Candle,
-  FeedbackPayload,
   LiquidityLevel,
   MarketActivity,
   MarketSymbol,
@@ -49,7 +47,6 @@ import type {
   ReplayFrame,
   ReplaySession,
   Setup,
-  SetupFeedback,
   SetupHistoryItem,
   SetupReason,
   TradePrint,
@@ -62,6 +59,10 @@ import {
 } from '../runtime/setupRuntimeApi';
 import { fetchLevelV2ShadowSnapshots } from '../runtime/levelV2ShadowApi';
 import { fetchRuntimeMarketSymbols } from '../runtime/marketSymbolsApi';
+import {
+  fetchRuntimeFeedback,
+  fetchRuntimeSetupFeedback,
+} from '../runtime/feedbackApi';
 import { mapLevelV2ShadowSnapshotsToScannerSetups } from '../runtime/levelV2ShadowScanner';
 import {
   DASHBOARD_VIEW_DATA,
@@ -133,8 +134,6 @@ export interface NexusViewApi {
 const MOCK_LATENCY_MS = 140;
 const FIXED_NOW = '2026-07-15T17:32:14Z';
 
-const feedbackStore: FeedbackPayload[] = [];
-const setupFeedbackStore: SetupFeedback[] = [];
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -1367,22 +1366,12 @@ const contractApi: NexusApi = {
   getAlerts: () => deliver('alerts', canonicalAlerts, []),
   getSetupHistory: () => deliver('setup history', canonicalHistory, []),
   getReplaySession: (sessionId) => deliver('replay session', createCanonicalReplay(sessionId), null),
-  sendFeedback: async (payload) => {
-    feedbackStore.push(clone(payload));
-    const result: ApiMutationResult = {
-      id: `feedback-${feedbackStore.length}`,
-      acceptedAt: new Date().toISOString(),
-    };
-    return deliver('feedback mutation', result, result);
-  },
-  sendSetupFeedback: async (payload) => {
-    setupFeedbackStore.push(clone(payload));
-    const result: ApiMutationResult = {
-      id: `setup-feedback-${setupFeedbackStore.length}`,
-      acceptedAt: new Date().toISOString(),
-    };
-    return deliver('setup feedback mutation', result, result);
-  },
+  sendFeedback:
+    (payload) =>
+      fetchRuntimeFeedback(payload),
+  sendSetupFeedback:
+    (payload) =>
+      fetchRuntimeSetupFeedback(payload),
 };
 
 const viewApi: NexusViewApi = {
