@@ -3,6 +3,14 @@ import {
   DEFAULT_LEVEL_V2_FOUNDATION_OPTIONS,
 } from './level-v2-foundation.js';
 import {
+  DEFAULT_LEVEL_V2_BREAK_CLASSIFICATION_OPTIONS,
+} from './level-v2-break-classification.js';
+import {
+  buildLevelV2ShadowBreakClassifications,
+  cloneLevelV2ShadowBreakClassificationEvent,
+  cloneLevelV2ShadowBreakClassificationState,
+} from './level-v2-shadow-break-classification.js';
+import {
   DEFAULT_LEVEL_V2_LIFECYCLE_OPTIONS,
   LevelV2LifecycleRegistry,
 } from './level-v2-lifecycle.js';
@@ -66,6 +74,9 @@ LevelV2ShadowRuntimeOptions = {
   },
   lifecycleOptions: {
     ...DEFAULT_LEVEL_V2_LIFECYCLE_OPTIONS,
+  },
+  breakClassificationOptions: {
+    ...DEFAULT_LEVEL_V2_BREAK_CLASSIFICATION_OPTIONS,
   },
   historyOptions: {
     ...DEFAULT_LEVEL_V2_SHADOW_HISTORY_OPTIONS,
@@ -192,6 +203,14 @@ function cloneSnapshot(
     lifecycleEvents:
       snapshot.lifecycleEvents.map(
         cloneEvent,
+      ),
+    breakClassifications:
+      (snapshot.breakClassifications ?? []).map(
+        cloneLevelV2ShadowBreakClassificationState,
+      ),
+    breakClassificationEvents:
+      (snapshot.breakClassificationEvents ?? []).map(
+        cloneLevelV2ShadowBreakClassificationEvent,
       ),
   };
 }
@@ -686,6 +705,15 @@ implements LevelV2ShadowRuntimeReader {
             .lastTouchCandleIndex,
       );
 
+    const breakClassification =
+      buildLevelV2ShadowBreakClassifications(
+        sortedLifecycleStates,
+        closedCandles,
+        this.options
+          .breakClassificationOptions
+        ?? DEFAULT_LEVEL_V2_BREAK_CLASSIFICATION_OPTIONS,
+      );
+
     const evaluation =
       evaluateLevelV2ShadowComparison(
         symbol,
@@ -760,6 +788,10 @@ implements LevelV2ShadowRuntimeReader {
             || left.sequence
             - right.sequence,
         ),
+      breakClassifications:
+        breakClassification.states,
+      breakClassificationEvents:
+        breakClassification.events,
     };
   }
 
