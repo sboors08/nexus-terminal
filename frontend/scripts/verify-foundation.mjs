@@ -211,7 +211,7 @@ const requiredSeoMarkers = [
   '<Navigate to={PUBLIC_ROUTES.home} replace />',
   'Disallow: /app',
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"',
-  '"generate:seo": "node scripts/generate-seo.mjs"',
+  '"generate:seo": "node --env-file-if-exists=.env scripts/generate-seo.mjs"',
   '<link rel="manifest" href="/site.webmanifest" />',
 ];
 
