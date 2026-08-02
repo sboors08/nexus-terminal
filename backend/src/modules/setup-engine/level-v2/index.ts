@@ -4,6 +4,8 @@ export * from './level-v2-break-classification.types.js';
 export * from './level-v2-lifecycle.js';
 export * from './level-v2-lifecycle.types.js';
 export * from './level-v2-shadow-break-classification.js';
+export * from './level-v2-shadow-break-read.routes.js';
+export * from './level-v2-shadow-break-read.types.js';
 export * from './level-v2-shadow-evaluation.js';
 export * from './level-v2-shadow-evaluation.types.js';
 export * from './level-v2-shadow-history.js';
