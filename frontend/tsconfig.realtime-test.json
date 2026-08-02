@@ -35,6 +35,7 @@
     "src/shared/charts/model/candleMapping.ts",
     "src/shared/charts/model/drawingModel.ts",
     "src/shared/api/runtime/marketSymbolsApi.ts",
+    "src/shared/api/runtime/feedbackApi.ts",
     "src/shared/api/runtime/setupRuntimeApi.ts",
     "src/shared/api/runtime/levelV2ShadowApi.ts",
     "src/shared/charts/model/priceFormat.ts",

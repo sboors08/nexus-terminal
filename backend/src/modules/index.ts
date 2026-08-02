@@ -4,6 +4,9 @@ import type {
 import {
   apiContractRoutes,
 } from './api-contract/api-contract.routes.js';
+import type {
+  FeedbackStore,
+} from './api-contract/feedback-store.js';
 import {
   healthRoutes,
 } from './health/health.routes.js';
@@ -64,6 +67,9 @@ interface ApiModulesOptions {
   marketDataProvider:
     MarketDataProvider;
 
+  feedbackStore:
+    FeedbackStore;
+
   realtimeMarketDataService?:
     RealtimeMarketDataService;
 
@@ -108,6 +114,9 @@ FastifyPluginAsync<
     {
       marketDataProvider:
         options.marketDataProvider,
+
+      feedbackStore:
+        options.feedbackStore,
     },
   );
 

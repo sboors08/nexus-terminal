@@ -5,3 +5,4 @@ export * from './runtime/levelV2ShadowApi';
 export * from './runtime/setupLifecycleStream';
 export * from './runtime/useSetupLifecycleRefresh';
 export * from './runtime/marketSymbolsApi';
+export * from './runtime/feedbackApi';

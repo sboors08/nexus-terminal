@@ -1,9 +1,13 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import type { ApiErrorResponse, FeedbackPayload, SetupFeedback } from '../../contracts/nexus-api.js';
 import { MarketDataUnavailableError, MarketSymbolNotFoundError, type MarketDataProvider } from '../market-data/market-data.provider.js';
-import { acceptFeedback, alerts, createWorkspaceSnapshot, replaySessions, setupHistory, setups } from './fixtures.js';
+import { alerts, createWorkspaceSnapshot, replaySessions, setupHistory, setups } from './fixtures.js';
+import type { FeedbackStore } from './feedback-store.js';
 
-interface ApiContractRoutesOptions { marketDataProvider: MarketDataProvider; }
+interface ApiContractRoutesOptions {
+  marketDataProvider: MarketDataProvider;
+  feedbackStore: FeedbackStore;
+}
 
 function sendError(request: FastifyRequest, reply: FastifyReply, statusCode: number, error: string, message: string) {
   const payload: ApiErrorResponse = { error, message, requestId: request.id };
@@ -161,10 +165,10 @@ export const apiContractRoutes: FastifyPluginAsync<ApiContractRoutesOptions> = a
   });
   app.post<{ Body: FeedbackPayload }>('/feedback', async (request, reply) => {
     if (!isFeedbackPayload(request.body)) return sendError(request, reply, 400, 'invalid_feedback', 'Feedback requires type, message and context');
-    return reply.status(202).send(acceptFeedback(request.body));
+    return reply.status(202).send(await options.feedbackStore.saveFeedback(request.body));
   });
   app.post<{ Body: SetupFeedback }>('/setup-feedback', async (request, reply) => {
     if (!isSetupFeedback(request.body)) return sendError(request, reply, 400, 'invalid_setup_feedback', 'Setup feedback requires setupId, useful and reasons');
-    return reply.status(202).send(acceptFeedback(request.body));
+    return reply.status(202).send(await options.feedbackStore.saveSetupFeedback(request.body));
   });
 };

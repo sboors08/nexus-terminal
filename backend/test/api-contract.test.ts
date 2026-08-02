@@ -3,6 +3,7 @@ import test from 'node:test';
 import { buildApp } from '../src/app.js';
 import type { AppEnv } from '../src/config/env.js';
 import { createCandles, marketSymbols } from '../src/modules/api-contract/fixtures.js';
+import { InMemoryFeedbackStore } from '../src/modules/api-contract/feedback-store.js';
 import { MarketDataUnavailableError, type MarketDataProvider } from '../src/modules/market-data/market-data.provider.js';
 
 const testEnv: AppEnv = { nodeEnv: 'test', host: '127.0.0.1', port: 4100, apiPrefix: '/api/v1', corsOrigins: ['http://localhost:5173'], logLevel: 'silent' };
@@ -26,10 +27,48 @@ test('NEXUS API returns 503 when market data is unavailable', async (t) => {
   const response = await app.inject({ method: 'GET', url: '/api/v1/market/symbols' }); assert.equal(response.statusCode, 503); assert.equal(response.json().error, 'market_data_unavailable');
 });
 
-test('NEXUS API Contract accepts setup feedback', async (t) => {
-  const app = await buildApp({ env: testEnv, marketDataProvider: fixtureProvider }); t.after(async () => app.close());
-  const response = await app.inject({ method: 'POST', url: '/api/v1/setup-feedback', payload: { setupId: 'setup-sol-breakout-001', useful: true, reasons: [], comment: null, createdAt: '2026-07-18T14:10:00.000Z' } });
-  assert.equal(response.statusCode, 202); assert.match(response.json().id, /^feedback-/);
+test('NEXUS API Contract persists setup feedback', async (t) => {
+  const payload = {
+    setupId: 'setup-sol-breakout-001',
+    useful: true,
+    reasons: [],
+    comment: null,
+    createdAt: '2026-07-18T14:10:00.000Z',
+  };
+
+  const feedbackStore = new InMemoryFeedbackStore({
+    now: () => new Date('2026-07-18T14:11:00.000Z'),
+    createId: (kind) => kind + '-feedback-test',
+  });
+
+  const app = await buildApp({
+    env: testEnv,
+    marketDataProvider: fixtureProvider,
+    feedbackStore,
+  });
+
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/v1/setup-feedback',
+    payload,
+  });
+
+  assert.equal(response.statusCode, 202);
+  assert.deepEqual(response.json(), {
+    id: 'setup-feedback-test',
+    acceptedAt: '2026-07-18T14:11:00.000Z',
+  });
+
+  assert.deepEqual(feedbackStore.getRecords(), [
+    {
+      id: 'setup-feedback-test',
+      kind: 'setup',
+      acceptedAt: '2026-07-18T14:11:00.000Z',
+      payload,
+    },
+  ]);
 });
 
 
