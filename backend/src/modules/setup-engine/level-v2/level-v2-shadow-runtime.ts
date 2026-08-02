@@ -11,6 +11,10 @@ import {
   cloneLevelV2ShadowBreakClassificationState,
 } from './level-v2-shadow-break-classification.js';
 import {
+  buildLevelV2ShadowMarketEvidence,
+  cloneLevelV2ShadowMarketEvidence,
+} from './level-v2-shadow-market-evidence.js';
+import {
   DEFAULT_LEVEL_V2_LIFECYCLE_OPTIONS,
   LevelV2LifecycleRegistry,
 } from './level-v2-lifecycle.js';
@@ -34,6 +38,9 @@ import type {
   LevelV2ShadowHistoryEntry,
   LevelV2ShadowHistoryStatus,
 } from './level-v2-shadow-history.types.js';
+import type {
+  LevelV2ShadowMarketEvidenceSource,
+} from './level-v2-shadow-market-evidence.types.js';
 import type {
   LevelV2Candle,
   LevelV2TouchEvent,
@@ -212,6 +219,10 @@ function cloneSnapshot(
       (snapshot.breakClassificationEvents ?? []).map(
         cloneLevelV2ShadowBreakClassificationEvent,
       ),
+    marketEvidence:
+      (snapshot.marketEvidence ?? []).map(
+        cloneLevelV2ShadowMarketEvidence,
+      ),
   };
 }
 
@@ -344,6 +355,10 @@ implements LevelV2ShadowRuntimeReader {
     private readonly options:
       LevelV2ShadowRuntimeOptions =
         DEFAULT_LEVEL_V2_SHADOW_RUNTIME_OPTIONS,
+
+    private readonly marketEvidenceSource:
+      LevelV2ShadowMarketEvidenceSource
+      | null = null,
   ) {
     validateOptions(options);
 
@@ -759,6 +774,13 @@ implements LevelV2ShadowRuntimeReader {
       this.readNow()
         .toISOString();
 
+    const marketEvidence =
+      buildLevelV2ShadowMarketEvidence(
+        breakClassification.states,
+        this.marketEvidenceSource,
+        generatedAt,
+      );
+
     return {
       symbol,
       timeframe:
@@ -792,6 +814,7 @@ implements LevelV2ShadowRuntimeReader {
         breakClassification.states,
       breakClassificationEvents:
         breakClassification.events,
+      marketEvidence,
     };
   }
 

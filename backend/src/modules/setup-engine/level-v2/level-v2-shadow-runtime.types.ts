@@ -25,6 +25,9 @@ import type {
   LevelV2ShadowHistoryStatus,
 } from './level-v2-shadow-history.types.js';
 import type {
+  LevelV2ShadowMarketEvidence,
+} from './level-v2-shadow-market-evidence.types.js';
+import type {
   SetupDetectionRuntimeSource,
   SetupDetectionTriggerSource,
 } from '../setup-detection-runtime.types.js';
@@ -72,6 +75,8 @@ export interface LevelV2ShadowSnapshot {
     readonly LevelV2BreakClassificationState[];
   breakClassificationEvents?:
     readonly LevelV2BreakClassificationEvent[];
+  marketEvidence?:
+    readonly LevelV2ShadowMarketEvidence[];
 }
 
 export interface LevelV2ShadowRuntimeStatus {

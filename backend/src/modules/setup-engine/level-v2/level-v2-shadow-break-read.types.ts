@@ -4,6 +4,9 @@ import type {
   LevelV2BreakClassificationStatus,
 } from './level-v2-break-classification.types.js';
 import type {
+  LevelV2ShadowMarketEvidence,
+} from './level-v2-shadow-market-evidence.types.js';
+import type {
   LevelV2ShadowRuntimeStatus,
 } from './level-v2-shadow-runtime.types.js';
 import type {
@@ -24,6 +27,9 @@ export interface LevelV2ShadowBreakReadItem {
   generatedAt: string;
   state: LevelV2BreakClassificationState;
   events: readonly LevelV2BreakClassificationEvent[];
+  marketEvidence:
+    LevelV2ShadowMarketEvidence
+    | null;
 }
 
 export interface LevelV2ShadowBreakReadListResponse {
@@ -39,6 +45,11 @@ export interface LevelV2ShadowBreakDiagnostics {
   symbolsCount: number;
   classificationsCount: number;
   eventsCount: number;
+  marketEvidenceCount: number;
+  completeMarketEvidenceCount: number;
+  tapeAvailableCount: number;
+  orderBookAvailableCount: number;
+  marketEvidenceSourceErrorsCount: number;
   statusCounts:
     Record<
       LevelV2BreakClassificationStatus,
