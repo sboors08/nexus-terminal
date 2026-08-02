@@ -1,4 +1,9 @@
 import type {
+  LevelV2BreakClassificationEvent,
+  LevelV2BreakClassificationOptions,
+  LevelV2BreakClassificationState,
+} from './level-v2-break-classification.types.js';
+import type {
   LevelV2FoundationOptions,
 } from './level-v2.types.js';
 import type {
@@ -34,6 +39,8 @@ export interface LevelV2ShadowRuntimeOptions {
   foundationOptions: LevelV2FoundationOptions;
   zonesScoreOptions: LevelV2ZonesScoreOptions;
   lifecycleOptions: LevelV2LifecycleOptions;
+  breakClassificationOptions?:
+    LevelV2BreakClassificationOptions;
   historyOptions?:
     LevelV2ShadowHistoryOptions;
   evaluationOptions?:
@@ -61,6 +68,10 @@ export interface LevelV2ShadowSnapshot {
   evaluation: LevelV2ShadowEvaluation;
   levels: readonly LevelV2LifecycleState[];
   lifecycleEvents: readonly LevelV2LifecycleEvent[];
+  breakClassifications?:
+    readonly LevelV2BreakClassificationState[];
+  breakClassificationEvents?:
+    readonly LevelV2BreakClassificationEvent[];
 }
 
 export interface LevelV2ShadowRuntimeStatus {

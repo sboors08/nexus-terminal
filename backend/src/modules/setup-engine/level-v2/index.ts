@@ -3,6 +3,7 @@ export * from './level-v2-break-classification.js';
 export * from './level-v2-break-classification.types.js';
 export * from './level-v2-lifecycle.js';
 export * from './level-v2-lifecycle.types.js';
+export * from './level-v2-shadow-break-classification.js';
 export * from './level-v2-shadow-evaluation.js';
 export * from './level-v2-shadow-evaluation.types.js';
 export * from './level-v2-shadow-history.js';
