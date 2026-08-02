@@ -237,6 +237,10 @@ function buildItems(
       snapshot.breakClassificationEvents
       ?? [];
 
+    const marketEvidence =
+      snapshot.marketEvidence
+      ?? [];
+
     for (
       const state
       of states
@@ -279,6 +283,13 @@ function buildItems(
               event.classifierId
                 === state.id,
           ),
+        marketEvidence:
+          marketEvidence.find(
+            (evidence) =>
+              evidence.classifierId
+                === state.id,
+          )
+          ?? null,
       });
     }
   }
@@ -333,6 +344,11 @@ function buildDiagnostics(
 
   let classificationsCount = 0;
   let eventsCount = 0;
+  let marketEvidenceCount = 0;
+  let completeMarketEvidenceCount = 0;
+  let tapeAvailableCount = 0;
+  let orderBookAvailableCount = 0;
+  let marketEvidenceSourceErrorsCount = 0;
   let maxPenetrationDepthPct = 0;
   let latestGeneratedAt:
     string | null = null;
@@ -352,6 +368,10 @@ function buildDiagnostics(
       snapshot.breakClassificationEvents
       ?? [];
 
+    const marketEvidence =
+      snapshot.marketEvidence
+      ?? [];
+
     const hasBreakData =
       states.length > 0
       || events.length > 0;
@@ -367,6 +387,32 @@ function buildDiagnostics(
 
     eventsCount +=
       events.length;
+
+    marketEvidenceCount +=
+      marketEvidence.length;
+
+    for (
+      const evidence
+      of marketEvidence
+    ) {
+      if (
+        evidence.availability
+          === 'complete'
+      ) {
+        completeMarketEvidenceCount += 1;
+      }
+
+      if (evidence.tape) {
+        tapeAvailableCount += 1;
+      }
+
+      if (evidence.orderBook) {
+        orderBookAvailableCount += 1;
+      }
+
+      marketEvidenceSourceErrorsCount +=
+        evidence.sourceErrors.length;
+    }
 
     for (
       const state
@@ -410,6 +456,11 @@ function buildDiagnostics(
       symbols.size,
     classificationsCount,
     eventsCount,
+    marketEvidenceCount,
+    completeMarketEvidenceCount,
+    tapeAvailableCount,
+    orderBookAvailableCount,
+    marketEvidenceSourceErrorsCount,
     statusCounts,
     kindCounts,
     maxPenetrationDepthPct,

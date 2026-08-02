@@ -17,6 +17,9 @@ import { MarketWideHistoryWarmupService } from './modules/realtime-market-data/m
 import { MarketWideRealtimeService } from './modules/realtime-market-data/market-wide-realtime.service.js';
 import { MarketWideRuntimeCoordinator } from './modules/realtime-market-data/market-wide-runtime-coordinator.js';
 import { SetupDetectionRuntimeService } from './modules/setup-engine/setup-detection-runtime.service.js';
+import {
+  LevelV2ShadowMarketEvidenceAdapter,
+} from './modules/setup-engine/level-v2/level-v2-shadow-market-evidence.js';
 import { LevelV2ShadowRuntimeService } from './modules/setup-engine/level-v2/level-v2-shadow-runtime.js';
 import type {
   LevelV2ShadowRuntimeLifecycle,
@@ -238,6 +241,17 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         : null
       : options.setupDetectionRuntimeService;
 
+  const levelV2ShadowMarketEvidenceSource =
+    realtimeMarketDataService
+    || orderBookDepthService
+      ? new LevelV2ShadowMarketEvidenceAdapter({
+          tapeReader:
+            realtimeMarketDataService,
+          orderBookReader:
+            orderBookDepthService,
+        })
+      : null;
+
   const levelV2ShadowRuntimeService =
     options.levelV2ShadowRuntimeService
     === undefined
@@ -245,6 +259,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         && marketWideRealtimeService
           ? new LevelV2ShadowRuntimeService(
               marketWideRealtimeService,
+              undefined,
+              levelV2ShadowMarketEvidenceSource,
             )
           : null
       : options.levelV2ShadowRuntimeService;

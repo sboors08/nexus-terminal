@@ -10,6 +10,8 @@ export * from './level-v2-shadow-evaluation.js';
 export * from './level-v2-shadow-evaluation.types.js';
 export * from './level-v2-shadow-history.js';
 export * from './level-v2-shadow-history.types.js';
+export * from './level-v2-shadow-market-evidence.js';
+export * from './level-v2-shadow-market-evidence.types.js';
 export * from './level-v2-shadow-overlap-diagnostics.js';
 export * from './level-v2-shadow-overlap-diagnostics.types.js';
 export * from './level-v2-shadow-runtime.js';
