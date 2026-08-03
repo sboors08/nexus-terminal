@@ -60,6 +60,7 @@ export type ScannerSetup = {
   levelHigh?: number;
   levelReferencePrice?: number;
   levelActiveFrom?: string;
+  shadowLevelId?: string;
   shadowScore?: number;
   shadowStatus?: ScannerShadowLifecycleStatus;
 };

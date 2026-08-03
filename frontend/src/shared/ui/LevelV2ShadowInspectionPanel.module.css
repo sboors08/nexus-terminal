@@ -1,0 +1,155 @@
+.panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgb(139 124 255 / 34%);
+  border-radius: var(--nexus-radius-md);
+  background:
+    linear-gradient(
+      145deg,
+      rgb(92 75 255 / 12%),
+      transparent 62%
+    ),
+    var(--nexus-color-bg-canvas);
+}
+
+.panelError {
+  border-color: rgb(255 92 113 / 45%);
+}
+
+.statePositive {
+  border-color: rgb(53 223 141 / 42%);
+}
+
+.stateNegative {
+  border-color: rgb(255 92 113 / 45%);
+}
+
+.stateMixed {
+  border-color: rgb(245 182 66 / 45%);
+}
+
+.stateNeutral {
+  border-color: rgb(139 124 255 / 34%);
+}
+
+.header,
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.header span {
+  color: #98e9ff;
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  font-weight: var(--nexus-font-weight-semibold);
+  letter-spacing: 0.06em;
+}
+
+.header strong {
+  color: var(--nexus-color-text-primary);
+  font-size: 10px;
+  text-align: right;
+}
+
+.stageGrid,
+.metricsGrid {
+  display: grid;
+  gap: 6px;
+}
+
+.stageGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.metricsGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.stageGrid > div,
+.metricsGrid > div {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 7px;
+  border: 1px solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+  background: var(--nexus-color-bg-surface-raised);
+}
+
+.stageGrid span,
+.metricsGrid span {
+  color: var(--nexus-color-text-muted);
+  font-size: 7px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.stageGrid strong,
+.metricsGrid strong {
+  overflow-wrap: anywhere;
+  color: var(--nexus-color-text-primary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.stageGrid small {
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+}
+
+.positiveValue {
+  color: #35df8d !important;
+}
+
+.negativeValue {
+  color: #ff5c71 !important;
+}
+
+.reasons {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 16px;
+  color: var(--nexus-color-text-secondary);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.message {
+  margin: 0;
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.footer {
+  color: var(--nexus-color-text-muted);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.footer button,
+.retryButton {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--nexus-color-border-strong);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-surface-raised);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .stageGrid {
+    grid-template-columns: 1fr;
+  }
+}

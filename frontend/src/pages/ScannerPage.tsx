@@ -41,6 +41,7 @@ import {
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { DirectionBadge, type TradeDirection } from '@/shared/ui/DirectionBadge';
 import { SetupStageBadge, type SetupStage } from '@/shared/ui/SetupStageBadge';
+import { LevelV2ShadowInspectionPanel } from '@/shared/ui/LevelV2ShadowInspectionPanel';
 import {
   TRADING_PRESET_IDS,
   TRADING_PRESETS,
@@ -2156,6 +2157,26 @@ function ScannerPageContent({
                 </div>
               </div>
             )}
+
+            {
+              selectedSetup.source === 'v2-shadow'
+                ? (
+                    <LevelV2ShadowInspectionPanel
+                      symbol={selectedSymbol}
+                      levelId={
+                        selectedSetup
+                          .shadowLevelId
+                        ?? null
+                      }
+                      lifecycleStatus={
+                        selectedSetup
+                          .shadowStatus
+                        ?? null
+                      }
+                    />
+                  )
+                : null
+            }
 
             <section className={styles.reasonBlock}>
               <p className={styles.panelEyebrow}>
