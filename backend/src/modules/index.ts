@@ -73,6 +73,9 @@ import {
 import {
   levelV2ShadowSetupOutcomeObservationRoutes,
 } from './setup-engine/level-v2/level-v2-shadow-setup-outcome-observation.routes.js';
+import {
+  levelV2ShadowSetupOutcomeHistoryRoutes,
+} from './setup-engine/level-v2/level-v2-shadow-setup-outcome-history.routes.js';
 import type {
   LevelV2ShadowRuntimeReader,
 } from './setup-engine/level-v2/level-v2-shadow-runtime.types.js';
@@ -274,6 +277,22 @@ FastifyPluginAsync<
 
   await app.register(
     levelV2ShadowSetupOutcomeObservationRoutes,
+    {
+      ...(
+        options
+          .levelV2ShadowRuntimeReader
+          ? {
+              levelV2ShadowRuntimeReader:
+                options
+                  .levelV2ShadowRuntimeReader,
+            }
+          : {}
+      ),
+    },
+  );
+
+  await app.register(
+    levelV2ShadowSetupOutcomeHistoryRoutes,
     {
       ...(
         options
