@@ -272,6 +272,9 @@ function mapShadowLevel(
     levelActiveFrom:
       state.registeredAt,
 
+    shadowLevelId:
+      state.level.id,
+
     shadowScore:
       state.level.score.total,
 
