@@ -34,6 +34,10 @@ import {
   DEFAULT_LEVEL_V2_SHADOW_HISTORY_OPTIONS,
   LevelV2ShadowHistoryStore,
 } from './level-v2-shadow-history.js';
+import {
+  DEFAULT_LEVEL_V2_SHADOW_MARKET_EVIDENCE_HISTORY_OPTIONS,
+  LevelV2ShadowMarketEvidenceHistoryStore,
+} from './level-v2-shadow-market-evidence-history.js';
 import type {
   LevelV2ShadowHistoryEntry,
   LevelV2ShadowHistoryStatus,
@@ -41,6 +45,10 @@ import type {
 import type {
   LevelV2ShadowMarketEvidenceSource,
 } from './level-v2-shadow-market-evidence.types.js';
+import type {
+  LevelV2ShadowMarketEvidenceHistoryEntry,
+  LevelV2ShadowMarketEvidenceHistoryStatus,
+} from './level-v2-shadow-market-evidence-history.types.js';
 import type {
   LevelV2Candle,
   LevelV2TouchEvent,
@@ -87,6 +95,9 @@ LevelV2ShadowRuntimeOptions = {
   },
   historyOptions: {
     ...DEFAULT_LEVEL_V2_SHADOW_HISTORY_OPTIONS,
+  },
+  marketEvidenceHistoryOptions: {
+    ...DEFAULT_LEVEL_V2_SHADOW_MARKET_EVIDENCE_HISTORY_OPTIONS,
   },
   evaluationOptions: {
     ...DEFAULT_LEVEL_V2_SHADOW_EVALUATION_OPTIONS,
@@ -327,6 +338,9 @@ implements LevelV2ShadowRuntimeReader {
   private readonly historyStore:
     LevelV2ShadowHistoryStore;
 
+  private readonly marketEvidenceHistoryStore:
+    LevelV2ShadowMarketEvidenceHistoryStore;
+
   private state:
     LevelV2ShadowRuntimeState =
       'idle';
@@ -366,6 +380,12 @@ implements LevelV2ShadowRuntimeReader {
       new LevelV2ShadowHistoryStore(
         options.historyOptions
         ?? DEFAULT_LEVEL_V2_SHADOW_HISTORY_OPTIONS,
+      );
+
+    this.marketEvidenceHistoryStore =
+      new LevelV2ShadowMarketEvidenceHistoryStore(
+        options.marketEvidenceHistoryOptions
+        ?? DEFAULT_LEVEL_V2_SHADOW_MARKET_EVIDENCE_HISTORY_OPTIONS,
       );
   }
 
@@ -518,6 +538,26 @@ implements LevelV2ShadowRuntimeReader {
       .getStatus();
   }
 
+  getMarketEvidenceHistory(
+    symbol?: string,
+    classifierId?: string,
+    limit?: number,
+  ):
+  LevelV2ShadowMarketEvidenceHistoryEntry[] {
+    return this.marketEvidenceHistoryStore
+      .getHistory(
+        symbol,
+        classifierId,
+        limit,
+      );
+  }
+
+  getMarketEvidenceHistoryStatus():
+  LevelV2ShadowMarketEvidenceHistoryStatus {
+    return this.marketEvidenceHistoryStore
+      .getStatus();
+  }
+
   private processSymbols(
     symbolValues:
       readonly string[],
@@ -563,6 +603,11 @@ implements LevelV2ShadowRuntimeReader {
         this.historyStore.record(
           snapshot,
         );
+
+        this.marketEvidenceHistoryStore
+          .record(
+            snapshot,
+          );
 
         this.scansCount += 1;
         this.lastScanAt =

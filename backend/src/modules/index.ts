@@ -55,6 +55,9 @@ import {
 import {
   levelV2ShadowBreakReadRoutes,
 } from './setup-engine/level-v2/level-v2-shadow-break-read.routes.js';
+import {
+  levelV2ShadowMarketEvidenceHistoryRoutes,
+} from './setup-engine/level-v2/level-v2-shadow-market-evidence-history.routes.js';
 import type {
   LevelV2ShadowRuntimeReader,
 } from './setup-engine/level-v2/level-v2-shadow-runtime.types.js';
@@ -160,6 +163,22 @@ FastifyPluginAsync<
 
   await app.register(
     levelV2ShadowBreakReadRoutes,
+    {
+      ...(
+        options
+          .levelV2ShadowRuntimeReader
+          ? {
+              levelV2ShadowRuntimeReader:
+                options
+                  .levelV2ShadowRuntimeReader,
+            }
+          : {}
+      ),
+    },
+  );
+
+  await app.register(
+    levelV2ShadowMarketEvidenceHistoryRoutes,
     {
       ...(
         options
