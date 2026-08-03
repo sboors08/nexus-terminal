@@ -79,6 +79,9 @@ import {
 import {
   levelV2ShadowSetupQualitySampleRoutes,
 } from './setup-engine/level-v2/level-v2-shadow-setup-quality-sample.routes.js';
+import {
+  levelV2ShadowSetupQualityDatasetRoutes,
+} from './setup-engine/level-v2/level-v2-shadow-setup-quality-dataset.routes.js';
 import type {
   LevelV2ShadowRuntimeReader,
 } from './setup-engine/level-v2/level-v2-shadow-runtime.types.js';
@@ -312,6 +315,22 @@ FastifyPluginAsync<
 
   await app.register(
     levelV2ShadowSetupQualitySampleRoutes,
+    {
+      ...(
+        options
+          .levelV2ShadowRuntimeReader
+          ? {
+              levelV2ShadowRuntimeReader:
+                options
+                  .levelV2ShadowRuntimeReader,
+            }
+          : {}
+      ),
+    },
+  );
+
+  await app.register(
+    levelV2ShadowSetupQualityDatasetRoutes,
     {
       ...(
         options
