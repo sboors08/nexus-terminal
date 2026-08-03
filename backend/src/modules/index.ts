@@ -67,6 +67,9 @@ import {
 import {
   levelV2ShadowConfirmationCandidateRoutes,
 } from './setup-engine/level-v2/level-v2-shadow-confirmation-candidate.routes.js';
+import {
+  levelV2ShadowConfirmationCandidateHistoryRoutes,
+} from './setup-engine/level-v2/level-v2-shadow-confirmation-candidate-history.routes.js';
 import type {
   LevelV2ShadowRuntimeReader,
 } from './setup-engine/level-v2/level-v2-shadow-runtime.types.js';
@@ -236,6 +239,22 @@ FastifyPluginAsync<
 
   await app.register(
     levelV2ShadowConfirmationCandidateRoutes,
+    {
+      ...(
+        options
+          .levelV2ShadowRuntimeReader
+          ? {
+              levelV2ShadowRuntimeReader:
+                options
+                  .levelV2ShadowRuntimeReader,
+            }
+          : {}
+      ),
+    },
+  );
+
+  await app.register(
+    levelV2ShadowConfirmationCandidateHistoryRoutes,
     {
       ...(
         options
