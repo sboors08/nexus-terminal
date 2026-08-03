@@ -28,6 +28,11 @@ import type {
   LevelV2ShadowMarketEvidence,
 } from './level-v2-shadow-market-evidence.types.js';
 import type {
+  LevelV2ShadowMarketEvidenceHistoryEntry,
+  LevelV2ShadowMarketEvidenceHistoryOptions,
+  LevelV2ShadowMarketEvidenceHistoryStatus,
+} from './level-v2-shadow-market-evidence-history.types.js';
+import type {
   SetupDetectionRuntimeSource,
   SetupDetectionTriggerSource,
 } from '../setup-detection-runtime.types.js';
@@ -46,6 +51,8 @@ export interface LevelV2ShadowRuntimeOptions {
     LevelV2BreakClassificationOptions;
   historyOptions?:
     LevelV2ShadowHistoryOptions;
+  marketEvidenceHistoryOptions?:
+    LevelV2ShadowMarketEvidenceHistoryOptions;
   evaluationOptions?:
     LevelV2ShadowEvaluationOptions;
   now: () => Date;
@@ -105,6 +112,13 @@ export interface LevelV2ShadowRuntimeReader {
     limit?: number,
   ): LevelV2ShadowHistoryEntry[];
   getEvaluationHistoryStatus?(): LevelV2ShadowHistoryStatus;
+  getMarketEvidenceHistory?(
+    symbol?: string,
+    classifierId?: string,
+    limit?: number,
+  ): LevelV2ShadowMarketEvidenceHistoryEntry[];
+  getMarketEvidenceHistoryStatus?():
+    LevelV2ShadowMarketEvidenceHistoryStatus;
 }
 
 export type LevelV2ShadowRuntimeSource =
