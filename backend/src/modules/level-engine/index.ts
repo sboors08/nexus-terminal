@@ -9,3 +9,6 @@ export * from './level-engine-real-data-validation.types.js';
 export * from './level-engine-real-data-review-html.js';
 export * from './level-engine-lifecycle.js';
 export * from './level-engine-lifecycle.types.js';
+export * from './level-engine-lifecycle-real-data-validation.js';
+export * from './level-engine-lifecycle-real-data-validation.types.js';
+export * from './level-engine-lifecycle-real-data-review-html.js';
