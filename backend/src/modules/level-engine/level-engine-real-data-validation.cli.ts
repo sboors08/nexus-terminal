@@ -21,6 +21,9 @@ import {
   buildLevelEngineLifecycleRealDataValidationReport,
 } from './level-engine-lifecycle-real-data-validation.js';
 import {
+  buildLevelEngineCausalReplayRealDataValidationReport,
+} from './level-engine-causal-replay-real-data-validation.js';
+import {
   buildLevelEngineLifecycleRealDataReviewHtml,
 } from './level-engine-lifecycle-real-data-review-html.js';
 
@@ -148,9 +151,39 @@ async function main(): Promise<void> {
       500,
     ),
   });
-  const report =
+  const lifecycleReport =
     buildLevelEngineLifecycleRealDataValidationReport(
       sourceReport,
+    );
+  console.log(
+    'Running Level Engine causal replay on fetched datasets...',
+  );
+  let causalReplayDatasetStartedAt = Date.now();
+  const report =
+    buildLevelEngineCausalReplayRealDataValidationReport(
+      lifecycleReport,
+      {
+        onDatasetStart: (dataset, datasetIndex, datasetCount) => {
+          causalReplayDatasetStartedAt = Date.now();
+          console.log(
+            `[${datasetIndex}/${datasetCount}] Replay `
+            + `${dataset.symbol} ${dataset.sourceTimeframe}...`,
+          );
+        },
+        onDatasetComplete: (
+          dataset,
+          replay,
+          datasetIndex,
+          datasetCount,
+        ) => {
+          console.log(
+            `[${datasetIndex}/${datasetCount}] Completed `
+            + `${dataset.symbol} ${dataset.sourceTimeframe}: `
+            + `${replay.totals.candidateTrackCount} tracks, `
+            + `${Date.now() - causalReplayDatasetStartedAt} ms`,
+          );
+        },
+      },
     );
 
   const outputDirectory = resolve(
@@ -161,7 +194,7 @@ async function main(): Promise<void> {
   await mkdir(outputDirectory, { recursive: true });
 
   const serialized = `${JSON.stringify(report, null, 2)}\n`;
-  const reviewHtml = buildLevelEngineLifecycleRealDataReviewHtml(report);
+  const reviewHtml = buildLevelEngineLifecycleRealDataReviewHtml(lifecycleReport);
   const timestamp = safeTimestamp(report.generatedAt);
   const timestampedPath = resolve(
     outputDirectory,
@@ -197,11 +230,45 @@ async function main(): Promise<void> {
       rejected: summary.rejectedClusterCount,
     })),
   );
+  const causalRows = report.timeframeCausalReplaySummaries.map(
+    (summary) => ({
+      timeframe: summary.sourceTimeframe,
+      datasets: summary.datasetCount,
+      replaySteps: summary.replayStepCount,
+      tracks: summary.candidateTrackCount,
+      confirmedTracks: summary.confirmedCandidateTrackCount,
+      cycles: summary.cycleTrackCount,
+      flips: summary.flipCycleTrackCount,
+      reclaims: summary.reclaimCycleTrackCount,
+      disappearances: summary.candidateDisappearanceCount,
+      reappearances: summary.candidateReappearanceCount,
+      selectedConfirmedPreBreak:
+        summary.selectedCycleConfirmationStateCounts
+          .confirmed_before_break,
+      selectedConfirmedUnbroken:
+        summary.selectedCycleConfirmationStateCounts
+          .confirmed_unbroken,
+      selectedBrokeUnconfirmed:
+        summary.selectedCycleConfirmationStateCounts
+          .not_confirmed_broken,
+      selectedStillCandidate:
+        summary.selectedCycleConfirmationStateCounts
+          .not_confirmed_unbroken,
+      selectedMissing:
+        summary.selectedCycleConfirmationStateCounts
+          .cycle_not_observed,
+      seenMedianBars: summary.candidateFirstSeenLagBars.medianBars,
+      activeMedianBars:
+        summary.candidateFirstSeenFromActiveFromLagBars.medianBars,
+    }),
+  );
 
   console.log(
     `Level Engine real-data validation: ${report.generatedAt}`,
   );
   console.table(rows);
+  console.log('Causal replay by timeframe:');
+  console.table(causalRows);
   console.log(
     `Totals: ${report.totals.candidateCount} candidates, `
     + `${report.totals.confirmedCount} confirmed, `
@@ -234,10 +301,77 @@ async function main(): Promise<void> {
     + `${report.totals.discardedSourceTouchEpisodeCount} discarded`,
   );
   console.log(
-    'Detection timing: '
+    'Source snapshot detectedAt vs first reconstructed break: '
     + `${report.totals.preBreakDetectionCount} before break, `
     + `${report.totals.lateOrPostBreakDetectionCount} late/post-break, `
     + `${report.totals.noBreakObservedCount} without observed break`,
+  );
+  console.log(
+    'Causal replay: '
+    + `${report.totals.replayDatasetCount} datasets, `
+    + `${report.totals.replayStepCount} steps, `
+    + `${report.totals.causalCandidateTrackCount} candidate tracks, `
+    + `${report.totals.causalCycleTrackCount} cycle tracks`,
+  );
+  console.log(
+    'Source candidate first-seen vs first reconstructed break: '
+    + `${report.totals.reviewFirstSeenBeforeBreakCount} before break, `
+    + `${report.totals.reviewFirstSeenAtOrAfterBreakCount} at/after break, `
+    + `${report.totals.reviewFirstSeenNoBreakCount} without break, `
+    + `${report.totals.reviewFirstSeenNotObservedCount} not observed`,
+  );
+  console.log(
+    'Source candidate first-confirmed vs first reconstructed break: '
+    + `${report.totals.reviewFirstConfirmedBeforeBreakCount} before break, `
+    + `${report.totals.reviewFirstConfirmedAtOrAfterBreakCount} at/after break, `
+    + `${report.totals.reviewFirstConfirmedNoBreakCount} without break, `
+    + `${report.totals.reviewFirstConfirmedNotObservedCount} not observed`,
+  );
+  const selectedObserved =
+    report.totals.selectedCycleFirstObservedTimingCounts;
+  const selectedConfirmed =
+    report.totals.selectedCycleConfirmationStateCounts;
+  console.log(
+    'Selected-cycle first observation vs its own break: '
+    + `${selectedObserved.before_break} before break, `
+    + `${selectedObserved.at_break + selectedObserved.after_break} at/after break, `
+    + `${selectedObserved.no_break} unbroken, `
+    + `${selectedObserved.not_observed} not observed`,
+  );
+  console.log(
+    'Selected-cycle confirmation vs its own break: '
+    + `${selectedConfirmed.confirmed_before_break} confirmed before break, `
+    + `${selectedConfirmed.confirmed_at_break + selectedConfirmed.confirmed_after_break} confirmed at/after break, `
+    + `${selectedConfirmed.confirmed_unbroken} confirmed and unbroken, `
+    + `${selectedConfirmed.not_confirmed_broken} broke before confirmation, `
+    + `${selectedConfirmed.not_confirmed_unbroken} still candidate/unbroken, `
+    + `${selectedConfirmed.cycle_not_observed} cycle not observed`,
+  );
+  console.log(
+    'Candidate lag bars (median/max): '
+    + `seen ${report.totals.candidateFirstSeenLagBars.medianBars ?? 'вЂ”'}/`
+    + `${report.totals.candidateFirstSeenLagBars.maximumBars ?? 'вЂ”'}, `
+    + `from activeFrom `
+    + `${report.totals.candidateFirstSeenFromActiveFromLagBars.medianBars ?? 'вЂ”'}/`
+    + `${report.totals.candidateFirstSeenFromActiveFromLagBars.maximumBars ?? 'вЂ”'}, `
+    + `confirmed ${report.totals.candidateConfirmedLagBars.medianBars ?? 'вЂ”'}/`
+    + `${report.totals.candidateConfirmedLagBars.maximumBars ?? 'вЂ”'}`,
+  );
+  console.log(
+    'Transition lag bars (median/max): '
+    + `origin ${report.totals.originStartLagBars.medianBars ?? 'вЂ”'}/`
+    + `${report.totals.originStartLagBars.maximumBars ?? 'вЂ”'}, `
+    + `flip ${report.totals.flipStartLagBars.medianBars ?? 'вЂ”'}/`
+    + `${report.totals.flipStartLagBars.maximumBars ?? 'вЂ”'}, `
+    + `reclaim ${report.totals.reclaimStartLagBars.medianBars ?? 'вЂ”'}/`
+    + `${report.totals.reclaimStartLagBars.maximumBars ?? 'вЂ”'}, `
+    + `break ${report.totals.breakObservationLagBars.medianBars ?? 'вЂ”'}/`
+    + `${report.totals.breakObservationLagBars.maximumBars ?? 'вЂ”'}`,
+  );
+  console.log(
+    'Detector stability: '
+    + `${report.totals.causalCandidateDisappearanceCount} disappearances, `
+    + `${report.totals.causalCandidateReappearanceCount} reappearances`,
   );
   console.log(`Full report: ${timestampedPath}`);
   console.log(`Latest report: ${latestPath}`);
