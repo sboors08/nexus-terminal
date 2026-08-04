@@ -18,8 +18,11 @@ import {
   validateLevelEngineRealData,
 } from './level-engine-real-data-validation.js';
 import {
-  buildLevelEngineRealDataReviewHtml,
-} from './level-engine-real-data-review-html.js';
+  buildLevelEngineLifecycleRealDataValidationReport,
+} from './level-engine-lifecycle-real-data-validation.js';
+import {
+  buildLevelEngineLifecycleRealDataReviewHtml,
+} from './level-engine-lifecycle-real-data-review-html.js';
 
 function readPositiveInteger(
   value: string | undefined,
@@ -111,7 +114,7 @@ function safeTimestamp(value: string): string {
 }
 
 async function main(): Promise<void> {
-  const report = await validateLevelEngineRealData({
+  const sourceReport = await validateLevelEngineRealData({
     binanceBaseUrl:
       process.env.BINANCE_BASE_URL
       ?? 'https://fapi.binance.com',
@@ -145,6 +148,10 @@ async function main(): Promise<void> {
       500,
     ),
   });
+  const report =
+    buildLevelEngineLifecycleRealDataValidationReport(
+      sourceReport,
+    );
 
   const outputDirectory = resolve(
     process.cwd(),
@@ -154,7 +161,7 @@ async function main(): Promise<void> {
   await mkdir(outputDirectory, { recursive: true });
 
   const serialized = `${JSON.stringify(report, null, 2)}\n`;
-  const reviewHtml = buildLevelEngineRealDataReviewHtml(report);
+  const reviewHtml = buildLevelEngineLifecycleRealDataReviewHtml(report);
   const timestamp = safeTimestamp(report.generatedAt);
   const timestampedPath = resolve(
     outputDirectory,
@@ -206,6 +213,31 @@ async function main(): Promise<void> {
     + `${report.totals.reviewStateCounts.broken} broken, `
     + `${report.totals.reviewStateCounts.stale} stale, `
     + `${report.totals.reviewStateCounts.pending} pending`,
+  );
+  console.log(
+    'Lifecycle: '
+    + `${report.totals.lifecycleCycleCount} cycles, `
+    + `${report.totals.lifecycleBreakCount} breaks, `
+    + `${report.totals.lifecycleFlipCount} flips, `
+    + `${report.totals.lifecycleReclaimCount} reclaims`,
+  );
+  console.log(
+    'Selected transitions: '
+    + `${report.totals.transitionCounts.origin} origin, `
+    + `${report.totals.transitionCounts.flip} flip, `
+    + `${report.totals.transitionCounts.reclaim} reclaim`,
+  );
+  console.log(
+    'Touch history: '
+    + `${report.totals.sourceTouchEpisodeCount} source, `
+    + `${report.totals.selectedCycleTouchEpisodeCount} selected-cycle, `
+    + `${report.totals.discardedSourceTouchEpisodeCount} discarded`,
+  );
+  console.log(
+    'Detection timing: '
+    + `${report.totals.preBreakDetectionCount} before break, `
+    + `${report.totals.lateOrPostBreakDetectionCount} late/post-break, `
+    + `${report.totals.noBreakObservedCount} without observed break`,
   );
   console.log(`Full report: ${timestampedPath}`);
   console.log(`Latest report: ${latestPath}`);
