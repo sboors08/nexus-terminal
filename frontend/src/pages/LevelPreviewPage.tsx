@@ -1,72 +1,26 @@
 import {
+  useCallback,
   useEffect,
-  useMemo,
   useState,
 } from 'react';
-import type {
-  Candle,
-} from '@/shared/api';
+
 import {
-  useMarketCandles,
-  type MarketCandleTimeframe,
-} from '@/shared/charts';
+  LEVEL_ENGINE_FROZEN_SAMPLE_TIMEFRAMES,
+  fetchLevelEngineFrozenSample,
+  findLevelEngineFrozenSampleDataset,
+  type LevelEngineFrozenSample,
+  type LevelEngineFrozenSampleCandle,
+  type LevelEngineFrozenSampleItem,
+  type LevelEngineFrozenSampleKind,
+  type LevelEngineFrozenSampleTimeframe,
+} from '@/shared/api/runtime/levelEngineFrozenSampleApi';
+import {
+  parseLevelEngineFrozenSampleReview,
+  type LevelEngineFrozenSampleCausalEvent,
+  type LevelEngineFrozenSampleReview,
+} from '@/shared/api/runtime/levelEngineFrozenSampleReview';
+
 import styles from './LevelPreviewPage.module.css';
-
-const LEVEL_PREVIEW_SYMBOLS = [
-  'BTCUSDT',
-  'ETHUSDT',
-  'SOLUSDT',
-  'AVAXUSDT',
-  'DOGEUSDT',
-] as const;
-
-const LEVEL_PREVIEW_TIMEFRAMES:
-readonly MarketCandleTimeframe[] = [
-  '1m',
-  '5m',
-  '15m',
-  '1h',
-  '4h',
-];
-
-type LevelKind =
-  | 'support'
-  | 'resistance';
-
-type LevelState =
-  | 'candidate'
-  | 'confirmed'
-  | 'broken';
-
-type BreakMode =
-  | 'decisive_body_break'
-  | 'consecutive_closes'
-  | null;
-
-interface PreviewLevel {
-  readonly kind: LevelKind;
-  readonly reference: number;
-  readonly zoneLow: number;
-  readonly zoneHigh: number;
-  readonly touchIndexes: readonly number[];
-  readonly candidateAtIndex: number | null;
-  readonly confirmedAtIndex: number | null;
-  readonly breakAtIndex: number | null;
-  readonly breakMode: BreakMode;
-  readonly state: LevelState;
-  readonly atr: number;
-}
-
-interface PreviewEvent {
-  readonly id: string;
-  readonly candleIndex: number;
-  readonly type:
-    | 'touch'
-    | 'candidate'
-    | 'confirmed'
-    | 'break';
-  readonly label: string;
-}
 
 const CHART_WIDTH = 1180;
 const CHART_HEIGHT = 610;
@@ -77,586 +31,525 @@ const CHART_PADDING = {
   left: 18,
 } as const;
 
-function createSeed(value: string): number {
-  let seed = 2166136261;
+const TEXT = {
+  title:
+    '\u041f\u0440\u043e\u0441\u043c\u043e\u0442\u0440 \u0443\u0440\u043e\u0432\u043d\u0435\u0439',
+  subtitle:
+    '\u0417\u0430\u043c\u043e\u0440\u043e\u0436\u0435\u043d\u043d\u0430\u044f \u0434\u0438\u0430\u0433\u043d\u043e\u0441\u0442\u0438\u043a\u0430 Level Engine: \u0442\u043e\u0447\u043d\u0430\u044f \u0437\u043e\u043d\u0430, \u044d\u043f\u0438\u0437\u043e\u0434\u044b \u043a\u0430\u0441\u0430\u043d\u0438\u044f, lifecycle \u0438 causal replay. \u042d\u043a\u0440\u0430\u043d \u043d\u0435 \u0441\u043e\u0437\u0434\u0430\u0451\u0442 \u0441\u0435\u0442\u0430\u043f\u044b, LONG/SHORT \u0438 quality score.',
+  loading:
+    '\u0417\u0430\u0433\u0440\u0443\u0436\u0430\u0435\u043c frozen sample Level Engine\u2026',
+  loadError:
+    '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c frozen sample.',
+  retry:
+    '\u041f\u041e\u0412\u0422\u041e\u0420\u0418\u0422\u042c',
+  refresh:
+    '\u041e\u0411\u041d\u041e\u0412\u0418\u0422\u042c',
+  instrument:
+    '\u0418\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442',
+  timeframe:
+    '\u0422\u0430\u0439\u043c\u0444\u0440\u0435\u0439\u043c',
+  levelKind:
+    '\u0422\u0438\u043f \u0443\u0440\u043e\u0432\u043d\u044f',
+  reviewItem:
+    '\u042d\u043b\u0435\u043c\u0435\u043d\u0442 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0438',
+  controlLabel:
+    '\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u043e\u043c \u0443\u0440\u043e\u0432\u043d\u0435\u0439',
+  support:
+    '\u041f\u043e\u0434\u0434\u0435\u0440\u0436\u043a\u0430',
+  resistance:
+    '\u0421\u043e\u043f\u0440\u043e\u0442\u0438\u0432\u043b\u0435\u043d\u0438\u0435',
+  shown:
+    '\u041f\u043e\u043a\u0430\u0437\u0430\u043d\u043e',
+  candles:
+    '\u0437\u0430\u043a\u0440\u044b\u0442\u044b\u0445 \u0441\u0432\u0435\u0447\u0435\u0439',
+  closedOnly:
+    '\u0422\u043e\u043b\u044c\u043a\u043e closed candles, \u0431\u0435\u0437 future leakage',
+  exactBackend:
+    '\u0417\u043e\u043d\u0430 \u0438 \u0441\u043e\u0431\u044b\u0442\u0438\u044f \u0432\u0437\u044f\u0442\u044b \u0438\u0437 backend, \u0431\u0435\u0437 \u043b\u043e\u043a\u0430\u043b\u044c\u043d\u043e\u0433\u043e \u043f\u0435\u0440\u0435\u0441\u0447\u0451\u0442\u0430',
+  events:
+    '\u0441\u043e\u0431\u044b\u0442\u0438\u0439',
+  noEvents:
+    '\u041d\u0435\u0442 causal-\u0441\u043e\u0431\u044b\u0442\u0438\u0439 \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u043e\u0433\u043e \u0446\u0438\u043a\u043b\u0430',
+  diagnostics:
+    '\u0414\u0418\u0410\u0413\u041d\u041e\u0421\u0422\u0418\u041a\u0410',
+  lifecycle:
+    'LIFECYCLE',
+  flags:
+    '\u0414\u0418\u0410\u0413\u041d\u041e\u0421\u0422\u0418\u0427\u0415\u0421\u041a\u0418\u0415 \u0424\u041b\u0410\u0413\u0418',
+  noFlags:
+    '\u0414\u043b\u044f \u044d\u0442\u043e\u0433\u043e \u044d\u043b\u0435\u043c\u0435\u043d\u0442\u0430 \u0444\u043b\u0430\u0433\u043e\u0432 \u043d\u0435\u0442.',
+  sourceTouches:
+    '\u0418\u0441\u0445\u043e\u0434\u043d\u044b\u0435 \u043a\u0430\u0441\u0430\u043d\u0438\u044f',
+  selectedTouches:
+    '\u041a\u0430\u0441\u0430\u043d\u0438\u044f \u0446\u0438\u043a\u043b\u0430',
+  discardedTouches:
+    '\u041e\u0442\u0431\u0440\u043e\u0448\u0435\u043d\u043e \u043a\u0430\u0441\u0430\u043d\u0438\u0439',
+  cycle:
+    '\u0426\u0438\u043a\u043b',
+  currentCycle:
+    '\u0422\u0435\u043a\u0443\u0449\u0438\u0439 \u0446\u0438\u043a\u043b',
+  confirmation:
+    '\u0421\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435 confirmation',
+  breakMode:
+    '\u0420\u0435\u0436\u0438\u043c \u043f\u0440\u043e\u0431\u043e\u044f',
+  firstObserved:
+    '\u0412\u043f\u0435\u0440\u0432\u044b\u0435 \u0437\u0430\u043c\u0435\u0447\u0435\u043d',
+  firstConfirmed:
+    '\u0412\u043f\u0435\u0440\u0432\u044b\u0435 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0451\u043d',
+  brokenAt:
+    '\u041f\u0440\u043e\u0431\u0438\u0442',
+  yes:
+    '\u0414\u0430',
+  no:
+    '\u041d\u0435\u0442',
+  none:
+    '\u2014',
+} as const;
 
-  for (const character of value) {
-    seed ^= character.charCodeAt(0);
-    seed = Math.imul(seed, 16777619);
-  }
+type LoadStatus =
+  | 'loading'
+  | 'success'
+  | 'error';
 
-  return seed >>> 0;
+type ChartEventKind =
+  | 'candidate'
+  | 'confirmed'
+  | 'break';
+
+interface ChartEvent {
+  readonly id: string;
+  readonly candleIndex: number;
+  readonly kind: ChartEventKind;
+  readonly label: string;
+  readonly observedAt: string;
 }
 
-function createRandom(seedValue: number): () => number {
-  let seed = seedValue || 1;
-
-  return () => {
-    seed ^= seed << 13;
-    seed ^= seed >>> 17;
-    seed ^= seed << 5;
-
-    return (seed >>> 0) / 4294967296;
-  };
-}
-
-function timeframeMs(
-  timeframe: MarketCandleTimeframe,
-): number {
-  const durations:
-  Record<MarketCandleTimeframe, number> = {
-    '1m': 60_000,
-    '3m': 180_000,
-    '5m': 300_000,
-    '15m': 900_000,
-    '30m': 1_800_000,
-    '1h': 3_600_000,
-    '2h': 7_200_000,
-    '4h': 14_400_000,
-    '6h': 21_600_000,
-    '8h': 28_800_000,
-    '12h': 43_200_000,
-    '1d': 86_400_000,
-  };
-
-  return durations[timeframe];
-}
-
-function fallbackBasePrice(symbol: string): number {
-  if (symbol === 'BTCUSDT') return 115_000;
-  if (symbol === 'ETHUSDT') return 3_650;
-  if (symbol === 'SOLUSDT') return 186;
-  if (symbol === 'AVAXUSDT') return 27.8;
-  if (symbol === 'DOGEUSDT') return 0.228;
-
-  return 100;
-}
-
-function buildFallbackCandles(
-  symbol: string,
-  timeframe: MarketCandleTimeframe,
-): readonly Candle[] {
-  const random = createRandom(
-    createSeed(`${symbol}:${timeframe}`),
-  );
-  const duration = timeframeMs(timeframe);
-  const count = 180;
-  const endTime =
-    Date.UTC(2026, 7, 5, 18, 0, 0);
-  const basePrice = fallbackBasePrice(symbol);
-  const volatility =
-    symbol === 'DOGEUSDT'
-      ? 0.0028
-      : symbol === 'BTCUSDT'
-        ? 0.00125
-        : 0.002;
-
-  let price = basePrice * 0.982;
-
-  return Object.freeze(
-    Array.from(
-      { length: count },
-      (_, index): Candle => {
-        const cycle =
-          Math.sin(index / 10.5) * volatility * 1.7;
-        const impulse =
-          index > 108 && index < 128
-            ? volatility * 0.45
-            : index >= 128
-              ? -volatility * 0.18
-              : 0;
-        const noise =
-          (random() - 0.48) * volatility;
-        const open = price;
-        const close = Math.max(
-          basePrice * 0.65,
-          open * (1 + cycle * 0.16 + impulse + noise),
-        );
-        const wick =
-          Math.max(
-            open,
-            close,
-          ) * volatility * (0.55 + random());
-        const high =
-          Math.max(open, close) + wick;
-        const low =
-          Math.max(
-            0.000001,
-            Math.min(open, close) - wick,
-          );
-        const openTime =
-          endTime - (count - index) * duration;
-
-        price = close;
-
-        return {
-          openTime: new Date(openTime).toISOString(),
-          closeTime:
-            new Date(openTime + duration - 1).toISOString(),
-          open,
-          high,
-          low,
-          close,
-          volume:
-            1_000_000 * (0.55 + random() * 1.7),
-          tradesCount:
-            Math.round(800 + random() * 4_200),
-          isClosed: true,
-        };
-      },
-    ),
-  );
-}
-
-function median(
-  values: readonly number[],
-): number {
-  if (values.length === 0) {
-    return 0;
-  }
-
-  const sorted = [...values]
-    .sort((left, right) => left - right);
-  const middle = Math.floor(sorted.length / 2);
-
-  return sorted.length % 2 === 0
-    ? (
-        sorted[middle - 1]
-        + sorted[middle]
-      ) / 2
-    : sorted[middle];
-}
-
-function calculateAtr(
-  candles: readonly Candle[],
-  period = 14,
-): number {
-  if (candles.length === 0) {
-    return 0;
-  }
-
-  const start =
-    Math.max(1, candles.length - period);
-  const ranges: number[] = [];
-
-  for (
-    let index = start;
-    index < candles.length;
-    index += 1
-  ) {
-    const candle = candles[index];
-    const previous = candles[index - 1];
-
-    ranges.push(
-      Math.max(
-        candle.high - candle.low,
-        Math.abs(candle.high - previous.close),
-        Math.abs(candle.low - previous.close),
-      ),
-    );
-  }
-
-  return median(ranges);
-}
-
-function findPivotPrices(
-  candles: readonly Candle[],
-  kind: LevelKind,
-): readonly number[] {
-  const pivots: number[] = [];
-
-  for (
-    let index = 2;
-    index < candles.length - 2;
-    index += 1
-  ) {
-    const candle = candles[index];
-
-    if (kind === 'support') {
-      const isPivot =
-        candle.low <= candles[index - 1].low
-        && candle.low <= candles[index - 2].low
-        && candle.low <= candles[index + 1].low
-        && candle.low <= candles[index + 2].low;
-
-      if (isPivot) {
-        pivots.push(candle.low);
-      }
-    } else {
-      const isPivot =
-        candle.high >= candles[index - 1].high
-        && candle.high >= candles[index - 2].high
-        && candle.high >= candles[index + 1].high
-        && candle.high >= candles[index + 2].high;
-
-      if (isPivot) {
-        pivots.push(candle.high);
-      }
-    }
-  }
-
-  return pivots;
-}
-
-function selectReferencePrice(
-  candles: readonly Candle[],
-  kind: LevelKind,
-  atr: number,
-): number {
-  const pivots = findPivotPrices(candles, kind);
-  const currentPrice =
-    candles[candles.length - 1]?.close ?? 0;
-  const tolerance =
-    Math.max(
-      currentPrice * 0.0012,
-      atr * 0.9,
-    );
-
-  const clusters:
-  Array<{
-    prices: number[];
-    reference: number;
-  }> = [];
-
-  for (
-    const price of [...pivots]
-      .sort((left, right) => left - right)
-  ) {
-    const cluster =
-      clusters.find(
-        (entry) =>
-          Math.abs(entry.reference - price)
-          <= tolerance,
-      );
-
-    if (cluster) {
-      cluster.prices.push(price);
-      cluster.reference =
-        cluster.prices.reduce(
-          (total, value) => total + value,
-          0,
-        ) / cluster.prices.length;
-    } else {
-      clusters.push({
-        prices: [price],
-        reference: price,
-      });
-    }
-  }
-
-  const directionalClusters =
-    clusters.filter((cluster) =>
-      kind === 'support'
-        ? cluster.reference <= currentPrice * 1.006
-        : cluster.reference >= currentPrice * 0.994,
-    );
-
-  const selected =
-    directionalClusters
-      .sort((left, right) => {
-        if (
-          left.prices.length
-          !== right.prices.length
-        ) {
-          return (
-            right.prices.length
-            - left.prices.length
-          );
-        }
-
-        return (
-          Math.abs(left.reference - currentPrice)
-          - Math.abs(right.reference - currentPrice)
-        );
-      })[0]
-    ?? clusters[0];
-
-  if (selected) {
-    return selected.reference;
-  }
-
-  const fallbackPrices =
-    candles.map((candle) =>
-      kind === 'support'
-        ? candle.low
-        : candle.high,
-    );
-
-  return kind === 'support'
-    ? Math.min(...fallbackPrices)
-    : Math.max(...fallbackPrices);
-}
-
-function findTouchEpisodes(
-  candles: readonly Candle[],
-  zoneLow: number,
-  zoneHigh: number,
-): readonly number[] {
-  const episodes: number[] = [];
-  let insideEpisode = false;
-
-  for (
-    let index = 0;
-    index < candles.length;
-    index += 1
-  ) {
-    const candle = candles[index];
-    const intersects =
-      candle.low <= zoneHigh
-      && candle.high >= zoneLow;
-
-    if (intersects && !insideEpisode) {
-      episodes.push(index);
-    }
-
-    insideEpisode = intersects;
-  }
-
-  return episodes;
-}
-
-function findBreak(
-  candles: readonly Candle[],
-  kind: LevelKind,
-  zoneLow: number,
-  zoneHigh: number,
-  atr: number,
-  afterIndex: number,
-): {
-  index: number | null;
-  mode: BreakMode;
-} {
-  const boundary =
-    kind === 'support'
-      ? zoneLow
-      : zoneHigh;
-
-  for (
-    let index = Math.max(afterIndex + 1, 1);
-    index < candles.length;
-    index += 1
-  ) {
-    const candle = candles[index];
-    const previous = candles[index - 1];
-    const decisiveDistance =
-      kind === 'support'
-        ? boundary - Math.max(candle.open, candle.close)
-        : Math.min(candle.open, candle.close) - boundary;
-    const decisiveBody =
-      decisiveDistance >= atr * 0.35;
-
-    if (decisiveBody) {
-      return {
-        index,
-        mode: 'decisive_body_break',
-      };
-    }
-
-    const candleClosedBeyond =
-      kind === 'support'
-        ? candle.close < boundary
-        : candle.close > boundary;
-    const previousClosedBeyond =
-      kind === 'support'
-        ? previous.close < boundary
-        : previous.close > boundary;
-
-    if (
-      candleClosedBeyond
-      && previousClosedBeyond
-    ) {
-      return {
-        index,
-        mode: 'consecutive_closes',
-      };
-    }
-  }
-
-  return {
-    index: null,
-    mode: null,
-  };
-}
-
-function buildPreviewLevel(
-  candles: readonly Candle[],
-  kind: LevelKind,
-): PreviewLevel {
-  const atr = calculateAtr(candles);
-  const reference =
-    selectReferencePrice(candles, kind, atr);
-  const halfWidth =
-    Math.max(
-      atr * 0.28,
-      reference * 0.00045,
-    );
-  const zoneLow = reference - halfWidth;
-  const zoneHigh = reference + halfWidth;
-  const touchIndexes =
-    findTouchEpisodes(
-      candles,
-      zoneLow,
-      zoneHigh,
-    );
-  const candidateAtIndex =
-    touchIndexes[1] ?? null;
-  const confirmedAtIndex =
-    touchIndexes[2] ?? null;
-  const breakResult =
-    candidateAtIndex === null
-      ? {
-          index: null,
-          mode: null as BreakMode,
-        }
-      : findBreak(
-          candles,
-          kind,
-          zoneLow,
-          zoneHigh,
-          atr,
-          candidateAtIndex,
-        );
-  const state: LevelState =
-    breakResult.index !== null
-      ? 'broken'
-      : confirmedAtIndex !== null
-        ? 'confirmed'
-        : 'candidate';
-
-  return {
-    kind,
-    reference,
-    zoneLow,
-    zoneHigh,
-    touchIndexes,
-    candidateAtIndex,
-    confirmedAtIndex,
-    breakAtIndex: breakResult.index,
-    breakMode: breakResult.mode,
-    state,
-    atr,
-  };
-}
-
-function buildEvents(
-  level: PreviewLevel,
-): readonly PreviewEvent[] {
-  const events: PreviewEvent[] =
-    level.touchIndexes.map(
-      (candleIndex, index) => ({
-        id: `touch-${candleIndex}`,
-        candleIndex,
-        type: 'touch',
-        label: `Касание ${index + 1}`,
-      }),
-    );
-
-  if (level.candidateAtIndex !== null) {
-    events.push({
-      id: `candidate-${level.candidateAtIndex}`,
-      candleIndex: level.candidateAtIndex,
-      type: 'candidate',
-      label: 'Candidate',
-    });
-  }
-
-  if (level.confirmedAtIndex !== null) {
-    events.push({
-      id: `confirmed-${level.confirmedAtIndex}`,
-      candleIndex: level.confirmedAtIndex,
-      type: 'confirmed',
-      label: 'Confirmed',
-    });
-  }
-
-  if (level.breakAtIndex !== null) {
-    events.push({
-      id: `break-${level.breakAtIndex}`,
-      candleIndex: level.breakAtIndex,
-      type: 'break',
-      label: 'Break',
-    });
-  }
-
-  return events.sort(
-    (left, right) =>
-      left.candleIndex - right.candleIndex,
-  );
+interface ChartModel {
+  readonly candles:
+    readonly LevelEngineFrozenSampleCandle[];
+  readonly startIndex: number;
+  readonly touchIndexes: readonly number[];
+  readonly events: readonly ChartEvent[];
 }
 
 function formatPrice(
   value: number,
 ): string {
   if (!Number.isFinite(value)) {
-    return '—';
+    return TEXT.none;
   }
 
-  const absolute = Math.abs(value);
+  const absolute =
+    Math.abs(value);
+
   const maximumFractionDigits =
-    absolute >= 10_000
-      ? 1
-      : absolute >= 100
-        ? 2
-        : absolute >= 1
-          ? 4
-          : 6;
+    absolute >= 1_000
+      ? 2
+      : absolute >= 1
+        ? 4
+        : 6;
 
   return new Intl.NumberFormat(
     'ru-RU',
     {
-      minimumFractionDigits: 0,
       maximumFractionDigits,
     },
   ).format(value);
 }
 
-function formatPercent(
-  value: number,
-): string {
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-}
-
 function formatDateTime(
-  value: string | undefined,
+  value: string | null | undefined,
 ): string {
   if (!value) {
-    return '—';
+    return TEXT.none;
+  }
+
+  const timestamp =
+    Date.parse(value);
+
+  if (!Number.isFinite(timestamp)) {
+    return value;
   }
 
   return new Intl.DateTimeFormat(
     'ru-RU',
     {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
+      day:
+        '2-digit',
+      month:
+        '2-digit',
+      hour:
+        '2-digit',
+      minute:
+        '2-digit',
+      second:
+        '2-digit',
     },
-  ).format(new Date(value));
+  ).format(timestamp);
 }
 
-function levelStateLabel(
-  state: LevelState,
+function kindLabel(
+  kind: LevelEngineFrozenSampleKind,
 ): string {
-  if (state === 'confirmed') {
-    return 'CONFIRMED';
-  }
-
-  if (state === 'broken') {
-    return 'BROKEN';
-  }
-
-  return 'CANDIDATE';
+  return kind === 'support'
+    ? TEXT.support
+    : TEXT.resistance;
 }
 
-function LevelPreviewChart({
-  candles,
-  level,
-  events,
+function eventKind(
+  event: LevelEngineFrozenSampleCausalEvent,
+): ChartEventKind | null {
+  if (
+    event.type === 'cycle_started'
+    || event.type === 'candidate_first_seen'
+  ) {
+    return 'candidate';
+  }
+
+  if (
+    event.type === 'cycle_confirmed'
+    || event.type === 'candidate_confirmed'
+  ) {
+    return 'confirmed';
+  }
+
+  if (event.type === 'cycle_broken') {
+    return 'break';
+  }
+
+  return null;
+}
+
+function eventLabel(
+  event: LevelEngineFrozenSampleCausalEvent,
+): string {
+  const labels:
+  Record<
+    LevelEngineFrozenSampleCausalEvent['type'],
+    string
+  > = {
+    candidate_first_seen:
+      'CANDIDATE FIRST SEEN',
+    candidate_confirmed:
+      'CANDIDATE CONFIRMED',
+    candidate_touch_added:
+      'CANDIDATE TOUCH',
+    candidate_disappeared:
+      'CANDIDATE DISAPPEARED',
+    candidate_reappeared:
+      'CANDIDATE REAPPEARED',
+    cycle_started:
+      'CYCLE STARTED',
+    cycle_confirmed:
+      'CYCLE CONFIRMED',
+    cycle_touch_added:
+      'CYCLE TOUCH',
+    cycle_broken:
+      'CYCLE BROKEN',
+  };
+
+  return labels[event.type];
+}
+
+function buildChartModel(
+  closedCandles:
+    readonly LevelEngineFrozenSampleCandle[],
+  review:
+    LevelEngineFrozenSampleReview,
+): ChartModel {
+  const selectedCycle =
+    review.cycles.find(
+      (cycle) =>
+        cycle.id === review.selectedCycleId,
+    );
+
+  const relevantEvents =
+    review.causalReplayEvents
+      .filter(
+        (event) =>
+          event.cycleId
+            === review.selectedCycleId,
+      )
+      .flatMap(
+        (event): readonly ChartEvent[] => {
+          const kind =
+            eventKind(event);
+
+          if (!kind) {
+            return [];
+          }
+
+          return [{
+            id:
+              `${event.eventIndex}:${event.type}`,
+            candleIndex:
+              event.observedCandleIndex,
+            kind,
+            label:
+              eventLabel(event),
+            observedAt:
+              event.observedAt,
+          }];
+        },
+      );
+
+  const touchIndexes =
+    review.selectedCandidate
+      .touchEpisodes
+      .map(
+        (episode) =>
+          episode.anchorCandleIndex,
+      );
+
+  const focusIndexes = [
+    ...touchIndexes,
+    ...relevantEvents.map(
+      (event) =>
+        event.candleIndex,
+    ),
+    review.selectedCycleDiagnostic
+      .firstObservedCandleIndex,
+    review.selectedCycleDiagnostic
+      .firstConfirmedCandleIndex,
+    selectedCycle
+      ?.breakEvidence
+      ?.candleIndex
+      ?? null,
+  ].filter(
+    (value): value is number =>
+      value !== null,
+  );
+
+  let startIndex =
+    Math.max(
+      0,
+      closedCandles.length - 160,
+    );
+  let endIndex =
+    closedCandles.length;
+
+  if (focusIndexes.length > 0) {
+    const minimum =
+      Math.min(...focusIndexes);
+    const maximum =
+      Math.max(...focusIndexes);
+
+    startIndex =
+      Math.max(
+        0,
+        minimum - 55,
+      );
+    endIndex =
+      Math.min(
+        closedCandles.length,
+        maximum + 56,
+      );
+
+    if (
+      endIndex - startIndex < 120
+    ) {
+      const missing =
+        120 - (endIndex - startIndex);
+      const left =
+        Math.min(
+          startIndex,
+          Math.ceil(missing / 2),
+        );
+
+      startIndex -= left;
+      endIndex =
+        Math.min(
+          closedCandles.length,
+          endIndex + missing - left,
+        );
+    }
+
+    if (
+      endIndex - startIndex > 190
+    ) {
+      startIndex =
+        Math.max(
+          0,
+          maximum - 145,
+        );
+      endIndex =
+        Math.min(
+          closedCandles.length,
+          startIndex + 190,
+        );
+    }
+  }
+
+  return {
+    candles:
+      closedCandles.slice(
+        startIndex,
+        endIndex,
+      ),
+    startIndex,
+    touchIndexes:
+      touchIndexes.filter(
+        (index) =>
+          index >= startIndex
+          && index < endIndex,
+      ),
+    events:
+      relevantEvents.filter(
+        (event) =>
+          event.candleIndex >= startIndex
+          && event.candleIndex < endIndex,
+      ),
+  };
+}
+
+function chooseClosestItem(
+  items:
+    readonly LevelEngineFrozenSampleItem[],
+  current:
+    LevelEngineFrozenSampleItem,
+  change: {
+    readonly symbol?: string;
+    readonly sourceTimeframe?:
+      LevelEngineFrozenSampleTimeframe;
+    readonly selectedKind?:
+      LevelEngineFrozenSampleKind;
+  },
+): LevelEngineFrozenSampleItem {
+  const target = {
+    symbol:
+      change.symbol
+      ?? current.symbol,
+    sourceTimeframe:
+      change.sourceTimeframe
+      ?? current.sourceTimeframe,
+    selectedKind:
+      change.selectedKind
+      ?? current.selectedKind,
+  };
+
+  return (
+    items.find(
+      (item) =>
+        item.symbol
+          === target.symbol
+        && item.sourceTimeframe
+          === target.sourceTimeframe
+        && item.selectedKind
+          === target.selectedKind,
+    )
+    ?? items.find(
+      (item) =>
+        (
+          change.symbol === undefined
+          || item.symbol === change.symbol
+        )
+        && (
+          change.sourceTimeframe
+            === undefined
+          || item.sourceTimeframe
+            === change.sourceTimeframe
+        )
+        && (
+          change.selectedKind === undefined
+          || item.selectedKind
+            === change.selectedKind
+        ),
+    )
+    ?? current
+  );
+}
+
+function pageHero() {
+  return (
+    <header className={styles.hero}>
+      <div>
+        <p className={styles.eyebrow}>
+          {'NEXUS \u00b7 LEVEL ENGINE \u00b7 FROZEN SAMPLE'}
+        </p>
+        <h1>{TEXT.title}</h1>
+        <p className={styles.subtitle}>
+          {TEXT.subtitle}
+        </p>
+      </div>
+
+      <div className={styles.heroBadges}>
+        <span className={styles.liveBadge}>
+          BACKEND DIAGNOSTICS
+        </span>
+        <span className={styles.observationalBadge}>
+          OBSERVATIONAL ONLY
+        </span>
+      </div>
+    </header>
+  );
+}
+
+function statusBadgeClass(
+  item: LevelEngineFrozenSampleItem,
+): string {
+  if (item.reviewState === 'broken') {
+    return styles.stateBadge_broken;
+  }
+
+  if (item.selectedMaturity === 'confirmed') {
+    return styles.stateBadge_confirmed;
+  }
+
+  return styles.stateBadge_candidate;
+}
+
+function statusTextClass(
+  item: LevelEngineFrozenSampleItem,
+): string {
+  if (item.reviewState === 'broken') {
+    return styles.state_broken;
+  }
+
+  if (item.selectedMaturity === 'confirmed') {
+    return styles.state_confirmed;
+  }
+
+  return styles.state_candidate;
+}
+
+function LevelFrozenChart({
+  model,
+  item,
 }: {
-  candles: readonly Candle[];
-  level: PreviewLevel;
-  events: readonly PreviewEvent[];
+  readonly model: ChartModel;
+  readonly item: LevelEngineFrozenSampleItem;
 }) {
+  const candles =
+    model.candles;
+
+  const priceValues = [
+    item.selectedZone.low,
+    item.selectedZone.reference,
+    item.selectedZone.high,
+    ...candles.flatMap(
+      (candle) => [
+        candle.low,
+        candle.high,
+      ],
+    ),
+  ];
+
+  const minimumPrice =
+    Math.min(...priceValues);
+  const maximumPrice =
+    Math.max(...priceValues);
+  const rawRange =
+    Math.max(
+      maximumPrice - minimumPrice,
+      Math.abs(maximumPrice) * 0.0001,
+      0.000001,
+    );
+  const priceMinimum =
+    minimumPrice - rawRange * 0.08;
+  const priceMaximum =
+    maximumPrice + rawRange * 0.08;
+  const priceRange =
+    priceMaximum - priceMinimum;
   const plotWidth =
     CHART_WIDTH
     - CHART_PADDING.left
@@ -665,67 +558,48 @@ function LevelPreviewChart({
     CHART_HEIGHT
     - CHART_PADDING.top
     - CHART_PADDING.bottom;
-  const minimumPrice =
-    Math.min(
-      level.zoneLow,
-      ...candles.map((candle) => candle.low),
-    );
-  const maximumPrice =
+  const step =
+    plotWidth
+    / Math.max(candles.length, 1);
+  const bodyWidth =
     Math.max(
-      level.zoneHigh,
-      ...candles.map((candle) => candle.high),
-    );
-  const padding =
-    Math.max(
-      (maximumPrice - minimumPrice) * 0.08,
-      level.reference * 0.0005,
-    );
-  const chartLow =
-    minimumPrice - padding;
-  const chartHigh =
-    maximumPrice + padding;
-  const priceRange =
-    Math.max(chartHigh - chartLow, 0.000001);
-  const candleWidth =
-    Math.max(
-      2,
+      1.5,
       Math.min(
         8,
-        plotWidth / Math.max(candles.length, 1) * 0.62,
+        step * 0.62,
       ),
     );
-  const xForIndex =
-    (index: number) =>
-      CHART_PADDING.left
-      + (
-        (index + 0.5)
-        / Math.max(candles.length, 1)
-      ) * plotWidth;
-  const yForPrice =
-    (price: number) =>
-      CHART_PADDING.top
-      + (
-        (chartHigh - price)
-        / priceRange
-      ) * plotHeight;
+
+  const xForDatasetIndex = (
+    datasetIndex: number,
+  ): number =>
+    CHART_PADDING.left
+    + (
+      datasetIndex
+      - model.startIndex
+      + 0.5
+    ) * step;
+
+  const yForPrice = (
+    price: number,
+  ): number =>
+    CHART_PADDING.top
+    + (
+      (priceMaximum - price)
+      / priceRange
+    ) * plotHeight;
+
   const zoneTop =
-    yForPrice(level.zoneHigh);
-  const zoneBottom =
-    yForPrice(level.zoneLow);
-  const currentPrice =
-    candles[candles.length - 1]?.close
-    ?? level.reference;
-  const gridPrices =
-    Array.from(
-      { length: 6 },
-      (_, index) =>
-        chartLow
-        + (
-          priceRange
-          * index
-          / 5
-        ),
+    yForPrice(
+      item.selectedZone.high,
     );
+  const zoneBottom =
+    yForPrice(
+      item.selectedZone.low,
+    );
+  const currentPrice =
+    candles.at(-1)?.close
+    ?? item.selectedZone.reference;
 
   return (
     <div className={styles.chartViewport}>
@@ -733,83 +607,70 @@ function LevelPreviewChart({
         className={styles.chart}
         viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
         role="img"
-        aria-label={`График ${level.kind} уровня`}
+        aria-label={`${item.symbol} ${item.sourceTimeframe}`}
       >
-        <defs>
-          <linearGradient
-            id={`level-zone-${level.kind}`}
-            x1="0"
-            x2="1"
-          >
-            <stop
-              offset="0%"
-              stopColor={
-                level.kind === 'support'
-                  ? '#32d583'
-                  : '#ff6273'
-              }
-              stopOpacity="0.08"
-            />
-            <stop
-              offset="100%"
-              stopColor={
-                level.kind === 'support'
-                  ? '#32d583'
-                  : '#ff6273'
-              }
-              stopOpacity="0.22"
-            />
-          </linearGradient>
-        </defs>
-
         <rect
-          x="0"
-          y="0"
           width={CHART_WIDTH}
           height={CHART_HEIGHT}
           className={styles.chartBackground}
         />
 
-        {gridPrices.map((price) => {
-          const y = yForPrice(price);
+        {Array.from(
+          { length: 6 },
+          (_, index) => {
+            const ratio =
+              index / 5;
+            const y =
+              CHART_PADDING.top
+              + ratio * plotHeight;
+            const price =
+              priceMaximum
+              - ratio * priceRange;
 
-          return (
-            <g key={price}>
-              <line
-                x1={CHART_PADDING.left}
-                x2={
-                  CHART_WIDTH
-                  - CHART_PADDING.right
-                }
-                y1={y}
-                y2={y}
-                className={styles.gridLine}
-              />
-              <text
-                x={CHART_WIDTH - 8}
-                y={y + 4}
-                textAnchor="end"
-                className={styles.axisLabel}
-              >
-                {formatPrice(price)}
-              </text>
-            </g>
-          );
-        })}
+            return (
+              <g key={`grid-${index}`}>
+                <line
+                  x1={CHART_PADDING.left}
+                  x2={
+                    CHART_WIDTH
+                    - CHART_PADDING.right
+                  }
+                  y1={y}
+                  y2={y}
+                  className={styles.gridLine}
+                />
+                <text
+                  x={CHART_WIDTH - 10}
+                  y={y + 4}
+                  textAnchor="end"
+                  className={styles.axisLabel}
+                >
+                  {formatPrice(price)}
+                </text>
+              </g>
+            );
+          },
+        )}
 
         <rect
           x={CHART_PADDING.left}
           y={zoneTop}
           width={plotWidth}
-          height={Math.max(
-            2,
-            zoneBottom - zoneTop,
-          )}
-          fill={`url(#level-zone-${level.kind})`}
+          height={
+            Math.max(
+              1,
+              zoneBottom - zoneTop,
+            )
+          }
           className={
-            level.kind === 'support'
+            item.selectedKind === 'support'
               ? styles.supportZone
               : styles.resistanceZone
+          }
+          fill={
+            item.selectedKind === 'support'
+              ? 'rgba(50, 213, 131, 0.10)'
+              : 'rgba(255, 98, 115, 0.10)'
           }
         />
 
@@ -819,85 +680,102 @@ function LevelPreviewChart({
             CHART_WIDTH
             - CHART_PADDING.right
           }
-          y1={yForPrice(level.reference)}
-          y2={yForPrice(level.reference)}
+          y1={
+            yForPrice(
+              item.selectedZone.reference,
+            )
+          }
+          y2={
+            yForPrice(
+              item.selectedZone.reference,
+            )
+          }
           className={
-            level.kind === 'support'
+            item.selectedKind === 'support'
               ? styles.supportReference
               : styles.resistanceReference
           }
         />
 
-        {candles.map((candle, index) => {
-          const x = xForIndex(index);
-          const openY =
-            yForPrice(candle.open);
-          const closeY =
-            yForPrice(candle.close);
-          const highY =
-            yForPrice(candle.high);
-          const lowY =
-            yForPrice(candle.low);
-          const isUp =
-            candle.close >= candle.open;
-          const bodyTop =
-            Math.min(openY, closeY);
-          const bodyHeight =
-            Math.max(
-              1.5,
-              Math.abs(closeY - openY),
-            );
-
-          return (
-            <g
-              key={`${candle.openTime}-${index}`}
-              className={
-                isUp
-                  ? styles.candleUp
-                  : styles.candleDown
-              }
-            >
-              <line
-                x1={x}
-                x2={x}
-                y1={highY}
-                y2={lowY}
-                className={styles.candleWick}
-              />
-              <rect
-                x={x - candleWidth / 2}
-                y={bodyTop}
-                width={candleWidth}
-                height={bodyHeight}
-                rx="0.8"
-                className={styles.candleBody}
-              />
-            </g>
-          );
-        })}
-
-        {level.touchIndexes.map(
-          (candleIndex, index) => {
-            const candle =
-              candles[candleIndex];
+        {candles.map(
+          (candle, localIndex) => {
+            const datasetIndex =
+              model.startIndex
+              + localIndex;
             const x =
-              xForIndex(candleIndex);
-            const price =
-              level.kind === 'support'
-                ? Math.min(
-                    level.zoneHigh,
-                    candle.low,
-                  )
-                : Math.max(
-                    level.zoneLow,
-                    candle.high,
-                  );
-            const y =
-              yForPrice(price);
+              xForDatasetIndex(
+                datasetIndex,
+              );
+            const openY =
+              yForPrice(candle.open);
+            const closeY =
+              yForPrice(candle.close);
+            const highY =
+              yForPrice(candle.high);
+            const lowY =
+              yForPrice(candle.low);
+            const className =
+              candle.close >= candle.open
+                ? styles.candleUp
+                : styles.candleDown;
 
             return (
               <g
-                key={`touch-marker-${candleIndex}`}
+                key={candle.openTime}
+                className={className}
+              >
+                <line
+                  x1={x}
+                  x2={x}
+                  y1={highY}
+                  y2={lowY}
+                  className={styles.candleWick}
+                />
+                <rect
+                  x={x - bodyWidth / 2}
+                  y={Math.min(openY, closeY)}
+                  width={bodyWidth}
+                  height={
+                    Math.max(
+                      1,
+                      Math.abs(
+                        closeY - openY,
+                      ),
+                    )
+                  }
+                  className={styles.candleBody}
+                />
+              </g>
+            );
+          },
+        )}
+
+        {model.touchIndexes.map(
+          (datasetIndex, index) => {
+            const candle =
+              candles[
+                datasetIndex
+                - model.startIndex
+              ];
+
+            if (!candle) {
+              return null;
+            }
+
+            const x =
+              xForDatasetIndex(
+                datasetIndex,
+              );
+            const y =
+              yForPrice(
+                item.selectedKind === 'support'
+                  ? candle.low
+                  : candle.high,
+              );
+
+            return (
+              <g
+                key={`touch-${datasetIndex}`}
                 className={styles.touchMarker}
               >
                 <circle
@@ -917,18 +795,16 @@ function LevelPreviewChart({
           },
         )}
 
-        {events
-          .filter(
-            (event) =>
-              event.type !== 'touch',
-          )
-          .map((event, index) => {
+        {model.events.map(
+          (event, index) => {
             const x =
-              xForIndex(event.candleIndex);
+              xForDatasetIndex(
+                event.candleIndex,
+              );
             const className =
-              event.type === 'break'
+              event.kind === 'break'
                 ? styles.eventBreak
-                : event.type === 'confirmed'
+                : event.kind === 'confirmed'
                   ? styles.eventConfirmed
                   : styles.eventCandidate;
 
@@ -948,10 +824,12 @@ function LevelPreviewChart({
                   className={styles.eventLine}
                 />
                 <rect
-                  x={Math.min(
-                    x + 4,
-                    CHART_WIDTH - 168,
-                  )}
+                  x={
+                    Math.min(
+                      x + 4,
+                      CHART_WIDTH - 168,
+                    )
+                  }
                   y={
                     CHART_PADDING.top
                     + index * 24
@@ -962,10 +840,12 @@ function LevelPreviewChart({
                   className={styles.eventLabelBox}
                 />
                 <text
-                  x={Math.min(
-                    x + 12,
-                    CHART_WIDTH - 160,
-                  )}
+                  x={
+                    Math.min(
+                      x + 12,
+                      CHART_WIDTH - 160,
+                    )
+                  }
                   y={
                     CHART_PADDING.top
                     + 14
@@ -977,7 +857,8 @@ function LevelPreviewChart({
                 </text>
               </g>
             );
-          })}
+          },
+        )}
 
         <line
           x1={CHART_PADDING.left}
@@ -1012,224 +893,240 @@ function LevelPreviewChart({
 
 export function LevelPreviewPage() {
   const [
-    symbol,
-    setSymbol,
-  ] = useState<string>('SOLUSDT');
+    status,
+    setStatus,
+  ] = useState<LoadStatus>('loading');
   const [
-    timeframe,
-    setTimeframe,
-  ] = useState<MarketCandleTimeframe>('5m');
+    sample,
+    setSample,
+  ] = useState<
+    LevelEngineFrozenSample | null
+  >(null);
   const [
-    selectedKind,
-    setSelectedKind,
-  ] = useState<LevelKind>('resistance');
+    selectedItemId,
+    setSelectedItemId,
+  ] = useState('');
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState('');
 
-  const candlesQuery =
-    useMarketCandles({
-      symbol,
-      timeframe,
-    });
-  const snapshotKey =
-    `${symbol}:${timeframe}`;
-  const fallbackCandles =
-    useMemo(
-      () =>
-        buildFallbackCandles(
-          symbol,
-          timeframe,
-        ),
-      [symbol, timeframe],
+  const loadSample =
+    useCallback(
+      async (
+        signal?: AbortSignal,
+      ) => {
+        setStatus('loading');
+        setErrorMessage('');
+
+        try {
+          const nextSample =
+            await fetchLevelEngineFrozenSample({
+              signal,
+            });
+          const firstItem =
+            nextSample.items.at(0);
+
+          if (!firstItem) {
+            throw new Error(
+              'Frozen sample contains no review items',
+            );
+          }
+
+          if (signal?.aborted) {
+            return;
+          }
+
+          setSample(nextSample);
+          setSelectedItemId(
+            (currentId) =>
+              nextSample.items.some(
+                (item) =>
+                  item.id === currentId,
+              )
+                ? currentId
+                : firstItem.id,
+          );
+          setStatus('success');
+        } catch (error) {
+          if (signal?.aborted) {
+            return;
+          }
+
+          setStatus('error');
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : TEXT.loadError,
+          );
+        }
+      },
+      [],
     );
-  const backendClosedCandles =
-    useMemo(
-      () =>
-        candlesQuery.data?.filter(
-          (candle) => candle.isClosed !== false,
-        ) ?? [],
-      [candlesQuery.data],
+
+  useEffect(
+    () => {
+      const controller =
+        new AbortController();
+
+      void loadSample(
+        controller.signal,
+      );
+
+      return () => {
+        controller.abort();
+      };
+    },
+    [loadSample],
+  );
+
+  if (status === 'loading') {
+    return (
+      <section className={styles.page}>
+        {pageHero()}
+        <div className={styles.demoNotice}>
+          <strong>LOADING</strong>
+          <span>{TEXT.loading}</span>
+        </div>
+      </section>
     );
-  const [
-    frozenSnapshot,
-    setFrozenSnapshot,
-  ] = useState<{
-    readonly key: string;
-    readonly candles: readonly Candle[];
-  } | null>(null);
+  }
 
-  useEffect(() => {
-    if (
-      frozenSnapshot?.key === snapshotKey
-      || candlesQuery.status !== 'success'
-      || backendClosedCandles.length < 30
-    ) {
-      return;
-    }
+  if (
+    status === 'error'
+    || !sample
+  ) {
+    return (
+      <section className={styles.page}>
+        {pageHero()}
+        <div className={styles.demoNotice}>
+          <strong>ERROR</strong>
+          <span>
+            {TEXT.loadError}
+            {' '}
+            {errorMessage}
+          </span>
+          <button
+            type="button"
+            className={styles.retryButton}
+            onClick={() => {
+              void loadSample();
+            }}
+          >
+            {TEXT.retry}
+          </button>
+        </div>
+      </section>
+    );
+  }
 
-    setFrozenSnapshot({
-      key: snapshotKey,
-      candles: Object.freeze(
-        backendClosedCandles.map(
-          (candle) => Object.freeze({
-            ...candle,
-          }),
+  const selectedItem =
+    sample.items.find(
+      (item) =>
+        item.id === selectedItemId,
+    )
+    ?? sample.items[0];
+
+  if (!selectedItem) {
+    return null;
+  }
+
+  const dataset =
+    findLevelEngineFrozenSampleDataset(
+      sample,
+      selectedItem,
+    );
+  const review =
+    parseLevelEngineFrozenSampleReview(
+      selectedItem,
+      dataset,
+    );
+  const closedCandles =
+    dataset.candles.filter(
+      (candle) =>
+        candle.isClosed,
+    );
+  const chartModel =
+    buildChartModel(
+      closedCandles,
+      review,
+    );
+  const selectedCycle =
+    review.cycles.find(
+      (cycle) =>
+        cycle.id
+          === review.selectedCycleId,
+    );
+  const matchingItems =
+    sample.items.filter(
+      (item) =>
+        item.symbol
+          === selectedItem.symbol
+        && item.sourceTimeframe
+          === selectedItem.sourceTimeframe
+        && item.selectedKind
+          === selectedItem.selectedKind,
+    );
+  const symbols =
+    Array.from(
+      new Set(
+        sample.items.map(
+          (item) =>
+            item.symbol,
         ),
       ),
-    });
-  }, [
-    backendClosedCandles,
-    candlesQuery.status,
-    frozenSnapshot,
-    snapshotKey,
-  ]);
+    );
+  const lastPrice =
+    chartModel.candles.at(-1)?.close
+    ?? selectedItem.selectedZone.reference;
 
-  const sourceCandles =
-    frozenSnapshot?.key === snapshotKey
-      ? frozenSnapshot.candles
-      : backendClosedCandles.length >= 30
-        ? backendClosedCandles
-        : fallbackCandles;
-  const visibleCandles =
-    useMemo(
-      () =>
-        sourceCandles.slice(-140),
-      [sourceCandles],
+  const selectClosest = (
+    change: {
+      readonly symbol?: string;
+      readonly sourceTimeframe?:
+        LevelEngineFrozenSampleTimeframe;
+      readonly selectedKind?:
+        LevelEngineFrozenSampleKind;
+    },
+  ) => {
+    const nextItem =
+      chooseClosestItem(
+        sample.items,
+        selectedItem,
+        change,
+      );
+
+    setSelectedItemId(
+      nextItem.id,
     );
-  const levels =
-    useMemo(
-      () => ({
-        support:
-          buildPreviewLevel(
-            visibleCandles,
-            'support',
-          ),
-        resistance:
-          buildPreviewLevel(
-            visibleCandles,
-            'resistance',
-          ),
-      }),
-      [visibleCandles],
-    );
-  const selectedLevel =
-    levels[selectedKind];
-  const events =
-    useMemo(
-      () =>
-        buildEvents(selectedLevel),
-      [selectedLevel],
-    );
-  const currentPrice =
-    visibleCandles[
-      visibleCandles.length - 1
-    ]?.close ?? 0;
-  const distancePct =
-    selectedKind === 'support'
-      ? (
-          (
-            currentPrice
-            - selectedLevel.zoneHigh
-          )
-          / Math.max(currentPrice, 0.000001)
-        ) * 100
-      : (
-          (
-            selectedLevel.zoneLow
-            - currentPrice
-          )
-          / Math.max(currentPrice, 0.000001)
-        ) * 100;
-  const levelWidthPct =
-    (
-      (
-        selectedLevel.zoneHigh
-        - selectedLevel.zoneLow
-      )
-      / Math.max(
-        selectedLevel.reference,
-        0.000001,
-      )
-    ) * 100;
-  const lastTouchIndex =
-    selectedLevel.touchIndexes[
-      selectedLevel.touchIndexes.length - 1
-    ] ?? null;
-  const barsSinceLastTouch =
-    lastTouchIndex === null
-      ? null
-      : visibleCandles.length
-        - 1
-        - lastTouchIndex;
-  const isBackendData =
-    frozenSnapshot?.key === snapshotKey
-    || sourceCandles === backendClosedCandles;
-  const sourceLabel =
-    isBackendData
-      ? 'BACKEND CANDLES'
-      : candlesQuery.status === 'loading'
-        ? 'DEMO · BACKEND LOADING'
-        : 'DEMO FALLBACK';
-  const firstPrice =
-    visibleCandles[0]?.close
-    ?? currentPrice;
-  const changePct =
-    firstPrice === 0
-      ? 0
-      : (
-          (currentPrice - firstPrice)
-          / firstPrice
-        ) * 100;
+  };
 
   return (
     <section className={styles.page}>
-      <header className={styles.hero}>
-        <div>
-          <p className={styles.eyebrow}>
-            NEXUS · LEVEL ENGINE · VISUAL QA
-          </p>
-          <h1>Level Preview</h1>
-          <p className={styles.subtitle}>
-            Первый браузерный экран для проверки зон,
-            эпизодов касания, Candidate, Confirmed
-            и Break. Он не создаёт LONG/SHORT и не
-            использует quality score.
-          </p>
-        </div>
-
-        <div className={styles.heroBadges}>
-          <span
-            className={
-              isBackendData
-                ? styles.liveBadge
-                : styles.demoBadge
-            }
-          >
-            {sourceLabel}
-          </span>
-          <span className={styles.observationalBadge}>
-            OBSERVATIONAL ONLY
-          </span>
-        </div>
-      </header>
+      {pageHero()}
 
       <section
         className={styles.controls}
-        aria-label="Управление Level Preview"
+        aria-label={TEXT.controlLabel}
       >
         <label>
-          <span>Инструмент</span>
+          <span>{TEXT.instrument}</span>
           <select
-            value={symbol}
-            onChange={(event) =>
-              setSymbol(event.target.value)
-            }
+            value={selectedItem.symbol}
+            onChange={(event) => {
+              selectClosest({
+                symbol:
+                  event.target.value,
+              });
+            }}
           >
-            {LEVEL_PREVIEW_SYMBOLS.map(
-              (value) => (
+            {symbols.map(
+              (symbol) => (
                 <option
-                  key={value}
-                  value={value}
+                  key={symbol}
+                  value={symbol}
                 >
-                  {value}
+                  {symbol}
                 </option>
               ),
             )}
@@ -1237,23 +1134,27 @@ export function LevelPreviewPage() {
         </label>
 
         <div className={styles.timeframes}>
-          <span>Таймфрейм</span>
+          <span>{TEXT.timeframe}</span>
           <div>
-            {LEVEL_PREVIEW_TIMEFRAMES.map(
-              (value) => (
+            {LEVEL_ENGINE_FROZEN_SAMPLE_TIMEFRAMES.map(
+              (timeframe) => (
                 <button
-                  key={value}
+                  key={timeframe}
                   type="button"
                   className={
-                    timeframe === value
+                    selectedItem.sourceTimeframe
+                      === timeframe
                       ? styles.controlButtonActive
                       : styles.controlButton
                   }
-                  onClick={() =>
-                    setTimeframe(value)
-                  }
+                  onClick={() => {
+                    selectClosest({
+                      sourceTimeframe:
+                        timeframe,
+                    });
+                  }}
                 >
-                  {value}
+                  {timeframe}
                 </button>
               ),
             )}
@@ -1261,34 +1162,37 @@ export function LevelPreviewPage() {
         </div>
 
         <div className={styles.kindSwitch}>
-          <span>Тип уровня</span>
+          <span>{TEXT.levelKind}</span>
           <div>
-            <button
-              type="button"
-              className={
-                selectedKind === 'support'
-                  ? styles.supportButtonActive
-                  : styles.controlButton
-              }
-              onClick={() =>
-                setSelectedKind('support')
-              }
-            >
-              SUPPORT
-            </button>
-            <button
-              type="button"
-              className={
-                selectedKind === 'resistance'
-                  ? styles.resistanceButtonActive
-                  : styles.controlButton
-              }
-              onClick={() =>
-                setSelectedKind('resistance')
-              }
-            >
-              RESISTANCE
-            </button>
+            {(
+              [
+                'support',
+                'resistance',
+              ] as const
+            ).map(
+              (kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  className={
+                    selectedItem.selectedKind
+                      === kind
+                      ? kind === 'support'
+                        ? styles.supportButtonActive
+                        : styles.resistanceButtonActive
+                      : styles.controlButton
+                  }
+                  onClick={() => {
+                    selectClosest({
+                      selectedKind:
+                        kind,
+                    });
+                  }}
+                >
+                  {kind.toUpperCase()}
+                </button>
+              ),
+            )}
           </div>
         </div>
 
@@ -1296,68 +1200,83 @@ export function LevelPreviewPage() {
           type="button"
           className={styles.retryButton}
           onClick={() => {
-            setFrozenSnapshot(null);
-            candlesQuery.retry();
+            void loadSample();
           }}
-          disabled={
-            candlesQuery.status === 'loading'
-          }
         >
-          {candlesQuery.status === 'loading'
-            ? 'ЗАГРУЗКА…'
-            : 'ОБНОВИТЬ'}
+          {TEXT.refresh}
         </button>
+
+        <label>
+          <span>{TEXT.reviewItem}</span>
+          <select
+            value={selectedItem.id}
+            onChange={(event) => {
+              setSelectedItemId(
+                event.target.value,
+              );
+            }}
+          >
+            {matchingItems.map(
+              (item) => (
+                <option
+                  key={item.id}
+                  value={item.id}
+                >
+                  {`#${item.selectionIndex + 1} \u00b7 ${item.selectedTransition} \u00b7 ${item.reviewState}`}
+                </option>
+              ),
+            )}
+          </select>
+        </label>
       </section>
 
       <section className={styles.marketStrip}>
         <div>
           <span>LAST</span>
-          <strong>{formatPrice(currentPrice)}</strong>
-        </div>
-        <div>
-          <span>ПЕРИОД</span>
-          <strong
-            className={
-              changePct >= 0
-                ? styles.positive
-                : styles.negative
-            }
-          >
-            {formatPercent(changePct)}
-          </strong>
-        </div>
-        <div>
-          <span>LEVEL</span>
           <strong>
-            {formatPrice(
-              selectedLevel.reference,
-            )}
+            {formatPrice(lastPrice)}
           </strong>
         </div>
         <div>
           <span>ZONE</span>
           <strong>
             {formatPrice(
-              selectedLevel.zoneLow,
+              selectedItem.selectedZone.low,
             )}
-            {' — '}
+            {' \u2014 '}
             {formatPrice(
-              selectedLevel.zoneHigh,
+              selectedItem.selectedZone.high,
             )}
           </strong>
         </div>
         <div>
-          <span>STATE</span>
+          <span>MATURITY</span>
           <strong
             className={
-              styles[
-                `state_${selectedLevel.state}`
-              ]
+              statusTextClass(
+                selectedItem,
+              )
             }
           >
-            {levelStateLabel(
-              selectedLevel.state,
-            )}
+            {selectedItem.selectedMaturity}
+          </strong>
+        </div>
+        <div>
+          <span>REVIEW STATE</span>
+          <strong
+            className={
+              statusTextClass(
+                selectedItem,
+              )
+            }
+          >
+            {selectedItem.reviewState}
+          </strong>
+        </div>
+        <div>
+          <span>TRANSITION</span>
+          <strong>
+            {selectedItem.selectedTransition}
           </strong>
         </div>
       </section>
@@ -1367,19 +1286,23 @@ export function LevelPreviewPage() {
           <header className={styles.panelHeader}>
             <div>
               <p>
-                {symbol} · {timeframe}
+                {selectedItem.symbol}
+                {' \u00b7 '}
+                {selectedItem.sourceTimeframe}
+                {' \u00b7 '}
+                CYCLE #{review.selectedCycleSequence}
               </p>
               <h2>
-                {selectedKind === 'support'
-                  ? 'Зона поддержки'
-                  : 'Зона сопротивления'}
+                {kindLabel(
+                  selectedItem.selectedKind,
+                )}
               </h2>
             </div>
 
             <div className={styles.legend}>
               <span>
                 <i className={styles.legendZone} />
-                Zone
+                Backend zone
               </span>
               <span>
                 <i className={styles.legendTouch} />
@@ -1387,28 +1310,26 @@ export function LevelPreviewPage() {
               </span>
               <span>
                 <i className={styles.legendEvent} />
-                Lifecycle event
+                Causal event
               </span>
             </div>
           </header>
 
-          <LevelPreviewChart
-            candles={visibleCandles}
-            level={selectedLevel}
-            events={events}
+          <LevelFrozenChart
+            model={chartModel}
+            item={selectedItem}
           />
 
           <footer className={styles.chartFooter}>
             <span>
-              Показано {visibleCandles.length} свечей
+              {TEXT.shown}
+              {' '}
+              {chartModel.candles.length}
+              {' '}
+              {TEXT.candles}
             </span>
-            <span>
-              Соседние свечи внутри зоны считаются
-              одним эпизодом касания
-            </span>
-            <span>
-              Break: 0.35 ATR body или 2 закрытия
-            </span>
+            <span>{TEXT.closedOnly}</span>
+            <span>{TEXT.exactBackend}</span>
           </footer>
         </article>
 
@@ -1416,71 +1337,88 @@ export function LevelPreviewPage() {
           <article className={styles.diagnosticCard}>
             <header>
               <div>
-                <p>LEVEL DIAGNOSTIC</p>
+                <p>{TEXT.diagnostics}</p>
                 <h3>
-                  {selectedKind.toUpperCase()}
+                  {selectedItem.selectedKind.toUpperCase()}
                 </h3>
               </div>
               <span
                 className={
-                  styles[
-                    `stateBadge_${selectedLevel.state}`
-                  ]
+                  statusBadgeClass(
+                    selectedItem,
+                  )
                 }
               >
-                {levelStateLabel(
-                  selectedLevel.state,
-                )}
+                {selectedItem.reviewState}
               </span>
             </header>
 
             <dl className={styles.metrics}>
               <div>
-                <dt>Touch episodes</dt>
+                <dt>{TEXT.sourceTouches}</dt>
+                <dd>
+                  {review.sourceTouchEpisodeCount}
+                </dd>
+              </div>
+              <div>
+                <dt>{TEXT.selectedTouches}</dt>
                 <dd>
                   {
-                    selectedLevel
-                      .touchIndexes.length
+                    review
+                      .selectedCycleTouchEpisodeCount
                   }
                 </dd>
               </div>
               <div>
-                <dt>ATR</dt>
+                <dt>{TEXT.discardedTouches}</dt>
                 <dd>
-                  {formatPrice(
-                    selectedLevel.atr,
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Zone width</dt>
-                <dd>
-                  {levelWidthPct.toFixed(3)}%
-                </dd>
-              </div>
-              <div>
-                <dt>Distance</dt>
-                <dd
-                  className={
-                    distancePct <= 0
-                      ? styles.warning
-                      : undefined
+                  {
+                    review
+                      .discardedSourceTouchEpisodeCount
                   }
-                >
-                  {distancePct.toFixed(3)}%
                 </dd>
               </div>
               <div>
-                <dt>Bars from touch</dt>
+                <dt>{TEXT.cycle}</dt>
                 <dd>
-                  {barsSinceLastTouch ?? '—'}
+                  {review.selectedCycleSequence}
+                  {' / '}
+                  {review.lifecycleCycleCount}
                 </dd>
               </div>
               <div>
-                <dt>Break mode</dt>
+                <dt>{TEXT.currentCycle}</dt>
                 <dd>
-                  {selectedLevel.breakMode
-                    ?? '—'}
+                  {review.selectedCycleIsCurrent
+                    ? TEXT.yes
+                    : TEXT.no}
+                </dd>
+              </div>
+              <div>
+                <dt>{TEXT.confirmation}</dt>
+                <dd>
+                  {
+                    review
+                      .selectedCycleDiagnostic
+                      .confirmationState
+                  }
+                </dd>
+              </div>
+              <div>
+                <dt>{TEXT.breakMode}</dt>
+                <dd>
+                  {
+                    selectedCycle
+                      ?.breakEvidence
+                      ?.mode
+                    ?? TEXT.none
+                  }
+                </dd>
+              </div>
+              <div>
+                <dt>CAUSAL EVENTS</dt>
+                <dd>
+                  {review.causalReplayEvents.length}
                 </dd>
               </div>
             </dl>
@@ -1488,52 +1426,58 @@ export function LevelPreviewPage() {
 
           <article className={styles.timelineCard}>
             <header>
-              <p>LIFECYCLE</p>
-              <span>{events.length} событий</span>
+              <p>{TEXT.lifecycle}</p>
+              <span>
+                {chartModel.events.length}
+                {' '}
+                {TEXT.events}
+              </span>
             </header>
 
             <ol className={styles.timeline}>
-              {events.length > 0
-                ? events.map((event) => {
-                    const candle =
-                      visibleCandles[
-                        event.candleIndex
-                      ];
+              {chartModel.events.length > 0
+                ? chartModel.events.map(
+                    (event) => {
+                      const candle =
+                        closedCandles[
+                          event.candleIndex
+                        ];
 
-                    return (
-                      <li
-                        key={event.id}
-                        data-event={event.type}
-                      >
-                        <i />
-                        <div>
-                          <strong>
-                            {event.label}
-                          </strong>
-                          <span>
-                            {formatDateTime(
-                              candle?.closeTime,
+                      return (
+                        <li
+                          key={event.id}
+                          data-event={event.kind}
+                        >
+                          <i />
+                          <div>
+                            <strong>
+                              {event.label}
+                            </strong>
+                            <span>
+                              {formatDateTime(
+                                event.observedAt,
+                              )}
+                            </span>
+                          </div>
+                          <em>
+                            {formatPrice(
+                              candle?.close
+                              ?? selectedItem
+                                .selectedZone
+                                .reference,
                             )}
-                          </span>
-                        </div>
-                        <em>
-                          {formatPrice(
-                            candle?.close ?? 0,
-                          )}
-                        </em>
-                      </li>
-                    );
-                  })
+                          </em>
+                        </li>
+                      );
+                    },
+                  )
                 : (
                   <li>
                     <i />
                     <div>
                       <strong>
-                        Нет событий
+                        {TEXT.noEvents}
                       </strong>
-                      <span>
-                        Выбери другой уровень
-                      </span>
                     </div>
                   </li>
                 )}
@@ -1541,39 +1485,99 @@ export function LevelPreviewPage() {
           </article>
 
           <article className={styles.rulesCard}>
-            <p>ПРАВИЛА ЭКРАНА</p>
+            <p>{TEXT.flags}</p>
             <ul>
-              <li>
-                Два эпизода формируют Candidate.
-              </li>
-              <li>
-                Третий эпизод показывает Confirmed.
-              </li>
-              <li>
-                Пробой считается отдельно от касаний.
-              </li>
-              <li>
-                Никаких торговых направлений и score.
-              </li>
+              {selectedItem
+                .diagnosticFlags
+                .length > 0
+                ? selectedItem
+                    .diagnosticFlags
+                    .map(
+                      (flag) => (
+                        <li key={flag}>
+                          {flag}
+                        </li>
+                      ),
+                    )
+                : (
+                  <li>{TEXT.noFlags}</li>
+                )}
             </ul>
+          </article>
+
+          <article className={styles.diagnosticCard}>
+            <header>
+              <div>
+                <p>CAUSAL TIMING</p>
+                <h3>
+                  {review.causalTrackFound
+                    ? 'TRACK FOUND'
+                    : 'TRACK MISSING'}
+                </h3>
+              </div>
+            </header>
+
+            <dl className={styles.metrics}>
+              <div>
+                <dt>{TEXT.firstObserved}</dt>
+                <dd>
+                  {formatDateTime(
+                    review
+                      .selectedCycleDiagnostic
+                      .firstObservedAt,
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>{TEXT.firstConfirmed}</dt>
+                <dd>
+                  {formatDateTime(
+                    review
+                      .selectedCycleDiagnostic
+                      .firstConfirmedAt,
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>{TEXT.brokenAt}</dt>
+                <dd>
+                  {formatDateTime(
+                    review
+                      .selectedCycleDiagnostic
+                      .brokenAt,
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>BREAK TIMING</dt>
+                <dd>
+                  {
+                    review
+                      .selectedCycleDiagnostic
+                      .firstObservedBreakTiming
+                  }
+                </dd>
+              </div>
+            </dl>
           </article>
         </aside>
       </div>
 
-      {!isBackendData && (
-        <div className={styles.demoNotice}>
-          <strong>Сейчас показан визуальный fallback.</strong>
-          <span>
-            Запусти backend NEXUS, затем нажми
-            «Обновить» — экран переключится на
-            реальные Binance Futures candles.
-            Формирование зон в этой версии выполняется
-            локально только для визуальной проверки UI;
-            это ещё не подключение production Level
-            Engine к frontend.
-          </span>
-        </div>
-      )}
+      <div className={styles.demoNotice}>
+        <strong>FROZEN SAMPLE</strong>
+        <span>
+          {sample.id}
+          {' \u00b7 '}
+          {formatDateTime(
+            sample.generatedAt,
+          )}
+          {' \u00b7 '}
+          {sample.items.length}
+          {' review items \u00b7 '}
+          {sample.datasets.length}
+          {' datasets'}
+        </span>
+      </div>
     </section>
   );
 }
