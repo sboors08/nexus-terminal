@@ -2,6 +2,7 @@ import type {
   LevelCandidate,
 } from './level-engine.types.js';
 import type {
+  LevelLifecycleOptions,
   LevelLifecycleResult,
   LevelLifecycleTransitionType,
 } from './level-engine-lifecycle.types.js';
@@ -11,6 +12,7 @@ import type {
   LevelEngineRealDataValidationTotals,
   LevelEngineSymbolValidationReport,
   LevelEngineValidationReviewDiagnostic,
+  LevelEngineValidationReviewPolicy,
   LevelEngineValidationReviewState,
 } from './level-engine-real-data-validation.types.js';
 
@@ -78,6 +80,15 @@ export interface LevelEngineLifecycleRealDataValidationTotals
   readonly noBreakObservedCount: number;
 }
 
+export interface LevelEngineLifecycleRealDataAppliedOptions {
+  readonly lifecycle: LevelLifecycleOptions;
+  readonly reviewPolicy: LevelEngineValidationReviewPolicy;
+  readonly breakSearchWindows: {
+    readonly lifecycle: 'cycle_active_from_exclusive_to_observation_inclusive';
+    readonly review: 'candidate_detected_at_exclusive_to_dataset_end_inclusive';
+  };
+}
+
 export interface LevelEngineLifecycleRealDataValidationReport
   extends Omit<
     LevelEngineRealDataValidationReport,
@@ -86,6 +97,7 @@ export interface LevelEngineLifecycleRealDataValidationReport
   readonly version: LevelEngineLifecycleRealDataValidationVersion;
   readonly sourceValidationVersion:
     LevelEngineRealDataValidationReport['version'];
+  readonly appliedOptions: LevelEngineLifecycleRealDataAppliedOptions;
   readonly symbolReports:
     readonly LevelEngineLifecycleValidationSymbolReport[];
   readonly totals: LevelEngineLifecycleRealDataValidationTotals;

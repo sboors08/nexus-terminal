@@ -2,6 +2,8 @@ export * from './level-engine.contract.js';
 export * from './level-engine.types.js';
 export * from './level-engine-touch-detector.js';
 export * from './level-engine-touch-detector.types.js';
+export * from './level-engine-break-evaluator.js';
+export * from './level-engine-break-evaluator.types.js';
 export * from './level-engine-multi-timeframe-detector.js';
 export * from './level-engine-multi-timeframe-detector.types.js';
 export * from './level-engine-real-data-validation.js';

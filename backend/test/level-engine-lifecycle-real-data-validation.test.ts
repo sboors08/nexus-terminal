@@ -347,6 +347,74 @@ test('recomputes review state counts from the selected lifecycle cycle', () => {
   assert.equal(report.totals.reviewStateCounts.broken, 0);
 });
 
+test('applies review policy to lifecycle, diagnostics, and report options', () => {
+  const source = candidate('options-source', 'support', [
+    episode('options-s1', 'support', 2, 3),
+  ]);
+  const activeCandidate = candidate(
+    'options-active',
+    'support',
+    source.touchEpisodes,
+  );
+  const activeCycle = cycle(
+    source.id,
+    1,
+    activeCandidate,
+    'origin',
+    false,
+  );
+  const baseReport = sourceReport(source);
+  const customReport = Object.freeze({
+    ...baseReport,
+    reviewPolicy: Object.freeze({
+      ...baseReport.reviewPolicy,
+      atrPeriod: 21,
+      decisiveBreakAtr: 0.47,
+      consecutiveBreakCloses: 3,
+    }),
+  });
+
+  let receivedLifecycleOptions: unknown = null;
+  let receivedReviewPolicy: unknown = null;
+
+  const report = buildLevelEngineLifecycleRealDataValidationReport(
+    customReport,
+    {
+      buildLifecycle: (_candidate, _dataset, options) => {
+        receivedLifecycleOptions = options;
+        return lifecycle(
+          source,
+          [activeCycle],
+          activeCycle.id,
+        );
+      },
+      diagnoseCandidate: (_dataset, _candidate, policy) => {
+        receivedReviewPolicy = policy;
+        return diagnostic('active');
+      },
+    },
+  );
+
+  assert.equal(
+    receivedLifecycleOptions,
+    report.appliedOptions.lifecycle,
+  );
+  assert.equal(
+    receivedReviewPolicy,
+    report.appliedOptions.reviewPolicy,
+  );
+  assert.equal(
+    report.reviewPolicy,
+    report.appliedOptions.reviewPolicy,
+  );
+  assert.equal(report.appliedOptions.lifecycle.atrPeriod, 21);
+  assert.equal(report.appliedOptions.lifecycle.decisiveBreakAtr, 0.47);
+  assert.equal(report.appliedOptions.lifecycle.consecutiveBreakCloses, 3);
+  assert.ok(Object.isFrozen(report.appliedOptions));
+  assert.ok(Object.isFrozen(report.appliedOptions.lifecycle));
+  assert.ok(Object.isFrozen(report.appliedOptions.reviewPolicy));
+});
+
 test('returns frozen observational structures without setup or score', () => {
   const source = candidate('source', 'support', [episode('s1', 'support', 2, 3)]);
   const activeCandidate = candidate('active', 'support', source.touchEpisodes);

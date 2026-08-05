@@ -2,6 +2,9 @@ import {
   setTimeout as delay,
 } from 'node:timers/promises';
 import {
+  findConfirmedLevelEngineBreak,
+} from './level-engine-break-evaluator.js';
+import {
   detectMultiTimeframeLevelCandidates,
 } from './level-engine-multi-timeframe-detector.js';
 import {
@@ -509,41 +512,6 @@ function candleIntersectsZone(
   );
 }
 
-function closeBeyondZone(
-  candle: LevelEngineCandle,
-  candidate: LevelCandidate,
-): boolean {
-  return candidate.kind === 'support'
-    ? candle.close < candidate.zone.low
-    : candle.close > candidate.zone.high;
-}
-
-function bodyEntirelyBeyondZone(
-  candle: LevelEngineCandle,
-  candidate: LevelCandidate,
-): boolean {
-  return candidate.kind === 'support'
-    ? Math.max(candle.open, candle.close) < candidate.zone.low
-    : Math.min(candle.open, candle.close) > candidate.zone.high;
-}
-
-function breakBoundary(
-  candidate: LevelCandidate,
-): number {
-  return candidate.kind === 'support'
-    ? candidate.zone.low
-    : candidate.zone.high;
-}
-
-function distanceBeyondBoundary(
-  candle: LevelEngineCandle,
-  candidate: LevelCandidate,
-): number {
-  return candidate.kind === 'support'
-    ? candidate.zone.low - candle.close
-    : candle.close - candidate.zone.high;
-}
-
 function distanceFromZone(
   price: number,
   candidate: LevelCandidate,
@@ -596,61 +564,33 @@ export function diagnoseLevelCandidateForReview(
   const futureClosedCandlesCount =
     closedCandles.length - firstFutureIndex;
 
-  let consecutiveBeyondCloses = 0;
-  let breakEvidence:
-    LevelEngineValidationReviewDiagnostic['breakEvidence'] = null;
-
-  for (
-    let candleIndex = firstFutureIndex;
-    candleIndex < closedCandles.length;
-    candleIndex += 1
-  ) {
-    const candle = closedCandles[candleIndex];
-    if (!candle) {
-      continue;
-    }
-
-    if (!closeBeyondZone(candle, candidate)) {
-      consecutiveBeyondCloses = 0;
-      continue;
-    }
-
-    consecutiveBeyondCloses += 1;
-    const atr = atrSeries[candleIndex] ?? null;
-    const distance = distanceBeyondBoundary(candle, candidate);
-    const distanceAtr = atr !== null && atr > 0
-      ? distance / atr
-      : null;
-    const decisiveBodyBreak = (
-      bodyEntirelyBeyondZone(candle, candidate)
-      && distanceAtr !== null
-      && distanceAtr >= policy.decisiveBreakAtr
-    );
-    const consecutiveBreak = (
-      consecutiveBeyondCloses
-      >= policy.consecutiveBreakCloses
-    );
-
-    if (!decisiveBodyBreak && !consecutiveBreak) {
-      continue;
-    }
-
-    breakEvidence = Object.freeze({
-      mode: decisiveBodyBreak
-        ? 'decisive_body_break'
-        : 'consecutive_closes',
+  const indexedClosedCandles = Object.freeze(
+    closedCandles.map((candle, candleIndex) => Object.freeze({
       candleIndex,
-      brokenAt: canonicalTimestamp(
-        candle.closeTime,
-        'breakEvidence.brokenAt',
-      ),
-      boundary: breakBoundary(candidate),
-      close: candle.close,
-      distanceBeyondBoundary: distance,
-      distanceBeyondBoundaryAtr: distanceAtr,
-    });
-    break;
-  }
+      candle,
+      atr: atrSeries[candleIndex] ?? null,
+    })),
+  );
+  const sharedBreakEvidence = findConfirmedLevelEngineBreak(
+    indexedClosedCandles,
+    Object.freeze({ zone: candidate.zone, kind: candidate.kind }),
+    Object.freeze({
+      afterExclusiveMs: detectedAtMs,
+      throughInclusiveMs: Number.POSITIVE_INFINITY,
+    }),
+    policy,
+  );
+  const breakEvidence:
+    LevelEngineValidationReviewDiagnostic['breakEvidence'] =
+      sharedBreakEvidence === null ? null : Object.freeze({
+        mode: sharedBreakEvidence.mode,
+        candleIndex: sharedBreakEvidence.candleIndex,
+        brokenAt: sharedBreakEvidence.brokenAt,
+        boundary: sharedBreakEvidence.boundary,
+        close: sharedBreakEvidence.close,
+        distanceBeyondBoundary: sharedBreakEvidence.distanceBeyondBoundary,
+        distanceBeyondBoundaryAtr: sharedBreakEvidence.distanceBeyondBoundaryAtr,
+      });
 
   let lastInteractionCandleIndex: number | null = null;
   for (

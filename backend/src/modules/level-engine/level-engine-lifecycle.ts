@@ -3,6 +3,9 @@ import {
   normalizeLevelEngineSymbol,
 } from './level-engine.contract.js';
 import {
+  findConfirmedLevelEngineBreak,
+} from './level-engine-break-evaluator.js';
+import {
   DEFAULT_TOUCH_EPISODE_DETECTION_OPTIONS,
   detectTouchEpisodes,
 } from './level-engine-touch-detector.js';
@@ -54,6 +57,7 @@ export interface BuildLevelLifecycleDependencies {
 
 interface IndexedClosedCandle {
   readonly originalIndex: number;
+  readonly candleIndex: number;
   readonly candle: LevelEngineCandle;
   readonly atr: number | null;
 }
@@ -256,6 +260,7 @@ function validateCandles(
 
     return Object.freeze({
       originalIndex: item.originalIndex,
+      candleIndex: item.originalIndex,
       candle: item.candle,
       atr: atr !== null && Number.isFinite(atr) && atr > 0
         ? atr
@@ -270,108 +275,6 @@ function oppositeKind(
   return kind === 'support'
     ? 'resistance'
     : 'support';
-}
-
-function closesBeyondZone(
-  candle: LevelEngineCandle,
-  zone: LevelEngineZone,
-  kind: LevelEngineKind,
-): boolean {
-  return kind === 'support'
-    ? candle.close < zone.low
-    : candle.close > zone.high;
-}
-
-function bodyEntirelyBeyondZone(
-  candle: LevelEngineCandle,
-  zone: LevelEngineZone,
-  kind: LevelEngineKind,
-): boolean {
-  return kind === 'support'
-    ? Math.max(candle.open, candle.close) < zone.low
-    : Math.min(candle.open, candle.close) > zone.high;
-}
-
-function boundaryForKind(
-  zone: LevelEngineZone,
-  kind: LevelEngineKind,
-): number {
-  return kind === 'support'
-    ? zone.low
-    : zone.high;
-}
-
-function distanceBeyondBoundary(
-  candle: LevelEngineCandle,
-  zone: LevelEngineZone,
-  kind: LevelEngineKind,
-): number {
-  return kind === 'support'
-    ? zone.low - candle.close
-    : candle.close - zone.high;
-}
-
-function findConfirmedBreak(
-  closedCandles: readonly IndexedClosedCandle[],
-  zone: LevelEngineZone,
-  kind: LevelEngineKind,
-  afterMs: number,
-  throughMs: number,
-  options: LevelLifecycleOptions,
-): LevelLifecycleBreakEvidence | null {
-  let consecutiveBeyondCloses = 0;
-
-  for (const indexed of closedCandles) {
-    const closedAtMs = Date.parse(indexed.candle.closeTime);
-    if (closedAtMs <= afterMs) {
-      continue;
-    }
-    if (closedAtMs > throughMs) {
-      break;
-    }
-
-    if (!closesBeyondZone(indexed.candle, zone, kind)) {
-      consecutiveBeyondCloses = 0;
-      continue;
-    }
-
-    consecutiveBeyondCloses += 1;
-    const distance = distanceBeyondBoundary(
-      indexed.candle,
-      zone,
-      kind,
-    );
-    const distanceAtr = indexed.atr !== null
-      ? distance / indexed.atr
-      : null;
-    const decisiveBodyBreak = (
-      bodyEntirelyBeyondZone(indexed.candle, zone, kind)
-      && distanceAtr !== null
-      && distanceAtr >= options.decisiveBreakAtr
-    );
-    const consecutiveBreak = (
-      consecutiveBeyondCloses >= options.consecutiveBreakCloses
-    );
-
-    if (!decisiveBodyBreak && !consecutiveBreak) {
-      continue;
-    }
-
-    return Object.freeze({
-      mode: decisiveBodyBreak
-        ? 'decisive_body_break'
-        : 'consecutive_closes',
-      fromKind: kind,
-      candleIndex: indexed.originalIndex,
-      brokenAt: indexed.candle.closeTime,
-      boundary: boundaryForKind(zone, kind),
-      close: indexed.candle.close,
-      distanceBeyondBoundary: distance,
-      distanceBeyondBoundaryAtr: distanceAtr,
-    });
-  }
-
-  return null;
 }
 
 function eventKey(event: LevelLifecycleEpisodeEvent): string {
@@ -706,12 +609,13 @@ export function buildLevelLifecycle(
     const activeFromMs = Date.parse(
       current.episodes[0]!.confirmedAt,
     );
-    const breakEvidence = findConfirmedBreak(
+    const breakEvidence = findConfirmedLevelEngineBreak(
       closedCandles,
-      zone,
-      current.kind,
-      activeFromMs,
-      Date.parse(event.episode.confirmedAt),
+      Object.freeze({ zone, kind: current.kind }),
+      Object.freeze({
+        afterExclusiveMs: activeFromMs,
+        throughInclusiveMs: Date.parse(event.episode.confirmedAt),
+      }),
       options,
     );
 
@@ -780,12 +684,13 @@ export function buildLevelLifecycle(
     const activeFromMs = Date.parse(
       current.episodes[0]!.confirmedAt,
     );
-    const finalBreak = findConfirmedBreak(
+    const finalBreak = findConfirmedLevelEngineBreak(
       closedCandles,
-      zone,
-      current.kind,
-      activeFromMs,
-      Number.POSITIVE_INFINITY,
+      Object.freeze({ zone, kind: current.kind }),
+      Object.freeze({
+        afterExclusiveMs: activeFromMs,
+        throughInclusiveMs: Number.POSITIVE_INFINITY,
+      }),
       options,
     );
     const finalized = finalizeCycle(
