@@ -88,6 +88,24 @@ function resistanceValues(): CandleTuple[] {
   ];
 }
 
+function zoneIdentityCollisionValues(): CandleTuple[] {
+  return [
+    [103, 104, 102, 103],
+    [103, 104, 102, 103],
+    [101, 102, 100, 100.6],
+    [100.6, 101.2, 100.1, 100.5],
+    [100.2, 100.4, 98.8, 99],
+    [102.2, 103, 102, 102.5],
+    [102.5, 103, 102, 102.6],
+    [102.6, 103.1, 102.1, 102.7],
+    [102.7, 103.2, 102.2, 102.8],
+    [102, 102.5, 101.5, 102],
+    [99.5, 100.5, 97.5, 99.5],
+    [101, 101.8, 99.2, 101.5],
+    [102.5, 103.5, 101.2, 103],
+  ];
+}
+
 function dataset(
   timeframe: LevelEngineTimeframe,
   values: readonly CandleTuple[] = supportValues(),
@@ -147,6 +165,49 @@ test('keeps a single confirmed reaction at candidate maturity', () => {
   const candidate = supportCandidate(result);
   assert.equal(candidate.maturity, 'candidate');
   assert.equal(candidate.touchEpisodes.length, 1);
+});
+
+test('keeps distinct zones when one candle creates equal episode ids', () => {
+  const values = zoneIdentityCollisionValues();
+  const beforeCollision = detectMultiTimeframeLevelCandidates(
+    [dataset('5m', values.slice(0, 12))],
+    OPTIONS,
+  );
+  const beforeCandidate = beforeCollision.candidates.find(
+    (candidate) =>
+      candidate.kind === 'support'
+      && candidate.zone.reference === 97.5,
+  );
+  assert.ok(beforeCandidate);
+
+  const afterCollision = detectMultiTimeframeLevelCandidates(
+    [dataset('5m', values)],
+    OPTIONS,
+  );
+  const supportCandidates = afterCollision.candidates.filter(
+    (candidate) => candidate.kind === 'support',
+  );
+  assert.deepEqual(
+    supportCandidates
+      .map((candidate) => candidate.zone.reference)
+      .sort((left, right) => left - right),
+    [97.5, 100],
+  );
+  assert.equal(
+    supportCandidates.some(
+      (candidate) => candidate.id === beforeCandidate.id,
+    ),
+    true,
+  );
+
+  const bucket = afterCollision.timeframes[0];
+  assert.ok(bucket);
+  assert.equal(
+    bucket.rejectedClusters.some(
+      (cluster) => cluster.reason === 'duplicate_episode_set',
+    ),
+    false,
+  );
 });
 
 test('does not merge equal price structures across timeframes', () => {
