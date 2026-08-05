@@ -7,6 +7,7 @@ const PAGE_VERSION_LABELS: Record<string, string> = {
   [ROUTES.dashboard]: 'Dashboard v0.6',
   [ROUTES.scanner]: 'Scanner v0.1',
   [ROUTES.market]: 'Market v0.1',
+  [ROUTES.levelPreview]: 'Level Preview v0.1',
   [ROUTES.workspace]: 'Workspace v0.2',
   [ROUTES.alerts]: 'Alerts v0.1',
   [ROUTES.watchlist]: 'Watchlist v0.1',
@@ -19,6 +20,7 @@ const TOP_NAVIGATION = [
   { label: 'DASHBOARD', path: ROUTES.dashboard, end: true },
   { label: 'SCANNER', path: ROUTES.scanner, end: false },
   { label: 'MARKET', path: ROUTES.market, end: false },
+  { label: 'LEVELS', path: ROUTES.levelPreview, end: false },
   { label: 'WORKSPACE', path: ROUTES.workspace, end: false },
   { label: 'ALERTS', path: ROUTES.alerts, end: false },
   { label: 'WATCHLIST', path: ROUTES.watchlist, end: false },
@@ -29,6 +31,7 @@ const RAIL_LINKS = [
   { label: 'Dashboard', path: ROUTES.dashboard, icon: 'pulse', end: true },
   { label: 'Scanner', path: ROUTES.scanner, icon: 'search', end: false },
   { label: 'Market', path: ROUTES.market, icon: 'market', end: false },
+  { label: 'Level Preview', path: ROUTES.levelPreview, icon: 'chart', end: false },
   { label: 'Watchlist', path: ROUTES.watchlist, icon: 'star', end: false },
   { label: 'Workspace', path: ROUTES.workspace, icon: 'chart', end: false },
   { label: 'Alerts', path: ROUTES.alerts, icon: 'note', end: false },
@@ -37,17 +40,18 @@ const RAIL_LINKS = [
 ] as const;
 
 const MOBILE_PRIMARY_LINKS = [
-  { label: 'Главная', path: ROUTES.dashboard, icon: 'pulse', end: true },
+  { label: 'Р“Р»Р°РІРЅР°СЏ', path: ROUTES.dashboard, icon: 'pulse', end: true },
   { label: 'Scanner', path: ROUTES.scanner, icon: 'search', end: false },
   { label: 'Workspace', path: ROUTES.workspace, icon: 'chart', end: false },
   { label: 'Alerts', path: ROUTES.alerts, icon: 'note', end: false },
 ] as const;
 
 const MOBILE_MORE_LINKS = [
-  { label: 'Market', description: 'Обзор рынка', path: ROUTES.market, icon: 'market' },
-  { label: 'Watchlist', description: 'Избранные инструменты', path: ROUTES.watchlist, icon: 'star' },
-  { label: 'Replay', description: 'Воспроизведение рынка', path: ROUTES.replay, icon: 'robot' },
-  { label: 'Settings', description: 'Настройки терминала', path: ROUTES.settings, icon: 'settings' },
+  { label: 'Market', description: 'РћР±Р·РѕСЂ СЂС‹РЅРєР°', path: ROUTES.market, icon: 'market' },
+  { label: 'Level Preview', description: '\u0412\u0438\u0437\u0443\u0430\u043b\u044c\u043d\u0430\u044f \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0443\u0440\u043e\u0432\u043d\u0435\u0439', path: ROUTES.levelPreview, icon: 'chart' },
+  { label: 'Watchlist', description: 'РР·Р±СЂР°РЅРЅС‹Рµ РёРЅСЃС‚СЂСѓРјРµРЅС‚С‹', path: ROUTES.watchlist, icon: 'star' },
+  { label: 'Replay', description: 'Р’РѕСЃРїСЂРѕРёР·РІРµРґРµРЅРёРµ СЂС‹РЅРєР°', path: ROUTES.replay, icon: 'robot' },
+  { label: 'Settings', description: 'РќР°СЃС‚СЂРѕР№РєРё С‚РµСЂРјРёРЅР°Р»Р°', path: ROUTES.settings, icon: 'settings' },
 ] as const;
 
 type RailIconName = (typeof RAIL_LINKS)[number]['icon'];
@@ -80,14 +84,14 @@ export function AppShell() {
   return (
     <div className={styles.terminalShell}>
       <header className={styles.terminalTopbar}>
-        <Link className={styles.terminalBrand} to={ROUTES.dashboard} aria-label="Открыть Dashboard NEXUS">
+        <Link className={styles.terminalBrand} to={ROUTES.dashboard} aria-label="РћС‚РєСЂС‹С‚СЊ Dashboard NEXUS">
           <span className={styles.terminalBrandMark}>N</span>
           <span><strong>NEXUS</strong><small>TERMINAL</small></span>
         </Link>
 
         <span className={styles.mobilePageTitle}>{mobileTitle}</span>
 
-        <nav className={styles.terminalNavigation} aria-label="Основная навигация терминала">
+        <nav className={styles.terminalNavigation} aria-label="РћСЃРЅРѕРІРЅР°СЏ РЅР°РІРёРіР°С†РёСЏ С‚РµСЂРјРёРЅР°Р»Р°">
           {TOP_NAVIGATION.map((item) => (
             <NavLink
               key={item.label}
@@ -103,7 +107,7 @@ export function AppShell() {
         <div className={styles.terminalStatus}>
           <span
             className={styles.environmentStatus}
-            title="Состояние подключения показывается отдельно на каждой странице"
+            title="РЎРѕСЃС‚РѕСЏРЅРёРµ РїРѕРґРєР»СЋС‡РµРЅРёСЏ РїРѕРєР°Р·С‹РІР°РµС‚СЃСЏ РѕС‚РґРµР»СЊРЅРѕ РЅР° РєР°Р¶РґРѕР№ СЃС‚СЂР°РЅРёС†Рµ"
           >
             MVP FRONTEND
           </span>
@@ -111,7 +115,7 @@ export function AppShell() {
         </div>
       </header>
 
-      <aside className={styles.terminalRail} aria-label="Быстрая навигация">
+      <aside className={styles.terminalRail} aria-label="Р‘С‹СЃС‚СЂР°СЏ РЅР°РІРёРіР°С†РёСЏ">
         {RAIL_LINKS.map((item) => (
           <NavLink
             key={item.label}
@@ -128,7 +132,7 @@ export function AppShell() {
 
       <main className={styles.terminalContent}><Outlet /></main>
 
-      <nav className={styles.mobileNavigation} aria-label="Мобильная навигация">
+      <nav className={styles.mobileNavigation} aria-label="РњРѕР±РёР»СЊРЅР°СЏ РЅР°РІРёРіР°С†РёСЏ">
         {MOBILE_PRIMARY_LINKS.map((item) => (
           <NavLink
             key={item.label}
@@ -148,15 +152,15 @@ export function AppShell() {
           aria-controls="mobile-more-navigation"
         >
           <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" /></svg>
-          <span>Ещё</span>
+          <span>Р•С‰С‘</span>
         </button>
       </nav>
 
       {mobileMoreOpen && (
         <>
-          <button className={styles.mobileBackdrop} type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Закрыть меню" />
-          <section className={styles.mobileMorePanel} id="mobile-more-navigation" aria-label="Дополнительные разделы">
-            <header><strong>Разделы NEXUS</strong><button type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Закрыть">×</button></header>
+          <button className={styles.mobileBackdrop} type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Р—Р°РєСЂС‹С‚СЊ РјРµРЅСЋ" />
+          <section className={styles.mobileMorePanel} id="mobile-more-navigation" aria-label="Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹Рµ СЂР°Р·РґРµР»С‹">
+            <header><strong>Р Р°Р·РґРµР»С‹ NEXUS</strong><button type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Р—Р°РєСЂС‹С‚СЊ">Г—</button></header>
             <div>
               {MOBILE_MORE_LINKS.map((item) => (
                 <NavLink
@@ -166,7 +170,7 @@ export function AppShell() {
                 >
                   <span><RailIcon name={item.icon} /></span>
                   <span><strong>{item.label}</strong><small>{item.description}</small></span>
-                  <i>›</i>
+                  <i>вЂє</i>
                 </NavLink>
               ))}
             </div>
