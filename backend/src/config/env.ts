@@ -11,6 +11,7 @@ export interface AppEnv {
   apiPrefix: string;
   corsOrigins: string[];
   logLevel: LogLevel;
+  levelEngineFrozenSamplePath?: string;
   feedbackStorePath?: string;
   binanceBaseUrl?: string;
   binanceRequestTimeoutMs?: number;
@@ -137,6 +138,9 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     apiPrefix: readApiPrefix(source.API_PREFIX),
     corsOrigins: readCorsOrigins(source.CORS_ORIGIN),
     logLevel: readEnum(source.LOG_LEVEL, LOG_LEVEL_VALUES, 'info', 'LOG_LEVEL'),
+    levelEngineFrozenSamplePath:
+      source.LEVEL_ENGINE_FROZEN_SAMPLE_PATH?.trim()
+      || './.tmp/level-engine-validation/latest-frozen-sample.json',
     feedbackStorePath: source.FEEDBACK_STORE_PATH?.trim() || './data/feedback.jsonl',
     binanceBaseUrl: readHttpUrl(source.BINANCE_BASE_URL, 'https://fapi.binance.com', 'BINANCE_BASE_URL'),
     binanceRequestTimeoutMs: readInteger(source.BINANCE_REQUEST_TIMEOUT_MS, 5_000, 'BINANCE_REQUEST_TIMEOUT_MS', 250, 30_000),

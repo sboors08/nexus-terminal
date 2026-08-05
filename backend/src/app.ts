@@ -39,6 +39,12 @@ import type {
 } from './modules/setup-engine/setup-event-history.types.js';
 import type { RealtimeMarketDataService } from './modules/realtime-market-data/realtime-market-data.types.js';
 import type { OrderBookDepthRuntimeService } from './modules/realtime-market-data/order-book-depth-runtime.types.js';
+import {
+  JsonFileLevelEngineFrozenSampleReader,
+} from './modules/level-engine/level-engine-frozen-sample-reader.js';
+import type {
+  LevelEngineFrozenSampleReader,
+} from './modules/level-engine/level-engine-frozen-sample-reader.js';
 
 export interface BuildAppOptions {
   env?: AppEnv;
@@ -56,6 +62,8 @@ export interface BuildAppOptions {
   levelV2ShadowRuntimeReader?: LevelV2ShadowRuntimeReader | null;
   setupEventHistoryService?: SetupEventHistoryLifecycle | null;
   setupEventHistoryReader?: SetupEventHistoryReader | null;
+  levelEngineFrozenSampleReader?:
+    LevelEngineFrozenSampleReader | null;
 }
 
 function isSetupDetectionRuntimeEventSource(
@@ -312,6 +320,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           : null
       : options.setupEventHistoryReader;
 
+  const levelEngineFrozenSampleReader =
+    options.levelEngineFrozenSampleReader
+    === undefined
+      ? new JsonFileLevelEngineFrozenSampleReader({
+          filePath:
+            env.levelEngineFrozenSamplePath
+            ?? './.tmp/level-engine-validation/latest-frozen-sample.json',
+        })
+      : options.levelEngineFrozenSampleReader;
+
   const marketWideRuntimeCoordinator =
     binanceSymbolUniverseService
     && marketWideRealtimeService
@@ -462,6 +480,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : {}),
     ...(levelV2ShadowRuntimeReader
       ? { levelV2ShadowRuntimeReader }
+      : {}),
+    ...(levelEngineFrozenSampleReader
+      ? { levelEngineFrozenSampleReader }
       : {}),
     ...(setupEventHistoryReader
       ? { setupEventHistoryReader }
