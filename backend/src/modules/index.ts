@@ -92,6 +92,12 @@ import type {
 import type {
   SetupEventHistoryReader,
 } from './setup-engine/setup-event-history.types.js';
+import {
+  levelEngineFrozenSampleReadRoutes,
+} from './level-engine/level-engine-frozen-sample-read.routes.js';
+import type {
+  LevelEngineFrozenSampleReader,
+} from './level-engine/level-engine-frozen-sample-reader.js';
 
 interface ApiModulesOptions {
   marketDataProvider:
@@ -126,6 +132,9 @@ interface ApiModulesOptions {
 
   setupEventHistoryReader?:
     SetupEventHistoryReader;
+
+  levelEngineFrozenSampleReader?:
+    LevelEngineFrozenSampleReader;
 }
 
 export const apiModules:
@@ -138,6 +147,20 @@ FastifyPluginAsync<
   await app.register(
     healthRoutes,
   );
+
+  if (
+    options
+      .levelEngineFrozenSampleReader
+  ) {
+    await app.register(
+      levelEngineFrozenSampleReadRoutes,
+      {
+        levelEngineFrozenSampleReader:
+          options
+            .levelEngineFrozenSampleReader,
+      },
+    );
+  }
 
   await app.register(
     apiContractRoutes,

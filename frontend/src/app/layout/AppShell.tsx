@@ -7,6 +7,7 @@ const PAGE_VERSION_LABELS: Record<string, string> = {
   [ROUTES.dashboard]: 'Dashboard v0.6',
   [ROUTES.scanner]: 'Scanner v0.1',
   [ROUTES.market]: 'Market v0.1',
+  [ROUTES.levelPreview]: 'Level Preview v0.1',
   [ROUTES.workspace]: 'Workspace v0.2',
   [ROUTES.alerts]: 'Alerts v0.1',
   [ROUTES.watchlist]: 'Watchlist v0.1',
@@ -19,6 +20,7 @@ const TOP_NAVIGATION = [
   { label: 'DASHBOARD', path: ROUTES.dashboard, end: true },
   { label: 'SCANNER', path: ROUTES.scanner, end: false },
   { label: 'MARKET', path: ROUTES.market, end: false },
+  { label: 'LEVELS', path: ROUTES.levelPreview, end: false },
   { label: 'WORKSPACE', path: ROUTES.workspace, end: false },
   { label: 'ALERTS', path: ROUTES.alerts, end: false },
   { label: 'WATCHLIST', path: ROUTES.watchlist, end: false },
@@ -29,6 +31,7 @@ const RAIL_LINKS = [
   { label: 'Dashboard', path: ROUTES.dashboard, icon: 'pulse', end: true },
   { label: 'Scanner', path: ROUTES.scanner, icon: 'search', end: false },
   { label: 'Market', path: ROUTES.market, icon: 'market', end: false },
+  { label: 'Level Preview', path: ROUTES.levelPreview, icon: 'chart', end: false },
   { label: 'Watchlist', path: ROUTES.watchlist, icon: 'star', end: false },
   { label: 'Workspace', path: ROUTES.workspace, icon: 'chart', end: false },
   { label: 'Alerts', path: ROUTES.alerts, icon: 'note', end: false },
@@ -45,6 +48,7 @@ const MOBILE_PRIMARY_LINKS = [
 
 const MOBILE_MORE_LINKS = [
   { label: 'Market', description: 'Обзор рынка', path: ROUTES.market, icon: 'market' },
+  { label: 'Level Preview', description: '\u0412\u0438\u0437\u0443\u0430\u043b\u044c\u043d\u0430\u044f \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0443\u0440\u043e\u0432\u043d\u0435\u0439', path: ROUTES.levelPreview, icon: 'chart' },
   { label: 'Watchlist', description: 'Избранные инструменты', path: ROUTES.watchlist, icon: 'star' },
   { label: 'Replay', description: 'Воспроизведение рынка', path: ROUTES.replay, icon: 'robot' },
   { label: 'Settings', description: 'Настройки терминала', path: ROUTES.settings, icon: 'settings' },
