@@ -461,9 +461,13 @@ function freezeRejection(
 function episodeSetKey(
   timeframe: LevelEngineTimeframe,
   kind: LevelEngineKind,
+  zone: LevelEngineZone,
   episodes: readonly TouchEpisode[],
 ): string {
-  return `${timeframe}:${kind}:${episodes.map((episode) => episode.id).join('|')}`;
+  const zoneIdentity = `${zone.low}:${zone.reference}:${zone.high}`;
+  return `${timeframe}:${kind}:${zoneIdentity}:${episodes
+    .map((episode) => episode.id)
+    .join('|')}`;
 }
 
 function detectTimeframeLevels(
@@ -552,6 +556,7 @@ function detectTimeframeLevels(
       const key = episodeSetKey(
         dataset.sourceTimeframe,
         cluster.origin.kind,
+        cluster.zone,
         episodes,
       );
       if (seenEpisodeSets.has(key)) {
