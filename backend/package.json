@@ -44,7 +44,7 @@
     "test:level-v2-shadow-evaluation-history": "node --import tsx --test test/level-v2-shadow-evaluation-history.test.ts",
     "test:level-v2-shadow-current-kind-regression": "node --import tsx --test test/level-v2-shadow-current-kind-regression.test.ts",
     "test:level-v2-shadow-overlap-diagnostics": "node --import tsx --test test/level-v2-shadow-overlap-diagnostics.test.ts",
-    "test:level-v2-lifecycle-collisions": "node --import tsx --test test/level-v2-lifecycle-collisions.test.ts test/level-engine-frozen-sample-read-api.test.ts",
+    "test:level-v2-lifecycle-collisions": "node --import tsx --test test/level-v2-lifecycle-collisions.test.ts",
     "test:level-engine-real-data-validation": "node --import tsx --test test/level-engine-real-data-validation.test.ts",
     "validate:level-engine-real-data": "node --env-file-if-exists=.env --import tsx src/modules/level-engine/level-engine-real-data-validation.cli.ts",
     "test:level-engine-lifecycle": "node --import tsx --test test/level-engine-lifecycle.test.ts",
