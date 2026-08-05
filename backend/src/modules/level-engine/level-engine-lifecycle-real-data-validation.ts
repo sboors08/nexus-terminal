@@ -1,11 +1,16 @@
 import {
   buildLevelLifecycle,
+  DEFAULT_LEVEL_LIFECYCLE_OPTIONS,
 } from './level-engine-lifecycle.js';
+import {
+  LEVEL_ENGINE_BREAK_SEARCH_WINDOWS,
+} from './level-engine-break-evaluator.js';
 import type {
   LevelCandidate,
 } from './level-engine.types.js';
 import type {
   LevelLifecycleCycle,
+  LevelLifecycleOptions,
   LevelLifecycleResult,
 } from './level-engine-lifecycle.types.js';
 import type {
@@ -33,6 +38,7 @@ import type {
 export type BuildLevelLifecycleForRealData = (
   candidate: LevelCandidate,
   dataset: LevelEngineTimeframeDataset,
+  options: LevelLifecycleOptions,
 ) => LevelLifecycleResult;
 
 export type DiagnoseLifecycleCandidateForReview = (
@@ -149,6 +155,21 @@ export function buildLevelEngineLifecycleRealDataValidationReport(
     dependencies.buildLifecycle ?? buildLevelLifecycle;
   const diagnoseCandidate =
     dependencies.diagnoseCandidate ?? diagnoseLevelCandidateForReview;
+  const reviewPolicy = Object.freeze({ ...report.reviewPolicy });
+  const lifecycleOptions: LevelLifecycleOptions = Object.freeze({
+    ...DEFAULT_LEVEL_LIFECYCLE_OPTIONS,
+    atrPeriod: reviewPolicy.atrPeriod,
+    decisiveBreakAtr: reviewPolicy.decisiveBreakAtr,
+    consecutiveBreakCloses: reviewPolicy.consecutiveBreakCloses,
+    touchEpisodes: Object.freeze({
+      ...DEFAULT_LEVEL_LIFECYCLE_OPTIONS.touchEpisodes,
+    }),
+  });
+  const appliedOptions = Object.freeze({
+    lifecycle: lifecycleOptions,
+    reviewPolicy,
+    breakSearchWindows: LEVEL_ENGINE_BREAK_SEARCH_WINDOWS,
+  });
 
   const symbolReports: LevelEngineLifecycleValidationSymbolReport[] =
     report.symbolReports.map((symbolReport) => {
@@ -164,13 +185,17 @@ export function buildLevelEngineLifecycleRealDataValidationReport(
           );
         }
 
-        const lifecycle = buildLifecycle(item.candidate, dataset);
+        const lifecycle = buildLifecycle(
+          item.candidate,
+          dataset,
+          lifecycleOptions,
+        );
         const selectedCycle = selectReviewCycle(lifecycle);
         const candidate = selectedCycle.candidate;
         const diagnostic = diagnoseCandidate(
           dataset,
           candidate,
-          report.reviewPolicy,
+          reviewPolicy,
         );
 
         return Object.freeze({
@@ -292,7 +317,8 @@ export function buildLevelEngineLifecycleRealDataValidationReport(
     requestedTimeframes: report.requestedTimeframes,
     candlesPerTimeframe: report.candlesPerTimeframe,
     reviewLimitPerSymbol: report.reviewLimitPerSymbol,
-    reviewPolicy: report.reviewPolicy,
+    reviewPolicy,
+    appliedOptions,
     symbolReports: frozenSymbolReports,
     totals,
     observationalOnly: true,

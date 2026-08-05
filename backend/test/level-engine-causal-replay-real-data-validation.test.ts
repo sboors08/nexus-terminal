@@ -6,6 +6,12 @@ import {
 import {
   buildLevelEngineCausalReplayRealDataValidationReport,
 } from '../src/modules/level-engine/level-engine-causal-replay-real-data-validation.js';
+import {
+  LEVEL_ENGINE_BREAK_SEARCH_WINDOWS,
+} from '../src/modules/level-engine/level-engine-break-evaluator.js';
+import {
+  DEFAULT_LEVEL_LIFECYCLE_OPTIONS,
+} from '../src/modules/level-engine/level-engine-lifecycle.js';
 import type {
   LevelCandidate,
   LevelEngineKind,
@@ -249,6 +255,18 @@ function report(
       staleAfterBars: 120,
       staleDistanceAtr: 3,
       minimumFutureBars: 2,
+    }),
+    appliedOptions: Object.freeze({
+      lifecycle: DEFAULT_LEVEL_LIFECYCLE_OPTIONS,
+      reviewPolicy: Object.freeze({
+        atrPeriod: 14,
+        decisiveBreakAtr: 0.35,
+        consecutiveBreakCloses: 2,
+        staleAfterBars: 120,
+        staleDistanceAtr: 3,
+        minimumFutureBars: 2,
+      }),
+      breakSearchWindows: LEVEL_ENGINE_BREAK_SEARCH_WINDOWS,
     }),
     symbolReports: Object.freeze([Object.freeze({
       symbol: 'BTCUSDT',
@@ -698,12 +716,16 @@ test('builds exact per-timeframe summaries and replays every dataset once', () =
     { timeframe: '5m', candidates: [fiveMinute] },
   ]);
   const calls: string[] = [];
+  const receivedLifecycleOptions: unknown[] = [];
+  const receivedReplayOptionsFrozen: boolean[] = [];
 
   const result = buildLevelEngineCausalReplayRealDataValidationReport(
     sourceReport,
     {
-      replayDataset: (datasetValue) => {
+      replayDataset: (datasetValue, replayOptions) => {
         calls.push(datasetValue.sourceTimeframe);
+        receivedLifecycleOptions.push(replayOptions.lifecycle);
+        receivedReplayOptionsFrozen.push(Object.isFrozen(replayOptions));
         const source = datasetValue.sourceTimeframe === '1m'
           ? oneMinute
           : fiveMinute;
@@ -717,6 +739,16 @@ test('builds exact per-timeframe summaries and replays every dataset once', () =
   );
 
   assert.deepEqual(calls, ['1m', '5m']);
+  assert.equal(receivedLifecycleOptions.length, 2);
+  assert.equal(
+    receivedLifecycleOptions[0],
+    sourceReport.appliedOptions.lifecycle,
+  );
+  assert.equal(
+    receivedLifecycleOptions[1],
+    sourceReport.appliedOptions.lifecycle,
+  );
+  assert.deepEqual(receivedReplayOptionsFrozen, [true, true]);
   assert.equal(result.totals.replayDatasetCount, 2);
   assert.equal(result.timeframeCausalReplaySummaries.length, 2);
   assert.equal(

@@ -5,6 +5,7 @@ import type {
   LevelEngineCausalReplayCandidateTrack,
   LevelEngineCausalReplayCycleTrack,
   LevelEngineCausalReplayEvent,
+  LevelEngineCausalReplayOptions,
   LevelEngineCausalReplayResult,
 } from './level-engine-causal-replay.types.js';
 import type {
@@ -40,6 +41,7 @@ import type {
 
 export type ReplayLevelEngineForRealData = (
   dataset: LevelEngineTimeframeDataset,
+  options: LevelEngineCausalReplayOptions,
 ) => LevelEngineCausalReplayResult;
 
 export interface BuildLevelEngineCausalReplayRealDataValidationDependencies {
@@ -801,6 +803,14 @@ export function buildLevelEngineCausalReplayRealDataValidationReport(
   report: LevelEngineLifecycleRealDataValidationReport,
   dependencies: BuildLevelEngineCausalReplayRealDataValidationDependencies = {},
 ): LevelEngineCausalReplayRealDataValidationReport {
+  const appliedOptions = report.appliedOptions;
+  if (appliedOptions === undefined) {
+    fail('source lifecycle report must include appliedOptions');
+  }
+
+  const replayOptions: LevelEngineCausalReplayOptions = Object.freeze({
+    lifecycle: appliedOptions.lifecycle,
+  });
   const replayDataset =
     dependencies.replayDataset ?? replayLevelEngineCausally;
   const replayEntries: DatasetReplayEntry[] = [];
@@ -823,7 +833,7 @@ export function buildLevelEngineCausalReplayRealDataValidationReport(
       if (replayByKey.has(key)) {
         fail(`duplicate replay dataset ${key}`);
       }
-      const replay = replayDataset(dataset);
+      const replay = replayDataset(dataset, replayOptions);
       if (
         replay.symbol !== dataset.symbol
         || replay.sourceTimeframe !== dataset.sourceTimeframe
@@ -1101,6 +1111,7 @@ export function buildLevelEngineCausalReplayRealDataValidationReport(
     candlesPerTimeframe: report.candlesPerTimeframe,
     reviewLimitPerSymbol: report.reviewLimitPerSymbol,
     reviewPolicy: report.reviewPolicy,
+    appliedOptions,
     symbolReports: frozenSymbolReports,
     timeframeCausalReplaySummaries,
     totals,
