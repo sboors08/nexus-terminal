@@ -24,6 +24,9 @@ import {
   buildLevelEngineCausalReplayRealDataValidationReport,
 } from './level-engine-causal-replay-real-data-validation.js';
 import {
+  buildLevelEngineFrozenSample,
+} from './level-engine-frozen-sample.js';
+import {
   buildLevelEngineLifecycleRealDataReviewHtml,
 } from './level-engine-lifecycle-real-data-review-html.js';
 
@@ -185,6 +188,17 @@ async function main(): Promise<void> {
         },
       },
     );
+  const frozenSample = buildLevelEngineFrozenSample(
+    report,
+    {
+      limit: readPositiveInteger(
+        process.env.LEVEL_ENGINE_FROZEN_SAMPLE_LIMIT,
+        120,
+        'LEVEL_ENGINE_FROZEN_SAMPLE_LIMIT',
+        5_000,
+      ),
+    },
+  );
 
   const outputDirectory = resolve(
     process.cwd(),
@@ -194,6 +208,8 @@ async function main(): Promise<void> {
   await mkdir(outputDirectory, { recursive: true });
 
   const serialized = `${JSON.stringify(report, null, 2)}\n`;
+  const frozenSampleSerialized =
+    `${JSON.stringify(frozenSample, null, 2)}\n`;
   const reviewHtml = buildLevelEngineLifecycleRealDataReviewHtml(lifecycleReport);
   const timestamp = safeTimestamp(report.generatedAt);
   const timestampedPath = resolve(
@@ -209,12 +225,30 @@ async function main(): Promise<void> {
     outputDirectory,
     'latest-review.html',
   );
+  const timestampedFrozenSamplePath = resolve(
+    outputDirectory,
+    `frozen-sample-${timestamp}.json`,
+  );
+  const latestFrozenSamplePath = resolve(
+    outputDirectory,
+    'latest-frozen-sample.json',
+  );
 
   await Promise.all([
     writeFile(timestampedPath, serialized, 'utf8'),
     writeFile(latestPath, serialized, 'utf8'),
     writeFile(timestampedReviewPath, reviewHtml, 'utf8'),
     writeFile(latestReviewPath, reviewHtml, 'utf8'),
+    writeFile(
+      timestampedFrozenSamplePath,
+      frozenSampleSerialized,
+      'utf8',
+    ),
+    writeFile(
+      latestFrozenSamplePath,
+      frozenSampleSerialized,
+      'utf8',
+    ),
   ]);
 
   const rows = report.symbolReports.flatMap((symbolReport) =>
@@ -377,6 +411,14 @@ async function main(): Promise<void> {
   console.log(`Latest report: ${latestPath}`);
   console.log(`Level Review HTML: ${timestampedReviewPath}`);
   console.log(`Latest Level Review: ${latestReviewPath}`);
+  console.log(
+    'Frozen sample: '
+    + `${frozenSample.selection.selectedItemCount}/`
+    + `${frozenSample.selection.availableItemCount} items, `
+    + `${frozenSample.selection.datasetCount} datasets`,
+  );
+  console.log(`Frozen sample JSON: ${timestampedFrozenSamplePath}`);
+  console.log(`Latest frozen sample: ${latestFrozenSamplePath}`);
   console.log('Quality score used: no');
   console.log('Trading setups created: no');
 }

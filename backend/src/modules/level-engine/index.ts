@@ -18,3 +18,5 @@ export * from './level-engine-causal-replay.js';
 export * from './level-engine-causal-replay.types.js';
 export * from './level-engine-causal-replay-real-data-validation.js';
 export * from './level-engine-causal-replay-real-data-validation.types.js';
+export * from './level-engine-frozen-sample.js';
+export * from './level-engine-frozen-sample.types.js';
