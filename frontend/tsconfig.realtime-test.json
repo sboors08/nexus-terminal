@@ -40,6 +40,7 @@
     "src/shared/api/runtime/levelV2ShadowApi.ts",
     "src/shared/api/runtime/levelV2ShadowInspectionApi.ts",
     "src/shared/api/runtime/levelEngineFrozenSampleApi.ts",
+    "src/shared/level-engine/levelEngineManualReview.ts",
     "src/shared/charts/model/priceFormat.ts",
     "src/shared/charts/model/horizontalSegment.ts",
     "src/shared/api/runtime/setupLifecycleStream.ts",

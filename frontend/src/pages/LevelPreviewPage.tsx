@@ -20,6 +20,7 @@ import {
   type LevelEngineFrozenSampleReview,
 } from '@/shared/api/runtime/levelEngineFrozenSampleReview';
 
+import { LevelEngineManualReviewPanel } from './LevelEngineManualReviewPanel';
 import styles from './LevelPreviewPage.module.css';
 
 const CHART_WIDTH = 1180;
@@ -1562,6 +1563,11 @@ export function LevelPreviewPage() {
           </article>
         </aside>
       </div>
+
+      <LevelEngineManualReviewPanel
+        sample={sample}
+        item={selectedItem}
+      />
 
       <div className={styles.demoNotice}>
         <strong>FROZEN SAMPLE</strong>
