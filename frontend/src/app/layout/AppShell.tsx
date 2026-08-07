@@ -7,7 +7,7 @@ const PAGE_VERSION_LABELS: Record<string, string> = {
   [ROUTES.dashboard]: 'Dashboard v0.6',
   [ROUTES.scanner]: 'Scanner v0.1',
   [ROUTES.market]: 'Market v0.1',
-  [ROUTES.levelPreview]: 'Level Preview v0.1',
+  [ROUTES.levelPreview]: 'Level Lines v0.1',
   [ROUTES.workspace]: 'Workspace v0.2',
   [ROUTES.alerts]: 'Alerts v0.1',
   [ROUTES.watchlist]: 'Watchlist v0.1',

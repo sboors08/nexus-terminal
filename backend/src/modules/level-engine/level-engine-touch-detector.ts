@@ -73,6 +73,13 @@ function positiveFinite(value: number, field: string): number {
   return value;
 }
 
+function booleanValue(value: boolean, field: string): boolean {
+  if (typeof value !== 'boolean') {
+    fail(`${field} must be a boolean`);
+  }
+  return value;
+}
+
 function validateOptions(
   options: TouchEpisodeDetectionOptions,
 ): TouchEpisodeDetectionOptions {
@@ -93,6 +100,16 @@ function validateOptions(
     maxEpisodeSpanCandles: positiveInteger(
       options.maxEpisodeSpanCandles,
       'maxEpisodeSpanCandles',
+    ),
+    scanFromCandleIndex: nonNegativeInteger(
+      options.scanFromCandleIndex
+      ?? 0,
+      'scanFromCandleIndex',
+    ),
+    requireFreshReturnBeforeFirstEpisode: booleanValue(
+      options.requireFreshReturnBeforeFirstEpisode
+      ?? false,
+      'requireFreshReturnBeforeFirstEpisode',
     ),
   });
 }
@@ -371,9 +388,50 @@ export function detectTouchEpisodes(
 
   let active: ActiveInteraction | null = null;
   let suppressed: SuppressedInteraction | null = null;
+  let awaitingFreshReturn =
+    options.requireFreshReturnBeforeFirstEpisode
+    ?? false;
+  let freshReturnReferenceAtr:
+    number | null = null;
 
   for (const indexed of closed) {
+    if (
+      indexed.originalIndex
+      < (
+        options.scanFromCandleIndex
+        ?? 0
+      )
+    ) {
+      continue;
+    }
+
     const contact = intersectsZone(indexed.candle, zone);
+
+    if (awaitingFreshReturn) {
+      if (
+        freshReturnReferenceAtr === null
+        && indexed.atr !== null
+        && indexed.atr > 0
+      ) {
+        freshReturnReferenceAtr =
+          indexed.atr;
+      }
+
+      if (
+        !contact
+        && freshReturnReferenceAtr !== null
+        && departureDistance(
+          indexed.candle,
+          zone,
+          targetValue.kind,
+        ) / freshReturnReferenceAtr
+          >= options.minDepartureAtr
+      ) {
+        awaitingFreshReturn = false;
+      }
+
+      continue;
+    }
 
     if (suppressed) {
       if (contact) {
