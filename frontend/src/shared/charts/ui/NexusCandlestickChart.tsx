@@ -57,6 +57,7 @@ export interface NexusChartPriceLine {
 export interface NexusChartHorizontalSegment {
   price: number;
   startTime: string;
+  endTime?: string;
   color: string;
   title?: string;
   lineStyle?: 'solid' | 'dashed';
@@ -634,6 +635,7 @@ export function NexusCandlestickChart({
           candles,
           entry.segment.startTime,
           entry.segment.price,
+          entry.segment.endTime,
         ),
       );
     }

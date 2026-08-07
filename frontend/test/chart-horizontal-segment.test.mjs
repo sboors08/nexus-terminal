@@ -194,3 +194,57 @@ test(
     );
   },
 );
+
+test(
+  'ends a broken segment on the confirmed break candle',
+  () => {
+    const data =
+      buildNexusHorizontalSegmentData(
+        [
+          makeCandle(
+            '2026-01-01T00:00:00.000Z',
+            '2026-01-01T00:00:59.999Z',
+            true,
+          ),
+          makeCandle(
+            '2026-01-01T00:01:00.000Z',
+            '2026-01-01T00:01:59.999Z',
+            true,
+          ),
+          makeCandle(
+            '2026-01-01T00:02:00.000Z',
+            '2026-01-01T00:02:59.999Z',
+            true,
+          ),
+          makeCandle(
+            '2026-01-01T00:03:00.000Z',
+            '2026-01-01T00:03:59.999Z',
+            true,
+          ),
+        ],
+        '2026-01-01T00:00:00.000Z',
+        100,
+        '2026-01-01T00:02:59.999Z',
+      );
+
+    assert.deepEqual(
+      data,
+      [
+        {
+          time:
+            Date.parse(
+              '2026-01-01T00:00:00.000Z',
+            ) / 1000,
+          value: 100,
+        },
+        {
+          time:
+            Date.parse(
+              '2026-01-01T00:02:00.000Z',
+            ) / 1000,
+          value: 100,
+        },
+      ],
+    );
+  },
+);

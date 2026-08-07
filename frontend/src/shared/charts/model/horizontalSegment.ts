@@ -14,6 +14,7 @@ export function buildNexusHorizontalSegmentData(
   candles: readonly Candle[],
   startTime: string,
   price: number,
+  endTime?: string,
 ): LineData<UTCTimestamp>[] {
   if (
     !Number.isFinite(price)
@@ -26,6 +27,26 @@ export function buildNexusHorizontalSegmentData(
     Date.parse(startTime);
 
   if (!Number.isFinite(startMilliseconds)) {
+    return [];
+  }
+
+  const endMilliseconds =
+    endTime === undefined
+      ? Number.POSITIVE_INFINITY
+      : Date.parse(endTime);
+
+  if (
+    !Number.isFinite(endMilliseconds)
+    && endMilliseconds
+      !== Number.POSITIVE_INFINITY
+  ) {
+    return [];
+  }
+
+  if (
+    endMilliseconds
+    < startMilliseconds
+  ) {
     return [];
   }
 
@@ -43,7 +64,15 @@ export function buildNexusHorizontalSegmentData(
     const openMilliseconds =
       Date.parse(candle.openTime);
 
-    if (!Number.isFinite(openMilliseconds)) {
+    const closeMilliseconds =
+      Date.parse(candle.closeTime);
+
+    if (
+      !Number.isFinite(openMilliseconds)
+      || !Number.isFinite(closeMilliseconds)
+      || closeMilliseconds
+        > endMilliseconds
+    ) {
       continue;
     }
 

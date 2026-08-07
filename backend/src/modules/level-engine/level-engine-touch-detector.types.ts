@@ -28,6 +28,7 @@ export interface TouchEpisodeDetectionOptions {
   readonly maxDepartureCandles: number;
   readonly minBarsBetweenEpisodes: number;
   readonly maxEpisodeSpanCandles: number;
+  readonly scanFromCandleIndex?: number;
 }
 
 export type TouchInteractionRejectionReason =

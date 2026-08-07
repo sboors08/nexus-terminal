@@ -98,6 +98,9 @@ import {
 import type {
   LevelEngineFrozenSampleReader,
 } from './level-engine/level-engine-frozen-sample-reader.js';
+import {
+  levelLinesRoutes,
+} from './level-engine/level-lines.routes.js';
 
 interface ApiModulesOptions {
   marketDataProvider:
@@ -146,6 +149,14 @@ FastifyPluginAsync<
 ) => {
   await app.register(
     healthRoutes,
+  );
+
+  await app.register(
+    levelLinesRoutes,
+    {
+      marketDataProvider:
+        options.marketDataProvider,
+    },
   );
 
   if (

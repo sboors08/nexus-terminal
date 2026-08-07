@@ -94,6 +94,11 @@ function validateOptions(
       options.maxEpisodeSpanCandles,
       'maxEpisodeSpanCandles',
     ),
+    scanFromCandleIndex: nonNegativeInteger(
+      options.scanFromCandleIndex
+      ?? 0,
+      'scanFromCandleIndex',
+    ),
   });
 }
 
@@ -373,6 +378,16 @@ export function detectTouchEpisodes(
   let suppressed: SuppressedInteraction | null = null;
 
   for (const indexed of closed) {
+    if (
+      indexed.originalIndex
+      < (
+        options.scanFromCandleIndex
+        ?? 0
+      )
+    ) {
+      continue;
+    }
+
     const contact = intersectsZone(indexed.candle, zone);
 
     if (suppressed) {

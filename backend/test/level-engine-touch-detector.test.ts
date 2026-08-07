@@ -121,6 +121,24 @@ test('creates a second episode only after departure and minimum separation', () 
   assert.equal(result.episodes[1]?.startCandleIndex, 6);
 });
 
+test('starts interaction scanning at a causal boundary while retaining ATR warmup', () => {
+  const result = detectTouchEpisodes(resistanceTarget, [
+    ...resistancePrefix,
+    candle(2, 98, 100.5, 97.5, 99.5),
+    candle(3, 98, 98.2, 96, 97),
+    candle(4, 98, 100.3, 97.8, 99.2),
+    candle(5, 98, 98.2, 96, 97),
+  ], {
+    ...options,
+    minBarsBetweenEpisodes: 0,
+    scanFromCandleIndex: 4,
+  });
+
+  assert.equal(result.episodes.length, 1);
+  assert.equal(result.episodes[0]?.startCandleIndex, 4);
+  assert.equal(result.rejectedInteractions.length, 0);
+});
+
 test('rejects a too-soon return and waits for a fresh departure before recounting', () => {
   const result = detectTouchEpisodes(resistanceTarget, [
     ...resistancePrefix,
