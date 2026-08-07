@@ -19,7 +19,18 @@ export type LevelLineStatus =
   | 'candidate'
   | 'confirmed'
   | 'worked'
+  | 'superseded'
   | 'broken';
+
+export interface LevelLineSupersessionEvidence {
+  readonly mode:
+    'more_extreme_right_candle';
+  readonly fromKind: LevelEngineKind;
+  readonly candleIndex: number;
+  readonly supersededAt: string;
+  readonly originPrice: number;
+  readonly extremePrice: number;
+}
 
 export interface LevelLine {
   readonly id: string;
@@ -34,6 +45,9 @@ export interface LevelLine {
   readonly touchCount: number;
   readonly status: LevelLineStatus;
   readonly workedAt: string | null;
+  readonly supersededAt: string | null;
+  readonly supersessionEvidence:
+    LevelLineSupersessionEvidence | null;
   readonly brokenAt: string | null;
   readonly breakEvidence:
     LevelEngineConfirmedBreakEvidence | null;
@@ -45,6 +59,14 @@ export interface LevelLinesDetectionOptions {
   readonly pivotRightBars: number;
   readonly originDepartureAtr: number;
   readonly originDepartureMaxCandles: number;
+  readonly candidateVisibilityMinDepartureAtr:
+    number;
+  readonly candidateVisibilityMaxAgeBars:
+    number;
+  readonly persistentCandidateMinDepartureAtr:
+    number;
+  readonly persistentCandidateLookbackBars:
+    number;
   readonly originEpisodeMaxSpanCandles: number;
   readonly workedEpisodeMaxSpanCandles: number;
   readonly touchTolerancePercent: number;

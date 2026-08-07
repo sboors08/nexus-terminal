@@ -31,6 +31,7 @@ export type LevelLineStatus =
   | 'candidate'
   | 'confirmed'
   | 'worked'
+  | 'superseded'
   | 'broken';
 
 export interface LevelLinesCandle
@@ -53,6 +54,17 @@ export interface LevelLineBreakEvidence {
     number | null;
 }
 
+export interface LevelLineSupersessionEvidence {
+  readonly mode:
+    'more_extreme_right_candle';
+  readonly fromKind:
+    LevelLineKind;
+  readonly candleIndex: number;
+  readonly supersededAt: string;
+  readonly originPrice: number;
+  readonly extremePrice: number;
+}
+
 export interface LevelLine {
   readonly id: string;
   readonly symbol: string;
@@ -67,6 +79,9 @@ export interface LevelLine {
   readonly touchCount: number;
   readonly status: LevelLineStatus;
   readonly workedAt: string | null;
+  readonly supersededAt: string | null;
+  readonly supersessionEvidence:
+    LevelLineSupersessionEvidence | null;
   readonly brokenAt: string | null;
   readonly breakEvidence:
     LevelLineBreakEvidence | null;
@@ -78,6 +93,14 @@ export interface LevelLinesAppliedOptions {
   readonly pivotRightBars: number;
   readonly originDepartureAtr: number;
   readonly originDepartureMaxCandles: number;
+  readonly candidateVisibilityMinDepartureAtr:
+    number;
+  readonly candidateVisibilityMaxAgeBars:
+    number;
+  readonly persistentCandidateMinDepartureAtr:
+    number;
+  readonly persistentCandidateLookbackBars:
+    number;
   readonly originEpisodeMaxSpanCandles: number;
   readonly workedEpisodeMaxSpanCandles: number;
   readonly touchTolerancePercent: number;
@@ -397,6 +420,7 @@ function readStatus(
     value !== 'candidate'
     && value !== 'confirmed'
     && value !== 'worked'
+    && value !== 'superseded'
     && value !== 'broken'
   ) {
     throw new Error(
@@ -486,6 +510,63 @@ function parseBreakEvidence(
   };
 }
 
+function parseSupersessionEvidence(
+  value: unknown,
+): LevelLineSupersessionEvidence | null {
+  if (value === null) {
+    return null;
+  }
+
+  const record =
+    readRecord(
+      value,
+      'supersessionEvidence',
+    );
+  const mode =
+    readString(
+      record,
+      'mode',
+    );
+
+  if (
+    mode
+    !== 'more_extreme_right_candle'
+  ) {
+    throw new Error(
+      'Invalid Level Lines supersession mode',
+    );
+  }
+
+  return {
+    mode,
+    fromKind:
+      readKind(
+        record,
+        'fromKind',
+      ),
+    candleIndex:
+      readInteger(
+        record,
+        'candleIndex',
+      ),
+    supersededAt:
+      readTimestamp(
+        record,
+        'supersededAt',
+      ),
+    originPrice:
+      readPositiveNumber(
+        record,
+        'originPrice',
+      ),
+    extremePrice:
+      readPositiveNumber(
+        record,
+        'extremePrice',
+      ),
+  };
+}
+
 function parseLine(
   value: unknown,
 ): LevelLine {
@@ -504,6 +585,11 @@ function parseLine(
       record,
       'originExtremumPrice',
     );
+  const kind =
+    readKind(
+      record,
+      'kind',
+    );
   const status =
     readStatus(
       record,
@@ -513,6 +599,15 @@ function parseLine(
     readNullableTimestamp(
       record,
       'workedAt',
+    );
+  const supersededAt =
+    readNullableTimestamp(
+      record,
+      'supersededAt',
+    );
+  const supersessionEvidence =
+    parseSupersessionEvidence(
+      record.supersessionEvidence,
     );
   const brokenAt =
     readNullableTimestamp(
@@ -530,18 +625,65 @@ function parseLine(
     );
   }
 
+  const validSupersessionEvidence =
+    supersessionEvidence === null
+    || (
+      supersessionEvidence
+        .fromKind === kind
+      && supersessionEvidence
+        .supersededAt
+        === supersededAt
+      && supersessionEvidence
+        .originPrice === price
+      && (
+        kind === 'resistance'
+          ? supersessionEvidence
+            .extremePrice > price
+          : supersessionEvidence
+            .extremePrice < price
+      )
+    );
+
+  if (!validSupersessionEvidence) {
+    throw new Error(
+      'Invalid Level Lines supersession evidence',
+    );
+  }
+
   const validLifecycle =
     status === 'broken'
-      ? workedAt === null
-        && brokenAt !== null
+      ? brokenAt !== null
         && breakEvidence !== null
-      : status === 'worked'
-        ? workedAt !== null
+        && supersededAt === null
+        && supersessionEvidence === null
+        && (
+          workedAt === null
+          || Date.parse(workedAt)
+            <= Date.parse(brokenAt)
+        )
+      : status === 'superseded'
+        ? supersededAt !== null
+          && supersessionEvidence !== null
           && brokenAt === null
           && breakEvidence === null
-        : workedAt === null
-          && brokenAt === null
-          && breakEvidence === null;
+          && (
+            workedAt === null
+            || Date.parse(workedAt)
+              <= Date.parse(
+                supersededAt,
+              )
+          )
+        : status === 'worked'
+          ? workedAt !== null
+            && supersededAt === null
+            && supersessionEvidence === null
+            && brokenAt === null
+            && breakEvidence === null
+          : workedAt === null
+            && supersededAt === null
+            && supersessionEvidence === null
+            && brokenAt === null
+            && breakEvidence === null;
 
   if (!validLifecycle) {
     throw new Error(
@@ -570,11 +712,7 @@ function parseLine(
         ),
       ),
     price,
-    kind:
-      readKind(
-        record,
-        'kind',
-      ),
+    kind,
     originCandleIndex:
       readInteger(
         record,
@@ -599,6 +737,8 @@ function parseLine(
       ),
     status,
     workedAt,
+    supersededAt,
+    supersessionEvidence,
     brokenAt,
     breakEvidence,
   };
@@ -659,6 +799,26 @@ function parseAppliedOptions(
       readInteger(
         record,
         'originDepartureMaxCandles',
+      ),
+    candidateVisibilityMinDepartureAtr:
+      readPositiveNumber(
+        record,
+        'candidateVisibilityMinDepartureAtr',
+      ),
+    candidateVisibilityMaxAgeBars:
+      readInteger(
+        record,
+        'candidateVisibilityMaxAgeBars',
+      ),
+    persistentCandidateMinDepartureAtr:
+      readPositiveNumber(
+        record,
+        'persistentCandidateMinDepartureAtr',
+      ),
+    persistentCandidateLookbackBars:
+      readInteger(
+        record,
+        'persistentCandidateLookbackBars',
       ),
     originEpisodeMaxSpanCandles:
       readInteger(
@@ -737,8 +897,11 @@ export function parseLevelLinesSnapshot(
   if (
     activeLevels.some(
       (line) =>
-        line.status === 'broken'
-        || line.status === 'worked'
+        (
+          line.status !== 'candidate'
+          && line.status !== 'confirmed'
+          && line.status !== 'worked'
+        )
         || !lineIds.has(line.id),
     )
   ) {

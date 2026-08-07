@@ -13,6 +13,7 @@ import {
 } from './level-lines.types.js';
 import type {
   LevelLine,
+  LevelLineSupersessionEvidence,
   LevelLinesDetectionInput,
   LevelLinesDetectionOptions,
   LevelLinesDetectionResult,
@@ -28,10 +29,14 @@ import type {
 export const DEFAULT_LEVEL_LINES_DETECTION_OPTIONS:
 LevelLinesDetectionOptions = Object.freeze({
   atrPeriod: 14,
-  pivotLeftBars: 2,
-  pivotRightBars: 1,
+  pivotLeftBars: 3,
+  pivotRightBars: 2,
   originDepartureAtr: 0.8,
   originDepartureMaxCandles: 8,
+  candidateVisibilityMinDepartureAtr: 3,
+  candidateVisibilityMaxAgeBars: 48,
+  persistentCandidateMinDepartureAtr: 2.5,
+  persistentCandidateLookbackBars: 48,
   originEpisodeMaxSpanCandles: 6,
   workedEpisodeMaxSpanCandles: 24,
   touchTolerancePercent: 0.15,
@@ -50,8 +55,39 @@ interface IndexedClosedCandle {
 
 interface OriginLineLifecycle {
   readonly activeFrom: string;
+  readonly candidateQualifiedAt:
+    string | null;
+  readonly persistentCandidateQualifiedAt:
+    string | null;
+  readonly confirmedAt: string | null;
   readonly workedAt: string | null;
   readonly touchCount: number;
+}
+
+function lifecycleTouchCountThrough(
+  lifecycle: OriginLineLifecycle,
+  throughAt: string,
+): number {
+  const throughMs =
+    Date.parse(throughAt);
+
+  return 1
+    + (
+      lifecycle.confirmedAt
+      && Date.parse(
+        lifecycle.confirmedAt,
+      ) <= throughMs
+        ? 1
+        : 0
+    )
+    + (
+      lifecycle.workedAt
+      && Date.parse(
+        lifecycle.workedAt,
+      ) <= throughMs
+        ? 1
+        : 0
+    );
 }
 
 function fail(
@@ -130,7 +166,7 @@ function canonicalTimestamp(
 function validateOptions(
   value: LevelLinesDetectionOptions,
 ): LevelLinesDetectionOptions {
-  return Object.freeze({
+  const validated = Object.freeze({
     atrPeriod:
       positiveInteger(
         value.atrPeriod,
@@ -155,6 +191,26 @@ function validateOptions(
       positiveInteger(
         value.originDepartureMaxCandles,
         'originDepartureMaxCandles',
+      ),
+    candidateVisibilityMinDepartureAtr:
+      positiveFinite(
+        value.candidateVisibilityMinDepartureAtr,
+        'candidateVisibilityMinDepartureAtr',
+      ),
+    candidateVisibilityMaxAgeBars:
+      positiveInteger(
+        value.candidateVisibilityMaxAgeBars,
+        'candidateVisibilityMaxAgeBars',
+      ),
+    persistentCandidateMinDepartureAtr:
+      positiveFinite(
+        value.persistentCandidateMinDepartureAtr,
+        'persistentCandidateMinDepartureAtr',
+      ),
+    persistentCandidateLookbackBars:
+      positiveInteger(
+        value.persistentCandidateLookbackBars,
+        'persistentCandidateLookbackBars',
       ),
     originEpisodeMaxSpanCandles:
       positiveInteger(
@@ -187,6 +243,28 @@ function validateOptions(
         'consecutiveBreakCloses',
       ),
   });
+
+  if (
+    validated
+      .candidateVisibilityMinDepartureAtr
+    < validated.originDepartureAtr
+  ) {
+    fail(
+      'candidateVisibilityMinDepartureAtr must be greater than or equal to originDepartureAtr',
+    );
+  }
+
+  if (
+    validated
+      .persistentCandidateMinDepartureAtr
+    < validated.originDepartureAtr
+  ) {
+    fail(
+      'persistentCandidateMinDepartureAtr must be greater than or equal to originDepartureAtr',
+    );
+  }
+
+  return validated;
 }
 
 function validateCandles(
@@ -381,20 +459,172 @@ function indexClosedCandles(
   );
 }
 
-function isPivot(
-  current: IndexedClosedCandle,
-  neighbours:
+interface PivotMatch {
+  readonly origin: IndexedClosedCandle;
+  readonly confirmation:
+    IndexedClosedCandle;
+}
+
+function extremumPrice(
+  value: IndexedClosedCandle,
+  kind: LevelEngineKind,
+): number {
+  return kind === 'support'
+    ? value.candle.low
+    : value.candle.high;
+}
+
+function findStructuralSupersession(
+  closed:
     readonly IndexedClosedCandle[],
   kind: LevelEngineKind,
-): boolean {
-  return neighbours.every(
-    (neighbour) =>
-      kind === 'support'
-        ? current.candle.low
-          < neighbour.candle.low
-        : current.candle.high
-          > neighbour.candle.high,
-  );
+  originPrice: number,
+  afterClosedIndex: number,
+  throughClosedIndexExclusive:
+    number = closed.length,
+): LevelLineSupersessionEvidence | null {
+  for (
+    let index = afterClosedIndex + 1;
+    index < throughClosedIndexExclusive;
+    index += 1
+  ) {
+    const current =
+      closed[index];
+
+    if (!current) {
+      break;
+    }
+
+    const currentExtreme =
+      extremumPrice(
+        current,
+        kind,
+      );
+    const isMoreExtreme =
+      kind === 'resistance'
+        ? currentExtreme
+          > originPrice
+        : currentExtreme
+          < originPrice;
+
+    if (!isMoreExtreme) {
+      continue;
+    }
+
+    return Object.freeze({
+      mode:
+        'more_extreme_right_candle',
+      fromKind:
+        kind,
+      candleIndex:
+        current.originalIndex,
+      supersededAt:
+        current.candle.closeTime,
+      originPrice,
+      extremePrice:
+        currentExtreme,
+    });
+  }
+
+  return null;
+}
+
+function findPivot(
+  closed:
+    readonly IndexedClosedCandle[],
+  index: number,
+  kind: LevelEngineKind,
+  leftBars: number,
+  rightBars: number,
+): PivotMatch | null {
+  const origin =
+    closed[index];
+
+  if (!origin) {
+    return null;
+  }
+
+  const price =
+    extremumPrice(
+      origin,
+      kind,
+    );
+  const previous =
+    closed[index - 1];
+
+  if (
+    previous
+    && extremumPrice(
+      previous,
+      kind,
+    ) === price
+  ) {
+    return null;
+  }
+
+  let plateauEndIndex =
+    index;
+
+  while (true) {
+    const next =
+      closed[
+        plateauEndIndex + 1
+      ];
+
+    if (
+      !next
+      || extremumPrice(
+        next,
+        kind,
+      ) !== price
+    ) {
+      break;
+    }
+
+    plateauEndIndex += 1;
+  }
+
+  const confirmation =
+    closed[
+      plateauEndIndex
+      + rightBars
+    ];
+
+  if (
+    index - leftBars < 0
+    || !confirmation
+  ) {
+    return null;
+  }
+
+  const neighbours = [
+    ...closed.slice(
+      index - leftBars,
+      index,
+    ),
+    ...closed.slice(
+      plateauEndIndex + 1,
+      plateauEndIndex
+        + rightBars
+        + 1,
+    ),
+  ];
+  const isStructuralExtremum =
+    neighbours.every(
+      (neighbour) =>
+        kind === 'support'
+          ? price
+            < neighbour.candle.low
+          : price
+            > neighbour.candle.high,
+    );
+
+  return isStructuralExtremum
+    ? Object.freeze({
+        origin,
+        confirmation,
+      })
+    : null;
 }
 
 function stableLineId(
@@ -428,6 +658,292 @@ function interactionZone(
   });
 }
 
+function candidateQualificationAt(
+  origin: IndexedClosedCandle,
+  pivotConfirmation:
+    IndexedClosedCandle,
+  closed:
+    readonly IndexedClosedCandle[],
+  kind: LevelEngineKind,
+  price: number,
+  minimumDepartureAtr: number,
+  options: LevelLinesDetectionOptions,
+): string | null {
+  if (origin.atr === null) {
+    return null;
+  }
+
+  let lastContactClosedIndex =
+    origin.closedIndex;
+
+  for (
+    let index = origin.closedIndex + 1;
+    index < closed.length;
+    index += 1
+  ) {
+    const current =
+      closed[index];
+
+    if (!current) {
+      break;
+    }
+
+    const wrongSideBreak =
+      kind === 'support'
+        ? current.candle.close < price
+        : current.candle.close > price;
+
+    if (wrongSideBreak) {
+      return null;
+    }
+
+    const contact =
+      current.candle.high >= price
+      && current.candle.low <= price;
+
+    if (contact) {
+      const changedOrigin =
+        kind === 'support'
+          ? current.candle.low < price
+          : current.candle.high > price;
+
+      if (changedOrigin) {
+        return null;
+      }
+
+      lastContactClosedIndex =
+        current.closedIndex;
+
+      if (
+        current.closedIndex
+        - origin.closedIndex
+        + 1
+        > options
+          .originEpisodeMaxSpanCandles
+      ) {
+        return null;
+      }
+
+      continue;
+    }
+
+    const departureDistance =
+      kind === 'support'
+        ? Math.max(
+            0,
+            current.candle.high
+              - price,
+          )
+        : Math.max(
+            0,
+            price
+              - current.candle.low,
+          );
+    const departureAtr =
+      departureDistance
+      / origin.atr;
+
+    if (
+      departureAtr
+      >= minimumDepartureAtr
+    ) {
+      return new Date(
+        Math.max(
+          Date.parse(
+            pivotConfirmation
+              .candle.closeTime,
+          ),
+          Date.parse(
+            current.candle.closeTime,
+          ),
+        ),
+      ).toISOString();
+    }
+
+    if (
+      current.closedIndex
+      - lastContactClosedIndex
+      >= options.originDepartureMaxCandles
+    ) {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function isPersistentCandidateOrigin(
+  closed:
+    readonly IndexedClosedCandle[],
+  origin: IndexedClosedCandle,
+  kind: LevelEngineKind,
+  lookbackBars: number,
+): boolean {
+  const firstContextIndex =
+    origin.closedIndex
+    - lookbackBars;
+
+  if (firstContextIndex < 0) {
+    return false;
+  }
+
+  const price =
+    extremumPrice(
+      origin,
+      kind,
+    );
+
+  return closed
+    .slice(
+      firstContextIndex,
+      origin.closedIndex,
+    )
+    .every(
+      (previous) =>
+        kind === 'support'
+          ? price
+            < previous.candle.low
+          : price
+            > previous.candle.high,
+    );
+}
+
+function hasPriorExactOriginEpisode(
+  symbol: string,
+  timeframe:
+    LevelLinesDetectionInput['timeframe'],
+  kind: LevelEngineKind,
+  origin: IndexedClosedCandle,
+  candles: readonly LevelEngineCandle[],
+  closed:
+    readonly IndexedClosedCandle[],
+  options: LevelLinesDetectionOptions,
+): boolean {
+  const price =
+    extremumPrice(
+      origin,
+      kind,
+    );
+  const originOpenMs =
+    Date.parse(
+      origin.candle.openTime,
+    );
+
+  for (
+    let index =
+      origin.closedIndex - 1;
+    index >= 0;
+    index -= 1
+  ) {
+    const prior =
+      closed[index];
+
+    if (
+      !prior
+      || prior.atr === null
+      || extremumPrice(
+        prior,
+        kind,
+      ) !== price
+    ) {
+      continue;
+    }
+
+    const structuralSupersession =
+      findStructuralSupersession(
+        closed,
+        kind,
+        price,
+        prior.closedIndex,
+        origin.closedIndex,
+      );
+
+    if (structuralSupersession) {
+      continue;
+    }
+
+    const touchResult =
+      detectTouchEpisodes(
+        {
+          symbol,
+          sourceTimeframe:
+            timeframe,
+          kind,
+          zone: {
+            low: price,
+            reference: price,
+            high: price,
+          },
+        },
+        candles,
+        {
+          atrPeriod:
+            options.atrPeriod,
+          minDepartureAtr:
+            options.originDepartureAtr,
+          maxDepartureCandles:
+            options.originDepartureMaxCandles,
+          minBarsBetweenEpisodes: 0,
+          maxEpisodeSpanCandles:
+            options
+              .originEpisodeMaxSpanCandles,
+          scanFromCandleIndex:
+            prior.originalIndex,
+        },
+      );
+    const priorEpisode =
+      touchResult.episodes.find(
+        (episode) =>
+          episode.startCandleIndex
+            <= prior.originalIndex
+          && episode.endCandleIndex
+            >= prior.originalIndex
+          && episode.anchorCandleIndex
+            === prior.originalIndex
+          && Date.parse(
+            episode.confirmedAt,
+          ) < originOpenMs,
+      );
+
+    if (!priorEpisode) {
+      continue;
+    }
+
+    const interveningBreak =
+      findConfirmedLevelEngineBreak(
+        closed,
+        {
+          kind,
+          zone: {
+            low: price,
+            reference: price,
+            high: price,
+          },
+        },
+        {
+          afterExclusiveMs:
+            Date.parse(
+              priorEpisode.confirmedAt,
+            ),
+          throughInclusiveMs:
+            originOpenMs,
+        },
+        {
+          decisiveBreakAtr:
+            options.decisiveBreakAtr,
+          consecutiveBreakCloses:
+            options.consecutiveBreakCloses,
+        },
+      );
+
+    if (!interveningBreak) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function createLine(
   symbol: string,
   timeframe:
@@ -435,6 +951,8 @@ function createLine(
   kind: LevelEngineKind,
   origin: IndexedClosedCandle,
   lifecycle: OriginLineLifecycle,
+  supersessionEvidenceValue:
+    LevelLineSupersessionEvidence | null,
   closed: readonly IndexedClosedCandle[],
   options: LevelLinesDetectionOptions,
 ): LevelLine {
@@ -442,7 +960,7 @@ function createLine(
     kind === 'support'
       ? origin.candle.low
       : origin.candle.high;
-  const breakEvidence =
+  const detectedBreakEvidence =
     findConfirmedLevelEngineBreak(
       closed,
       {
@@ -459,11 +977,7 @@ function createLine(
             lifecycle.activeFrom,
           ),
         throughInclusiveMs:
-          lifecycle.workedAt
-            ? Date.parse(
-                lifecycle.workedAt,
-              )
-            : Number.POSITIVE_INFINITY,
+          Number.POSITIVE_INFINITY,
       },
       {
         decisiveBreakAtr:
@@ -472,6 +986,42 @@ function createLine(
           options.consecutiveBreakCloses,
       },
     );
+  const supersessionHappensFirst =
+    supersessionEvidenceValue !== null
+    && (
+      detectedBreakEvidence === null
+      || Date.parse(
+        supersessionEvidenceValue
+          .supersededAt,
+      ) < Date.parse(
+        detectedBreakEvidence
+          .brokenAt,
+      )
+    );
+  const supersessionEvidence =
+    supersessionHappensFirst
+      ? supersessionEvidenceValue
+      : null;
+  const breakEvidence =
+    supersessionHappensFirst
+      ? null
+      : detectedBreakEvidence;
+  const endedAt =
+    supersessionEvidence
+      ?.supersededAt
+    ?? breakEvidence
+      ?.brokenAt
+    ?? null;
+  const workedAt =
+    lifecycle.workedAt
+    && (
+      !endedAt
+      || Date.parse(
+        lifecycle.workedAt,
+      ) <= Date.parse(endedAt)
+    )
+      ? lifecycle.workedAt
+      : null;
 
   return Object.freeze({
     id:
@@ -494,21 +1044,29 @@ function createLine(
     activeFrom:
       lifecycle.activeFrom,
     touchCount:
-      breakEvidence
-        ? 1
+      endedAt
+        ? lifecycleTouchCountThrough(
+            lifecycle,
+            endedAt,
+          )
         : lifecycle.touchCount,
     status:
       breakEvidence
         ? 'broken'
-        : lifecycle.workedAt
-          ? 'worked'
-          : lifecycle.touchCount >= 2
-            ? 'confirmed'
-            : 'candidate',
+        : supersessionEvidence
+          ? 'superseded'
+          : workedAt
+            ? 'worked'
+            : lifecycle.touchCount >= 2
+              ? 'confirmed'
+              : 'candidate',
     workedAt:
-      breakEvidence
-        ? null
-        : lifecycle.workedAt,
+      workedAt,
+    supersededAt:
+      supersessionEvidence
+        ?.supersededAt
+      ?? null,
+    supersessionEvidence,
     brokenAt:
       breakEvidence?.brokenAt
       ?? null,
@@ -524,6 +1082,8 @@ function originLifecycle(
   origin: IndexedClosedCandle,
   pivotConfirmation: IndexedClosedCandle,
   candles: readonly LevelEngineCandle[],
+  closed:
+    readonly IndexedClosedCandle[],
   options: LevelLinesDetectionOptions,
 ): OriginLineLifecycle | null {
   const price =
@@ -554,6 +1114,8 @@ function originLifecycle(
         minBarsBetweenEpisodes: 0,
         maxEpisodeSpanCandles:
           options.originEpisodeMaxSpanCandles,
+        scanFromCandleIndex:
+          origin.originalIndex,
       },
     );
   const originEpisode =
@@ -566,7 +1128,6 @@ function originLifecycle(
         && episode.anchorCandleIndex
           === origin.originalIndex,
     );
-
   if (!originEpisode) {
     return null;
   }
@@ -587,6 +1148,38 @@ function originLifecycle(
         departureConfirmedMs,
       ),
     ).toISOString();
+  const candidateQualifiedAt =
+    candidateQualificationAt(
+      origin,
+      pivotConfirmation,
+      closed,
+      kind,
+      price,
+      options
+        .candidateVisibilityMinDepartureAtr,
+      options,
+    );
+  const persistentCandidateQualifiedAt =
+    candidateQualificationAt(
+      origin,
+      pivotConfirmation,
+      closed,
+      kind,
+      price,
+      options
+        .persistentCandidateMinDepartureAtr,
+      options,
+    );
+  const hasPriorExactOrigin =
+    hasPriorExactOriginEpisode(
+      symbol,
+      timeframe,
+      kind,
+      origin,
+      candles,
+      closed,
+      options,
+    );
   const interactionStartCandleIndex =
     candles.findIndex(
       (candle) =>
@@ -600,8 +1193,17 @@ function originLifecycle(
   if (interactionStartCandleIndex < 0) {
     return Object.freeze({
       activeFrom,
+      candidateQualifiedAt,
+      persistentCandidateQualifiedAt,
+      confirmedAt:
+        hasPriorExactOrigin
+          ? activeFrom
+          : null,
       workedAt: null,
-      touchCount: 1,
+      touchCount:
+        hasPriorExactOrigin
+          ? 2
+          : 1,
     });
   }
 
@@ -636,28 +1238,50 @@ function originLifecycle(
             .workedEpisodeMaxSpanCandles,
         scanFromCandleIndex:
           interactionStartCandleIndex,
+        requireFreshReturnBeforeFirstEpisode:
+          true,
       },
     );
 
-  const nextIndependentEpisode =
-    interactionTouchResult.episodes.find(
+  const independentEpisodes =
+    interactionTouchResult.episodes.filter(
       (episode) =>
         Date.parse(
           episode.startedAt,
         )
           > Date.parse(activeFrom),
     );
+  const confirmationEpisode =
+    independentEpisodes[0];
+  const workedEpisode =
+    independentEpisodes[1];
+  const confirmedAt =
+    hasPriorExactOrigin
+      ? activeFrom
+      : confirmationEpisode
+        ?.confirmedAt
+        ?? null;
+  const workedAt =
+    hasPriorExactOrigin
+      ? confirmationEpisode
+        ?.confirmedAt
+        ?? null
+      : workedEpisode
+        ?.confirmedAt
+        ?? null;
 
   return Object.freeze({
     activeFrom,
-    workedAt:
-      nextIndependentEpisode
-        ?.confirmedAt
-      ?? null,
+    candidateQualifiedAt,
+    persistentCandidateQualifiedAt,
+    confirmedAt,
+    workedAt,
     touchCount:
-      nextIndependentEpisode
-        ? 2
-        : 1,
+      workedAt
+        ? 3
+        : confirmedAt
+          ? 2
+          : 1,
   });
 }
 
@@ -695,50 +1319,19 @@ export function detectLevelLines(
       options.atrPeriod,
     );
   const lines: LevelLine[] = [];
+  const activeLineIds =
+    new Set<string>();
   const firstIndex =
     Math.max(
       options.pivotLeftBars,
       options.atrPeriod - 1,
     );
-  const lastIndexExclusive =
-    closed.length
-    - options.pivotRightBars;
 
   for (
     let index = firstIndex;
-    index < lastIndexExclusive;
+    index < closed.length;
     index += 1
   ) {
-    const origin =
-      closed[index];
-    const confirmation =
-      closed[
-        index
-        + options.pivotRightBars
-      ];
-
-    if (
-      !origin
-      || !confirmation
-      || origin.atr === null
-    ) {
-      continue;
-    }
-
-    const neighbours = [
-      ...closed.slice(
-        index
-          - options.pivotLeftBars,
-        index,
-      ),
-      ...closed.slice(
-        index + 1,
-        index
-          + options.pivotRightBars
-          + 1,
-      ),
-    ];
-
     for (
       const kind
       of [
@@ -746,38 +1339,114 @@ export function detectLevelLines(
         'resistance',
       ] as const
     ) {
-      if (
-        isPivot(
-          origin,
-          neighbours,
+      const pivot =
+        findPivot(
+          closed,
+          index,
           kind,
+          options.pivotLeftBars,
+          options.pivotRightBars,
+        );
+
+      if (
+        !pivot
+        || pivot.origin.atr === null
+      ) {
+        continue;
+      }
+
+      const lifecycle =
+        originLifecycle(
+          symbol,
+          input.timeframe,
+          kind,
+          pivot.origin,
+          pivot.confirmation,
+          candles,
+          closed,
+          options,
+        );
+
+      if (!lifecycle) {
+        continue;
+      }
+
+      const originPrice =
+        extremumPrice(
+          pivot.origin,
+          kind,
+        );
+      const detectedSupersession =
+        findStructuralSupersession(
+          closed,
+          kind,
+          originPrice,
+          pivot.origin.closedIndex,
+        );
+      const supersessionEvidence =
+        detectedSupersession;
+
+      if (
+        supersessionEvidence
+        && Date.parse(
+          supersessionEvidence
+            .supersededAt,
+        ) <= Date.parse(
+          lifecycle.activeFrom,
         )
       ) {
-        const lifecycle =
-          originLifecycle(
-            symbol,
-            input.timeframe,
-            kind,
-            origin,
-            confirmation,
-            candles,
-            options,
-          );
+        continue;
+      }
 
-        if (!lifecycle) {
-          continue;
-        }
+      const line =
+        createLine(
+          symbol,
+          input.timeframe,
+          kind,
+          pivot.origin,
+          lifecycle,
+          supersessionEvidence,
+          closed,
+          options,
+        );
 
-        lines.push(
-          createLine(
-            symbol,
-            input.timeframe,
-            kind,
-            origin,
-            lifecycle,
-            closed,
-            options,
-          ),
+      lines.push(line);
+
+      const candidateAgeBars =
+        closed.length
+        - 1
+        - pivot.origin.closedIndex;
+      const isRecentCandidate =
+        line.status === 'candidate'
+        && lifecycle
+          .candidateQualifiedAt
+          !== null
+        && candidateAgeBars
+          <= options
+            .candidateVisibilityMaxAgeBars;
+      const isPersistentCandidate =
+        line.status === 'candidate'
+        && lifecycle
+          .persistentCandidateQualifiedAt
+          !== null
+        && isPersistentCandidateOrigin(
+          closed,
+          pivot.origin,
+          kind,
+          options
+            .persistentCandidateLookbackBars,
+        );
+      const isVisibleCandidate =
+        isRecentCandidate
+        || isPersistentCandidate;
+
+      if (
+        line.status === 'confirmed'
+        || line.status === 'worked'
+        || isVisibleCandidate
+      ) {
+        activeLineIds.add(
+          line.id,
         );
       }
     }
@@ -815,10 +1484,9 @@ export function detectLevelLines(
       Object.freeze(
         lines.filter(
           (line) =>
-            line.status
-            !== 'broken'
-            && line.status
-              !== 'worked',
+            activeLineIds.has(
+              line.id,
+            ),
         ),
       ),
     appliedOptions:

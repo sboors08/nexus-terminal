@@ -59,6 +59,10 @@ function candidateLine() {
       'candidate',
     workedAt:
       null,
+    supersededAt:
+      null,
+    supersessionEvidence:
+      null,
     brokenAt:
       null,
     breakEvidence:
@@ -90,9 +94,7 @@ function snapshot() {
     lines: [
       line,
     ],
-    activeLevels: [
-      line,
-    ],
+    activeLevels: [],
     appliedOptions: {
       atrPeriod:
         14,
@@ -104,6 +106,14 @@ function snapshot() {
         0.8,
       originDepartureMaxCandles:
         8,
+      candidateVisibilityMinDepartureAtr:
+        3,
+      candidateVisibilityMaxAgeBars:
+        48,
+      persistentCandidateMinDepartureAtr:
+        2.5,
+      persistentCandidateLookbackBars:
+        48,
       originEpisodeMaxSpanCandles:
         6,
       workedEpisodeMaxSpanCandles:
@@ -230,9 +240,13 @@ test(
         ?.originExtremumPrice,
     );
     assert.equal(
-      result.activeLevels[0]
+      result.lines[0]
         ?.status,
       'candidate',
+    );
+    assert.equal(
+      result.activeLevels.length,
+      0,
     );
     assert.equal(
       result.mergesNearbyExtrema,
@@ -242,31 +256,150 @@ test(
 );
 
 test(
-  'rejects a worked line left in Active Levels',
+  'accepts a confirmed line in Active Levels',
   () => {
-    const invalid =
+    const valid =
+      snapshot();
+    const confirmed = {
+      ...candidateLine(),
+      touchCount:
+        2,
+      status:
+        'confirmed',
+    };
+
+    valid.lines = [
+      confirmed,
+    ];
+    valid.activeLevels = [
+      confirmed,
+    ];
+
+    const result =
+      parseLevelLinesSnapshot(
+        valid,
+      );
+
+    assert.equal(
+      result.activeLevels[0]
+        ?.status,
+      'confirmed',
+    );
+  },
+);
+
+test(
+  'accepts a backend-qualified candidate in Active Levels',
+  () => {
+    const valid =
+      snapshot();
+
+    valid.activeLevels = [
+      candidateLine(),
+    ];
+
+    const result =
+      parseLevelLinesSnapshot(
+        valid,
+      );
+
+    assert.equal(
+      result.activeLevels[0]
+        ?.status,
+      'candidate',
+    );
+  },
+);
+
+test(
+  'accepts a worked line that remains in Active Levels',
+  () => {
+    const valid =
       snapshot();
     const worked = {
       ...candidateLine(),
       touchCount:
-        2,
+        3,
       status:
         'worked',
       workedAt:
         '2026-08-07T12:02:59.999Z',
     };
 
-    invalid.lines = [
+    valid.lines = [
       worked,
     ];
-    invalid.activeLevels = [
+    valid.activeLevels = [
       worked,
+    ];
+
+    const result =
+      parseLevelLinesSnapshot(
+        valid,
+      );
+
+    assert.equal(
+      result.activeLevels[0]
+        ?.status,
+      'worked',
+    );
+  },
+);
+
+test(
+  'accepts structural supersession and keeps it out of Active Levels',
+  () => {
+    const valid =
+      snapshot();
+    const superseded = {
+      ...candidateLine(),
+      status:
+        'superseded',
+      supersededAt:
+        '2026-08-07T12:02:59.999Z',
+      supersessionEvidence: {
+        mode:
+          'more_extreme_right_candle',
+        fromKind:
+          'resistance',
+        candleIndex:
+          1,
+        supersededAt:
+          '2026-08-07T12:02:59.999Z',
+        originPrice:
+          102,
+        extremePrice:
+          103,
+      },
+    };
+
+    valid.lines = [
+      superseded,
+    ];
+
+    const result =
+      parseLevelLinesSnapshot(
+        valid,
+      );
+
+    assert.equal(
+      result.lines[0]
+        ?.status,
+      'superseded',
+    );
+    assert.equal(
+      result.activeLevels.length,
+      0,
+    );
+
+    valid.activeLevels = [
+      superseded,
     ];
 
     assert.throws(
       () =>
         parseLevelLinesSnapshot(
-          invalid,
+          valid,
         ),
       /active registry/,
     );
@@ -317,6 +450,58 @@ test(
           invalid,
         ),
       /active registry/,
+    );
+  },
+);
+
+test(
+  'accepts worked evidence retained on a later broken line',
+  () => {
+    const valid =
+      snapshot();
+    const broken = {
+      ...candidateLine(),
+      touchCount:
+        3,
+      status:
+        'broken',
+      workedAt:
+        '2026-08-07T12:01:29.999Z',
+      brokenAt:
+        '2026-08-07T12:01:59.999Z',
+      breakEvidence: {
+        mode:
+          'consecutive_closes',
+        fromKind:
+          'resistance',
+        candleIndex:
+          1,
+        brokenAt:
+          '2026-08-07T12:01:59.999Z',
+        boundary:
+          102,
+        close:
+          103,
+        distanceBeyondBoundary:
+          1,
+        distanceBeyondBoundaryAtr:
+          0.5,
+      },
+    };
+
+    valid.lines = [
+      broken,
+    ];
+
+    const result =
+      parseLevelLinesSnapshot(
+        valid,
+      );
+
+    assert.equal(
+      result.lines[0]
+        ?.workedAt,
+      broken.workedAt,
     );
   },
 );

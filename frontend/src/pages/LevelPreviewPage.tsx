@@ -25,10 +25,6 @@ const LEVEL_COLORS = {
     '#32d583',
   resistance:
     '#ff6273',
-  workedSupport:
-    'rgba(50, 213, 131, 0.28)',
-  workedResistance:
-    'rgba(255, 98, 115, 0.28)',
   brokenSupport:
     'rgba(50, 213, 131, 0.45)',
   brokenResistance:
@@ -93,8 +89,12 @@ function statusLabel(
     return 'Пробит';
   }
 
+  if (line.status === 'superseded') {
+    return 'Снят новым экстремумом';
+  }
+
   if (line.status === 'worked') {
-    return 'Отработан';
+    return 'Отработал · активен';
   }
 
   if (line.status === 'confirmed') {
@@ -120,16 +120,13 @@ function distanceToPrice(
 function lineColor(
   line: LevelLine,
 ): string {
-  if (line.status === 'broken') {
+  if (
+    line.status === 'broken'
+    || line.status === 'superseded'
+  ) {
     return line.kind === 'support'
       ? LEVEL_COLORS.brokenSupport
       : LEVEL_COLORS.brokenResistance;
-  }
-
-  if (line.status === 'worked') {
-    return line.kind === 'support'
-      ? LEVEL_COLORS.workedSupport
-      : LEVEL_COLORS.workedResistance;
   }
 
   return LEVEL_COLORS[line.kind];
@@ -138,7 +135,7 @@ function lineColor(
 function lineEndedAt(
   line: LevelLine,
 ): string | null {
-  return line.workedAt
+  return line.supersededAt
     ?? line.brokenAt;
 }
 
@@ -290,6 +287,13 @@ export function LevelPreviewPage() {
           Date.parse(
             firstVisible.openTime,
           );
+        const activeLineIds =
+          new Set(
+            snapshot.activeLevels.map(
+              (line) =>
+                line.id,
+            ),
+          );
 
         return snapshot.lines.filter(
           (line) => {
@@ -304,11 +308,14 @@ export function LevelPreviewPage() {
               lineEndedAt(line);
 
             if (!endedAt) {
-              return true;
+              return activeLineIds.has(
+                line.id,
+              );
             }
 
             return Boolean(
               showHistory
+              && line.touchCount >= 2
               && Date.parse(
                 endedAt,
               ) >= firstVisibleMs,
@@ -350,9 +357,9 @@ export function LevelPreviewPage() {
               color:
                 lineColor(line),
               lineStyle:
-                line.status === 'confirmed'
-                  ? 'solid'
-                  : 'dashed',
+                line.status === 'candidate'
+                  ? 'dashed'
+                  : 'solid',
               ...(showAxisLabel
                 ? {
                     title:
@@ -412,7 +419,7 @@ export function LevelPreviewPage() {
           </p>
           <h1>Уровни рынка</h1>
           <p className={styles.subtitle}>
-            Каждый причинно подтверждённый экстремум создаёт собственную тонкую линию. Линия начинается в origin-свече, идёт только вправо и заканчивается после подтверждённой реакции или пробоя.
+            Движок отслеживает каждый значимый origin отдельно. Сильный свежий экстремум появляется пунктирным кандидатом, повторное касание подтверждает линию, а более экстремальная свеча справа снимает неподтверждённый origin.
           </p>
         </div>
 
@@ -489,7 +496,7 @@ export function LevelPreviewPage() {
             }}
           />
           <span>
-            Показывать историю отработанных линий
+            Показывать историю завершённых линий
           </span>
         </label>
 
@@ -705,9 +712,9 @@ export function LevelPreviewPage() {
               </div>
               <div>
                 <span>02</span>
-                <strong>Без backpainting</strong>
+                <strong>Сильный origin сразу</strong>
                 <p>
-                  Линия привязана к origin-свече, но становится известна только в activeFrom.
+                  Свежий кандидат показывается после сильного причинного отхода; слабые и устаревшие origin остаются внутри движка.
                 </p>
               </div>
               <div>
@@ -719,9 +726,9 @@ export function LevelPreviewPage() {
               </div>
               <div>
                 <span>04</span>
-                <strong>Конец после отработки</strong>
+                <strong>Проверка справа</strong>
                 <p>
-                  Подтверждённая реакция или пробой завершает линию и убирает её из Active Levels.
+                  Более высокий high снимает неподтверждённое сопротивление; более низкий low зеркально снимает поддержку.
                 </p>
               </div>
             </section>
@@ -729,7 +736,7 @@ export function LevelPreviewPage() {
             <div className={styles.scopeNotice}>
               <strong>Текущий срез v0.1</strong>
               <span>
-                Отображаются только ещё не отработавшие origin-based линии. Подтверждённая реакция или break завершает линию; история доступна отдельно и по умолчанию скрыта.
+                Пунктиром отображаются только сильные свежие кандидаты, сплошной линией — уровни после повторного касания. Подтверждённые уровни остаются активными до пробоя; неподтверждённые снимаются новым экстремумом справа.
               </span>
             </div>
           </>
