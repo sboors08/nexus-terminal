@@ -2,9 +2,10 @@
 
 **Статус:** основной источник правды по продукту и разработке
 **Репозиторий:** `sboors08/nexus-terminal`
-**Дата фиксации:** 2026-08-06
+**Дата фиксации:** 2026-08-08
 **Язык работы:** русский
-**Текущая ориентировочная готовность:** требует отдельного пересчёта после синхронизации Master Plan с фактическим состоянием репозитория
+**Базовое состояние:** `main` на merge-коммите `54ed8f0`, PR #123
+**Текущая ориентировочная готовность:** числовой процент не подтверждён; фактический статус 13 этапов зафиксирован в разделах 25–26
 
 ---
 
@@ -17,6 +18,9 @@
 5. В работе одновременно одна техническая задача.
 6. Выполненной считается только задача, подтверждённая кодом, тестами и фактическим результатом.
 7. После каждого этапа обновляются статус, зависимости и следующий шаг.
+8. Вложенные технические задачи не создают новый глобальный Roadmap и не меняют порядок официальных 13 этапов.
+9. Автоматические тесты подтверждают реализацию правил, но не прибыльность торговой логики.
+10. Числовая готовность проекта публикуется только после отдельного пересчёта по критериям этапов.
 
 ---
 
@@ -36,6 +40,8 @@ NEXUS — веб-терминал для криптовалютных скаль
 - постепенно улучшать рейтинг сетапов и фильтров.
 
 Ориентир первой версии — около **1000 пользователей**.
+
+Первый практический запуск — закрытая beta на **5–10 трейдеров** после готовности ключевых Setup, Alerts и data-flow этапов.
 
 Основная платформа v1.0 — веб-приложение. Desktop-версия рассматривается после стабилизации веб-версии.
 
@@ -136,9 +142,13 @@ NEXUS — веб-терминал для криптовалютных скаль
 - объём;
 - количество сделок;
 - волатильность;
+- Mark Price;
+- Funding Rate;
+- Open Interest;
 - стакан;
 - лента принтов;
 - ликвидность;
+- позднее — ликвидации и расширенные фьючерсные данные;
 - BTC-контекст;
 - несколько временных окон;
 - данные для Scanner, Dashboard, Market, Workspace, History и Replay.
@@ -261,6 +271,8 @@ Scanner ищет аномалии и торговые сетапы.
 - расстояние до уровня;
 - стадия сетапа;
 - ликвидность;
+- Open Interest;
+- Funding Rate;
 - LONG/SHORT;
 - таймфрейм.
 
@@ -286,7 +298,7 @@ Scanner ищет аномалии и торговые сетапы.
 - `symbol`;
 - `limit`.
 
-Frontend должен подключить их без изменения backend-математики.
+Frontend подключил эти параметры без изменения backend-математики в PR #36.
 
 ---
 
@@ -333,27 +345,64 @@ Frontend должен подключить их без изменения backen
 
 ---
 
-## 13. Логика сетапов
+## 13. Уровни и логика сетапов
+
+### Level Lines v0.1 — канонический пользовательский контракт
+
+- каждый таймфрейм `1m`, `5m`, `15m`, `1h` и `4h` анализируется независимо;
+- каждый значимый причинно подтверждённый локальный экстремум может создать отдельную линию;
+- линия начинается в точке исходного экстремума и становится видимой не раньше causal confirmation;
+- линия никогда не дорисовывается назад и продолжается только вправо;
+- близкие самостоятельные экстремумы на разных ценах не объединяются автоматически в одну ATR-зону;
+- ATR разрешён для внутренних допусков и нормализации, но не как широкая пользовательская зона;
+- соседние свечи одного контакта считаются одним touch episode;
+- первый origin создаёт `candidate`, два независимых взаимодействия подтверждают рабочий уровень;
+- третье независимое взаимодействие может перевести линию в `worked`, но само по себе не является торговым сигналом;
+- после подтверждённого пробоя линия заканчивается и удаляется из Active Levels;
+- непробитая линия может быть завершена как `superseded`, если справа причинно появился более экстремальный самостоятельный уровень;
+- пробитая старая линия не переворачивается автоматически в новую пользовательскую поддержку или сопротивление;
+- алгоритм не создаёт фиксированное количество уровней: допустимо `0`, `1`, `2` или больше реальных структур;
+- пользователь видит тонкие линии, а cluster IDs, диагностические зоны и внутренний lifecycle остаются в debug/manual review;
+- Level Lines остаётся `observationalOnly`, не создаёт setup, LONG/SHORT-сигнал, вероятность или quality score.
+
+Реализованные статусы линии:
+
+- `candidate`;
+- `confirmed`;
+- `worked`;
+- `superseded`;
+- `broken`.
+
+Полный ручной review dataset пока не завершён. Наличие автоматических тестов и нескольких ручных проверок не означает, что качество всех уровней уже доказано.
 
 ### Пробой уровня
 
 Зафиксировано:
 
-- уровень формируется после 2–3 касаний;
-- третье касание часто заканчивается пробоем;
-- важны стакан и лента принтов;
-- расстояние до уровня на альткоине примерно 0,3–0,5%;
-- учитывать глубокий и неглубокий откат;
-- учитывать подтверждение;
-- учитывать BTC-контекст;
-- учитывать объём, сделки и ликвидность.
+- два независимых взаимодействия подтверждают рабочий уровень;
+- новый подход к подтверждённому уровню является ранним сетапом до третьего касания;
+- уровень выше текущей цены даёт potential LONG breakout bias;
+- уровень ниже текущей цены даёт potential SHORT breakout bias;
+- третье касание усиливает уже обнаруженный сетап, а не начинает ожидание с нуля;
+- важны глубокий и неглубокий откат, поджатие, объём, сделки, BTC-контекст, стакан и лента принтов;
+- ориентир расстояния `0,3–0,5%` остаётся контекстным признаком, а не универсальным жёстким порогом;
+- пробой, отскок, ложный пробой, пропуск и отмена должны сохраняться как разные исходы;
+- если движение уже состоялось до первого сигнала, исход отмечается как `missed`, а не как позднее подтверждение.
 
-Стадии:
+Пользовательские стадии:
 
 1. Наблюдение
 2. Подход
 3. Подтверждение
 4. Пробой
+
+Базовый backend lifecycle Setup Engine:
+
+1. `LEVEL_CONFIRMED`
+2. `APPROACHING_THIRD_TOUCH`
+3. `THIRD_TOUCH_CONFIRMED`
+4. `BREAKOUT_CONFIRMED` или `REJECTION_CONFIRMED`
+5. `SETUP_EXPIRED` при потере актуальности
 
 ### LONG «Отскок»
 
@@ -364,7 +413,17 @@ Frontend должен подключить их без изменения backen
 3. Подтверждение
 4. Отскок
 
-Оба режима должны использовать общую архитектуру.
+Пробой и отскок используют общую архитектуру, но breakout bias и bounce bias не смешиваются.
+
+### Последовательность после Level Lines
+
+1. зафиксировать Departure Extremum `E` после реакции от конкретной подтверждённой линии `L`;
+2. для каждой линии отдельно считать `progress = |P - E| / |L - E|`;
+3. стартовый тестовый порог `0,50` переводит инструмент в «Наблюдение»;
+4. Approach Engine оценивает поджатие, откаты, скорость, объём, сделки, силу относительно BTC и BTC-контекст;
+5. realtime confirmation использует ленту, стакан, ликвидность и агрессию ближе к уровню.
+
+Порог `0,50` меняется только после Replay и проверки, а не по ощущению.
 
 ---
 
@@ -668,11 +727,13 @@ Replay обязателен для v1.0.
 - API validation;
 - реальные HTTP-проверки;
 - production build;
+- `npm audit --audit-level=high` для затронутого package tree;
 - `git diff --check`;
 - проверка списка изменённых файлов;
 - отдельная ветка;
 - коммит;
 - PR;
+- доступные GitHub Actions checks;
 - merge;
 - чистый и синхронизированный `main`.
 
@@ -688,166 +749,69 @@ Replay обязателен для v1.0.
 
 ---
 
-## 25. Уже выполнено
+## 25. Фактическое состояние `main` на 2026-08-08
 
-Объединённые backend-этапы:
+Базовая точка:
 
-1. Binance USDⓈ-M Futures Migration v0.1 — PR #27
-2. Market-wide Multi-Window Metrics v0.1 — PR #28
-3. Incomplete Windows Fix — PR #29
-4. Market Scanner Volume Spikes Backend v0.1 — PR #30
-5. Market-wide Historical Warm-up v0.1 — PR #31
-6. Dashboard Volume Spikes v0.1 — PR #33
-7. Volume Spikes Filters API v0.1 — PR #34
+- `main` и `origin/main`: merge-коммит `54ed8f0`;
+- последний объединённый PR: #123;
+- PR #123 изменил только `frontend/package-lock.json`;
+- GitHub Actions `CI #71` на head-коммите PR #123 `467da72`: Backend — `success`, Frontend — `success`;
+- backend: 433 автоматических теста;
+- frontend: 257 автоматических тестов;
+- backend и frontend production builds: успешно;
+- frontend dependency audit: `0 vulnerabilities`.
 
-Для PR #34 подтверждено:
+Последний baseline подтверждает целостность реализации и сборки. Он не подтверждает прибыльность торговых правил.
 
-- backend check: 96/96;
-- production build: успешно;
-- реальные HTTP-запросы: успешно;
-- frontend не изменён;
-- `main` синхронизирован.
+### Объединённые блоки работ
 
+| PR | Блок | Подтверждённый результат |
+| --- | --- | --- |
+| #27–34 | Futures migration и market-wide foundation | Binance USDⓈ-M Futures, multi-window metrics, защита неполных окон, Volume Spikes, warm-up, Dashboard и Filters API |
+| #35–39 | План и Charts Core | Master Plan v1, frontend-фильтры Volume Spikes, общий candlestick/volume chart, история, drawing tools, интеграция Dashboard/Market/Scanner/Workspace |
+| #40–52 | Setup Engine foundation | lifecycle, level detector v1, candidates, pipeline, runtime, read API, stage evaluator, events, frontend integration, history и SSE |
+| #53–61 | Live Market и Workspace | стабильная навигация, live candles, Scanner metrics, freshness/degraded mode, trade tape, order book, liquidity map, market dynamics и frontend live confirmation |
+| #62–72 | Level v2 Shadow | zones, lifecycle registry, shadow runtime/evaluation/history/diagnostics, overlap fixes и Scanner shadow integration |
+| #73–86 | Scanner UX и frontend data integrity | causal line boundary, chart visibility/grid, selected-candidate UX и integrity hardening для Dashboard, Scanner, Market, Watchlist, Alerts, History, Replay, Settings и Workspace |
+| #87–89 | Feedback и runtime packaging | end-to-end feedback persistence, MVP release-candidate checks и локальный Docker runtime |
+| #90–103 | Level v2 analytical pipeline | break classifications, market evidence, confirmation candidates, outcomes, quality samples/dataset и frontend inspection; обучение не применяется |
+| #104–116 | Независимый Level Engine | setup-neutral contract, independent touch episodes, multi-timeframe detection, real-data validation, lifecycle, causal replay, frozen diagnostic sample, `/app/level-preview`, manual review и JSON export |
+| #117–121 | GitHub Actions diagnostics | timeout/runner/dispatch changes, успешный minimal smoke и удаление временного smoke-workflow |
+| #122 | Level Lines v0.1 | отдельные causal support/resistance lines, independent touches, lifecycle, break/supersession, обновлённые API и frontend preview |
+| #123 | Dependency audit hotfix | `nanoid 3.3.18`, `postcss 8.5.26`, audit без уязвимостей, CI #71 зелёный |
 
-### Текущий незавершённый этап: Level Engine Frozen Sample Preview v0.1
+### Важные границы текущей реализации
 
-В ветке `frontend-level-preview-v0-1` реализованы и проверены:
-
-- read-only backend API `GET /api/v1/level-engine/frozen-sample/latest`;
-- чтение последнего frozen sample из локального validation output;
-- типизированный frontend-клиент и runtime-валидация safety-инвариантов;
-- review-адаптер lifecycle, касаний, пробоев, causal timing и диагностических флагов;
-- страница `/app/level-preview`, отображающая точные candles, geometry и lifecycle выбранного элемента без локального пересчёта Level Engine;
-- отсутствие setup-сигналов, LONG/SHORT и quality score;
-- production build frontend — успешно;
-- frontend tests — 243/243;
-- визуальная проверка стабильности после повторных обновлений — успешно;
-- коммит `4a5a4dc` отправлен в удалённую ветку.
-
-Этап ещё не считается завершённым до PR, merge и синхронизации `main`.
+- полный ручной review dataset Level Engine не завершён;
+- Level Lines v0.1 остаётся наблюдательным слоем и имеет `createsSetup: false`;
+- Level v2 quality dataset остаётся shadow-only и имеет `trainingApplied: false`;
+- существующий Setup Engine foundation создан до нового канонического Level Lines и ещё должен быть последовательно связан с Departure, Observation и Approach;
+- frontend live confirmation не меняет автоматически стадию Setup Engine и не является торговым сигналом;
+- Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
+- полноценные Alerts, Auth, постоянная History/Replay data layer, production deployment и закрытая beta не завершены.
 
 ---
 
-## 26. Дорожная карта до v1.0
+## 26. Официальная дорожная карта до v1.0 — 13 этапов
 
-### Этап 1. Volume Spikes Frontend
+Мелкие PR и внутренние чек-листы не заменяют этот маршрут. Статусы ниже не являются процентами и не означают автоматическое закрытие этапа.
 
-- подключение API;
-- фильтры;
-- статусы;
-- состояния;
-- переходы;
-- пользовательские настройки;
-- Data Contract.
-
-### Этап 2. Charts Core v0.1
-
-- свечи;
-- история;
-- realtime;
-- таймфреймы;
-- объём;
-- масштабирование;
-- повторное использование.
-
-### Этап 3. Market + Scanner Integration
-
-- список рынка;
-- выбор монеты;
-- фильтры;
-- сортировки;
-- пресеты;
-- переход к графику;
-- события для будущей истории.
-
-### Этап 4. Setup Engine + Workspace v0.1
-
-- уровни;
-- стадии;
-- пробой;
-- отскок;
-- BTC-контекст;
-- панель NEXUS;
-- первичная запись контекста.
-
-### Этап 5. Watchlist + Alerts
-
-- списки;
-- условия;
-- уведомления;
-- история срабатываний;
-- переход к сетапу.
-
-### Этап 6. History Data Layer
-
-- сущность сетапа;
-- стадии;
-- исходы;
-- версии;
-- контекст;
-- метрики результата.
-
-### Этап 7. Replay v0.1
-
-- воспроизведение;
-- график;
-- стадии;
-- события;
-- результат.
-
-### Этап 8. Self-Learning Data Layer
-
-- датасет;
-- разметка;
-- контроль качества данных;
-- отчёты;
-- начало реального накопления.
-
-### Этап 9. Adaptive Ranking v0.1
-
-- метрики;
-- веса;
-- версии;
-- ограничения;
-- сравнение;
-- откат.
-
-### Этап 10. Auth + Profile + Subscriptions
-
-- пользователи;
-- роли;
-- тарифы;
-- доступ;
-- безопасность.
-
-### Этап 11. Feedback + Admin
-
-- обращения;
-- аудит;
-- состояние сервисов;
-- качество сетапов;
-- версии моделей;
-- управление.
-
-### Этап 12. Public Site + i18n + SEO
-
-- лендинг;
-- тарифы;
-- документация;
-- блог;
-- локали;
-- sitemap;
-- hreflang;
-- SSR/SSG.
-
-### Этап 13. Hardening + Launch
-
-- производительность;
-- безопасность;
-- наблюдаемость;
-- интеграционные и нагрузочные тесты;
-- документация;
-- подготовка первых пользователей.
+| Этап | Название | Состояние на 2026-08-08 | Граница этапа |
+| --- | --- | --- | --- |
+| 1 | Публичная страница | Частично | Есть публичный frontend-фундамент и SEO/i18n-заготовки; финальные лендинг, тексты, локализация и заявка в beta не завершены |
+| 2 | Binance USDⓈ-M Futures Migration | Завершён | PR #27; целевой рынок переведён на активные USDT perpetual contracts |
+| 3 | Futures Market Metrics | Частично | Реализованы realtime и multi-window цена/объём/сделки/волатильность/BTC-метрики; Funding Rate, Open Interest и ликвидации ещё впереди |
+| 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics и Charts Core; финальная связь с новым Setup pipeline впереди |
+| 5 | Charts и Workspace | Реализован v0.1 | Есть реальные свечи, история, объём, drawing tools, tape, order book, liquidity и dynamics; финальная продуктовая полировка впереди |
+| 6 | Levels Engine | Level Lines v0.1 объединён, валидация продолжается | Канонические отдельные causal lines реализованы; полный manual review dataset не завершён |
+| 7 | Setup Engine | Foundation реализован, этап не завершён | Старый lifecycle/runtime существует; нужен новый путь Level Lines → Departure → Observation → Approach → realtime confirmation |
+| 8 | Alerts | Частично | Есть UI и integrity foundation; полноценные правила, cooldown, доставка и история срабатываний не завершены |
+| 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence и runtime event history; Auth, приглашения, Watchlist persistence и постоянная история сетапов не завершены |
+| 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
+| 11 | Закрытая beta | Не начат | После готовности ключевого Setup/Alerts/data pipeline — 5–10 трейдеров |
+| 12 | Развитие beta до NEXUS v1.0 | Не начат | Новые сетапы, Market History, публичные карточки, тарифы, Admin Panel и самообучение после beta-данных |
+| 13 | Финализация NEXUS v1.0 | Не начат | Безопасность, нагрузка, локализация, документация и production-релиз `v1.0.0` |
 
 ---
 
@@ -855,12 +819,17 @@ Replay обязателен для v1.0.
 
 - Charts Core нужен Dashboard, Market, Scanner, Workspace, History и Replay.
 - Scanner нужен Workspace, Alerts и History.
+- Канонические Level Lines нужны новому Setup pipeline.
+- После Level Lines порядок фиксирован: Departure Extremum → Observation 50% → Approach Engine → realtime confirmation.
+- Существующий Setup Engine foundation нельзя считать финальным, пока он не связан с новым Level Lines contract.
 - History нужен Replay и Self-Learning.
-- Сбор контекста начинается до запуска Self-Learning.
+- Сбор контекста начинается в Scanner, Workspace, Alerts, History и Replay до запуска Self-Learning.
+- Реальное самообучение начинается только после History + Replay, достаточной выборки и отдельного уведомления пользователя.
 - Версионирование алгоритма нужно до Adaptive Ranking.
 - Auth нужен подпискам и персональным настройкам.
 - Admin нужен контролю качества и откату моделей.
 - Data Contract обязателен для всех frontend/backend-интеграций.
+- Полный manual review нужен для оценки качества уровней; автоматические тесты не заменяют эту проверку.
 
 ---
 
@@ -915,7 +884,7 @@ Replay обязателен для v1.0.
 7. Не переходить дальше до проверки текущей задачи.
 8. При очевидном следующем шаге продолжать без лишнего вопроса.
 9. Спрашивать только при реальной развилке.
-10. После каждого этапа показывать готовность задачи и проекта.
+10. После каждого этапа показывать статус текущей задачи и фактический статус проекта; числовой процент — только после отдельного пересчёта.
 
 ---
 
@@ -942,17 +911,39 @@ Replay обязателен для v1.0.
 
 Текущая задача:
 
-**Завершить Level Engine Frozen Sample Preview v0.1**
+**Синхронизировать NEXUS Master Plan v1 с фактическим `main` после PR #123**
 
 Осталось:
 
-1. создать PR из `frontend-level-preview-v0-1` в `main`;
-2. проверить состав PR и доступные проверки;
-3. объединить PR;
-4. синхронизировать локальный `main`;
-5. подтвердить чистое состояние репозитория.
+1. изменить только `docs/NEXUS_MASTER_PLAN_v1.md` в ветке `docs-master-plan-sync-v1`;
+2. проверить UTF-8, `git diff --check` и состав diff;
+3. создать отдельный docs-коммит и PR;
+4. объединить PR после доступных проверок;
+5. синхронизировать локальный `main`.
 
-Следующая продуктовая задача определяется после merge по фактическому состоянию `main`, без возврата к устаревшему пункту Volume Spikes Filters Frontend v0.1.
+Следующая продуктовая задача после завершения docs-этапа:
+
+**Departure Extremum Tracker v0.1**
+
+Причина выбора:
+
+- Level Lines v0.1 уже создаёт отдельные causal lines;
+- независимые touch episodes и подтверждение второго взаимодействия уже реализованы;
+- в текущем `LevelLine` contract отсутствуют Departure Extremum `E`, per-line observation progress и порог `0,50`;
+- переход сразу к Approach Engine или финальному Setup Score нарушил бы каноническую последовательность.
+
+Минимальная граница Departure Extremum Tracker v0.1:
+
+- только подтверждённые/рабочие активные линии;
+- отдельный `E` для каждой конкретной линии `L`;
+- только закрытые свечи и причинное время обнаружения;
+- независимость таймфреймов;
+- корректное завершение при `broken` или `superseded`;
+- typed immutable output;
+- отсутствие setup, LONG/SHORT-сигнала, probability и quality score;
+- focused tests для support, resistance, нескольких близких линий и защиты от будущих данных.
+
+После него отдельной задачей идёт Observation Tracker v0.1 с формулой `progress = |P - E| / |L - E|` и стартовым тестовым порогом `0,50`.
 
 ---
 
