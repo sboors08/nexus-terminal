@@ -11,6 +11,9 @@ import type {
 import type {
   LevelEngineCandle,
 } from './level-engine-touch-detector.types.js';
+import type {
+  DepartureExtremumTrackingResult,
+} from './departure-extremum-tracker.types.js';
 
 export const LEVEL_LINES_CONTRACT_VERSION =
   'level-lines-v0.1' as const;
@@ -42,6 +45,7 @@ export interface LevelLine {
   readonly originExtremumAt: string;
   readonly originExtremumPrice: number;
   readonly activeFrom: string;
+  readonly confirmedAt: string | null;
   readonly touchCount: number;
   readonly status: LevelLineStatus;
   readonly workedAt: string | null;
@@ -90,6 +94,8 @@ export interface LevelLinesDetectionResult {
   readonly ignoredOpenCandlesCount: number;
   readonly lines: readonly LevelLine[];
   readonly activeLevels: readonly LevelLine[];
+  readonly departureExtremumTracking:
+    DepartureExtremumTrackingResult;
   readonly appliedOptions:
     LevelLinesDetectionOptions;
   readonly observationalOnly: true;

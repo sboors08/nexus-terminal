@@ -117,6 +117,24 @@ test(
       false,
     );
     assert.equal(
+      payload
+        .departureExtremumTracking
+        .version,
+      'departure-extremum-tracker-v0.1',
+    );
+    assert.equal(
+      payload
+        .departureExtremumTracking
+        .computesObservationProgress,
+      false,
+    );
+    assert.equal(
+      payload
+        .departureExtremumTracking
+        .createsSignal,
+      false,
+    );
+    assert.equal(
       payload.candles.every(
         (candle: {
           isClosed?: unknown;

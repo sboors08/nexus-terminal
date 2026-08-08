@@ -575,6 +575,11 @@ test(
       2,
     );
     assert.equal(
+      confirmed.confirmedAt,
+      candles(values)[5]
+        ?.closeTime,
+    );
+    assert.equal(
       confirmed.workedAt,
       null,
     );
@@ -588,6 +593,36 @@ test(
           line.id === confirmed.id,
       ),
       true,
+    );
+    assert.deepEqual(
+      result
+        .departureExtremumTracking
+        .activeExtrema
+        .filter(
+          (extremum) =>
+            extremum.lineId
+            === confirmed.id,
+        )
+        .map(
+          (extremum) => ({
+            price:
+              extremum.price,
+            candleIndex:
+              extremum.candleIndex,
+            trackingStartedAt:
+              extremum
+                .trackingStartedAt,
+          }),
+        ),
+      [
+        {
+          price: 106,
+          candleIndex: 6,
+          trackingStartedAt:
+            candles(values)[5]
+              ?.closeTime,
+        },
+      ],
     );
   },
 );
@@ -678,6 +713,18 @@ test(
     assert.equal(
       worked.workedAt,
       candles(values)[8]?.closeTime,
+    );
+    assert.equal(
+      result
+        .departureExtremumTracking
+        .activeExtrema
+        .find(
+          (extremum) =>
+            extremum.lineId
+            === worked.id,
+        )
+        ?.trackingStartedAt,
+      worked.workedAt,
     );
     assert.equal(
       worked.brokenAt,
@@ -860,6 +907,17 @@ test(
         (line) =>
           line.id === broken.id,
       ),
+      false,
+    );
+    assert.equal(
+      result
+        .departureExtremumTracking
+        .activeExtrema
+        .some(
+          (extremum) =>
+            extremum.lineId
+            === broken.id,
+        ),
       false,
     );
   },
@@ -1204,6 +1262,18 @@ test(
       '5m',
     );
     assert.equal(
+      oneMinute
+        .departureExtremumTracking
+        .timeframe,
+      '1m',
+    );
+    assert.equal(
+      fiveMinutes
+        .departureExtremumTracking
+        .timeframe,
+      '5m',
+    );
+    assert.equal(
       Object.isFrozen(oneMinute),
       true,
     );
@@ -1216,6 +1286,21 @@ test(
     assert.equal(
       Object.isFrozen(
         oneMinute.activeLevels,
+      ),
+      true,
+    );
+    assert.equal(
+      Object.isFrozen(
+        oneMinute
+          .departureExtremumTracking,
+      ),
+      true,
+    );
+    assert.equal(
+      Object.isFrozen(
+        oneMinute
+          .departureExtremumTracking
+          .activeExtrema,
       ),
       true,
     );
