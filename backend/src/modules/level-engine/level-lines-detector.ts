@@ -5,6 +5,9 @@ import {
   detectTouchEpisodes,
 } from './level-engine-touch-detector.js';
 import {
+  trackDepartureExtrema,
+} from './departure-extremum-tracker.js';
+import {
   isLevelEngineTimeframe,
   normalizeLevelEngineSymbol,
 } from './level-engine.contract.js';
@@ -1012,6 +1015,16 @@ function createLine(
     ?? breakEvidence
       ?.brokenAt
     ?? null;
+  const confirmedAt =
+    lifecycle.confirmedAt
+    && (
+      !endedAt
+      || Date.parse(
+        lifecycle.confirmedAt,
+      ) <= Date.parse(endedAt)
+    )
+      ? lifecycle.confirmedAt
+      : null;
   const workedAt =
     lifecycle.workedAt
     && (
@@ -1043,6 +1056,7 @@ function createLine(
       price,
     activeFrom:
       lifecycle.activeFrom,
+    confirmedAt,
     touchCount:
       endedAt
         ? lifecycleTouchCountThrough(
@@ -1057,7 +1071,7 @@ function createLine(
           ? 'superseded'
           : workedAt
             ? 'worked'
-            : lifecycle.touchCount >= 2
+            : confirmedAt
               ? 'confirmed'
               : 'candidate',
     workedAt:
@@ -1464,6 +1478,28 @@ export function detectLevelLines(
         right.kind,
       ),
   );
+  const frozenLines =
+    Object.freeze([
+      ...lines,
+    ]);
+  const activeLevels =
+    Object.freeze(
+      frozenLines.filter(
+        (line) =>
+          activeLineIds.has(
+            line.id,
+          ),
+      ),
+    );
+  const departureExtremumTracking =
+    trackDepartureExtrema({
+      symbol,
+      timeframe:
+        input.timeframe,
+      candles,
+      lines:
+        activeLevels,
+    });
 
   return Object.freeze({
     version:
@@ -1477,18 +1513,10 @@ export function detectLevelLines(
       candles.length
       - closed.length,
     lines:
-      Object.freeze([
-        ...lines,
-      ]),
+      frozenLines,
     activeLevels:
-      Object.freeze(
-        lines.filter(
-          (line) =>
-            activeLineIds.has(
-              line.id,
-            ),
-        ),
-      ),
+      activeLevels,
+    departureExtremumTracking,
     appliedOptions:
       options,
     observationalOnly: true,
