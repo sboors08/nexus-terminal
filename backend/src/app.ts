@@ -245,6 +245,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       ? marketWideRealtimeService
         ? new SetupDetectionRuntimeService(
             marketWideRealtimeService,
+            undefined,
+            {
+              tapeReader:
+                realtimeMarketDataService,
+              orderBookReader:
+                orderBookDepthService,
+            },
           )
         : null
       : options.setupDetectionRuntimeService;

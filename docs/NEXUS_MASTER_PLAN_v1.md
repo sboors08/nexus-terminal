@@ -442,7 +442,7 @@ Frontend подключил эти параметры без изменения 
 
 Порог `0,50` меняется только после Replay и проверки, а не по ощущению.
 
-Текущее состояние causal-цепочки после PR #125–#131:
+Текущее состояние causal-цепочки после PR #125–#135 и Causal Setup Pipeline Integration v0.1:
 
 - Departure Extremum Tracker v0.1 реализован отдельно для каждой активной подтверждённой/рабочей линии;
 - Observation Tracker v0.1 причинно считает `progress` по последней закрытой свече и использует включительную границу `progress >= 0,50`;
@@ -451,7 +451,10 @@ Frontend подключил эти параметры без изменения 
 - общий frontend-контракт causal Level Lines доступен Dashboard, Market, Scanner и Workspace, но сам по себе не подтверждает end-to-end работоспособность каждого раздела;
 - Workspace показывает единую цепочку «Наблюдение → Подход → Подтверждение», не подменяет подтверждённое взаимодействие исходом и выбирает актуальный уровень по текущему рыночному контакту;
 - цепочка по-прежнему не создаёт торговый сигнал, probability, profitability или Setup Score сама по себе;
-- после восстановления `Market` готовую causal-цепочку нужно связать с существующим Setup Engine без изменения торговых правил.
+- production Setup Detection Pipeline больше не запускает отдельный legacy `setup-level-detector`, а получает линии и per-line состояние из канонического Level Lines contract;
+- causal-to-setup adapter создаёт кандидата только после `OBSERVATION` при `progress >= 0,50`, сохраняет `lineId/symbol/timeframe/stage/reason` и начинает срок жизни кандидата с момента входа в наблюдение;
+- `APPROACH` при `distance <= 0,50%` переводит существующий lifecycle в `APPROACHING_THIRD_TOUCH`, а подтверждённое realtime-взаимодействие — в `THIRD_TOUCH_CONFIRMED`;
+- realtime confirmation не объявляет breakout или bounce: существующий closed-candle Setup Stage Evaluator по-прежнему отдельно определяет `BREAKOUT_CONFIRMED` или `REJECTION_CONFIRMED` по прежним правилам.
 
 ---
 
@@ -826,15 +829,17 @@ Replay обязателен для v1.0.
 | #129 | Realtime Confirmation Engine v0.1 | свежие `@aggTrade` + синхронизированный стакан, статусы `collecting/not_ready/partial/confirmed`, без сигнала и score |
 | #130 | Realtime confirmation во Workspace | backend-факты, causal-цепочка Observation → Approach → Confirmation, freshness/pressure/reasons без frontend-дублирования расчётов |
 | #131 | Согласованность causal-взаимодействия Workspace | единый активный уровень, зона, касания, расстояние и стадия; корректный фокус на поддержке/сопротивлении; встроенный Feedback |
+| #133–#134 | Market Recovery и Market → Workspace path recovery | реальные market-wide данные, выбранные symbol/timeframe и канонический переход в Workspace восстановлены |
+| #135 | CI verifier hotfix | статический trading-presets verifier приведён к текущему routing contract; runtime не изменён |
 
 ### Важные границы текущей реализации
 
 - полный ручной review dataset Level Engine не завершён;
 - Level Lines v0.1 остаётся наблюдательным слоем и имеет `createsSetup: false`;
 - Level v2 quality dataset остаётся shadow-only и имеет `trainingApplied: false`;
-- Departure, Observation, Approach и realtime confirmation реализованы как единая per-line causal-цепочка, но ещё не подключены к lifecycle существующего Setup Engine;
-- frontend отображает backend realtime confirmation и согласованное causal-состояние, но это не меняет автоматически lifecycle Setup Engine и не является торговым сигналом;
-- пользовательский раздел `Market` сейчас не работает end-to-end и не считается реализованным, даже несмотря на наличие общего frontend causal-контракта;
+- Departure, Observation, Approach и realtime confirmation подключены к lifecycle существующего Setup Engine через отдельный causal-to-setup adapter;
+- frontend только отображает backend causal-состояние и сам не меняет lifecycle Setup Engine; realtime confirmation остаётся подтверждением взаимодействия, а не торговым исходом;
+- пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
 - полноценные Alerts, Auth, постоянная History/Replay data layer, production deployment и закрытая beta не завершены.
@@ -850,10 +855,10 @@ Replay обязателен для v1.0.
 | 1 | Публичная страница | Частично | Есть публичный frontend-фундамент и SEO/i18n-заготовки; финальные лендинг, тексты, локализация и заявка в beta не завершены |
 | 2 | Binance USDⓈ-M Futures Migration | Завершён | PR #27; целевой рынок переведён на активные USDT perpetual contracts |
 | 3 | Futures Market Metrics | Частично | Реализованы realtime и multi-window цена/объём/сделки/волатильность/BTC-метрики; Funding Rate, Open Interest и ликвидации ещё впереди |
-| 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; финальная связь с Setup Engine впереди |
-| 5 | Charts, Market и Workspace | Частично | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; пользовательский `Market` сейчас не работает end-to-end и требует `Market Recovery v0.1` |
+| 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
+| 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134 |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
-| 7 | Setup Engine | Foundation и causal-предпосылки реализованы, этап не завершён | Старый lifecycle/runtime существует; готовую per-line цепочку Level Lines → Departure → Observation → Approach → realtime confirmation нужно подключить к Setup Engine |
+| 7 | Setup Engine | Causal integration v0.1 реализована, валидация продолжается | Канонический Level Lines pipeline подключён к существующему lifecycle; breakout/bounce и outcome-правила сохранены; real-data validation ещё требуется |
 | 8 | Alerts | Частично | Есть UI и integrity foundation; полноценные правила, cooldown, доставка и история срабатываний не завершены |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence и runtime event history; Auth, приглашения, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
@@ -866,12 +871,12 @@ Replay обязателен для v1.0.
 ## 27. Ключевые зависимости
 
 - Charts Core нужен Dashboard, Market, Scanner, Workspace, History и Replay.
-- Работоспособный Market нужен для самостоятельного обзора рынка и перехода к Workspace; его восстановление выполняется до подключения causal-цепочки к Setup Engine.
+- Работоспособный Market нужен для самостоятельного обзора рынка и перехода к Workspace; путь восстановлен до подключения causal-цепочки к Setup Engine.
 - Уровни внутри Market используют канонический Level Lines contract; отдельная пользовательская вкладка `Levels` не создаётся.
 - Scanner нужен Workspace, Alerts и History.
-- Канонические Level Lines нужны новому Setup pipeline.
+- Канонические Level Lines являются единственным источником уровней production Setup Detection Pipeline.
 - После Level Lines реализован фиксированный порядок: Departure Extremum → Observation 50% → Approach Engine → realtime confirmation.
-- Существующий Setup Engine foundation нельзя считать финальным, пока он не потребляет эту per-line causal-цепочку и новый Level Lines contract.
+- Существующий Setup Engine потребляет per-line causal-цепочку через adapter, сохраняя прежние breakout/bounce и outcome-правила.
 - History нужен Replay и Self-Learning.
 - Сбор контекста начинается в Scanner, Workspace, Alerts, History и Replay до запуска Self-Learning.
 - Реальное самообучение начинается только после History + Replay, достаточной выборки и отдельного уведомления пользователя.
@@ -961,43 +966,21 @@ Replay обязателен для v1.0.
 
 Текущая задача:
 
-**Синхронизировать NEXUS Master Plan v1 с фактическим `main` после PR #131**
+**Causal Setup Pipeline Integration v0.1**
 
-Осталось:
+Граница реализации:
 
-1. изменить только `docs/NEXUS_MASTER_PLAN_v1.md` в ветке `docs-master-plan-sync-after-pr131-v0-1`;
-2. проверить UTF-8, `git diff --check` и состав diff;
-3. создать отдельный docs-коммит и PR;
-4. объединить PR после доступных проверок;
-5. синхронизировать локальный `main`.
+- backend-first и только текущий production runtime `1m`;
+- канонический источник уровня — Level Lines, без повторного поиска через legacy `setup-level-detector`;
+- Setup-кандидат появляется только после per-line `OBSERVATION` при включительном `progress >= 0,50`;
+- `APPROACH` использует существующую включительную границу `distance <= 0,50%`;
+- realtime `CONFIRMATION` завершает стадию взаимодействия, но не классифицирует breakout или bounce;
+- существующие LONG/SHORT, `level_breakout`/`level_bounce`, closed-candle outcome и expiration rules сохраняются;
+- read API, lifecycle events, event history, Scanner и Workspace получают один causal identity/stage/reason из backend-кандидата;
+- probability, profitability, обучение, финальный Setup Score и frontend-редизайн не входят в задачу;
+- обязательны focused integration/regression tests, полный backend check и production build.
 
-Следующая продуктовая задача после завершения docs-этапа:
-
-**Market Recovery v0.1**
-
-Причина выбора:
-
-- `Market` входит в обязательный пользовательский контур NEXUS, но сейчас не работает end-to-end;
-- наличие общего causal frontend-контракта не заменяет проверку реального symbol universe, списка, выбора монеты, таймфрейма и графика;
-- продолжение Setup pipeline при неработающем основном разделе оставило бы пользовательский путь `Market → Workspace` разорванным;
-- уровни должны стать режимом анализа и фильтрами внутри восстановленного `Market`, поэтому отдельная вкладка `Levels` не нужна.
-
-Минимальная граница Market Recovery v0.1:
-
-- сначала воспроизвести неисправность и определить подтверждённую причину по коду и runtime;
-- восстановить реальные данные, symbol universe, список монет, выбор символа/таймфрейма и график без штатной зависимости от mock;
-- обеспечить единое состояние выбранных символа и таймфрейма в таблице, графике и переходе `Market → Workspace`;
-- корректно обработать loading, error, empty, stale и degraded состояния;
-- встроить в восстановленный `Market` ближайшие поддержку/сопротивление, расстояние, число независимых касаний и causal-стадию;
-- добавить фильтры по близости к поддержке/сопротивлению и `2+` касаниям;
-- не создавать отдельный пункт меню или пользовательскую страницу `Levels`;
-- сохранить существующие `progress >= 0,50`, `distance <= 0,50%` и `createsSetup: false`;
-- отсутствие probability, profitability, обучения и финального Setup Score;
-- focused unit/integration tests, frontend production build и визуальная приёмка на реальных данных.
-
-Frontend-редизайн вне `Market`, Alerts, постоянная History/Replay data layer и обучение в эту задачу не входят.
-
-Следующая задача после принятого `Market Recovery v0.1` — **Causal Setup Pipeline Integration v0.1**: подключить готовую per-line цепочку Level Lines → Departure → Observation → Approach → realtime confirmation к существующему Setup Engine без изменения торговых правил.
+Следующая продуктовая задача определяется после объединения этой интеграции и проверки causal-кандидатов на реальных данных; новый торговый scope в текущей задаче не добавляется.
 
 ---
 

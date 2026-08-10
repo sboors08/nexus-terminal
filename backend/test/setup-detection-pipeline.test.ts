@@ -19,12 +19,22 @@ const START_TIME_MS =
 const PIPELINE_OPTIONS:
   SetupDetectionPipelineOptions = {
     maxCandles: 100,
-    detectorOptions: {
-      pivotWindow: 1,
-      minTouches: 2,
-      minTouchSpacingCandles: 2,
-      maxDistancePct: 0.25,
-      zonePaddingPct: 0.05,
+    levelLinesOptions: {
+      atrPeriod: 2,
+      pivotLeftBars: 1,
+      pivotRightBars: 1,
+      originDepartureAtr: 0.6,
+      originDepartureMaxCandles: 4,
+      candidateVisibilityMinDepartureAtr: 2,
+      candidateVisibilityMaxAgeBars: 5,
+      persistentCandidateMinDepartureAtr: 1.5,
+      persistentCandidateLookbackBars: 6,
+      originEpisodeMaxSpanCandles: 3,
+      workedEpisodeMaxSpanCandles: 8,
+      touchTolerancePercent: 0.15,
+      minBarsBetweenTouchEpisodes: 0,
+      decisiveBreakAtr: 0.5,
+      consecutiveBreakCloses: 2,
     },
     candidateOptions: {
       expiresAfterSec: 3_600,
@@ -87,46 +97,52 @@ function buildResistanceHistory():
   BinanceOneMinuteKlineUpdate[] {
   return [
     buildKline(0, {
-      open: 96,
-      high: 98,
-      low: 95,
-      close: 97,
+      open: 95,
+      high: 96,
+      low: 94,
+      close: 95,
     }),
     buildKline(1, {
-      open: 97,
+      open: 96,
       high: 100,
-      low: 96,
-      close: 98,
+      low: 95,
+      close: 99,
     }),
     buildKline(2, {
-      open: 96,
-      high: 98,
-      low: 95,
-      close: 97,
+      open: 96.8,
+      high: 97,
+      low: 96,
+      close: 96.5,
     }),
     buildKline(3, {
-      open: 95,
+      open: 96,
       high: 97,
-      low: 94,
+      low: 95,
       close: 96,
     }),
     buildKline(4, {
       open: 97,
-      high: 100.1,
+      high: 99.9,
       low: 96,
-      close: 98,
+      close: 99,
     }),
     buildKline(5, {
-      open: 96,
-      high: 98.5,
+      open: 98,
+      high: 98,
       low: 95,
-      close: 97,
+      close: 96,
     }),
     buildKline(6, {
-      open: 98,
-      high: 99,
-      low: 97,
-      close: 98.5,
+      open: 96,
+      high: 97,
+      low: 94,
+      close: 95,
+    }),
+    buildKline(7, {
+      open: 99.2,
+      high: 99.8,
+      low: 99.1,
+      close: 99.7,
     }),
   ];
 }
@@ -158,7 +174,7 @@ test(
 
     assert.equal(
       firstRead.length,
-      7,
+      8,
     );
 
     const firstKline =
@@ -175,7 +191,7 @@ test(
 
     assert.notEqual(
       secondRead[0]?.close,
-      1,
+      2,
     );
 
     assert.equal(
@@ -228,28 +244,49 @@ test(
     );
 
     assert.equal(
+      result.source,
+      'level_lines',
+    );
+
+    assert.equal(
+      result.sourceCreatesSetup,
+      false,
+    );
+
+    assert.equal(
+      result.evaluatesBreakout,
+      false,
+    );
+
+    assert.equal(
+      result.evaluatesBounce,
+      false,
+    );
+
+    assert.equal(
       result.scannedCandlesCount,
-      7,
+      8,
     );
 
     assert.equal(
       result.currentPrice,
-      99.1,
+      99.7,
     );
 
     assert.equal(
       result.levels.length,
-      1,
+      2,
     );
 
-    assert.equal(
-      result.levels[0]?.kind,
-      'resistance',
-    );
+    const resistanceLevel =
+      result.levels.find(
+        (level) =>
+          level.kind === 'resistance',
+      );
 
+    assert.ok(resistanceLevel);
     assert.equal(
-      result.levels[0]
-        ?.touchesCount,
+      resistanceLevel.touchCount,
       2,
     );
 
@@ -262,14 +299,18 @@ test(
       result.candidates.find(
         (candidate) =>
           candidate.setupType
-          === 'level_breakout',
+          === 'level_breakout'
+          && candidate.level.kind
+          === 'resistance',
       );
 
     const bounce =
       result.candidates.find(
         (candidate) =>
           candidate.setupType
-          === 'level_bounce',
+          === 'level_bounce'
+          && candidate.level.kind
+          === 'resistance',
       );
 
     assert.ok(breakout);
@@ -288,6 +329,52 @@ test(
     assert.equal(
       breakout.stage,
       'LEVEL_CONFIRMED',
+    );
+
+    assert.equal(
+      breakout.causal?.lineId,
+      resistanceLevel.id,
+    );
+
+    assert.equal(
+      breakout.causal?.stage,
+      'OBSERVATION',
+    );
+
+    assert.equal(
+      breakout.createdAt,
+      breakout.causal?.observedAt,
+    );
+
+    assert.equal(
+      breakout.causal
+        ?.observationProgressThreshold,
+      0.5,
+    );
+
+    assert.equal(
+      breakout.causal
+        ?.maxDistanceToLevelPercent,
+      0.5,
+    );
+
+    assert.equal(
+      breakout.causal
+        ?.sourceCreatesSetup,
+      false,
+    );
+
+    const breakoutUpdate =
+      result.causalUpdates.find(
+        (update) =>
+          update.candidateId
+          === breakout.id,
+      );
+
+    assert.ok(breakoutUpdate);
+    assert.equal(
+      breakoutUpdate.context.lineId,
+      resistanceLevel.id,
     );
   },
 );
@@ -331,6 +418,45 @@ test(
 );
 
 test(
+  'does not create a setup before canonical observation progress reaches 0.50',
+  () => {
+    const store =
+      new MarketWideOneMinuteMetricsStore(
+        ['SOLUSDT'],
+      );
+
+    store.applyHistoricalKlines(
+      buildResistanceHistory()
+        .slice(0, 7),
+    );
+
+    const result =
+      new SetupDetectionPipeline(
+        store,
+        PIPELINE_OPTIONS,
+      ).scanSymbol(
+        'SOLUSDT',
+      );
+
+    assert.equal(
+      result.levels.some(
+        (line) =>
+          line.status === 'confirmed',
+      ),
+      true,
+    );
+    assert.deepEqual(
+      result.candidates,
+      [],
+    );
+    assert.deepEqual(
+      result.causalUpdates,
+      [],
+    );
+  },
+);
+
+test(
   'uses the latest retained close when book ticker is unavailable',
   () => {
     const pipeline =
@@ -346,7 +472,7 @@ test(
 
     assert.equal(
       result.currentPrice,
-      98.5,
+      99.7,
     );
 
     assert.equal(

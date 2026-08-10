@@ -2,6 +2,13 @@
   DEFAULT_SETUP_DETECTION_PIPELINE_OPTIONS,
   SetupDetectionPipeline,
 } from './setup-detection-pipeline.js';
+import type {
+  RealtimeConfirmationEvidenceReaderOptions,
+} from '../level-engine/realtime-confirmation-evidence.js';
+import type {
+  SetupCausalContext,
+  SetupCausalUpdate,
+} from './causal-setup-adapter.types.js';
 import {
   advanceSetupEngineState,
 } from './setup-engine.js';
@@ -49,9 +56,9 @@ SetupDetectionRuntimeOptions = {
       DEFAULT_SETUP_DETECTION_PIPELINE_OPTIONS
         .maxCandles,
 
-    detectorOptions: {
+    levelLinesOptions: {
       ...DEFAULT_SETUP_DETECTION_PIPELINE_OPTIONS
-        .detectorOptions,
+        .levelLinesOptions,
     },
 
     candidateOptions: {
@@ -101,7 +108,45 @@ function cloneCandidate(
     level: {
       ...candidate.level,
     },
+    ...(candidate.causal
+      ? {
+          causal: {
+            ...candidate.causal,
+            realtimeConfirmationReasons: [
+              ...candidate.causal
+                .realtimeConfirmationReasons,
+            ],
+          },
+        }
+      : {}),
   };
+}
+
+function cloneCausalContext(
+  context: SetupCausalContext,
+): SetupCausalContext {
+  return {
+    ...context,
+    realtimeConfirmationReasons: [
+      ...context
+        .realtimeConfirmationReasons,
+    ],
+  };
+}
+
+function causalStageRank(
+  context: SetupCausalContext,
+): number {
+  switch (context.stage) {
+    case 'LEVEL_CONFIRMED':
+      return 0;
+    case 'OBSERVATION':
+      return 1;
+    case 'APPROACH':
+      return 2;
+    case 'CONFIRMATION':
+      return 3;
+  }
 }
 
 function timestampValue(
@@ -244,6 +289,9 @@ export class SetupDetectionRuntimeService {
     private readonly options:
       SetupDetectionRuntimeOptions =
         DEFAULT_SETUP_DETECTION_RUNTIME_OPTIONS,
+
+    realtimeEvidenceReaders:
+      RealtimeConfirmationEvidenceReaderOptions = {},
   ) {
     if (
       !Number.isInteger(
@@ -267,6 +315,10 @@ export class SetupDetectionRuntimeService {
       new SetupDetectionPipeline(
         source,
         options.pipelineOptions,
+        {
+          realtimeEvidenceReaders,
+          now: options.now,
+        },
       );
 
     this.readNow();
@@ -583,6 +635,14 @@ export class SetupDetectionRuntimeService {
         continue;
       }
 
+      if (
+        candidate.causal
+        && candidate.stage
+          !== 'THIRD_TOUCH_CONFIRMED'
+      ) {
+        continue;
+      }
+
       this.evaluationsCount += 1;
       this.lastEvaluationAt =
         observation.evaluatedAt;
@@ -803,6 +863,15 @@ export class SetupDetectionRuntimeService {
         }
       }
 
+      for (
+        const update
+        of result.causalUpdates
+      ) {
+        this.applyCausalUpdate(
+          update,
+        );
+      }
+
       this.enforceCandidateLimit();
     } catch (error) {
       this.failedScans += 1;
@@ -811,6 +880,110 @@ export class SetupDetectionRuntimeService {
         error instanceof Error
           ? `${symbol}: ${error.message}`
           : `${symbol}: Setup Detection Runtime scan failed`;
+    }
+  }
+
+  private applyCausalUpdate(
+    update: SetupCausalUpdate,
+  ): void {
+    let candidate =
+      this.candidates.get(
+        update.candidateId,
+      );
+
+    if (
+      !candidate
+      || isTerminalStage(
+        candidate.stage,
+      )
+    ) {
+      return;
+    }
+
+    if (
+      candidate.causal
+      && candidate.causal.lineId
+        !== update.context.lineId
+    ) {
+      throw new Error(
+        `Setup Detection Runtime causal line identity changed for ${candidate.id}`,
+      );
+    }
+
+    for (
+      const transition
+      of update.transitionEvents
+    ) {
+      const event =
+        transition.event;
+      const applicable =
+        (
+          event.type
+            === 'APPROACH_DETECTED'
+          && candidate.stage
+            === 'LEVEL_CONFIRMED'
+        )
+        || (
+          event.type
+            === 'THIRD_TOUCH_DETECTED'
+          && candidate.stage
+            === 'APPROACHING_THIRD_TOUCH'
+        );
+
+      if (!applicable) {
+        continue;
+      }
+
+      const previous =
+        candidate;
+      const advanced =
+        advanceSetupEngineState(
+          previous,
+          event,
+        );
+      candidate = {
+        ...advanced,
+        causal:
+          cloneCausalContext(
+            transition.context,
+          ),
+      };
+
+      this.candidates.set(
+        candidate.id,
+        cloneCandidate(candidate),
+      );
+      this.stageTransitionsCount += 1;
+      this.lastTransitionAt =
+        candidate.updatedAt;
+      this.emitStageTransition(
+        previous,
+        candidate,
+      );
+    }
+
+    const currentContext =
+      candidate.causal;
+
+    if (
+      !currentContext
+      || causalStageRank(
+        update.context,
+      ) >= causalStageRank(
+        currentContext,
+      )
+    ) {
+      candidate = {
+        ...candidate,
+        causal:
+          cloneCausalContext(
+            update.context,
+          ),
+      };
+      this.candidates.set(
+        candidate.id,
+        cloneCandidate(candidate),
+      );
     }
   }
 

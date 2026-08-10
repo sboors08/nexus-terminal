@@ -1,19 +1,28 @@
-﻿import {
-  createSetupCandidate,
+import {
+  DEFAULT_LEVEL_LINES_DETECTION_OPTIONS,
+  detectLevelLines,
+} from '../level-engine/level-lines-detector.js';
+import type {
+  LevelEngineCandle,
+} from '../level-engine/level-engine-touch-detector.types.js';
+import {
+  captureRealtimeConfirmationEvidence,
+} from '../level-engine/realtime-confirmation-evidence.js';
+import {
+  evaluateRealtimeConfirmations,
+} from '../level-engine/realtime-confirmation-engine.js';
+import {
+  adaptCausalSetupCandidates,
+} from './causal-setup-adapter.js';
+import {
   DEFAULT_SETUP_CANDIDATE_FACTORY_OPTIONS,
 } from './setup-candidate-factory.js';
-import {
-  DEFAULT_SETUP_LEVEL_DETECTOR_OPTIONS,
-  detectSetupLevels,
-} from './setup-level-detector.js';
-import type {
-  SetupLevelDetectorCandle,
-} from './setup-level-detector.types.js';
 import type {
   SetupEngineSetupType,
 } from './setup-engine.types.js';
 import type {
   SetupDetectionMarketStore,
+  SetupDetectionPipelineDependencies,
   SetupDetectionPipelineOptions,
   SetupDetectionPipelineResult,
 } from './setup-detection-pipeline.types.js';
@@ -27,8 +36,8 @@ const SYMBOL_PATTERN =
 export const DEFAULT_SETUP_DETECTION_PIPELINE_OPTIONS:
   SetupDetectionPipelineOptions = {
     maxCandles: 1_440,
-    detectorOptions: {
-      ...DEFAULT_SETUP_LEVEL_DETECTOR_OPTIONS,
+    levelLinesOptions: {
+      ...DEFAULT_LEVEL_LINES_DETECTION_OPTIONS,
     },
     candidateOptions: {
       ...DEFAULT_SETUP_CANDIDATE_FACTORY_OPTIONS,
@@ -68,73 +77,14 @@ function validateSetupType(
 }
 
 function normalizeOptions(
-  options:
-    SetupDetectionPipelineOptions,
+  options: SetupDetectionPipelineOptions,
 ): SetupDetectionPipelineOptions {
   if (
-    !Number.isInteger(
-      options.maxCandles,
-    )
+    !Number.isInteger(options.maxCandles)
     || options.maxCandles <= 0
   ) {
     throw new Error(
       'Setup Detection Pipeline maxCandles must be a positive integer',
-    );
-  }
-
-  const detectorIntegers = [
-    options.detectorOptions
-      .pivotWindow,
-    options.detectorOptions
-      .minTouches,
-    options.detectorOptions
-      .minTouchSpacingCandles,
-  ];
-
-  if (
-    detectorIntegers.some(
-      (value) =>
-        !Number.isInteger(value)
-        || value <= 0,
-    )
-  ) {
-    throw new Error(
-      'Setup Detection Pipeline detector integer options must be positive',
-    );
-  }
-
-  if (
-    options.detectorOptions
-      .minTouches < 2
-  ) {
-    throw new Error(
-      'Setup Detection Pipeline requires at least two level touches',
-    );
-  }
-
-  if (
-    !Number.isFinite(
-      options.detectorOptions
-        .maxDistancePct,
-    )
-    || options.detectorOptions
-      .maxDistancePct <= 0
-  ) {
-    throw new Error(
-      'Setup Detection Pipeline detector distance must be positive',
-    );
-  }
-
-  if (
-    !Number.isFinite(
-      options.detectorOptions
-        .zonePaddingPct,
-    )
-    || options.detectorOptions
-      .zonePaddingPct < 0
-  ) {
-    throw new Error(
-      'Setup Detection Pipeline zone padding must be non-negative',
     );
   }
 
@@ -152,9 +102,7 @@ function normalizeOptions(
   }
 
   const setupTypes = [
-    ...new Set(
-      options.setupTypes,
-    ),
+    ...new Set(options.setupTypes),
   ];
 
   if (setupTypes.length === 0) {
@@ -163,20 +111,14 @@ function normalizeOptions(
     );
   }
 
-  for (
-    const setupType
-    of setupTypes
-  ) {
-    validateSetupType(
-      setupType,
-    );
+  for (const setupType of setupTypes) {
+    validateSetupType(setupType);
   }
 
   return {
-    maxCandles:
-      options.maxCandles,
-    detectorOptions: {
-      ...options.detectorOptions,
+    maxCandles: options.maxCandles,
+    levelLinesOptions: {
+      ...options.levelLinesOptions,
     },
     candidateOptions: {
       ...options.candidateOptions,
@@ -185,7 +127,7 @@ function normalizeOptions(
   };
 }
 
-function mapKlineToDetectorCandle(
+function mapKlineToLevelEngineCandle(
   kline: {
     openTime: string;
     closeTime: string;
@@ -195,42 +137,16 @@ function mapKlineToDetectorCandle(
     close: number;
     isClosed: boolean;
   },
-): SetupLevelDetectorCandle {
+): LevelEngineCandle {
   return {
-    openTime:
-      kline.openTime,
-    closeTime:
-      kline.closeTime,
-    open:
-      kline.open,
-    high:
-      kline.high,
-    low:
-      kline.low,
-    close:
-      kline.close,
-    isClosed:
-      kline.isClosed,
+    openTime: kline.openTime,
+    closeTime: kline.closeTime,
+    open: kline.open,
+    high: kline.high,
+    low: kline.low,
+    close: kline.close,
+    isClosed: kline.isClosed,
   };
-}
-
-function resolveCurrentPrice(
-  state:
-    ReturnType<
-      SetupDetectionMarketStore[
-        'getState'
-      ]
-    >,
-): number | null {
-  if (state?.bookTicker) {
-    return (
-      state.bookTicker.bidPrice
-      + state.bookTicker.askPrice
-    ) / 2;
-  }
-
-  return state?.kline?.close
-    ?? null;
 }
 
 export class SetupDetectionPipeline {
@@ -246,6 +162,8 @@ export class SetupDetectionPipeline {
     options:
       SetupDetectionPipelineOptions =
         DEFAULT_SETUP_DETECTION_PIPELINE_OPTIONS,
+    private readonly dependencies:
+      SetupDetectionPipelineDependencies = {},
   ) {
     this.options =
       normalizeOptions(options);
@@ -255,89 +173,125 @@ export class SetupDetectionPipeline {
     symbolValue: string,
   ): SetupDetectionPipelineResult {
     const symbol =
-      normalizeSymbol(
-        symbolValue,
-      );
-
+      normalizeSymbol(symbolValue);
     const retainedKlines =
       this.store.getKlines(
         symbol,
         this.options.maxCandles,
       );
-
-    const detectorCandles =
+    const candles =
       retainedKlines.map(
-        mapKlineToDetectorCandle,
+        mapKlineToLevelEngineCandle,
       );
-
-    const levels =
-      detectSetupLevels(
-        symbol,
-        TIMEFRAME,
-        detectorCandles,
-        this.options
-          .detectorOptions,
-      );
-
-    const currentPrice =
-      resolveCurrentPrice(
-        this.store.getState(
+    const detection =
+      detectLevelLines(
+        {
           symbol,
+          timeframe: TIMEFRAME,
+          candles,
+        },
+        this.options
+          .levelLinesOptions,
+      );
+    const currentCandleIndex =
+      detection
+        .approachEvaluation
+        .currentCandleIndex;
+    const currentClosedCandle =
+      currentCandleIndex === null
+        ? null
+        : candles[currentCandleIndex]
+          ?? null;
+    const localNow =
+      this.dependencies.now
+      ?? (() => new Date());
+    const now = (): Date =>
+      new Date(
+        Math.max(
+          localNow().getTime(),
+          currentClosedCandle
+            ? Date.parse(
+                currentClosedCandle
+                  .closeTime,
+              )
+            : Number.NEGATIVE_INFINITY,
         ),
       );
-
-    const candidates = [];
+    const realtimeEvidence =
+      captureRealtimeConfirmationEvidence(
+        symbol,
+        this.dependencies
+          .realtimeEvidenceReaders
+        ?? {},
+        now,
+      );
+    const realtimeConfirmation =
+      evaluateRealtimeConfirmations({
+        symbol,
+        timeframe: TIMEFRAME,
+        approachEvaluation:
+          detection.approachEvaluation,
+        currentClosedCandle,
+        evidence: realtimeEvidence,
+      });
+    const adapted =
+      adaptCausalSetupCandidates({
+        detection,
+        realtimeConfirmation,
+        setupTypes:
+          this.options.setupTypes,
+        expiresAfterSec:
+          this.options
+            .candidateOptions
+            .expiresAfterSec,
+      });
+    const candidates:
+      SetupDetectionPipelineResult[
+        'candidates'
+      ] = [];
     const duplicateCandidateIds:
       string[] = [];
 
-    if (currentPrice !== null) {
-      for (const level of levels) {
-        for (
-          const setupType
-          of this.options.setupTypes
-        ) {
-          const candidate =
-            createSetupCandidate(
-              level,
-              setupType,
-              currentPrice,
-              this.options
-                .candidateOptions,
-            );
-
-          if (
-            this.emittedCandidateIds.has(
-              candidate.id,
-            )
-          ) {
-            duplicateCandidateIds.push(
-              candidate.id,
-            );
-
-            continue;
-          }
-
-          this.emittedCandidateIds.add(
-            candidate.id,
-          );
-
-          candidates.push(
-            candidate,
-          );
-        }
+    for (const candidate of adapted.candidates) {
+      if (
+        this.emittedCandidateIds.has(
+          candidate.id,
+        )
+      ) {
+        duplicateCandidateIds.push(
+          candidate.id,
+        );
+        continue;
       }
+
+      this.emittedCandidateIds.add(
+        candidate.id,
+      );
+      candidates.push(candidate);
     }
 
     return {
       symbol,
-      timeframe:
-        TIMEFRAME,
+      timeframe: TIMEFRAME,
       scannedCandlesCount:
-        detectorCandles.length,
-      currentPrice,
-      levels,
+        candles.length,
+      currentPrice:
+        detection
+          .observationTracking
+          .currentPrice,
+      levels: [
+        ...detection.activeLevels,
+      ],
       candidates,
+      causalUpdates: [
+        ...adapted.updates,
+      ],
       duplicateCandidateIds,
+      source: 'level_lines',
+      sourceCreatesSetup: false,
+      createsSignal: false,
+      evaluatesBreakout: false,
+      evaluatesBounce: false,
     };
   }
 }

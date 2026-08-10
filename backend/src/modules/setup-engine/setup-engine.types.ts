@@ -46,6 +46,8 @@ export interface SetupEngineState {
   createdAt: string;
   updatedAt: string;
   expiresAt: string;
+  causal?: import('./causal-setup-adapter.types.js')
+    .SetupCausalContext;
 }
 
 export type SetupEngineEvent =

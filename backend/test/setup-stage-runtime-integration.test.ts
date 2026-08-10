@@ -12,6 +12,9 @@ import type {
 import type {
   BinanceOneMinuteKlineUpdate,
 } from '../src/modules/realtime-market-data/market-wide-one-minute-metrics.js';
+import type {
+  RealtimeConfirmationEvidenceReaderOptions,
+} from '../src/modules/level-engine/realtime-confirmation-evidence.js';
 import {
   SetupDetectionRuntimeService,
 } from '../src/modules/setup-engine/setup-detection-runtime.service.js';
@@ -71,6 +74,82 @@ class MutableClock {
     new Date(
       this.currentTimeMs,
     );
+}
+
+function buildEvidenceReaders(
+  clock: MutableClock,
+): RealtimeConfirmationEvidenceReaderOptions {
+  return {
+    tapeReader: {
+      getSnapshots: (symbol?: string) => {
+        const normalizedSymbol =
+          symbol ?? 'SOLUSDT';
+        const capturedAtMs =
+          clock.now().getTime();
+        const recentTrades =
+          Array.from(
+            { length: 6 },
+            (_, index) => ({
+              id: `trade-${index}`,
+              symbol: normalizedSymbol,
+              timestamp:
+                new Date(
+                  capturedAtMs
+                  - (6 - index) * 250,
+                ).toISOString(),
+              price: 100,
+              quantity: 1,
+              quoteValue: 100,
+              side: 'buy' as const,
+              isBuyerMaker: false,
+            }),
+          );
+
+        return [{
+          symbol: normalizedSymbol,
+          lastTrade:
+            recentTrades.at(-1)
+            ?? null,
+          bookTicker: null,
+          recentTrades,
+          updatedAt:
+            clock.now().toISOString(),
+        }];
+      },
+    },
+    orderBookReader: {
+      getSnapshot: (symbol: string) => ({
+        symbol,
+        state: 'live',
+        synchronized: true,
+        lastUpdateId: 1,
+        bids: [],
+        asks: [],
+        buckets: null,
+        metrics: {
+          symbol,
+          synchronized: true,
+          bestBid: 99.9,
+          bestAsk: 100,
+          midpoint: 99.95,
+          spread: 0.1,
+          spreadPct: 0.10005,
+          depthRangePct: 0.5,
+          bidDepthQuote: 1_000,
+          askDepthQuote: 100,
+          totalDepthQuote: 1_100,
+          imbalancePct: 81.8182,
+          updatedAt:
+            clock.now().toISOString(),
+        },
+        updatedAt:
+          clock.now().toISOString(),
+        ageMs: 0,
+        staleAfterMs: 5_000,
+        lastError: null,
+      }),
+    },
+  };
 }
 
 function cloneKline(
@@ -154,10 +233,10 @@ function buildHistory(
       symbol,
       0,
       {
-        open: 96,
-        high: 98,
-        low: 95,
-        close: 97,
+        open: 95,
+        high: 96,
+        low: 94,
+        close: 95,
       },
     ),
 
@@ -165,10 +244,10 @@ function buildHistory(
       symbol,
       1,
       {
-        open: 97,
+        open: 96,
         high: 100,
-        low: 96,
-        close: 98,
+        low: 95,
+        close: 99,
       },
     ),
 
@@ -176,10 +255,10 @@ function buildHistory(
       symbol,
       2,
       {
-        open: 96,
-        high: 98,
-        low: 95,
-        close: 97,
+        open: 96.8,
+        high: 97,
+        low: 96,
+        close: 96.5,
       },
     ),
 
@@ -187,9 +266,9 @@ function buildHistory(
       symbol,
       3,
       {
-        open: 95,
+        open: 96,
         high: 97,
-        low: 94,
+        low: 95,
         close: 96,
       },
     ),
@@ -198,10 +277,10 @@ function buildHistory(
       symbol,
       4,
       {
-        open: 96,
-        high: 98.5,
-        low: 95,
-        close: 97,
+        open: 97,
+        high: 99.9,
+        low: 96,
+        close: 99,
       },
     ),
 
@@ -209,10 +288,10 @@ function buildHistory(
       symbol,
       5,
       {
-        open: 97,
-        high: 100.1,
-        low: 96,
-        close: 98,
+        open: 98,
+        high: 98,
+        low: 95,
+        close: 96,
       },
     ),
 
@@ -220,10 +299,21 @@ function buildHistory(
       symbol,
       6,
       {
-        open: 98,
-        high: 99,
-        low: 97,
-        close: 98.5,
+        open: 96,
+        high: 97,
+        low: 94,
+        close: 95,
+      },
+    ),
+
+    buildKline(
+      symbol,
+      7,
+      {
+        open: 95,
+        high: 98,
+        low: 94.5,
+        close: 97,
       },
     ),
   ];
@@ -437,12 +527,22 @@ function buildRuntimeOptions(
     pipelineOptions: {
       maxCandles: 100,
 
-      detectorOptions: {
-        pivotWindow: 1,
-        minTouches: 2,
-        minTouchSpacingCandles: 2,
-        maxDistancePct: 0.25,
-        zonePaddingPct: 0.05,
+      levelLinesOptions: {
+        atrPeriod: 2,
+        pivotLeftBars: 1,
+        pivotRightBars: 1,
+        originDepartureAtr: 0.6,
+        originDepartureMaxCandles: 4,
+        candidateVisibilityMinDepartureAtr: 2,
+        candidateVisibilityMaxAgeBars: 5,
+        persistentCandidateMinDepartureAtr: 1.5,
+        persistentCandidateLookbackBars: 6,
+        originEpisodeMaxSpanCandles: 3,
+        workedEpisodeMaxSpanCandles: 8,
+        touchTolerancePercent: 0.15,
+        minBarsBetweenTouchEpisodes: 0,
+        decisiveBreakAtr: 0.5,
+        consecutiveBreakCloses: 2,
       },
 
       candidateOptions: {
@@ -498,6 +598,9 @@ async function createHarness(
       buildRuntimeOptions(
         clock,
         expiresAfterSec,
+      ),
+      buildEvidenceReaders(
+        clock,
       ),
     );
 
@@ -577,7 +680,7 @@ test(
     const approachKline =
       buildKline(
         'SOLUSDT',
-        7,
+        8,
         {
           open: 99.2,
           high: 99.8,
@@ -614,15 +717,27 @@ test(
       'APPROACHING_THIRD_TOUCH',
     );
 
+    assert.equal(
+      detailResponse.json()
+        .causal.stage,
+      'APPROACH',
+    );
+
+    assert.equal(
+      detailResponse.json()
+        .causal.reason,
+      'approach_distance_threshold_met',
+    );
+
     const touchKline =
       buildKline(
         'SOLUSDT',
-        8,
+        9,
         {
           open: 99.7,
-          high: 100.1,
+          high: 100,
           low: 99.6,
-          close: 100,
+          close: 99.95,
         },
       );
 
@@ -649,10 +764,39 @@ test(
       'THIRD_TOUCH_CONFIRMED',
     );
 
+    assert.equal(
+      detailResponse.json().outcome,
+      null,
+    );
+
+    assert.equal(
+      detailResponse.json()
+        .causal.stage,
+      'CONFIRMATION',
+    );
+
+    assert.equal(
+      detailResponse.json()
+        .causal.reason,
+      'realtime_confirmation_confirmed',
+    );
+
+    assert.equal(
+      detailResponse.json()
+        .causal.evaluatesBreakout,
+      false,
+    );
+
+    assert.equal(
+      detailResponse.json()
+        .causal.evaluatesBounce,
+      false,
+    );
+
     const breakoutKline =
       buildKline(
         'SOLUSDT',
-        9,
+        10,
         {
           open: 100,
           high: 100.5,
@@ -703,6 +847,11 @@ test(
       'breakout',
     );
 
+    assert.equal(
+      payload[0].causal.stage,
+      'CONFIRMATION',
+    );
+
     const statusResponse =
       await app.inject({
         method: 'GET',
@@ -720,7 +869,7 @@ test(
 
     assert.equal(
       status.evaluationsCount,
-      6,
+      2,
     );
 
     assert.equal(
@@ -763,7 +912,7 @@ test(
     );
 
     clock.set(
-      '2026-07-26T12:08:00.000Z',
+      '2026-07-26T12:10:00.000Z',
     );
 
     const response =
@@ -844,7 +993,7 @@ test(
     const invalidEthKline =
       buildKline(
         'ETHUSDT',
-        7,
+        8,
         {
           open: 101,
           high: 100,
@@ -856,7 +1005,7 @@ test(
     const validSolKline =
       buildKline(
         'SOLUSDT',
-        7,
+        8,
         {
           open: 99.2,
           high: 99.8,
@@ -903,7 +1052,7 @@ test(
 
     assert.equal(
       status.failedEvaluations,
-      2,
+      0,
     );
 
     assert.equal(
@@ -947,7 +1096,7 @@ test(
     const approachKline =
       buildKline(
         'SOLUSDT',
-        7,
+        8,
         {
           open: 99.2,
           high: 99.8,
@@ -995,7 +1144,7 @@ test(
 
     assert.equal(
       status.evaluationsCount,
-      2,
+      0,
     );
 
     assert.equal(
@@ -1010,7 +1159,7 @@ test(
 
     assert.equal(
       status.lastEvaluationAt,
-      approachKline.eventTime,
+      null,
     );
 
     assert.equal(
@@ -1040,6 +1189,9 @@ test(
       new SetupDetectionRuntimeService(
         source,
         buildRuntimeOptions(
+          clock,
+        ),
+        buildEvidenceReaders(
           clock,
         ),
       );
@@ -1125,6 +1277,9 @@ test(
         buildRuntimeOptions(
           clock,
         ),
+        buildEvidenceReaders(
+          clock,
+        ),
       );
 
     const events:
@@ -1160,7 +1315,7 @@ test(
     const approachKline =
       buildKline(
         'SOLUSDT',
-        7,
+        8,
         {
           open: 99.2,
           high: 99.8,
@@ -1180,12 +1335,12 @@ test(
     const touchKline =
       buildKline(
         'SOLUSDT',
-        8,
+        9,
         {
           open: 99.7,
-          high: 100.1,
+          high: 100,
           low: 99.6,
-          close: 100,
+          close: 99.95,
         },
       );
 
@@ -1200,7 +1355,7 @@ test(
     const breakoutKline =
       buildKline(
         'SOLUSDT',
-        9,
+        10,
         {
           open: 100,
           high: 100.5,
@@ -1311,6 +1466,9 @@ test(
         buildRuntimeOptions(
           clock,
         ),
+        buildEvidenceReaders(
+          clock,
+        ),
       );
 
     const events:
@@ -1346,7 +1504,7 @@ test(
     const approachKline =
       buildKline(
         'SOLUSDT',
-        7,
+        8,
         {
           open: 99.2,
           high: 99.8,
@@ -1366,12 +1524,12 @@ test(
     const touchKline =
       buildKline(
         'SOLUSDT',
-        8,
+        9,
         {
           open: 99.7,
-          high: 100.1,
+          high: 100,
           low: 99.6,
-          close: 100,
+          close: 99.95,
         },
       );
 
@@ -1386,7 +1544,7 @@ test(
     const rejectionKline =
       buildKline(
         'SOLUSDT',
-        9,
+        10,
         {
           open: 100,
           high: 100.05,
@@ -1457,6 +1615,9 @@ test(
           clock,
           120,
         ),
+        buildEvidenceReaders(
+          clock,
+        ),
       );
 
     const events:
@@ -1473,7 +1634,7 @@ test(
     runtime.start();
 
     clock.set(
-      '2026-07-26T12:08:00.000Z',
+      '2026-07-26T12:10:00.000Z',
     );
 
     runtime.getStatus();
@@ -1538,6 +1699,9 @@ test(
       new SetupDetectionRuntimeService(
         source,
         buildRuntimeOptions(
+          clock,
+        ),
+        buildEvidenceReaders(
           clock,
         ),
       );
@@ -1619,7 +1783,7 @@ test(
     const approachKline =
       buildKline(
         'SOLUSDT',
-        7,
+        8,
         {
           open: 99.2,
           high: 99.8,

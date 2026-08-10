@@ -47,12 +47,22 @@ const RUNTIME_OPTIONS:
     maxCandidates: 100,
     pipelineOptions: {
       maxCandles: 100,
-      detectorOptions: {
-        pivotWindow: 1,
-        minTouches: 2,
-        minTouchSpacingCandles: 2,
-        maxDistancePct: 0.25,
-        zonePaddingPct: 0.05,
+      levelLinesOptions: {
+        atrPeriod: 2,
+        pivotLeftBars: 1,
+        pivotRightBars: 1,
+        originDepartureAtr: 0.6,
+        originDepartureMaxCandles: 4,
+        candidateVisibilityMinDepartureAtr: 2,
+        candidateVisibilityMaxAgeBars: 5,
+        persistentCandidateMinDepartureAtr: 1.5,
+        persistentCandidateLookbackBars: 6,
+        originEpisodeMaxSpanCandles: 3,
+        workedEpisodeMaxSpanCandles: 8,
+        touchTolerancePercent: 0.15,
+        minBarsBetweenTouchEpisodes: 0,
+        decisiveBreakAtr: 0.5,
+        consecutiveBreakCloses: 2,
       },
       candidateOptions: {
         expiresAfterSec: 3_600,
@@ -184,50 +194,56 @@ function buildHistory(
 ): BinanceOneMinuteKlineUpdate[] {
   const history = [
     buildKline(0, {
-      open: 96,
-      high: 98,
-      low: 95,
-      close: 97,
+      open: 95,
+      high: 96,
+      low: 94,
+      close: 95,
     }),
     buildKline(1, {
-      open: 97,
+      open: 96,
       high: 100,
-      low: 96,
-      close: 98,
+      low: 95,
+      close: 99,
     }),
     buildKline(2, {
-      open: 96,
-      high: 98,
-      low: 95,
-      close: 97,
+      open: 96.8,
+      high: 97,
+      low: 96,
+      close: 96.5,
     }),
     buildKline(3, {
-      open: 95,
+      open: 96,
       high: 97,
-      low: 94,
+      low: 95,
       close: 96,
     }),
     buildKline(4, {
-      open: 96,
-      high: 98.5,
-      low: 95,
-      close: 97,
+      open: 97,
+      high: 99.9,
+      low: 96,
+      close: 99,
     }),
     buildKline(5, {
-      open: 97,
-      high: 100.1,
-      low: 96,
-      close: 98,
+      open: 98,
+      high: 98,
+      low: 95,
+      close: 96,
+    }),
+    buildKline(6, {
+      open: 96,
+      high: 97,
+      low: 94,
+      close: 95,
     }),
   ];
 
   if (includeFinalNeighbour) {
     history.push(
-      buildKline(6, {
-        open: 98,
-        high: 99,
-        low: 97,
-        close: 98.5,
+      buildKline(7, {
+        open: 99.2,
+        high: 99.8,
+        low: 99.1,
+        close: 99.7,
       }),
     );
   }
@@ -371,11 +387,11 @@ test(
     assert.ok(marketSocket);
 
     const unfinished =
-      buildKline(6, {
-        open: 98,
-        high: 99,
-        low: 97,
-        close: 98.5,
+      buildKline(7, {
+        open: 99.2,
+        high: 99.8,
+        low: 99.1,
+        close: 99.7,
         isClosed: false,
       });
 
