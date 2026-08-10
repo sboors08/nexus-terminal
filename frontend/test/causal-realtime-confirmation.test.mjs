@@ -137,6 +137,8 @@ function buildSnapshot(
   };
 
   return {
+    closedCandlesCount:
+      1,
     candles: [
       {
         openTime:
@@ -162,6 +164,9 @@ function buildSnapshot(
     activeLevels: [
       line,
     ],
+    lines: [
+      line,
+    ],
     observationTracking: {
       currentPrice:
         101.9,
@@ -178,6 +183,10 @@ function buildSnapshot(
       evaluations: [
         confirmation,
       ],
+    },
+    appliedOptions: {
+      touchTolerancePercent:
+        0.15,
     },
   };
 }
@@ -244,6 +253,165 @@ test(
     assert.equal(
       state?.realtimeConfirmation?.status,
       'collecting',
+    );
+  },
+);
+
+test(
+  'focuses the causal level nearest the live price regardless of the stale setup direction',
+  () => {
+    const snapshot =
+      buildSnapshot('collecting');
+    const resistance =
+      snapshot.activeLevels[0];
+    const support = {
+      ...resistance,
+      id:
+        'BTCUSDT-5m-line-support-1',
+      price:
+        100,
+      kind:
+        'support',
+      originExtremumPrice:
+        100,
+      touchCount:
+        2,
+    };
+
+    resistance.price =
+      108;
+    resistance.originExtremumPrice =
+      108;
+    resistance.touchCount =
+      1;
+    snapshot.activeLevels = [
+      resistance,
+      support,
+    ];
+    snapshot.lines = [
+      resistance,
+      support,
+    ];
+    snapshot.candles[0].close =
+      100.4;
+    snapshot.approachEvaluation.currentPrice =
+      100.4;
+    snapshot.observationTracking.currentPrice =
+      100.4;
+
+    const view =
+      buildCausalLevelLinesView(
+        snapshot,
+        [],
+      );
+
+    assert.equal(
+      view.focusState?.line.kind,
+      'support',
+    );
+    assert.equal(
+      view.focusState?.line.price,
+      100,
+    );
+    assert.equal(
+      view.focusState?.line.touchCount,
+      2,
+    );
+  },
+);
+
+test(
+  'marks a live move beyond the causal zone as a breakout attempt without inventing an outcome',
+  () => {
+    const snapshot =
+      buildSnapshot('confirmed');
+
+    snapshot.activeLevels[0].kind =
+      'support';
+
+    const liveCandle = {
+      ...snapshot.candles[0],
+      close:
+        101.5,
+      isClosed:
+        false,
+    };
+    const state =
+      buildCausalLevelLinesView(
+        snapshot,
+        [liveCandle],
+      ).focusState;
+
+    assert.equal(
+      state?.interactionState,
+      'break_attempt',
+    );
+    assert.equal(
+      state?.currentPrice,
+      101.5,
+    );
+    assert.equal(
+      state?.stage,
+      'CONFIRMATION',
+    );
+    assert.ok(
+      state?.currentPrice
+      < state?.zoneLow,
+    );
+  },
+);
+
+test(
+  'exposes only a recent backend-broken line as a confirmed breakout outcome',
+  () => {
+    const snapshot =
+      buildSnapshot('confirmed');
+    const line =
+      snapshot.lines[0];
+
+    line.status =
+      'broken';
+    line.brokenAt =
+      '2026-08-07T12:01:59.999Z';
+    line.breakEvidence = {
+      mode:
+        'consecutive_closes',
+      fromKind:
+        line.kind,
+      candleIndex:
+        0,
+      brokenAt:
+        line.brokenAt,
+      boundary:
+        line.price,
+      close:
+        102.4,
+      distanceBeyondBoundary:
+        0.4,
+      distanceBeyondBoundaryAtr:
+        0.5,
+    };
+    snapshot.activeLevels = [];
+
+    const view =
+      buildCausalLevelLinesView(
+        snapshot,
+        [],
+      );
+
+    assert.equal(
+      view.states.length,
+      0,
+    );
+    assert.equal(
+      view.confirmedBreakoutStates[0]
+        ?.interactionState,
+      'break_confirmed',
+    );
+    assert.equal(
+      view.confirmedBreakoutStates[0]
+        ?.line.id,
+      line.id,
     );
   },
 );

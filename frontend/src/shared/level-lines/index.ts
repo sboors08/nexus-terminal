@@ -2,6 +2,7 @@ export {
   buildCausalLevelLinesView,
   type CausalLevelLinesView,
   type CausalLevelHorizontalSegment,
+  type CausalLevelInteractionState,
   type CausalLevelStage,
   type CausalLevelState,
 } from './model/causalLevelLines.js';

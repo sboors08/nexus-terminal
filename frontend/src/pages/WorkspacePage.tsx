@@ -46,7 +46,10 @@ import {
 } from '@/shared/level-lines';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { DirectionBadge } from '@/shared/ui/DirectionBadge';
-import { SetupStageBadge } from '@/shared/ui/SetupStageBadge';
+import {
+  SetupStageBadge,
+  type SetupStage,
+} from '@/shared/ui/SetupStageBadge';
 import styles from './WorkspacePage.module.css';
 
 type Timeframe = '1m' | '5m' | '15m';
@@ -71,6 +74,9 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     isMarketWorkspaceSetupId(
       contractSetup.id,
     );
+  const isRuntimeSetup =
+    selectedSetup.runtimeData
+    === true;
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedPreset = searchParams.get('preset');
   const preset: TradingPreset = isTradingPreset(requestedPreset)
@@ -96,6 +102,37 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     timeframe,
     candles: candlesQuery.data ?? [],
   });
+  const activeWorkspaceCausalState =
+    causalLevelLines.focusState;
+  const brokenWorkspaceCausalState =
+    causalLevelLines
+      .confirmedBreakoutStates[0]
+    ?? null;
+  const activeWorkspaceDistance =
+    activeWorkspaceCausalState
+      ?.distanceToLevelPercent
+    ?? Number.POSITIVE_INFINITY;
+  const brokenWorkspaceDistance =
+    brokenWorkspaceCausalState
+      ?.distanceToLevelPercent
+    ?? Number.POSITIVE_INFINITY;
+  const workspaceCausalState =
+    brokenWorkspaceCausalState
+    && (
+      activeWorkspaceCausalState === null
+      || brokenWorkspaceDistance
+        <= activeWorkspaceDistance
+    )
+      ? brokenWorkspaceCausalState
+      : activeWorkspaceCausalState;
+  const isBreakAttempt =
+    workspaceCausalState
+      ?.interactionState
+    === 'break_attempt';
+  const isBreakConfirmed =
+    workspaceCausalState
+      ?.interactionState
+    === 'break_confirmed';
 
   const latestCandle =
     candlesQuery.status === 'success'
@@ -195,12 +232,12 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
           );
 
   const chartZoneLow =
-    contractSetup.level
-      .zoneLow;
+    workspaceCausalState?.zoneLow
+    ?? contractSetup.level.zoneLow;
 
   const chartZoneHigh =
-    contractSetup.level
-      .zoneHigh;
+    workspaceCausalState?.zoneHigh
+    ?? contractSetup.level.zoneHigh;
 
   const formatChartPrice = (
     value: number,
@@ -396,11 +433,12 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     setSearchParams(nextParams);
   };
 
-  useFeedbackPageContext({
+  const feedbackActions = useFeedbackPageContext({
     screen: 'Workspace',
     symbol: contractSetup.symbol,
     timeframe,
     setupId: contractSetup.id,
+    dock: 'hidden',
   });
 
   const visiblePrints =
@@ -410,12 +448,45 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
         || print.side
           === tapeFilter,
     );
-  const resultLabel = selectedSetup.kind.includes('Отскок') ? 'Отскок' : 'Пробой';
-  const currentStageIndex = { observation: 0, approach: 1, confirmation: 2, triggered: 3 }[selectedSetup.stage];
-
-  const isRuntimeSetup =
-    selectedSetup.runtimeData
-    === true;
+  const resultLabel =
+    isRuntimeSetup
+      ? isBreakConfirmed
+        ? 'Пробой'
+        : 'Исход'
+      : selectedSetup.kind.includes('Отскок')
+        ? 'Отскок'
+        : 'Пробой';
+  const causalStageIndex =
+    workspaceCausalState?.stage === 'CONFIRMATION'
+      ? 2
+      : workspaceCausalState?.stage === 'APPROACH'
+        ? 1
+        : workspaceCausalState?.stage === 'OBSERVATION'
+          ? 0
+          : null;
+  const currentStageIndex =
+    isRuntimeSetup
+    && isBreakConfirmed
+      ? 3
+    : isRuntimeSetup
+      ? causalStageIndex
+        ?? 0
+      : {
+          observation: 0,
+          approach: 1,
+          confirmation: 2,
+          triggered: 3,
+        }[selectedSetup.stage];
+  const workspaceBadgeStage: SetupStage =
+    isRuntimeSetup
+      ? isBreakConfirmed
+        ? 'triggered'
+        : workspaceCausalState?.stage === 'CONFIRMATION'
+          ? 'confirmation'
+          : workspaceCausalState?.stage === 'APPROACH'
+            ? 'approach'
+            : 'observation'
+      : selectedSetup.stage;
 
   const hasRuntimeSetupContext =
     isRuntimeSetup;
@@ -431,9 +502,13 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 resultLabel,
 
               description:
-                resultLabel === 'Отскок'
-                  ? 'Подтверждён отскок от зоны'
-                  : 'Подтверждён выход за зону',
+                isRuntimeSetup
+                  ? isBreakConfirmed
+                    ? 'Level Engine подтвердил выход за уровень закрытыми свечами'
+                    : 'Пробой, отскок или ложный пробой определяются отдельно'
+                  : resultLabel === 'Отскок'
+                    ? 'Подтверждён отскок от зоны'
+                    : 'Подтверждён выход за зону',
             }
           : stage,
     );
@@ -583,21 +658,78 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const hasBtcStrengthMetric =
     btcStrengthValue !== null;
 
+  const workspaceTouchCount =
+    workspaceCausalState?.line
+      .touchCount
+    ?? null;
+  const workspaceDistanceLabel =
+    workspaceCausalState
+      ?.distanceToLevelPercent
+    === null
+    || workspaceCausalState
+      ?.distanceToLevelPercent
+    === undefined
+      ? '—'
+      : `${workspaceCausalState.distanceToLevelPercent.toFixed(2)}%`;
+  const workspaceLevelLabel =
+    workspaceCausalState?.line.kind
+    === 'support'
+      ? 'поддержки'
+      : workspaceCausalState?.line.kind
+      === 'resistance'
+        ? 'сопротивления'
+        : 'уровня';
+  const workspaceTouchDetail =
+    workspaceTouchCount === null
+      ? 'Causal-уровень ещё не выбран backend.'
+      : workspaceTouchCount >= 3
+        ? `${workspaceTouchCount} касаний: уровень ослаблен, риск пробоя повышен.`
+        : workspaceTouchCount === 2
+          ? '2 независимых касания: рабочий уровень подтверждён.'
+          : 'Пока только 1 касание: уровень остаётся кандидатом.';
+  const workspaceInteractionDetail =
+    isBreakConfirmed
+      ? `Level Engine подтвердил пробой зоны ${workspaceLevelLabel} закрытыми свечами.`
+      : isBreakAttempt
+        ? `Цена вышла за границу зоны ${workspaceLevelLabel}: идёт попытка пробоя, исход ещё не определён.`
+        : workspaceCausalState?.stage === 'CONFIRMATION'
+          ? 'Level Engine подтверждает рыночное взаимодействие возле уровня без определения исхода.'
+          : workspaceCausalState?.stage === 'APPROACH'
+            ? 'Цена вошла в стадию «Подход»; подтверждение взаимодействия ещё не получено.'
+            : workspaceCausalState?.stage === 'OBSERVATION'
+              ? 'Идёт наблюдение за возвратом цены к causal-уровню.'
+              : 'Causal-уровень отслеживается; стадия «Подход» ещё не началась.';
+  const runtimeScannerReasons = [
+    workspaceCausalState
+      ? `Causal-уровень ${workspaceLevelLabel} ${formatChartPrice(workspaceCausalState.line.price)} · зона ${chartLevelLabel}.`
+      : 'Backend ещё не выбрал causal-уровень для этого Workspace.',
+    workspaceTouchDetail,
+    workspaceCausalState
+      ? `Расстояние от текущей цены до уровня: ${workspaceDistanceLabel}.`
+      : 'Расстояние до уровня пока неизвестно.',
+    workspaceInteractionDetail,
+  ];
+  const workspaceScannerReasons =
+    isRuntimeSetup
+      ? runtimeScannerReasons
+      : selectedSetup.reasons;
   const workspaceChecklist = [
     {
       id:
         'check-touches',
 
       label:
-        'Минимум 3 касания',
+        'Сила causal-уровня',
 
       detail:
-        `Подтверждено касаний: ${selectedSetup.touches}.`,
+        workspaceTouchDetail,
 
       state:
-        selectedSetup.touches >= 3
-          ? 'passed'
-          : 'warning',
+        workspaceTouchCount === null
+          ? 'waiting'
+          : workspaceTouchCount === 2
+            ? 'passed'
+            : 'warning',
     },
     {
       id:
@@ -672,21 +804,37 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
         'check-result',
 
       label:
-        `${resultLabel}: подтверждение результата`,
+        isRuntimeSetup
+          ? isBreakConfirmed
+            ? 'Пробой подтверждён'
+            : isBreakAttempt
+              ? 'Попытка пробоя'
+              : 'Исход взаимодействия'
+          : `${resultLabel}: подтверждение результата`,
 
       detail:
-        selectedSetup.stage
+        isRuntimeSetup
+          ? isBreakConfirmed
+            ? `Level Engine подтвердил пробой зоны ${workspaceLevelLabel}; уровень больше не активен.`
+            : isBreakAttempt
+              ? `Цена вышла за границу зоны ${workspaceLevelLabel}; итог определят закрытые свечи.`
+              : 'Пробой, отскок и ложный пробой определяются отдельным outcome-анализом.'
+          : selectedSetup.stage
           === 'triggered'
-          ? isRuntimeSetup
-            ? `${resultLabel} подтверждён Setup Engine.`
-            : `${resultLabel} отмечен в демонстрационном сетапе.`
-          : `Ожидается подтверждение возле зоны ${chartLevelLabel}.`,
+            ? `${resultLabel} отмечен в демонстрационном сетапе.`
+            : `Ожидается подтверждение возле зоны ${chartLevelLabel}.`,
 
       state:
-        selectedSetup.stage
+        isRuntimeSetup
+          ? isBreakConfirmed
+            ? 'passed'
+            : isBreakAttempt
+              ? 'warning'
+              : 'waiting'
+          : selectedSetup.stage
           === 'triggered'
-          ? 'passed'
-          : 'waiting',
+            ? 'passed'
+            : 'waiting',
     },
   ] as const;
 
@@ -1706,7 +1854,11 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               {
                 isMarketPreview
                   ? 'Рыночный обзор · сетап ещё не сформирован'
-                  : `${selectedSetup.kind} · зона ${chartLevelLabel}`
+                  : isRuntimeSetup
+                    ? isBreakConfirmed
+                      ? `Пробой уровня ${workspaceLevelLabel} подтверждён · зона ${chartLevelLabel}`
+                      : `Взаимодействие с уровнем ${workspaceLevelLabel} · зона ${chartLevelLabel}`
+                    : `${selectedSetup.kind} · зона ${chartLevelLabel}`
               }
             </p>
           </div>
@@ -1922,7 +2074,10 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 )}
             </div>
 
-            <CausalLevelStateStrip levels={causalLevelLines} />
+            <CausalLevelStateStrip
+              levels={causalLevelLines}
+              focusState={workspaceCausalState}
+            />
 
             <div className={styles.chartMetrics}>
               {
@@ -1963,12 +2118,14 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                       <div>
                         <span>До уровня</span>
                         <strong className={styles.warningValue}>
-                          {selectedSetup.distanceLabel}
+                          {workspaceDistanceLabel}
                         </strong>
                       </div>
                       <div>
                         <span>Касания</span>
-                        <strong>{selectedSetup.touches}</strong>
+                        <strong>
+                          {workspaceTouchCount ?? '—'}
+                        </strong>
                       </div>
                       <div>
                         <span>Формирование</span>
@@ -2064,14 +2221,18 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 {
                   isMarketPreview
                     ? 'Рыночный обзор'
-                    : 'Сетап под наблюдением'
+                    : isRuntimeSetup
+                      ? isBreakConfirmed
+                        ? 'Пробой уровня'
+                        : 'Взаимодействие с уровнем'
+                      : 'Сетап под наблюдением'
                 }
               </h2>
             </div>
 
             {!isMarketPreview && (
               <SetupStageBadge
-                stage={selectedSetup.stage}
+                stage={workspaceBadgeStage}
                 resultLabel={resultLabel}
               />
             )}
@@ -2079,6 +2240,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
 
           <CausalRealtimeConfirmationPanel
             levels={causalLevelLines}
+            focusState={workspaceCausalState}
           />
 
           {
@@ -2147,10 +2309,10 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                   <section className={styles.nexusSection}>
                     <div className={styles.sectionTitle}>
                       <h3>Почему в Scanner</h3>
-                      <span>{selectedSetup.reasons.length}</span>
+                      <span>{workspaceScannerReasons.length}</span>
                     </div>
                     <ul className={styles.reasonList}>
-                      {selectedSetup.reasons.map(
+                      {workspaceScannerReasons.map(
                         (reason) => (
                           <li key={reason}>
                             {reason}
@@ -2279,6 +2441,25 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               </button>
             </div>
           )}
+
+          <div className={styles.feedbackActions} aria-label="Обратная связь NEXUS">
+            {!isMarketPreview && (
+              <button
+                className={styles.inlineSetupFeedbackButton}
+                type="button"
+                onClick={feedbackActions.openSetupFeedback}
+              >
+                ◎ Оценить сетап
+              </button>
+            )}
+            <button
+              className={styles.inlineFeedbackButton}
+              type="button"
+              onClick={feedbackActions.openGeneralFeedback}
+            >
+              ✦ Feedback
+            </button>
+          </div>
 
           <p className={styles.testNotice}>
             {

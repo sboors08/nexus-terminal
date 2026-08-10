@@ -6,7 +6,8 @@ export type SetupStageResultLabel =
   | 'Пробой'
   | 'Отскок'
   | 'Ложный пробой'
-  | 'Уровень удержан';
+  | 'Уровень удержан'
+  | 'Исход';
 
 type SetupStageBadgeProps = {
   stage: SetupStage;
