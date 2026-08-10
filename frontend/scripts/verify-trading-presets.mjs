@@ -51,9 +51,10 @@ const requiredMarkersByFile = {
   'src/pages/WorkspacePage.tsx': [
     "const requestedPreset = searchParams.get('preset');",
     "const requestedScannerWindow = searchParams.get('scannerWindow');",
-    "nextParams.set('preset', preset);",
-    "nextParams.set('scannerWindow', scannerWindow);",
-    'to={buildSetupSelectionUrl(ROUTES.scanner, contractSetup.id, {',
+    'buildCanonicalWorkspaceSearchParams(',
+    'preset,',
+    'scannerWindow,',
+    'buildSetupSelectionUrl(ROUTES.scanner, contractSetup.id, {',
     'buildReplayUrl(',
     'ROUTES.replay',
   ],
