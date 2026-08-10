@@ -40,6 +40,10 @@ import {
   useMarketCandles,
   type NexusChartPriceLine,
 } from '@/shared/charts';
+import {
+  CausalLevelStateStrip,
+  useCausalLevelLines,
+} from '@/shared/level-lines';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { DirectionBadge } from '@/shared/ui/DirectionBadge';
 import { SetupStageBadge } from '@/shared/ui/SetupStageBadge';
@@ -86,6 +90,11 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const candlesQuery = useMarketCandles({
     symbol: contractSetup.symbol,
     timeframe,
+  });
+  const causalLevelLines = useCausalLevelLines({
+    symbol: contractSetup.symbol,
+    timeframe,
+    candles: candlesQuery.data ?? [],
   });
 
   const latestCandle =
@@ -185,10 +194,6 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             ' · ',
           );
 
-  const chartLevelCenter =
-    contractSetup.level
-      .centerPrice;
-
   const chartZoneLow =
     contractSetup.level
       .zoneLow;
@@ -213,9 +218,8 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
 
   const chartPriceLines =
     useMemo<readonly NexusChartPriceLine[]>(
-      () => {
-        const currentPriceLine:
-        NexusChartPriceLine = {
+      () => [
+        {
           price:
             chartCurrentPrice,
 
@@ -227,66 +231,12 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
 
           lineStyle:
             'dashed',
-        };
-
-        if (isMarketPreview) {
-          return [
-            currentPriceLine,
-          ];
-        }
-
-        return [
-          {
-            price:
-              chartZoneLow,
-
-            color:
-              '#d5a928',
-
-            lineStyle:
-              'dashed',
-
-            axisLabelVisible:
-              false,
-          },
-          {
-            price:
-              chartLevelCenter,
-
-            color:
-              '#f0b90b',
-
-            title:
-              'УРОВЕНЬ',
-
-            lineStyle:
-              'solid',
-          },
-          {
-            price:
-              chartZoneHigh,
-
-            color:
-              '#d5a928',
-
-            lineStyle:
-              'dashed',
-
-            axisLabelVisible:
-              false,
-          },
-
-          currentPriceLine,
-        ];
-      },
+        },
+      ],
       [
         chartCurrentPrice,
         chartPriceLineColor,
         chartPriceLineTitle,
-        chartLevelCenter,
-        chartZoneHigh,
-        chartZoneLow,
-        isMarketPreview,
       ],
     );
   const [tapeFilter, setTapeFilter] = useState<TapeFilter>('all');
@@ -1910,13 +1860,11 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 ))}
               </div>
               <div className={styles.chartLegend}>
-                {!isMarketPreview && (
-                  <span>
-                    <i className={styles.levelLegend} />
-                    {' '}
-                    Уровень {chartLevelLabel}
-                  </span>
-                )}
+                <span>
+                  <i className={styles.levelLegend} />
+                  {' '}
+                  Causal-уровни {causalLevelLines.states.length}
+                </span>
                 <span>
                   <i className={styles.priceLegend} />
                   {' '}
@@ -2046,6 +1994,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                       symbol={contractSetup.symbol}
                       fillContainer
                       priceLines={chartPriceLines}
+                      horizontalSegments={causalLevelLines.horizontalSegments}
                       showSeriesPriceLine={false}
                       enableDrawingTools
                       drawingScope={`${contractSetup.symbol}:${timeframe}`}
@@ -2062,6 +2011,8 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                   </>
                 )}
             </div>
+
+            <CausalLevelStateStrip levels={causalLevelLines} />
 
             <div className={styles.chartMetrics}>
               {

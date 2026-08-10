@@ -39,6 +39,10 @@ import {
   useMarketCandles,
   type MarketCandleTimeframe,
 } from '@/shared/charts';
+import {
+  CausalLevelStateStrip,
+  useCausalLevelLines,
+} from '@/shared/level-lines';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { DashboardScannerFilters } from './DashboardScannerFilters';
 import filterStyles from './DashboardScannerFilters.module.css';
@@ -828,6 +832,15 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
     useMarketCandles({
       symbol: dashboardChartSymbol,
       timeframe: dashboardChartTimeframe,
+    });
+
+  const dashboardLevelLines =
+    useCausalLevelLines({
+      symbol: dashboardChartSymbol,
+      timeframe: dashboardChartTimeframe,
+      candles:
+        dashboardCandlesQuery.data
+        ?? [],
     });
 
   const dashboardChartRealtime =
@@ -2261,6 +2274,10 @@ const barCount =
                     dashboardChartSymbol
                   }
                   fillContainer
+                  horizontalSegments={
+                    dashboardLevelLines
+                      .horizontalSegments
+                  }
                   enableDrawingTools
                   drawingScope={
                     `dashboard:${dashboardChartSymbol}:${dashboardChartTimeframe}`
@@ -2282,6 +2299,10 @@ const barCount =
               : null
           }
         </div>
+
+        <CausalLevelStateStrip
+          levels={dashboardLevelLines}
+        />
       </article>
 
     </section>

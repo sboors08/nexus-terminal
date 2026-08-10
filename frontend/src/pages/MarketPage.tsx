@@ -13,6 +13,10 @@ import {
   useMarketCandles,
   type MarketCandleTimeframe,
 } from '@/shared/charts';
+import {
+  CausalLevelStateStrip,
+  useCausalLevelLines,
+} from '@/shared/level-lines';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import styles from './MarketPage.module.css';
 
@@ -151,6 +155,11 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
   const candlesQuery = useMarketCandles({
     symbol: selected.symbol,
     timeframe,
+  });
+  const causalLevelLines = useCausalLevelLines({
+    symbol: selected.symbol,
+    timeframe,
+    candles: candlesQuery.data ?? [],
   });
 
   const resetFilters = () => {
@@ -294,6 +303,7 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
               <NexusCandlestickChart
                 candles={candlesQuery.data}
                 symbol={selected.symbol}
+                horizontalSegments={causalLevelLines.horizontalSegments}
                 enableDrawingTools
                 drawingScope={`market:${selected.symbol}:${timeframe}`}
                 onLoadOlder={
@@ -308,6 +318,8 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
               />
             )}
           </div>
+
+          <CausalLevelStateStrip levels={causalLevelLines} />
 
           <div className={styles.metricsGrid}>
             <article><span>Объём</span><strong>{formatCompact(selected.volumeQuote)}</strong><small>{volumeRatio.toFixed(2)}× медианы</small></article>

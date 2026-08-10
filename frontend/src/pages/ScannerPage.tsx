@@ -7,8 +7,11 @@ import {
   NexusCandlestickChart,
   NexusMiniCandlestickChart,
   useMarketCandles,
-  type NexusChartHorizontalSegment,
 } from '@/shared/charts';
+import {
+  CausalLevelStateStrip,
+  useCausalLevelLines,
+} from '@/shared/level-lines';
 import {
   DEFAULT_SCANNER_SETUP_TABLE_SORT_STATE,
   applyScannerSetupLiveMetrics,
@@ -108,50 +111,6 @@ const DEFAULT_VOLUME_SPIKE_FILTERS = {
   minTradesRatio: 1.5,
   minCurrentQuoteVolume: 50_000,
 };
-
-type ScannerLevelBounds = {
-  low: number;
-  high: number;
-};
-
-function parseScannerLevelBounds(
-  value: string,
-): ScannerLevelBounds | null {
-  const values =
-    value
-      .replace(/,/gu, '.')
-      .match(
-        /\d+(?:\.\d+)?/gu,
-      )
-      ?.map(Number)
-      .filter(Number.isFinite)
-    ?? [];
-
-  if (values.length === 0) {
-    return null;
-  }
-
-  const first =
-    values[0];
-
-  const second =
-    values[1]
-    ?? first;
-
-  return {
-    low:
-      Math.min(
-        first,
-        second,
-      ),
-
-    high:
-      Math.max(
-        first,
-        second,
-      ),
-  };
-}
 
 function getVolumeSpikeStatusClass(status: MarketVolumeSpikeStatus): string {
   if (status === 'new') return styles.volumeSpikeNew;
@@ -823,184 +782,14 @@ function ScannerPageContent({
     ? `market-${selectedSymbol.toLowerCase()}`
     : selectedSetup.id;
 
-  const selectedLevelSegments =
-    useMemo<NexusChartHorizontalSegment[]>(
-      () => {
-        if (isMarketPreview) {
-          return [];
-        }
-
-        const startTime =
-          selectedSetup.levelActiveFrom;
-
-        if (
-          !startTime
-          || !Number.isFinite(
-            Date.parse(startTime),
-          )
-        ) {
-          return [];
-        }
-
-        const parsedBounds =
-          parseScannerLevelBounds(
-            selectedSetup.level,
-          );
-
-        const low =
-          selectedSetup.levelLow
-          ?? parsedBounds?.low
-          ?? null;
-
-        const high =
-          selectedSetup.levelHigh
-          ?? parsedBounds?.high
-          ?? null;
-
-        if (
-          low === null
-          || high === null
-          || !Number.isFinite(low)
-          || !Number.isFinite(high)
-          || low <= 0
-          || high <= 0
-        ) {
-          return [];
-        }
-
-        const isShadow =
-          selectedSetup.source
-          === 'v2-shadow';
-
-        const sourceLabel =
-          isShadow
-            ? 'V2 SHADOW'
-            : 'V1';
-
-        const color =
-          isShadow
-            ? '#8b7cff'
-            : selectedSetup.direction
-              === 'long'
-                ? '#35df8d'
-                : '#ff5c71';
-
-        const lineStyle:
-        NexusChartHorizontalSegment['lineStyle'] =
-          isShadow
-            ? 'dashed'
-            : 'solid';
-
-        const lines:
-        NexusChartHorizontalSegment[] = [];
-
-        if (low === high) {
-          lines.push({
-            price:
-              low,
-
-            startTime,
-
-            color,
-
-            lineStyle,
-
-            title:
-              `${sourceLabel} LEVEL`,
-
-            axisLabelVisible:
-              true,
-          });
-        } else {
-          lines.push(
-            {
-              price:
-                low,
-
-              startTime,
-
-              color,
-
-              lineStyle,
-
-              title:
-                `${sourceLabel} LOW`,
-
-              axisLabelVisible:
-                true,
-            },
-
-            {
-              price:
-                high,
-
-              startTime,
-
-              color,
-
-              lineStyle,
-
-              title:
-                `${sourceLabel} HIGH`,
-
-              axisLabelVisible:
-                true,
-            },
-          );
-        }
-
-        const referencePrice =
-          selectedSetup
-            .levelReferencePrice;
-
-        if (
-          isShadow
-          && referencePrice
-            !== undefined
-          && Number.isFinite(
-            referencePrice,
-          )
-          && referencePrice > 0
-          && referencePrice !== low
-          && referencePrice !== high
-        ) {
-          lines.push({
-            price:
-              referencePrice,
-
-            startTime,
-
-            color,
-
-            lineStyle:
-              'dashed',
-
-            title:
-              'V2 REF',
-
-            axisLabelVisible:
-              true,
-          });
-        }
-
-        return lines;
-      },
-      [
-        isMarketPreview,
-        selectedSetup.direction,
-        selectedSetup.levelActiveFrom,
-        selectedSetup.level,
-        selectedSetup.levelHigh,
-        selectedSetup.levelLow,
-        selectedSetup
-          .levelReferencePrice,
-        selectedSetup.source,
-      ],
-    );
-
   const candlesQuery = useMarketCandles({
     symbol: selectedSymbol,
     timeframe: selectedSetup.timeframe,
+  });
+  const causalLevelLines = useCausalLevelLines({
+    symbol: selectedSymbol,
+    timeframe: selectedSetup.timeframe,
+    candles: candlesQuery.data ?? [],
   });
 
   const realtime = useRealtimeMarketData({ symbol: selectedSymbol });
@@ -1999,7 +1788,7 @@ function ScannerPageContent({
                   <NexusCandlestickChart
                     candles={candlesQuery.data}
                     symbol={selectedSymbol}
-                    horizontalSegments={selectedLevelSegments}
+                    horizontalSegments={causalLevelLines.horizontalSegments}
                     fillContainer
                     enableDrawingTools
                     drawingScope={`scanner:${selectedSymbol}:${selectedSetup.timeframe}`}
@@ -2009,6 +1798,8 @@ function ScannerPageContent({
                   />
                 )}
             </div>
+
+            <CausalLevelStateStrip levels={causalLevelLines} />
 
             <section className={styles.tradesPanel} aria-label={`Последние сделки ${selectedSymbol}`}>
               <div className={styles.tradesHeader}>
