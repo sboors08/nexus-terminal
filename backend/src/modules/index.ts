@@ -156,6 +156,26 @@ FastifyPluginAsync<
     {
       marketDataProvider:
         options.marketDataProvider,
+      ...(
+        options
+          .realtimeMarketDataService
+          ? {
+              realtimeMarketDataService:
+                options
+                  .realtimeMarketDataService,
+            }
+          : {}
+      ),
+      ...(
+        options
+          .orderBookDepthService
+          ? {
+              orderBookDepthService:
+                options
+                  .orderBookDepthService,
+            }
+          : {}
+      ),
     },
   );
 
