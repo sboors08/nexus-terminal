@@ -31,6 +31,17 @@ function cloneCandidate(
     level: {
       ...candidate.level,
     },
+    ...(candidate.causal
+      ? {
+          causal: {
+            ...candidate.causal,
+            realtimeConfirmationReasons: [
+              ...candidate.causal
+                .realtimeConfirmationReasons,
+            ],
+          },
+        }
+      : {}),
   };
 }
 
