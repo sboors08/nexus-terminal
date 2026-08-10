@@ -658,6 +658,40 @@ test(
         },
       ],
     );
+    assert.deepEqual(
+      result
+        .approachEvaluation
+        .evaluations
+        .filter(
+          (evaluation) =>
+            evaluation.lineId
+            === confirmed.id,
+        )
+        .map(
+          (evaluation) => ({
+            levelPrice:
+              evaluation.levelPrice,
+            currentPrice:
+              evaluation.currentPrice,
+            distanceToLevelPercent:
+              evaluation
+                .distanceToLevelPercent,
+            observationStage:
+              evaluation.observationStage,
+            stage:
+              evaluation.stage,
+          }),
+        ),
+      [
+        {
+          levelPrice: 100,
+          currentPrice: 105,
+          distanceToLevelPercent: 5,
+          observationStage: null,
+          stage: null,
+        },
+      ],
+    );
   },
 );
 
@@ -1320,6 +1354,18 @@ test(
       '5m',
     );
     assert.equal(
+      oneMinute
+        .approachEvaluation
+        .timeframe,
+      '1m',
+    );
+    assert.equal(
+      fiveMinutes
+        .approachEvaluation
+        .timeframe,
+      '5m',
+    );
+    assert.equal(
       Object.isFrozen(oneMinute),
       true,
     );
@@ -1362,6 +1408,21 @@ test(
         oneMinute
           .observationTracking
           .activeProgress,
+      ),
+      true,
+    );
+    assert.equal(
+      Object.isFrozen(
+        oneMinute
+          .approachEvaluation,
+      ),
+      true,
+    );
+    assert.equal(
+      Object.isFrozen(
+        oneMinute
+          .approachEvaluation
+          .evaluations,
       ),
       true,
     );

@@ -24,5 +24,7 @@ export * from './departure-extremum-tracker.js';
 export * from './departure-extremum-tracker.types.js';
 export * from './observation-tracker.js';
 export * from './observation-tracker.types.js';
+export * from './approach-engine.js';
+export * from './approach-engine.types.js';
 export * from './level-lines-detector.js';
 export * from './level-lines.types.js';
