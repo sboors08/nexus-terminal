@@ -2,9 +2,9 @@
 
 **Статус:** основной источник правды по продукту и разработке
 **Репозиторий:** `sboors08/nexus-terminal`
-**Дата фиксации:** 2026-08-08
+**Дата фиксации:** 2026-08-10
 **Язык работы:** русский
-**Базовое состояние:** `main` на merge-коммите `54ed8f0`, PR #123
+**Базовое состояние:** `main` на merge-коммите `d8fabc8`, PR #131
 **Текущая ориентировочная готовность:** числовой процент не подтверждён; фактический статус 13 этапов зафиксирован в разделах 25–26
 
 ---
@@ -61,6 +61,8 @@ NEXUS — веб-терминал для криптовалютных скаль
 8. Settings
 
 Постоянную нижнюю панель не делать.
+
+Отдельную пользовательскую вкладку `Levels` не создавать. Уровни являются частью анализа внутри `Market`, `Scanner` и `Workspace`, а не самостоятельным пользовательским разделом. Диагностический маршрут `/app/level-preview` остаётся внутренним инструментом проверки Level Engine и не включается в основное меню.
 
 Отдельные зоны:
 
@@ -229,6 +231,8 @@ Frontend и backend обязаны работать через `NEXUS Data Contr
 
 ## 9. Market
 
+Текущее состояние на 2026-08-10: раздел существует в frontend, но фактически не работает end-to-end и не считается готовым. Наличие общего causal Level Lines contract после PR #128 не подтверждает работоспособность страницы `Market`, получение актуальных данных, выбор монеты или согласованность таблицы и графика.
+
 Компоновка:
 
 - слева — график выбранной монеты;
@@ -251,6 +255,19 @@ Frontend и backend обязаны работать через `NEXUS Data Contr
 - добавление в Watchlist.
 
 Market дополняет Scanner и не должен его дублировать.
+
+Ближайшая обязательная задача — `Market Recovery v0.1`:
+
+- воспроизвести текущую неисправность и зафиксировать её причину;
+- восстановить получение и отображение реальных market-wide данных без зависимости от mock как штатного источника;
+- восстановить список монет, выбор символа, выбранный таймфрейм и график одной и той же монеты;
+- корректно обработать loading, error, empty и degraded состояния;
+- восстановить переход `Market → Workspace` с сохранением символа и таймфрейма;
+- после восстановления базовой работоспособности показать внутри `Market` ближайшие поддержку/сопротивление, расстояние до уровня, независимые касания и causal-стадию;
+- добавить фильтры «около поддержки», «около сопротивления» и «2+ касания» без создания отдельной вкладки `Levels`;
+- подтвердить результат автоматическими тестами и визуальной проверкой на реальных данных.
+
+В `Market Recovery v0.1` не входят изменение торговых порогов, создание сетапов из Level Lines, probability, profitability, обучение и новый Setup Score.
 
 ---
 
@@ -425,6 +442,17 @@ Frontend подключил эти параметры без изменения 
 
 Порог `0,50` меняется только после Replay и проверки, а не по ощущению.
 
+Текущее состояние causal-цепочки после PR #125–#131:
+
+- Departure Extremum Tracker v0.1 реализован отдельно для каждой активной подтверждённой/рабочей линии;
+- Observation Tracker v0.1 причинно считает `progress` по последней закрытой свече и использует включительную границу `progress >= 0,50`;
+- Approach Engine v0.1 причинно считает `distance = |P - L| / L × 100` и входит в `APPROACH` при `distance <= 0,50%` только после `OBSERVATION`;
+- Realtime Confirmation Engine v0.1 оценивает свежие `@aggTrade` и синхронизированный стакан, возвращая `collecting`, `not_ready`, `partial` или `confirmed`;
+- общий frontend-контракт causal Level Lines доступен Dashboard, Market, Scanner и Workspace, но сам по себе не подтверждает end-to-end работоспособность каждого раздела;
+- Workspace показывает единую цепочку «Наблюдение → Подход → Подтверждение», не подменяет подтверждённое взаимодействие исходом и выбирает актуальный уровень по текущему рыночному контакту;
+- цепочка по-прежнему не создаёт торговый сигнал, probability, profitability или Setup Score сама по себе;
+- после восстановления `Market` готовую causal-цепочку нужно связать с существующим Setup Engine без изменения торговых правил.
+
 ---
 
 ## 14. Workspace
@@ -459,6 +487,16 @@ Frontend подключил эти параметры без изменения 
 - полный режим;
 - ручную оценку результата;
 - сохранение полного контекста.
+
+Текущее causal-поведение Workspace:
+
+- тип уровня, зона, касания, расстояние и стадия берутся из одного выбранного causal-состояния;
+- ближайший к живой цене актуальный уровень имеет приоритет перед устаревшим направлением ранее выбранного сетапа;
+- поддержка и сопротивление остаются отдельными линиями;
+- два независимых касания показываются как подтверждённый рабочий уровень;
+- realtime confirmation означает подтверждение взаимодействия, но не объявляет пробой или отскок;
+- пробой показывается как факт только после подтверждения Level Engine закрытыми свечами;
+- оценка сетапа и Feedback встроены в правую панель и не перекрывают causal-данные.
 
 ---
 
@@ -749,18 +787,18 @@ Replay обязателен для v1.0.
 
 ---
 
-## 25. Фактическое состояние `main` на 2026-08-08
+## 25. Фактическое состояние `main` на 2026-08-10
 
 Базовая точка:
 
-- `main` и `origin/main`: merge-коммит `54ed8f0`;
-- последний объединённый PR: #123;
-- PR #123 изменил только `frontend/package-lock.json`;
-- GitHub Actions `CI #71` на head-коммите PR #123 `467da72`: Backend — `success`, Frontend — `success`;
-- backend: 433 автоматических теста;
-- frontend: 257 автоматических тестов;
+- `main` и `origin/main`: merge-коммит `d8fabc8`;
+- последний объединённый PR: #131;
+- PR #131 согласовал causal-уровень и состояние взаимодействия во всех блоках Workspace;
+- GitHub Actions для head-коммита PR #131 `cb105af`: Backend — `success`, Frontend — `success`;
+- backend: 465 автоматических тестов на последнем изменявшем backend PR #129;
+- frontend: 261 автоматический тест после PR #131;
 - backend и frontend production builds: успешно;
-- frontend dependency audit: `0 vulnerabilities`.
+- последний dependency audit после PR #123: `0 vulnerabilities`.
 
 Последний baseline подтверждает целостность реализации и сборки. Он не подтверждает прибыльность торговых правил.
 
@@ -780,14 +818,24 @@ Replay обязателен для v1.0.
 | #117–121 | GitHub Actions diagnostics | timeout/runner/dispatch changes, успешный minimal smoke и удаление временного smoke-workflow |
 | #122 | Level Lines v0.1 | отдельные causal support/resistance lines, independent touches, lifecycle, break/supersession, обновлённые API и frontend preview |
 | #123 | Dependency audit hotfix | `nanoid 3.3.18`, `postcss 8.5.26`, audit без уязвимостей, CI #71 зелёный |
+| #124 | Синхронизация Master Plan | состояние репозитория после PR #123, официальный маршрут из 13 этапов и Departure Extremum как следующий шаг |
+| #125 | Departure Extremum Tracker v0.1 | отдельный причинный экстремум `E` для каждой активной подтверждённой/рабочей Level Line; только закрытые свечи |
+| #126 | Observation Tracker v0.1 | per-line `progress = |P - E| / |L - E|`, последняя закрытая цена `P`, включительный порог `0,50` |
+| #127 | Approach Engine v0.1 | per-line расстояние до `L`, включительная граница `<= 0,50%`, вход только из `OBSERVATION` |
+| #128 | Causal Level Lines во frontend | общий snapshot/model для Dashboard, Market, Scanner и Workspace; legacy setup-zone lines удалены с рабочих графиков |
+| #129 | Realtime Confirmation Engine v0.1 | свежие `@aggTrade` + синхронизированный стакан, статусы `collecting/not_ready/partial/confirmed`, без сигнала и score |
+| #130 | Realtime confirmation во Workspace | backend-факты, causal-цепочка Observation → Approach → Confirmation, freshness/pressure/reasons без frontend-дублирования расчётов |
+| #131 | Согласованность causal-взаимодействия Workspace | единый активный уровень, зона, касания, расстояние и стадия; корректный фокус на поддержке/сопротивлении; встроенный Feedback |
 
 ### Важные границы текущей реализации
 
 - полный ручной review dataset Level Engine не завершён;
 - Level Lines v0.1 остаётся наблюдательным слоем и имеет `createsSetup: false`;
 - Level v2 quality dataset остаётся shadow-only и имеет `trainingApplied: false`;
-- существующий Setup Engine foundation создан до нового канонического Level Lines и ещё должен быть последовательно связан с Departure, Observation и Approach;
-- frontend live confirmation не меняет автоматически стадию Setup Engine и не является торговым сигналом;
+- Departure, Observation, Approach и realtime confirmation реализованы как единая per-line causal-цепочка, но ещё не подключены к lifecycle существующего Setup Engine;
+- frontend отображает backend realtime confirmation и согласованное causal-состояние, но это не меняет автоматически lifecycle Setup Engine и не является торговым сигналом;
+- пользовательский раздел `Market` сейчас не работает end-to-end и не считается реализованным, даже несмотря на наличие общего frontend causal-контракта;
+- отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
 - полноценные Alerts, Auth, постоянная History/Replay data layer, production deployment и закрытая beta не завершены.
 
@@ -797,15 +845,15 @@ Replay обязателен для v1.0.
 
 Мелкие PR и внутренние чек-листы не заменяют этот маршрут. Статусы ниже не являются процентами и не означают автоматическое закрытие этапа.
 
-| Этап | Название | Состояние на 2026-08-08 | Граница этапа |
+| Этап | Название | Состояние на 2026-08-10 | Граница этапа |
 | --- | --- | --- | --- |
 | 1 | Публичная страница | Частично | Есть публичный frontend-фундамент и SEO/i18n-заготовки; финальные лендинг, тексты, локализация и заявка в beta не завершены |
 | 2 | Binance USDⓈ-M Futures Migration | Завершён | PR #27; целевой рынок переведён на активные USDT perpetual contracts |
 | 3 | Futures Market Metrics | Частично | Реализованы realtime и multi-window цена/объём/сделки/волатильность/BTC-метрики; Funding Rate, Open Interest и ликвидации ещё впереди |
-| 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics и Charts Core; финальная связь с новым Setup pipeline впереди |
-| 5 | Charts и Workspace | Реализован v0.1 | Есть реальные свечи, история, объём, drawing tools, tape, order book, liquidity и dynamics; финальная продуктовая полировка впереди |
-| 6 | Levels Engine | Level Lines v0.1 объединён, валидация продолжается | Канонические отдельные causal lines реализованы; полный manual review dataset не завершён |
-| 7 | Setup Engine | Foundation реализован, этап не завершён | Старый lifecycle/runtime существует; нужен новый путь Level Lines → Departure → Observation → Approach → realtime confirmation |
+| 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; финальная связь с Setup Engine впереди |
+| 5 | Charts, Market и Workspace | Частично | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; пользовательский `Market` сейчас не работает end-to-end и требует `Market Recovery v0.1` |
+| 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
+| 7 | Setup Engine | Foundation и causal-предпосылки реализованы, этап не завершён | Старый lifecycle/runtime существует; готовую per-line цепочку Level Lines → Departure → Observation → Approach → realtime confirmation нужно подключить к Setup Engine |
 | 8 | Alerts | Частично | Есть UI и integrity foundation; полноценные правила, cooldown, доставка и история срабатываний не завершены |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence и runtime event history; Auth, приглашения, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
@@ -818,10 +866,12 @@ Replay обязателен для v1.0.
 ## 27. Ключевые зависимости
 
 - Charts Core нужен Dashboard, Market, Scanner, Workspace, History и Replay.
+- Работоспособный Market нужен для самостоятельного обзора рынка и перехода к Workspace; его восстановление выполняется до подключения causal-цепочки к Setup Engine.
+- Уровни внутри Market используют канонический Level Lines contract; отдельная пользовательская вкладка `Levels` не создаётся.
 - Scanner нужен Workspace, Alerts и History.
 - Канонические Level Lines нужны новому Setup pipeline.
-- После Level Lines порядок фиксирован: Departure Extremum → Observation 50% → Approach Engine → realtime confirmation.
-- Существующий Setup Engine foundation нельзя считать финальным, пока он не связан с новым Level Lines contract.
+- После Level Lines реализован фиксированный порядок: Departure Extremum → Observation 50% → Approach Engine → realtime confirmation.
+- Существующий Setup Engine foundation нельзя считать финальным, пока он не потребляет эту per-line causal-цепочку и новый Level Lines contract.
 - History нужен Replay и Self-Learning.
 - Сбор контекста начинается в Scanner, Workspace, Alerts, History и Replay до запуска Self-Learning.
 - Реальное самообучение начинается только после History + Replay, достаточной выборки и отдельного уведомления пользователя.
@@ -911,11 +961,11 @@ Replay обязателен для v1.0.
 
 Текущая задача:
 
-**Синхронизировать NEXUS Master Plan v1 с фактическим `main` после PR #123**
+**Синхронизировать NEXUS Master Plan v1 с фактическим `main` после PR #131**
 
 Осталось:
 
-1. изменить только `docs/NEXUS_MASTER_PLAN_v1.md` в ветке `docs-master-plan-sync-v1`;
+1. изменить только `docs/NEXUS_MASTER_PLAN_v1.md` в ветке `docs-master-plan-sync-after-pr131-v0-1`;
 2. проверить UTF-8, `git diff --check` и состав diff;
 3. создать отдельный docs-коммит и PR;
 4. объединить PR после доступных проверок;
@@ -923,27 +973,31 @@ Replay обязателен для v1.0.
 
 Следующая продуктовая задача после завершения docs-этапа:
 
-**Departure Extremum Tracker v0.1**
+**Market Recovery v0.1**
 
 Причина выбора:
 
-- Level Lines v0.1 уже создаёт отдельные causal lines;
-- независимые touch episodes и подтверждение второго взаимодействия уже реализованы;
-- в текущем `LevelLine` contract отсутствуют Departure Extremum `E`, per-line observation progress и порог `0,50`;
-- переход сразу к Approach Engine или финальному Setup Score нарушил бы каноническую последовательность.
+- `Market` входит в обязательный пользовательский контур NEXUS, но сейчас не работает end-to-end;
+- наличие общего causal frontend-контракта не заменяет проверку реального symbol universe, списка, выбора монеты, таймфрейма и графика;
+- продолжение Setup pipeline при неработающем основном разделе оставило бы пользовательский путь `Market → Workspace` разорванным;
+- уровни должны стать режимом анализа и фильтрами внутри восстановленного `Market`, поэтому отдельная вкладка `Levels` не нужна.
 
-Минимальная граница Departure Extremum Tracker v0.1:
+Минимальная граница Market Recovery v0.1:
 
-- только подтверждённые/рабочие активные линии;
-- отдельный `E` для каждой конкретной линии `L`;
-- только закрытые свечи и причинное время обнаружения;
-- независимость таймфреймов;
-- корректное завершение при `broken` или `superseded`;
-- typed immutable output;
-- отсутствие setup, LONG/SHORT-сигнала, probability и quality score;
-- focused tests для support, resistance, нескольких близких линий и защиты от будущих данных.
+- сначала воспроизвести неисправность и определить подтверждённую причину по коду и runtime;
+- восстановить реальные данные, symbol universe, список монет, выбор символа/таймфрейма и график без штатной зависимости от mock;
+- обеспечить единое состояние выбранных символа и таймфрейма в таблице, графике и переходе `Market → Workspace`;
+- корректно обработать loading, error, empty, stale и degraded состояния;
+- встроить в восстановленный `Market` ближайшие поддержку/сопротивление, расстояние, число независимых касаний и causal-стадию;
+- добавить фильтры по близости к поддержке/сопротивлению и `2+` касаниям;
+- не создавать отдельный пункт меню или пользовательскую страницу `Levels`;
+- сохранить существующие `progress >= 0,50`, `distance <= 0,50%` и `createsSetup: false`;
+- отсутствие probability, profitability, обучения и финального Setup Score;
+- focused unit/integration tests, frontend production build и визуальная приёмка на реальных данных.
 
-После него отдельной задачей идёт Observation Tracker v0.1 с формулой `progress = |P - E| / |L - E|` и стартовым тестовым порогом `0,50`.
+Frontend-редизайн вне `Market`, Alerts, постоянная History/Replay data layer и обучение в эту задачу не входят.
+
+Следующая задача после принятого `Market Recovery v0.1` — **Causal Setup Pipeline Integration v0.1**: подключить готовую per-line цепочку Level Lines → Departure → Observation → Approach → realtime confirmation к существующему Setup Engine без изменения торговых правил.
 
 ---
 
