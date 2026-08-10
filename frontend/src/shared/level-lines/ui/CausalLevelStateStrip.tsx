@@ -46,6 +46,10 @@ function lifecycleLabel(
 function stageLabel(
   state: CausalLevelState,
 ): string {
+  if (state.stage === 'CONFIRMATION') {
+    return 'CONFIRMATION';
+  }
+
   if (state.stage === 'APPROACH') {
     return 'APPROACH';
   }
@@ -162,11 +166,21 @@ export function CausalLevelStateStrip({
 
                       <div className={styles.progress}>
                         <span>
-                          Прогресс возврата
+                          {
+                            state.realtimeConfirmation?.status
+                              === 'confirmed'
+                              ? 'Backend подтверждение'
+                              : 'Прогресс возврата'
+                          }
                           <strong>
-                            {state.observationProgress === null
-                              ? '—'
-                              : `${Math.round(progress * 100)}%`}
+                            {
+                              state.realtimeConfirmation?.status
+                                === 'confirmed'
+                                ? 'ГОТОВО'
+                                : state.observationProgress === null
+                                  ? '—'
+                                  : `${Math.round(progress * 100)}%`
+                            }
                           </strong>
                         </span>
                         <i><b /></i>

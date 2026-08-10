@@ -342,6 +342,9 @@ test(
           },
         ],
       },
+      realtimeConfirmation: {
+        evaluations: [],
+      },
     };
     const view =
       buildCausalLevelLinesView(

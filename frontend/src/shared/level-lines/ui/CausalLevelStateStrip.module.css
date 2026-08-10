@@ -88,6 +88,11 @@
   background: rgba(242, 201, 76, .08);
 }
 
+.stage_confirmation {
+  color: #b381ff;
+  background: rgba(179, 129, 255, .1);
+}
+
 .stage_observation {
   color: #55a7ff;
   background: rgba(85, 167, 255, .08);

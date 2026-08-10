@@ -15,3 +15,7 @@ export {
 export {
   CausalLevelStateStrip,
 } from './ui/CausalLevelStateStrip.js';
+
+export {
+  CausalRealtimeConfirmationPanel,
+} from './ui/CausalRealtimeConfirmationPanel.js';
