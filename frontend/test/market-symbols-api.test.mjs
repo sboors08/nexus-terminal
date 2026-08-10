@@ -107,6 +107,22 @@ test('rejects an invalid runtime Market symbol contract', () => {
   );
 });
 
+test('rejects a Market symbol that realtime cannot subscribe to', () => {
+  const invalid = {
+    ...createMarketSymbol(),
+    symbol: '币安人生USDT',
+    baseAsset: '币安人生',
+  };
+
+  assert.throws(
+    () =>
+      parseRuntimeMarketSymbols([
+        invalid,
+      ]),
+    /symbol/u,
+  );
+});
+
 test('rejects a non-array Market symbols response', () => {
   assert.throws(
     () =>

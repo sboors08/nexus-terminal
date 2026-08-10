@@ -18,6 +18,9 @@ interface Ticker24h { symbol?: string; lastPrice?: string; priceChangePercent?: 
 type Kline = [number, string, string, string, string, string, number, string, number, ...unknown[]];
 interface ErrorPayload { code?: number; msg?: string; }
 
+const MARKET_SYMBOL_PATTERN = /^[A-Z0-9]{5,20}$/;
+const MARKET_ASSET_PATTERN = /^[A-Z0-9]{1,20}$/;
+
 function numberValue(value: string | number | undefined, fallback = 0): number {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -47,7 +50,16 @@ export class BinanceMarketDataClient implements MarketDataProvider {
       throw new MarketDataUnavailableError('Binance returned an unexpected market response');
     }
 
-    const active = new Map(exchangeInfo.symbols.filter((item) => item.status === 'TRADING' && item.quoteAsset === 'USDT' && item.contractType === 'PERPETUAL' && item.symbol && item.baseAsset).map((item) => [item.symbol as string, item]));
+    const active = new Map(exchangeInfo.symbols.filter((item) =>
+      item.status === 'TRADING'
+      && item.quoteAsset === 'USDT'
+      && item.contractType === 'PERPETUAL'
+      && typeof item.symbol === 'string'
+      && MARKET_SYMBOL_PATTERN.test(item.symbol)
+      && typeof item.baseAsset === 'string'
+      && MARKET_ASSET_PATTERN.test(item.baseAsset)
+      && MARKET_ASSET_PATTERN.test(item.quoteAsset),
+    ).map((item) => [item.symbol as string, item]));
     const btcChange = numberValue(tickers.find((item) => item.symbol === 'BTCUSDT')?.priceChangePercent);
 
     const symbols = tickers.flatMap((ticker): MarketSymbol[] => {
