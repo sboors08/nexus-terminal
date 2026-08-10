@@ -13,6 +13,12 @@ import {
 import type {
   MarketDataProvider,
 } from '../market-data/market-data.provider.js';
+import type {
+  OrderBookDepthRuntimeService,
+} from '../realtime-market-data/order-book-depth-runtime.types.js';
+import type {
+  RealtimeMarketDataService,
+} from '../realtime-market-data/realtime-market-data.types.js';
 import {
   detectLevelLines,
 } from './level-lines-detector.js';
@@ -24,10 +30,26 @@ import {
   isLevelEngineTimeframe,
   normalizeLevelEngineSymbol,
 } from './level-engine.contract.js';
+import {
+  captureRealtimeConfirmationEvidence,
+} from './realtime-confirmation-evidence.js';
+import {
+  evaluateRealtimeConfirmations,
+} from './realtime-confirmation-engine.js';
 
 export interface LevelLinesRoutesOptions {
   readonly marketDataProvider:
     MarketDataProvider;
+  readonly realtimeMarketDataService?:
+    Pick<
+      RealtimeMarketDataService,
+      'getSnapshots'
+    >;
+  readonly orderBookDepthService?:
+    Pick<
+      OrderBookDepthRuntimeService,
+      'getSnapshot'
+    >;
   readonly now?: () => Date;
 }
 
@@ -141,15 +163,14 @@ FastifyPluginAsync<
       }
 
       try {
-        const generatedAt =
-          (
-            options.now
-            ?? (() => new Date())
-          )()
-            .toISOString();
+        const now =
+          options.now
+          ?? (() => new Date());
+        const closedAt =
+          now().toISOString();
         const nowMs =
           Date.parse(
-            generatedAt,
+            closedAt,
           );
         const sourceCandles =
           await options
@@ -181,11 +202,52 @@ FastifyPluginAsync<
             timeframe,
             candles,
           });
+        const currentCandleIndex =
+          detection
+            .approachEvaluation
+            .currentCandleIndex;
+        const currentClosedCandle =
+          currentCandleIndex === null
+            ? null
+            : candles[
+                currentCandleIndex
+              ]
+              ?? null;
+        const realtimeEvidence =
+          captureRealtimeConfirmationEvidence(
+            symbol,
+            {
+              tapeReader:
+                options
+                  .realtimeMarketDataService
+                ?? null,
+              orderBookReader:
+                options
+                  .orderBookDepthService
+                ?? null,
+            },
+            now,
+          );
+        const generatedAt =
+          realtimeEvidence
+            .capturedAt;
+        const realtimeConfirmation =
+          evaluateRealtimeConfirmations({
+            symbol,
+            timeframe,
+            approachEvaluation:
+              detection
+                .approachEvaluation,
+            currentClosedCandle,
+            evidence:
+              realtimeEvidence,
+          });
         const snapshot:
         LevelLinesSnapshot =
           Object.freeze({
             ...detection,
             generatedAt,
+            realtimeConfirmation,
             candles,
           });
 
