@@ -8,6 +8,9 @@ import {
   trackDepartureExtrema,
 } from './departure-extremum-tracker.js';
 import {
+  trackObservationProgress,
+} from './observation-tracker.js';
+import {
   isLevelEngineTimeframe,
   normalizeLevelEngineSymbol,
 } from './level-engine.contract.js';
@@ -1500,6 +1503,14 @@ export function detectLevelLines(
       lines:
         activeLevels,
     });
+  const observationTracking =
+    trackObservationProgress({
+      symbol,
+      timeframe:
+        input.timeframe,
+      candles,
+      departureExtremumTracking,
+    });
 
   return Object.freeze({
     version:
@@ -1517,6 +1528,7 @@ export function detectLevelLines(
     activeLevels:
       activeLevels,
     departureExtremumTracking,
+    observationTracking,
     appliedOptions:
       options,
     observationalOnly: true,

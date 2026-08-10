@@ -624,6 +624,40 @@ test(
         },
       ],
     );
+    assert.deepEqual(
+      result
+        .observationTracking
+        .activeProgress
+        .filter(
+          (progress) =>
+            progress.lineId
+            === confirmed.id,
+        )
+        .map(
+          (progress) => ({
+            levelPrice:
+              progress.levelPrice,
+            departureExtremumPrice:
+              progress
+                .departureExtremumPrice,
+            currentPrice:
+              progress.currentPrice,
+            progress:
+              progress.progress,
+            stage:
+              progress.stage,
+          }),
+        ),
+      [
+        {
+          levelPrice: 100,
+          departureExtremumPrice: 106,
+          currentPrice: 105,
+          progress: 1 / 6,
+          stage: null,
+        },
+      ],
+    );
   },
 );
 
@@ -1274,6 +1308,18 @@ test(
       '5m',
     );
     assert.equal(
+      oneMinute
+        .observationTracking
+        .timeframe,
+      '1m',
+    );
+    assert.equal(
+      fiveMinutes
+        .observationTracking
+        .timeframe,
+      '5m',
+    );
+    assert.equal(
       Object.isFrozen(oneMinute),
       true,
     );
@@ -1301,6 +1347,21 @@ test(
         oneMinute
           .departureExtremumTracking
           .activeExtrema,
+      ),
+      true,
+    );
+    assert.equal(
+      Object.isFrozen(
+        oneMinute
+          .observationTracking,
+      ),
+      true,
+    );
+    assert.equal(
+      Object.isFrozen(
+        oneMinute
+          .observationTracking
+          .activeProgress,
       ),
       true,
     );

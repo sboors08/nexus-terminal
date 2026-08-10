@@ -135,6 +135,43 @@ test(
       false,
     );
     assert.equal(
+      payload
+        .observationTracking
+        .version,
+      'observation-tracker-v0.1',
+    );
+    assert.equal(
+      payload
+        .observationTracking
+        .appliedOptions
+        .observationPathProgressThreshold,
+      0.5,
+    );
+    assert.equal(
+      payload
+        .observationTracking
+        .computesObservationProgress,
+      true,
+    );
+    assert.equal(
+      payload
+        .observationTracking
+        .createsApproachEvaluation,
+      false,
+    );
+    assert.equal(
+      payload
+        .observationTracking
+        .createsSetup,
+      false,
+    );
+    assert.equal(
+      payload
+        .observationTracking
+        .createsSignal,
+      false,
+    );
+    assert.equal(
       payload.candles.every(
         (candle: {
           isClosed?: unknown;
