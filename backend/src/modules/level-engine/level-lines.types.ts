@@ -17,6 +17,9 @@ import type {
 import type {
   ObservationTrackingResult,
 } from './observation-tracker.types.js';
+import type {
+  ApproachEvaluationResult,
+} from './approach-engine.types.js';
 
 export const LEVEL_LINES_CONTRACT_VERSION =
   'level-lines-v0.1' as const;
@@ -101,6 +104,8 @@ export interface LevelLinesDetectionResult {
     DepartureExtremumTrackingResult;
   readonly observationTracking:
     ObservationTrackingResult;
+  readonly approachEvaluation:
+    ApproachEvaluationResult;
   readonly appliedOptions:
     LevelLinesDetectionOptions;
   readonly observationalOnly: true;

@@ -11,6 +11,9 @@ import {
   trackObservationProgress,
 } from './observation-tracker.js';
 import {
+  evaluateApproaches,
+} from './approach-engine.js';
+import {
   isLevelEngineTimeframe,
   normalizeLevelEngineSymbol,
 } from './level-engine.contract.js';
@@ -1511,6 +1514,13 @@ export function detectLevelLines(
       candles,
       departureExtremumTracking,
     });
+  const approachEvaluation =
+    evaluateApproaches({
+      symbol,
+      timeframe:
+        input.timeframe,
+      observationTracking,
+    });
 
   return Object.freeze({
     version:
@@ -1529,6 +1539,7 @@ export function detectLevelLines(
       activeLevels,
     departureExtremumTracking,
     observationTracking,
+    approachEvaluation,
     appliedOptions:
       options,
     observationalOnly: true,

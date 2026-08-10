@@ -172,6 +172,43 @@ test(
       false,
     );
     assert.equal(
+      payload
+        .approachEvaluation
+        .version,
+      'approach-engine-v0.1',
+    );
+    assert.equal(
+      payload
+        .approachEvaluation
+        .appliedOptions
+        .maxDistanceToLevelPercent,
+      0.5,
+    );
+    assert.equal(
+      payload
+        .approachEvaluation
+        .evaluatesApproach,
+      true,
+    );
+    assert.equal(
+      payload
+        .approachEvaluation
+        .createsRealtimeConfirmation,
+      false,
+    );
+    assert.equal(
+      payload
+        .approachEvaluation
+        .createsSetup,
+      false,
+    );
+    assert.equal(
+      payload
+        .approachEvaluation
+        .createsSignal,
+      false,
+    );
+    assert.equal(
       payload.candles.every(
         (candle: {
           isClosed?: unknown;
