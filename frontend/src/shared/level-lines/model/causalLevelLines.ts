@@ -21,9 +21,20 @@ export type CausalLevelStage =
   | 'CONFIRMATION'
   | null;
 
+export type CausalLevelInteractionState =
+  | 'tracking'
+  | 'at_level'
+  | 'break_attempt'
+  | 'break_confirmed';
+
 export interface CausalLevelState {
   readonly line: LevelLine;
   readonly stage: CausalLevelStage;
+  readonly currentPrice: number | null;
+  readonly zoneLow: number;
+  readonly zoneHigh: number;
+  readonly interactionState:
+    CausalLevelInteractionState;
   readonly observationProgress: number | null;
   readonly distanceToLevelPercent: number | null;
   readonly realtimeConfirmation:
@@ -44,6 +55,9 @@ export interface CausalLevelLinesView {
     readonly CausalLevelHorizontalSegment[];
   readonly states: readonly CausalLevelState[];
   readonly primaryStates: readonly CausalLevelState[];
+  readonly confirmedBreakoutStates:
+    readonly CausalLevelState[];
+  readonly focusState: CausalLevelState | null;
 }
 
 function clampProgress(
@@ -64,10 +78,12 @@ function distanceToLevel(
   ) / levelPrice * 100;
 }
 
-function currentClosedPrice(
+function currentViewPrice(
   snapshot: LevelLinesSnapshot,
+  candles: readonly Candle[],
 ): number | null {
-  return snapshot.approachEvaluation.currentPrice
+  return candles.at(-1)?.close
+    ?? snapshot.approachEvaluation.currentPrice
     ?? snapshot.observationTracking.currentPrice
     ?? snapshot.candles
       .filter(
@@ -76,6 +92,46 @@ function currentClosedPrice(
       .at(-1)
       ?.close
     ?? null;
+}
+
+function resolveInteractionState(
+  line: LevelLine,
+  price: number | null,
+  zoneLow: number,
+  zoneHigh: number,
+): CausalLevelInteractionState {
+  if (
+    line.status === 'broken'
+    && line.breakEvidence !== null
+  ) {
+    return 'break_confirmed';
+  }
+
+  if (price === null) {
+    return 'tracking';
+  }
+
+  if (
+    (
+      line.kind === 'support'
+      && price < zoneLow
+    )
+    || (
+      line.kind === 'resistance'
+      && price > zoneHigh
+    )
+  ) {
+    return 'break_attempt';
+  }
+
+  if (
+    price >= zoneLow
+    && price <= zoneHigh
+  ) {
+    return 'at_level';
+  }
+
+  return 'tracking';
 }
 
 function visiblePriceRange(
@@ -145,6 +201,7 @@ function buildState(
     ReadonlyMap<string, LevelLineApproachEvaluation>,
   confirmations:
     ReadonlyMap<string, LevelLineRealtimeConfirmation>,
+  interactionTolerancePercent: number,
 ): CausalLevelState {
   const observation =
     observations.get(line.id);
@@ -152,9 +209,28 @@ function buildState(
     approaches.get(line.id);
   const confirmation =
     confirmations.get(line.id);
+  const tolerance =
+    line.price
+    * interactionTolerancePercent
+    / 100;
+  const zoneLow =
+    line.price - tolerance;
+  const zoneHigh =
+    line.price + tolerance;
 
   return {
     line,
+    currentPrice:
+      price,
+    zoneLow,
+    zoneHigh,
+    interactionState:
+      resolveInteractionState(
+        line,
+        price,
+        zoneLow,
+        zoneHigh,
+      ),
     stage:
       confirmation?.stage === 'CONFIRMATION'
         ? 'CONFIRMATION'
@@ -174,15 +250,13 @@ function buildState(
             )
           : null,
     distanceToLevelPercent:
-      approach?.distanceToLevelPercent
-      ?? (
-        price === null
-          ? null
-          : distanceToLevel(
-              price,
-              line.price,
-            )
-      ),
+      price === null
+        ? approach?.distanceToLevelPercent
+          ?? null
+        : distanceToLevel(
+            price,
+            line.price,
+          ),
     realtimeConfirmation:
       confirmation ?? null,
   };
@@ -222,11 +296,16 @@ export function buildCausalLevelLinesView(
       horizontalSegments: [],
       states: [],
       primaryStates: [],
+      confirmedBreakoutStates: [],
+      focusState: null,
     };
   }
 
   const price =
-    currentClosedPrice(snapshot);
+    currentViewPrice(
+      snapshot,
+      candles,
+    );
   const observations =
     indexByLineId(
       snapshot.observationTracking.activeProgress,
@@ -249,6 +328,8 @@ export function buildCausalLevelLinesView(
             observations,
             approaches,
             confirmations,
+            snapshot.appliedOptions
+              .touchTolerancePercent,
           ),
       )
       .sort(
@@ -260,6 +341,44 @@ export function buildCausalLevelLinesView(
       );
   const primaryStates =
     selectPrimaryStates(states);
+  const confirmedBreakoutStates =
+    snapshot.lines
+      .filter(
+        (line) =>
+          line.status === 'broken'
+          && line.breakEvidence !== null
+          && snapshot.closedCandlesCount
+            - 1
+            - line.breakEvidence.candleIndex
+            >= 0
+          && snapshot.closedCandlesCount
+            - 1
+            - line.breakEvidence.candleIndex
+            <= 2,
+      )
+      .map(
+        (line) =>
+          buildState(
+            line,
+            price,
+            observations,
+            approaches,
+            confirmations,
+            snapshot.appliedOptions
+              .touchTolerancePercent,
+          ),
+      )
+      .sort(
+        (left, right) =>
+          Date.parse(
+            right.line.brokenAt
+            ?? '',
+          )
+          - Date.parse(
+              left.line.brokenAt
+              ?? '',
+            ),
+      );
   const primaryLineIds =
     new Set(
       primaryStates.map(
@@ -280,6 +399,9 @@ export function buildCausalLevelLinesView(
   return {
     states,
     primaryStates,
+    confirmedBreakoutStates,
+    focusState:
+      states[0] ?? null,
     horizontalSegments:
       visibleStates.map(
         (state) => ({
@@ -292,12 +414,16 @@ export function buildCausalLevelLinesView(
               state.line.kind
             ],
           title:
-            state.stage
-            ?? (
-              state.line.kind === 'support'
-                ? 'ПОДДЕРЖКА'
-                : 'СОПРОТИВЛЕНИЕ'
-            ),
+            primaryLineIds.has(
+              state.line.id,
+            )
+              ? state.stage
+                ?? (
+                  state.line.kind === 'support'
+                    ? 'ПОДДЕРЖКА'
+                    : 'СОПРОТИВЛЕНИЕ'
+                )
+              : undefined,
           lineStyle:
             state.line.status === 'candidate'
               ? 'dashed'

@@ -203,6 +203,11 @@ test(
 
     assert.match(
       pageSource,
+      /Level Engine подтвердил пробой/u,
+    );
+
+    assert.doesNotMatch(
+      pageSource,
       /подтверждён Setup Engine/u,
     );
 

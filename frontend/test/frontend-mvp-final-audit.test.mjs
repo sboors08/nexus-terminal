@@ -287,11 +287,26 @@ test(
         'resistance',
         150,
       );
+    const secondaryResistance =
+      makeLine(
+        'secondary-resistance',
+        'resistance',
+        101.4,
+      );
     const snapshot = {
+      closedCandlesCount:
+        candles.length,
       candles,
+      lines: [
+        support,
+        resistance,
+        secondaryResistance,
+        distant,
+      ],
       activeLevels: [
         support,
         resistance,
+        secondaryResistance,
         distant,
       ],
       observationTracking: {
@@ -345,6 +360,10 @@ test(
       realtimeConfirmation: {
         evaluations: [],
       },
+      appliedOptions: {
+        touchTolerancePercent:
+          0.15,
+      },
     };
     const view =
       buildCausalLevelLinesView(
@@ -382,6 +401,8 @@ test(
             segment.price,
           lineStyle:
             segment.lineStyle,
+          title:
+            segment.title,
         }),
       ),
       [
@@ -390,12 +411,24 @@ test(
             101,
           lineStyle:
             'dashed',
+          title:
+            'APPROACH',
+        },
+        {
+          price:
+            101.4,
+          lineStyle:
+            'solid',
+          title:
+            undefined,
         },
         {
           price:
             99,
           lineStyle:
             'solid',
+          title:
+            'OBSERVATION',
         },
       ],
     );

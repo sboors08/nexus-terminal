@@ -32,20 +32,37 @@ function formatPrice(
 function lifecycleLabel(
   state: CausalLevelState,
 ): string {
+  const touchLabel =
+    state.line.touchCount === 1
+      ? '1 касание'
+      : state.line.touchCount < 5
+        ? `${state.line.touchCount} касания`
+        : `${state.line.touchCount} касаний`;
+
+  if (state.line.status === 'broken') {
+    return `${touchLabel} · уровень пробит`;
+  }
+
   if (state.line.status === 'worked') {
-    return `${state.line.touchCount} касания · отработал`;
+    return state.line.touchCount >= 3
+      ? `${touchLabel} · уровень ослаблен`
+      : `${touchLabel} · повторное взаимодействие`;
   }
 
   if (state.line.status === 'confirmed') {
-    return `${state.line.touchCount} касания · подтверждён`;
+    return `${touchLabel} · рабочий уровень`;
   }
 
-  return 'Кандидат · 1 касание';
+  return `${touchLabel} · кандидат`;
 }
 
 function stageLabel(
   state: CausalLevelState,
 ): string {
+  if (state.interactionState === 'break_confirmed') {
+    return 'ПРОБОЙ';
+  }
+
   if (state.stage === 'CONFIRMATION') {
     return 'CONFIRMATION';
   }
@@ -63,8 +80,10 @@ function stageLabel(
 
 export function CausalLevelStateStrip({
   levels,
+  focusState,
 }: {
   readonly levels: UseCausalLevelLinesResult;
+  readonly focusState?: CausalLevelState | null;
 }) {
   const activeCount =
     levels.states.length;
@@ -103,13 +122,17 @@ export function CausalLevelStateStrip({
                 Повторить
               </button>
             </div>
-          ) : levels.primaryStates.length === 0 ? (
+          ) : !focusState
+            && levels.primaryStates.length === 0 ? (
             <p className={styles.notice}>
               Активных causal-уровней в текущем snapshot нет.
             </p>
           ) : (
             <div className={styles.items}>
-              {levels.primaryStates.map(
+              {(focusState
+                ? [focusState]
+                : levels.primaryStates
+              ).map(
                 (state) => {
                   const progress =
                     state.observationProgress
@@ -158,7 +181,13 @@ export function CausalLevelStateStrip({
                           {stageLabel(state)}
                         </span>
                         <small>
-                          {state.distanceToLevelPercent === null
+                          {state.interactionState === 'break_attempt'
+                            ? state.line.kind === 'support'
+                              ? 'Цена ниже зоны поддержки'
+                              : 'Цена выше зоны сопротивления'
+                            : state.interactionState === 'break_confirmed'
+                              ? 'Подтверждён закрытыми свечами'
+                            : state.distanceToLevelPercent === null
                             ? 'Расстояние неизвестно'
                             : `${state.distanceToLevelPercent.toFixed(2)}% до уровня`}
                         </small>
@@ -167,16 +196,24 @@ export function CausalLevelStateStrip({
                       <div className={styles.progress}>
                         <span>
                           {
-                            state.realtimeConfirmation?.status
+                            state.interactionState === 'break_attempt'
+                              ? 'Попытка пробоя'
+                              : state.interactionState === 'break_confirmed'
+                                ? 'Пробой подтверждён'
+                              : state.realtimeConfirmation?.status
                               === 'confirmed'
-                              ? 'Backend подтверждение'
+                              ? 'Взаимодействие подтверждено'
                               : 'Прогресс возврата'
                           }
                           <strong>
                             {
-                              state.realtimeConfirmation?.status
+                              state.interactionState === 'break_attempt'
+                                ? 'РИСК'
+                                : state.interactionState === 'break_confirmed'
+                                  ? 'ФАКТ'
+                                : state.realtimeConfirmation?.status
                                 === 'confirmed'
-                                ? 'ГОТОВО'
+                                ? 'ЕСТЬ'
                                 : state.observationProgress === null
                                   ? '—'
                                   : `${Math.round(progress * 100)}%`

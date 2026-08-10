@@ -1260,6 +1260,42 @@
   padding: var(--nexus-space-2);
 }
 
+.feedbackActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--nexus-space-1);
+  padding: 0 var(--nexus-space-2) var(--nexus-space-2);
+}
+
+.feedbackActions button {
+  min-height: 36px;
+  border-radius: var(--nexus-radius-round);
+  font: 700 10px/1 var(--nexus-font-family-sans);
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.inlineSetupFeedbackButton {
+  border: var(--nexus-border-width) solid var(--nexus-color-border-strong);
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-canvas);
+}
+
+.inlineSetupFeedbackButton:hover {
+  border-color: var(--nexus-color-accent-primary);
+  color: var(--nexus-color-accent-primary);
+}
+
+.inlineFeedbackButton {
+  border: var(--nexus-border-width) solid color-mix(in srgb, var(--nexus-color-long) 55%, var(--nexus-color-border-strong));
+  color: var(--nexus-color-text-on-accent);
+  background: var(--nexus-color-long);
+}
+
+.inlineFeedbackButton:hover {
+  background: var(--nexus-color-long-hover);
+}
+
 .externalButton {
   width: 100%;
 }

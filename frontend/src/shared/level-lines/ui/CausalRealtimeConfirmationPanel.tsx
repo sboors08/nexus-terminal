@@ -47,12 +47,22 @@ const STATUS_META: Record<
       'Один live-источник поддерживает взаимодействие с уровнем.',
   },
   confirmed: {
-    label: 'ПОДТВЕРЖДЕНО',
+    label: 'ВЗАИМОДЕЙСТВИЕ ПОДТВЕРЖДЕНО',
     tone: 'positive',
     summary:
-      'Лента и стакан поддерживают взаимодействие с уровнем.',
+      'Лента и стакан поддерживают взаимодействие; исход ещё не определён.',
   },
 };
+
+const BREAK_ATTEMPT_META = {
+  label: 'ПОПЫТКА ПРОБОЯ',
+  tone: 'warning',
+} as const;
+
+const CONFIRMED_BREAKOUT_META = {
+  label: 'ПРОБОЙ ПОДТВЕРЖДЁН',
+  tone: 'negative',
+} as const;
 
 const EVIDENCE_LABELS: Record<
   RealtimeConfirmationEvidenceState,
@@ -241,14 +251,33 @@ function CausalConfirmationCard({
     confirmation?.status
     ?? 'not_applicable';
   const statusMeta =
-    STATUS_META[status];
+    state.interactionState === 'break_confirmed'
+      ? CONFIRMED_BREAKOUT_META
+      : state.interactionState === 'break_attempt'
+        ? BREAK_ATTEMPT_META
+        : STATUS_META[status];
   const reasons =
-    confirmation?.reasons
+    state.interactionState === 'break_confirmed'
+      ? [
+          state.line.breakEvidence?.mode
+          === 'consecutive_closes'
+            ? 'Level Engine подтвердил пробой последовательными закрытиями свечей.'
+            : 'Level Engine подтвердил решительный пробой телом свечи.',
+          'Пробитый уровень исключён backend из активных.',
+        ]
+      : state.interactionState === 'break_attempt'
+      ? [
+          state.line.kind === 'support'
+            ? 'Цена находится ниже зоны поддержки.'
+            : 'Цена находится выше зоны сопротивления.',
+          'Пробой, ложный пробой или возврат определяются отдельно по закрытым свечам.',
+        ]
+      : confirmation?.reasons
       .map(
         (reason) => REASON_LABELS[reason],
       )
       .slice(0, 2)
-    ?? [statusMeta.summary];
+      ?? [STATUS_META[status].summary];
 
   return (
     <article
@@ -367,8 +396,10 @@ function CausalConfirmationCard({
 
 export function CausalRealtimeConfirmationPanel({
   levels,
+  focusState,
 }: {
   readonly levels: UseCausalLevelLinesResult;
+  readonly focusState?: CausalLevelState | null;
 }) {
   const sourceState =
     resolveSourceState(levels);
@@ -425,13 +456,17 @@ export function CausalRealtimeConfirmationPanel({
                 Повторить
               </button>
             </div>
-          ) : levels.primaryStates.length === 0 ? (
+          ) : !focusState
+            && levels.primaryStates.length === 0 ? (
             <p className={styles.notice}>
               Активных уровней для наблюдения сейчас нет.
             </p>
           ) : (
             <div className={styles.cards}>
-              {levels.primaryStates.map(
+              {(focusState
+                ? [focusState]
+                : levels.primaryStates
+              ).map(
                 (state) => (
                   <CausalConfirmationCard
                     key={state.line.id}
@@ -443,8 +478,8 @@ export function CausalRealtimeConfirmationPanel({
           )}
 
       <p className={styles.disclaimer}>
-        Наблюдательный статус: без сигнала, score,
-        пробоя или отскока.
+        Realtime Confirmation: без сигнала, score и исхода.
+        Пробой подтверждается только Level Engine.
       </p>
     </section>
   );

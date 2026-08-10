@@ -22,10 +22,13 @@ export interface FeedbackPageContext {
   timeframe?: string | null;
   setupId?: string | null;
   replayId?: string | null;
+  dock?: 'floating' | 'hidden';
 }
 
 interface FeedbackController {
   setPageContext(context: FeedbackPageContext | null): void;
+  openGeneralFeedback(): void;
+  openSetupFeedback(): void;
 }
 
 interface ResolvedFeedbackContext {
@@ -375,22 +378,35 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   }, [location.pathname, location.search, pageContext]);
 
   const closeModal = useCallback(() => setMode(null), []);
-  const controller = useMemo<FeedbackController>(() => ({ setPageContext }), []);
+  const openGeneralFeedback = useCallback(() => setMode('general'), []);
+  const openSetupFeedback = useCallback(() => setMode('setup'), []);
+  const controller = useMemo<FeedbackController>(
+    () => ({
+      setPageContext,
+      openGeneralFeedback,
+      openSetupFeedback,
+    }),
+    [openGeneralFeedback, openSetupFeedback],
+  );
+  const showFloatingDock =
+    pageContext?.dock !== 'hidden';
 
   return (
     <FeedbackContext.Provider value={controller}>
       {children}
 
-      <div className={styles.feedbackDock} aria-label="Обратная связь NEXUS">
-        {resolvedContext.setupId && (
-          <button className={styles.setupFeedbackButton} type="button" onClick={() => setMode('setup')}>
-            <span>◎</span> Оценить сетап
+      {showFloatingDock && (
+        <div className={styles.feedbackDock} aria-label="Обратная связь NEXUS">
+          {resolvedContext.setupId && (
+            <button className={styles.setupFeedbackButton} type="button" onClick={openSetupFeedback}>
+              <span>◎</span> Оценить сетап
+            </button>
+          )}
+          <button className={styles.feedbackButton} type="button" onClick={openGeneralFeedback}>
+            <span>✦</span> Feedback
           </button>
-        )}
-        <button className={styles.feedbackButton} type="button" onClick={() => setMode('general')}>
-          <span>✦</span> Feedback
-        </button>
-      </div>
+        </div>
+      )}
 
       {mode && <FeedbackModal mode={mode} context={resolvedContext} onClose={closeModal} />}
     </FeedbackContext.Provider>
@@ -401,10 +417,19 @@ export function useFeedbackPageContext(context: FeedbackPageContext) {
   const controller = useContext(FeedbackContext);
   if (!controller) throw new Error('useFeedbackPageContext must be used inside FeedbackProvider');
 
-  const { replayId, screen, setupId, symbol, timeframe } = context;
+  const {
+    dock,
+    replayId,
+    screen,
+    setupId,
+    symbol,
+    timeframe,
+  } = context;
 
   useEffect(() => {
-    controller.setPageContext({ replayId, screen, setupId, symbol, timeframe });
+    controller.setPageContext({ dock, replayId, screen, setupId, symbol, timeframe });
     return () => controller.setPageContext(null);
-  }, [controller, replayId, screen, setupId, symbol, timeframe]);
+  }, [controller, dock, replayId, screen, setupId, symbol, timeframe]);
+
+  return controller;
 }
