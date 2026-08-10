@@ -53,6 +53,8 @@ function candidateLine() {
       102,
     activeFrom:
       '2026-08-07T12:01:59.999Z',
+    confirmedAt:
+      null,
     touchCount:
       1,
     status:
@@ -95,6 +97,80 @@ function snapshot() {
       line,
     ],
     activeLevels: [],
+    observationTracking: {
+      version:
+        'observation-tracker-v0.1',
+      symbol:
+        'BTCUSDT',
+      timeframe:
+        '5m',
+      closedCandlesCount:
+        2,
+      ignoredOpenCandlesCount:
+        0,
+      currentPrice:
+        102,
+      currentCandleIndex:
+        1,
+      currentCandleOpenTime:
+        '2026-08-07T12:01:00.000Z',
+      observedAt:
+        '2026-08-07T12:01:59.999Z',
+      activeProgress: [],
+      appliedOptions: {
+        observationPathProgressThreshold:
+          0.5,
+      },
+      observationalOnly:
+        true,
+      computesObservationProgress:
+        true,
+      createsApproachEvaluation:
+        false,
+      createsSetup:
+        false,
+      createsSignal:
+        false,
+      usesFutureCandles:
+        false,
+    },
+    approachEvaluation: {
+      version:
+        'approach-engine-v0.1',
+      symbol:
+        'BTCUSDT',
+      timeframe:
+        '5m',
+      closedCandlesCount:
+        2,
+      ignoredOpenCandlesCount:
+        0,
+      currentPrice:
+        102,
+      currentCandleIndex:
+        1,
+      currentCandleOpenTime:
+        '2026-08-07T12:01:00.000Z',
+      observedAt:
+        '2026-08-07T12:01:59.999Z',
+      evaluations: [],
+      appliedOptions: {
+        maxDistanceToLevelPercent:
+          0.5,
+      },
+      observationalOnly:
+        true,
+      evaluatesApproach:
+        true,
+      createsRealtimeConfirmation:
+        false,
+      createsSetup:
+        false,
+      createsSignal:
+        false,
+      usesFutureCandles:
+        false,
+    },
     appliedOptions: {
       atrPeriod:
         14,
@@ -262,6 +338,8 @@ test(
       snapshot();
     const confirmed = {
       ...candidateLine(),
+      confirmedAt:
+        '2026-08-07T12:01:59.999Z',
       touchCount:
         2,
       status:
@@ -318,6 +396,8 @@ test(
       snapshot();
     const worked = {
       ...candidateLine(),
+      confirmedAt:
+        '2026-08-07T12:01:59.999Z',
       touchCount:
         3,
       status:
@@ -342,6 +422,106 @@ test(
       result.activeLevels[0]
         ?.status,
       'worked',
+    );
+  },
+);
+
+test(
+  'parses per-line Observation and Approach state without creating a setup',
+  () => {
+    const valid =
+      snapshot();
+    const line =
+      candidateLine();
+
+    valid.activeLevels = [line];
+    valid.observationTracking.activeProgress = [
+      {
+        lineId:
+          line.id,
+        symbol:
+          line.symbol,
+        timeframe:
+          line.timeframe,
+        kind:
+          line.kind,
+        levelPrice:
+          line.price,
+        departureExtremumPrice:
+          108,
+        departureExtremumObservedAt:
+          '2026-08-07T12:00:59.999Z',
+        currentPrice:
+          102.4,
+        currentCandleIndex:
+          1,
+        currentCandleOpenTime:
+          '2026-08-07T12:01:00.000Z',
+        observedAt:
+          '2026-08-07T12:01:59.999Z',
+        progress:
+          1.04,
+        observationPathProgressThreshold:
+          0.5,
+        stage:
+          'OBSERVATION',
+      },
+    ];
+    valid.approachEvaluation.evaluations = [
+      {
+        lineId:
+          line.id,
+        symbol:
+          line.symbol,
+        timeframe:
+          line.timeframe,
+        kind:
+          line.kind,
+        levelPrice:
+          line.price,
+        currentPrice:
+          102.4,
+        currentCandleIndex:
+          1,
+        currentCandleOpenTime:
+          '2026-08-07T12:01:00.000Z',
+        observedAt:
+          '2026-08-07T12:01:59.999Z',
+        observationProgress:
+          1.04,
+        observationStage:
+          'OBSERVATION',
+        distanceToLevelPercent:
+          0.3921568627,
+        maxDistanceToLevelPercent:
+          0.5,
+        stage:
+          'APPROACH',
+      },
+    ];
+
+    const result =
+      parseLevelLinesSnapshot(valid);
+
+    assert.equal(
+      result.observationTracking.activeProgress[0]?.stage,
+      'OBSERVATION',
+    );
+    assert.equal(
+      result.observationTracking.activeProgress[0]?.progress,
+      1.04,
+    );
+    assert.equal(
+      result.approachEvaluation.evaluations[0]?.stage,
+      'APPROACH',
+    );
+    assert.equal(
+      result.approachEvaluation.createsSetup,
+      false,
+    );
+    assert.equal(
+      result.approachEvaluation.createsRealtimeConfirmation,
+      false,
     );
   },
 );

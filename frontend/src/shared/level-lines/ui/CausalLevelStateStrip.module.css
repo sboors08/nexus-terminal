@@ -1,0 +1,166 @@
+.root {
+  border-top: 1px solid #1b2a26;
+  background: #091310;
+  padding: 10px 12px 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: #71867e;
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+.header strong {
+  color: #9aaca5;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: minmax(116px, .8fr) minmax(110px, .65fr) minmax(135px, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid #1b2a26;
+  border-left: 3px solid var(--level-tone);
+  border-radius: 7px;
+  background: #0c1714;
+  padding: 8px 10px;
+}
+
+.kind_support {
+  --level-tone: #32d583;
+}
+
+.kind_resistance {
+  --level-tone: #ff6273;
+}
+
+.identity,
+.stage,
+.progress {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.identity span,
+.stage small,
+.progress span,
+.identity small {
+  color: #71867e;
+  font-size: 10px;
+}
+
+.identity strong {
+  overflow: hidden;
+  color: #dce8e3;
+  font-size: 13px;
+  text-overflow: ellipsis;
+}
+
+.stageBadge {
+  align-self: flex-start;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 750;
+  letter-spacing: .06em;
+}
+
+.stage_approach {
+  color: #f2c94c;
+  background: rgba(242, 201, 76, .08);
+}
+
+.stage_observation {
+  color: #55a7ff;
+  background: rgba(85, 167, 255, .08);
+}
+
+.stage_level {
+  color: #82958d;
+  background: rgba(130, 149, 141, .08);
+}
+
+.progress span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.progress span strong {
+  color: #b9c8c2;
+  font-size: 10px;
+}
+
+.progress > i {
+  display: block;
+  overflow: hidden;
+  height: 4px;
+  border-radius: 999px;
+  background: #192620;
+}
+
+.progress > i > b {
+  display: block;
+  width: var(--level-progress);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--level-tone);
+  transition: width 180ms ease;
+}
+
+.notice,
+.noticeRow {
+  margin: 0;
+  color: #82958d;
+  font-size: 11px;
+}
+
+.noticeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.noticeRow button {
+  border: 1px solid #2d4940;
+  border-radius: 5px;
+  background: #10201a;
+  color: #b9c8c2;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+@media (max-width: 1100px) {
+  .items {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .item {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .progress {
+    grid-column: 1 / -1;
+  }
+}

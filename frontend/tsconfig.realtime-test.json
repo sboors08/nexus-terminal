@@ -44,6 +44,7 @@
     "src/shared/level-engine/levelEngineManualReview.ts",
     "src/shared/charts/model/priceFormat.ts",
     "src/shared/charts/model/horizontalSegment.ts",
+    "src/shared/level-lines/model/causalLevelLines.ts",
     "src/shared/api/runtime/setupLifecycleStream.ts",
     "src/shared/api/runtime/useSetupLifecycleRefresh.ts",
     "src/shared/routing/setupContext.ts",

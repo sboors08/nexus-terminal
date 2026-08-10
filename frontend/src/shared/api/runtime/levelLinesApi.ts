@@ -12,6 +12,12 @@ export const LEVEL_LINES_PATH =
 export const LEVEL_LINES_VERSION =
   'level-lines-v0.1' as const;
 
+export const OBSERVATION_TRACKER_VERSION =
+  'observation-tracker-v0.1' as const;
+
+export const APPROACH_ENGINE_VERSION =
+  'approach-engine-v0.1' as const;
+
 export const LEVEL_LINES_TIMEFRAMES = [
   '1m',
   '5m',
@@ -76,6 +82,7 @@ export interface LevelLine {
   readonly originExtremumAt: string;
   readonly originExtremumPrice: number;
   readonly activeFrom: string;
+  readonly confirmedAt: string | null;
   readonly touchCount: number;
   readonly status: LevelLineStatus;
   readonly workedAt: string | null;
@@ -85,6 +92,84 @@ export interface LevelLine {
   readonly brokenAt: string | null;
   readonly breakEvidence:
     LevelLineBreakEvidence | null;
+}
+
+export interface ObservationPathProgress {
+  readonly lineId: string;
+  readonly symbol: string;
+  readonly timeframe: LevelLinesTimeframe;
+  readonly kind: LevelLineKind;
+  readonly levelPrice: number;
+  readonly departureExtremumPrice: number;
+  readonly departureExtremumObservedAt: string;
+  readonly currentPrice: number;
+  readonly currentCandleIndex: number;
+  readonly currentCandleOpenTime: string;
+  readonly observedAt: string;
+  readonly progress: number;
+  readonly observationPathProgressThreshold: number;
+  readonly stage: 'OBSERVATION' | null;
+}
+
+export interface ObservationTrackingResult {
+  readonly version: typeof OBSERVATION_TRACKER_VERSION;
+  readonly symbol: string;
+  readonly timeframe: LevelLinesTimeframe;
+  readonly closedCandlesCount: number;
+  readonly ignoredOpenCandlesCount: number;
+  readonly currentPrice: number | null;
+  readonly currentCandleIndex: number | null;
+  readonly currentCandleOpenTime: string | null;
+  readonly observedAt: string | null;
+  readonly activeProgress: readonly ObservationPathProgress[];
+  readonly appliedOptions: {
+    readonly observationPathProgressThreshold: number;
+  };
+  readonly observationalOnly: true;
+  readonly computesObservationProgress: true;
+  readonly createsApproachEvaluation: false;
+  readonly createsSetup: false;
+  readonly createsSignal: false;
+  readonly usesFutureCandles: false;
+}
+
+export interface LevelLineApproachEvaluation {
+  readonly lineId: string;
+  readonly symbol: string;
+  readonly timeframe: LevelLinesTimeframe;
+  readonly kind: LevelLineKind;
+  readonly levelPrice: number;
+  readonly currentPrice: number;
+  readonly currentCandleIndex: number;
+  readonly currentCandleOpenTime: string;
+  readonly observedAt: string;
+  readonly observationProgress: number;
+  readonly observationStage: 'OBSERVATION' | null;
+  readonly distanceToLevelPercent: number;
+  readonly maxDistanceToLevelPercent: number;
+  readonly stage: 'APPROACH' | null;
+}
+
+export interface ApproachEvaluationResult {
+  readonly version: typeof APPROACH_ENGINE_VERSION;
+  readonly symbol: string;
+  readonly timeframe: LevelLinesTimeframe;
+  readonly closedCandlesCount: number;
+  readonly ignoredOpenCandlesCount: number;
+  readonly currentPrice: number | null;
+  readonly currentCandleIndex: number | null;
+  readonly currentCandleOpenTime: string | null;
+  readonly observedAt: string | null;
+  readonly evaluations: readonly LevelLineApproachEvaluation[];
+  readonly appliedOptions: {
+    readonly maxDistanceToLevelPercent: number;
+  };
+  readonly observationalOnly: true;
+  readonly evaluatesApproach: true;
+  readonly createsRealtimeConfirmation: false;
+  readonly createsSetup: false;
+  readonly createsSignal: false;
+  readonly usesFutureCandles: false;
 }
 
 export interface LevelLinesAppliedOptions {
@@ -124,6 +209,8 @@ export interface LevelLinesSnapshot {
     readonly LevelLine[];
   readonly activeLevels:
     readonly LevelLine[];
+  readonly observationTracking: ObservationTrackingResult;
+  readonly approachEvaluation: ApproachEvaluationResult;
   readonly appliedOptions:
     LevelLinesAppliedOptions;
   readonly observationalOnly: true;
@@ -370,6 +457,34 @@ function readBoolean(
   return value;
 }
 
+function readNullableNumber(
+  record: JsonRecord,
+  key: string,
+): number | null {
+  if (record[key] === null) {
+    return null;
+  }
+
+  return readNumber(
+    record,
+    key,
+  );
+}
+
+function readNullableInteger(
+  record: JsonRecord,
+  key: string,
+): number | null {
+  if (record[key] === null) {
+    return null;
+  }
+
+  return readInteger(
+    record,
+    key,
+  );
+}
+
 function readNullableTimestamp(
   record: JsonRecord,
   key: string,
@@ -382,6 +497,30 @@ function readNullableTimestamp(
     record,
     key,
   );
+}
+
+function readNullableStage<T extends string>(
+  record: JsonRecord,
+  key: string,
+  expected: T,
+): T | null {
+  if (record[key] === null) {
+    return null;
+  }
+
+  const value =
+    readString(
+      record,
+      key,
+    );
+
+  if (value !== expected) {
+    throw new Error(
+      `Invalid Level Lines stage: ${key}`,
+    );
+  }
+
+  return expected;
 }
 
 function readKind(
@@ -618,6 +757,11 @@ function parseLine(
     parseBreakEvidence(
       record.breakEvidence,
     );
+  const confirmedAt =
+    readNullableTimestamp(
+      record,
+      'confirmedAt',
+    );
 
   if (price !== originPrice) {
     throw new Error(
@@ -730,6 +874,7 @@ function parseLine(
         record,
         'activeFrom',
       ),
+    confirmedAt,
     touchCount:
       readInteger(
         record,
@@ -741,6 +886,321 @@ function parseLine(
     supersessionEvidence,
     brokenAt,
     breakEvidence,
+  };
+}
+
+function parseObservationProgress(
+  value: unknown,
+): ObservationPathProgress {
+  const record =
+    readRecord(
+      value,
+      'observationProgress',
+    );
+  const progress =
+    readNumber(
+      record,
+      'progress',
+    );
+
+  if (
+    progress < 0
+  ) {
+    throw new Error(
+      'Invalid Observation progress',
+    );
+  }
+
+  return {
+    lineId:
+      readString(
+        record,
+        'lineId',
+      ),
+    symbol:
+      normalizeMarketCandleSymbol(
+        readString(
+          record,
+          'symbol',
+        ),
+      ),
+    timeframe:
+      normalizeTimeframe(
+        readString(
+          record,
+          'timeframe',
+        ),
+      ),
+    kind:
+      readKind(
+        record,
+        'kind',
+      ),
+    levelPrice:
+      readPositiveNumber(
+        record,
+        'levelPrice',
+      ),
+    departureExtremumPrice:
+      readPositiveNumber(
+        record,
+        'departureExtremumPrice',
+      ),
+    departureExtremumObservedAt:
+      readTimestamp(
+        record,
+        'departureExtremumObservedAt',
+      ),
+    currentPrice:
+      readPositiveNumber(
+        record,
+        'currentPrice',
+      ),
+    currentCandleIndex:
+      readInteger(
+        record,
+        'currentCandleIndex',
+      ),
+    currentCandleOpenTime:
+      readTimestamp(
+        record,
+        'currentCandleOpenTime',
+      ),
+    observedAt:
+      readTimestamp(
+        record,
+        'observedAt',
+      ),
+    progress,
+    observationPathProgressThreshold:
+      readPositiveNumber(
+        record,
+        'observationPathProgressThreshold',
+      ),
+    stage:
+      readNullableStage(
+        record,
+        'stage',
+        'OBSERVATION',
+      ),
+  };
+}
+
+function parseObservationTracking(
+  value: unknown,
+): ObservationTrackingResult {
+  const record =
+    readRecord(
+      value,
+      'observationTracking',
+    );
+  const options =
+    readRecord(
+      record.appliedOptions,
+      'observationTracking.appliedOptions',
+    );
+
+  if (
+    readString(
+      record,
+      'version',
+    ) !== OBSERVATION_TRACKER_VERSION
+    || readBoolean(record, 'observationalOnly') !== true
+    || readBoolean(record, 'computesObservationProgress') !== true
+    || readBoolean(record, 'createsApproachEvaluation') !== false
+    || readBoolean(record, 'createsSetup') !== false
+    || readBoolean(record, 'createsSignal') !== false
+    || readBoolean(record, 'usesFutureCandles') !== false
+  ) {
+    throw new Error(
+      'Invalid Observation Tracker contract',
+    );
+  }
+
+  return {
+    version:
+      OBSERVATION_TRACKER_VERSION,
+    symbol:
+      normalizeMarketCandleSymbol(
+        readString(record, 'symbol'),
+      ),
+    timeframe:
+      normalizeTimeframe(
+        readString(record, 'timeframe'),
+      ),
+    closedCandlesCount:
+      readInteger(record, 'closedCandlesCount'),
+    ignoredOpenCandlesCount:
+      readInteger(record, 'ignoredOpenCandlesCount'),
+    currentPrice:
+      readNullableNumber(record, 'currentPrice'),
+    currentCandleIndex:
+      readNullableInteger(record, 'currentCandleIndex'),
+    currentCandleOpenTime:
+      readNullableTimestamp(record, 'currentCandleOpenTime'),
+    observedAt:
+      readNullableTimestamp(record, 'observedAt'),
+    activeProgress:
+      readArray(record, 'activeProgress').map(
+        parseObservationProgress,
+      ),
+    appliedOptions: {
+      observationPathProgressThreshold:
+        readPositiveNumber(
+          options,
+          'observationPathProgressThreshold',
+        ),
+    },
+    observationalOnly: true,
+    computesObservationProgress: true,
+    createsApproachEvaluation: false,
+    createsSetup: false,
+    createsSignal: false,
+    usesFutureCandles: false,
+  };
+}
+
+function parseApproachEvaluation(
+  value: unknown,
+): LevelLineApproachEvaluation {
+  const record =
+    readRecord(
+      value,
+      'approachEvaluation',
+    );
+  const observationProgress =
+    readNumber(
+      record,
+      'observationProgress',
+    );
+  const distanceToLevelPercent =
+    readNumber(
+      record,
+      'distanceToLevelPercent',
+    );
+
+  if (
+    observationProgress < 0
+    || distanceToLevelPercent < 0
+  ) {
+    throw new Error(
+      'Invalid Approach evaluation values',
+    );
+  }
+
+  return {
+    lineId:
+      readString(record, 'lineId'),
+    symbol:
+      normalizeMarketCandleSymbol(
+        readString(record, 'symbol'),
+      ),
+    timeframe:
+      normalizeTimeframe(
+        readString(record, 'timeframe'),
+      ),
+    kind:
+      readKind(record, 'kind'),
+    levelPrice:
+      readPositiveNumber(record, 'levelPrice'),
+    currentPrice:
+      readPositiveNumber(record, 'currentPrice'),
+    currentCandleIndex:
+      readInteger(record, 'currentCandleIndex'),
+    currentCandleOpenTime:
+      readTimestamp(record, 'currentCandleOpenTime'),
+    observedAt:
+      readTimestamp(record, 'observedAt'),
+    observationProgress,
+    observationStage:
+      readNullableStage(
+        record,
+        'observationStage',
+        'OBSERVATION',
+      ),
+    distanceToLevelPercent,
+    maxDistanceToLevelPercent:
+      readPositiveNumber(
+        record,
+        'maxDistanceToLevelPercent',
+      ),
+    stage:
+      readNullableStage(
+        record,
+        'stage',
+        'APPROACH',
+      ),
+  };
+}
+
+function parseApproachEvaluationResult(
+  value: unknown,
+): ApproachEvaluationResult {
+  const record =
+    readRecord(
+      value,
+      'approachEvaluationResult',
+    );
+  const options =
+    readRecord(
+      record.appliedOptions,
+      'approachEvaluation.appliedOptions',
+    );
+
+  if (
+    readString(record, 'version') !== APPROACH_ENGINE_VERSION
+    || readBoolean(record, 'observationalOnly') !== true
+    || readBoolean(record, 'evaluatesApproach') !== true
+    || readBoolean(record, 'createsRealtimeConfirmation') !== false
+    || readBoolean(record, 'createsSetup') !== false
+    || readBoolean(record, 'createsSignal') !== false
+    || readBoolean(record, 'usesFutureCandles') !== false
+  ) {
+    throw new Error(
+      'Invalid Approach Engine contract',
+    );
+  }
+
+  return {
+    version:
+      APPROACH_ENGINE_VERSION,
+    symbol:
+      normalizeMarketCandleSymbol(
+        readString(record, 'symbol'),
+      ),
+    timeframe:
+      normalizeTimeframe(
+        readString(record, 'timeframe'),
+      ),
+    closedCandlesCount:
+      readInteger(record, 'closedCandlesCount'),
+    ignoredOpenCandlesCount:
+      readInteger(record, 'ignoredOpenCandlesCount'),
+    currentPrice:
+      readNullableNumber(record, 'currentPrice'),
+    currentCandleIndex:
+      readNullableInteger(record, 'currentCandleIndex'),
+    currentCandleOpenTime:
+      readNullableTimestamp(record, 'currentCandleOpenTime'),
+    observedAt:
+      readNullableTimestamp(record, 'observedAt'),
+    evaluations:
+      readArray(record, 'evaluations').map(
+        parseApproachEvaluation,
+      ),
+    appliedOptions: {
+      maxDistanceToLevelPercent:
+        readPositiveNumber(
+          options,
+          'maxDistanceToLevelPercent',
+        ),
+    },
+    observationalOnly: true,
+    evaluatesApproach: true,
+    createsRealtimeConfirmation: false,
+    createsSetup: false,
+    createsSignal: false,
+    usesFutureCandles: false,
   };
 }
 
@@ -887,6 +1347,14 @@ export function parseLevelLinesSnapshot(
     ).map(
       parseLine,
     );
+  const observationTracking =
+    parseObservationTracking(
+      record.observationTracking,
+    );
+  const approachEvaluation =
+    parseApproachEvaluationResult(
+      record.approachEvaluation,
+    );
   const lineIds =
     new Set(
       lines.map(
@@ -907,6 +1375,49 @@ export function parseLevelLinesSnapshot(
   ) {
     throw new Error(
       'Invalid Level Lines active registry',
+    );
+  }
+
+  const symbol =
+    normalizeMarketCandleSymbol(
+      readString(
+        record,
+        'symbol',
+      ),
+    );
+  const timeframe =
+    normalizeTimeframe(
+      readString(
+        record,
+        'timeframe',
+      ),
+    );
+  const activeLineIds =
+    new Set(
+      activeLevels.map(
+        (line) => line.id,
+      ),
+    );
+  const linkedLineIds = [
+    ...observationTracking.activeProgress.map(
+      (item) => item.lineId,
+    ),
+    ...approachEvaluation.evaluations.map(
+      (item) => item.lineId,
+    ),
+  ];
+
+  if (
+    observationTracking.symbol !== symbol
+    || observationTracking.timeframe !== timeframe
+    || approachEvaluation.symbol !== symbol
+    || approachEvaluation.timeframe !== timeframe
+    || linkedLineIds.some(
+      (lineId) => !activeLineIds.has(lineId),
+    )
+  ) {
+    throw new Error(
+      'Invalid Level Lines causal linkage',
     );
   }
 
@@ -936,20 +1447,8 @@ export function parseLevelLinesSnapshot(
   return {
     version:
       LEVEL_LINES_VERSION,
-    symbol:
-      normalizeMarketCandleSymbol(
-        readString(
-          record,
-          'symbol',
-        ),
-      ),
-    timeframe:
-      normalizeTimeframe(
-        readString(
-          record,
-          'timeframe',
-        ),
-      ),
+    symbol,
+    timeframe,
     generatedAt:
       readTimestamp(
         record,
@@ -974,6 +1473,8 @@ export function parseLevelLinesSnapshot(
       ),
     lines,
     activeLevels,
+    observationTracking,
+    approachEvaluation,
     appliedOptions:
       parseAppliedOptions(
         record.appliedOptions,
