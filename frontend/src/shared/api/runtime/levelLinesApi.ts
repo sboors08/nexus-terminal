@@ -18,6 +18,9 @@ export const OBSERVATION_TRACKER_VERSION =
 export const APPROACH_ENGINE_VERSION =
   'approach-engine-v0.1' as const;
 
+export const REALTIME_CONFIRMATION_ENGINE_VERSION =
+  'realtime-confirmation-engine-v0.1' as const;
+
 export const LEVEL_LINES_TIMEFRAMES = [
   '1m',
   '5m',
@@ -172,6 +175,140 @@ export interface ApproachEvaluationResult {
   readonly usesFutureCandles: false;
 }
 
+export type RealtimeConfirmationSourceState =
+  | 'collecting'
+  | 'live'
+  | 'stale'
+  | 'error';
+
+export type RealtimeConfirmationEvidenceState =
+  | 'supports'
+  | 'opposes'
+  | 'neutral'
+  | 'unavailable';
+
+export type RealtimeConfirmationStatus =
+  | 'not_applicable'
+  | 'collecting'
+  | 'not_ready'
+  | 'partial'
+  | 'confirmed';
+
+export type RealtimeConfirmationReason =
+  | 'line_not_in_approach'
+  | 'approach_from_wrong_side'
+  | 'closed_candle_did_not_intersect_level_zone'
+  | 'tape_collecting'
+  | 'tape_stale'
+  | 'tape_error'
+  | 'order_book_collecting'
+  | 'order_book_stale'
+  | 'order_book_error'
+  | 'trade_flow_opposes_interaction'
+  | 'order_book_opposes_interaction'
+  | 'trade_flow_and_order_book_support_interaction'
+  | 'one_live_source_supports_interaction'
+  | 'directional_pressure_not_sufficient';
+
+export interface RealtimeConfirmationTapeEvidence {
+  readonly state: RealtimeConfirmationSourceState;
+  readonly snapshotUpdatedAt: string | null;
+  readonly lastTradeAt: string | null;
+  readonly ageMs: number | null;
+  readonly windowMs: number;
+  readonly tradesCount: number;
+  readonly ignoredFutureTradesCount: number;
+  readonly ignoredOutsideWindowTradesCount: number;
+  readonly executionsCount: number;
+  readonly buyQuoteValue: number;
+  readonly sellQuoteValue: number;
+  readonly totalQuoteValue: number;
+  readonly quoteDelta: number;
+  readonly pressurePct: number | null;
+}
+
+export interface RealtimeConfirmationOrderBookEvidence {
+  readonly state: RealtimeConfirmationSourceState;
+  readonly synchronized: boolean;
+  readonly updatedAt: string | null;
+  readonly updatedAfterCapture: boolean;
+  readonly ageMs: number | null;
+  readonly staleAfterMs: number | null;
+  readonly bestBid: number | null;
+  readonly bestAsk: number | null;
+  readonly spreadPct: number | null;
+  readonly bidDepthQuote: number | null;
+  readonly askDepthQuote: number | null;
+  readonly totalDepthQuote: number | null;
+  readonly imbalancePct: number | null;
+}
+
+export interface RealtimeConfirmationMarketEvidence {
+  readonly symbol: string;
+  readonly capturedAt: string;
+  readonly availability:
+    | 'complete'
+    | 'tape_only'
+    | 'order_book_only'
+    | 'unavailable';
+  readonly tape: RealtimeConfirmationTapeEvidence;
+  readonly orderBook: RealtimeConfirmationOrderBookEvidence;
+  readonly sourceErrors: readonly string[];
+}
+
+export interface LevelLineRealtimeConfirmation {
+  readonly lineId: string;
+  readonly symbol: string;
+  readonly timeframe: LevelLinesTimeframe;
+  readonly kind: LevelLineKind;
+  readonly levelPrice: number;
+  readonly currentPrice: number;
+  readonly currentCandleIndex: number;
+  readonly currentCandleOpenTime: string;
+  readonly observedAt: string;
+  readonly approachStage: 'APPROACH' | null;
+  readonly interactionDirection: 'up' | 'down';
+  readonly approachSideValid: boolean;
+  readonly candleIntersectsLevelZone: boolean;
+  readonly tapePressurePercent: number | null;
+  readonly directionalTapePressurePercent: number | null;
+  readonly tapeState: RealtimeConfirmationEvidenceState;
+  readonly orderBookImbalancePercent: number | null;
+  readonly directionalOrderBookPressurePercent: number | null;
+  readonly orderBookState: RealtimeConfirmationEvidenceState;
+  readonly status: RealtimeConfirmationStatus;
+  readonly stage: 'CONFIRMATION' | null;
+  readonly reasons: readonly RealtimeConfirmationReason[];
+}
+
+export interface RealtimeConfirmationEvaluationResult {
+  readonly version:
+    typeof REALTIME_CONFIRMATION_ENGINE_VERSION;
+  readonly symbol: string;
+  readonly timeframe: LevelLinesTimeframe;
+  readonly evaluatedAt: string;
+  readonly evaluations:
+    readonly LevelLineRealtimeConfirmation[];
+  readonly evidence: RealtimeConfirmationMarketEvidence;
+  readonly appliedOptions: {
+    readonly interactionTolerancePercent: number;
+    readonly tapeWindowMs: number;
+    readonly tapeStaleAfterMs: number;
+    readonly minimumTapeTradesCount: number;
+    readonly directionalPressureThresholdPercent: number;
+  };
+  readonly observationalOnly: true;
+  readonly evaluatesRealtimeConfirmation: true;
+  readonly evaluatesBreakout: false;
+  readonly evaluatesBounce: false;
+  readonly createsSetup: false;
+  readonly createsSignal: false;
+  readonly createsScore: false;
+  readonly learnsFromOutcome: false;
+  readonly usesFutureCandles: false;
+  readonly usesFutureRealtimeEvidence: false;
+}
+
 export interface LevelLinesAppliedOptions {
   readonly atrPeriod: number;
   readonly pivotLeftBars: number;
@@ -211,6 +348,8 @@ export interface LevelLinesSnapshot {
     readonly LevelLine[];
   readonly observationTracking: ObservationTrackingResult;
   readonly approachEvaluation: ApproachEvaluationResult;
+  readonly realtimeConfirmation:
+    RealtimeConfirmationEvaluationResult;
   readonly appliedOptions:
     LevelLinesAppliedOptions;
   readonly observationalOnly: true;
@@ -441,6 +580,25 @@ function readInteger(
   return value;
 }
 
+function readPositiveInteger(
+  record: JsonRecord,
+  key: string,
+): number {
+  const value =
+    readInteger(
+      record,
+      key,
+    );
+
+  if (value === 0) {
+    throw new Error(
+      `Invalid Level Lines positive integer: ${key}`,
+    );
+  }
+
+  return value;
+}
+
 function readBoolean(
   record: JsonRecord,
   key: string,
@@ -455,6 +613,48 @@ function readBoolean(
   }
 
   return value;
+}
+
+function readNonNegativeNumber(
+  record: JsonRecord,
+  key: string,
+): number {
+  const value =
+    readNumber(
+      record,
+      key,
+    );
+
+  if (value < 0) {
+    throw new Error(
+      `Invalid Level Lines non-negative number: ${key}`,
+    );
+  }
+
+  return value;
+}
+
+function readStringArray(
+  record: JsonRecord,
+  key: string,
+): readonly string[] {
+  return readArray(
+    record,
+    key,
+  ).map(
+    (value) => {
+      if (
+        typeof value !== 'string'
+        || value.length === 0
+      ) {
+        throw new Error(
+          `Invalid Level Lines string array: ${key}`,
+        );
+      }
+
+      return value;
+    },
+  );
 }
 
 function readNullableNumber(
@@ -1204,6 +1404,528 @@ function parseApproachEvaluationResult(
   };
 }
 
+function readRealtimeSourceState(
+  record: JsonRecord,
+  key: string,
+): RealtimeConfirmationSourceState {
+  const value =
+    readString(
+      record,
+      key,
+    );
+
+  if (
+    value !== 'collecting'
+    && value !== 'live'
+    && value !== 'stale'
+    && value !== 'error'
+  ) {
+    throw new Error(
+      `Invalid Realtime Confirmation source state: ${key}`,
+    );
+  }
+
+  return value;
+}
+
+function readRealtimeEvidenceState(
+  record: JsonRecord,
+  key: string,
+): RealtimeConfirmationEvidenceState {
+  const value =
+    readString(
+      record,
+      key,
+    );
+
+  if (
+    value !== 'supports'
+    && value !== 'opposes'
+    && value !== 'neutral'
+    && value !== 'unavailable'
+  ) {
+    throw new Error(
+      `Invalid Realtime Confirmation evidence state: ${key}`,
+    );
+  }
+
+  return value;
+}
+
+function readRealtimeStatus(
+  record: JsonRecord,
+  key: string,
+): RealtimeConfirmationStatus {
+  const value =
+    readString(
+      record,
+      key,
+    );
+
+  if (
+    value !== 'not_applicable'
+    && value !== 'collecting'
+    && value !== 'not_ready'
+    && value !== 'partial'
+    && value !== 'confirmed'
+  ) {
+    throw new Error(
+      `Invalid Realtime Confirmation status: ${key}`,
+    );
+  }
+
+  return value;
+}
+
+function readRealtimeReason(
+  value: string,
+): RealtimeConfirmationReason {
+  const reasons:
+    readonly RealtimeConfirmationReason[] = [
+      'line_not_in_approach',
+      'approach_from_wrong_side',
+      'closed_candle_did_not_intersect_level_zone',
+      'tape_collecting',
+      'tape_stale',
+      'tape_error',
+      'order_book_collecting',
+      'order_book_stale',
+      'order_book_error',
+      'trade_flow_opposes_interaction',
+      'order_book_opposes_interaction',
+      'trade_flow_and_order_book_support_interaction',
+      'one_live_source_supports_interaction',
+      'directional_pressure_not_sufficient',
+    ];
+
+  if (
+    !reasons.includes(
+      value as RealtimeConfirmationReason,
+    )
+  ) {
+    throw new Error(
+      `Invalid Realtime Confirmation reason: ${value}`,
+    );
+  }
+
+  return value as RealtimeConfirmationReason;
+}
+
+function parseRealtimeTapeEvidence(
+  value: unknown,
+): RealtimeConfirmationTapeEvidence {
+  const record =
+    readRecord(
+      value,
+      'realtimeConfirmation.evidence.tape',
+    );
+
+  return {
+    state:
+      readRealtimeSourceState(
+        record,
+        'state',
+      ),
+    snapshotUpdatedAt:
+      readNullableTimestamp(
+        record,
+        'snapshotUpdatedAt',
+      ),
+    lastTradeAt:
+      readNullableTimestamp(
+        record,
+        'lastTradeAt',
+      ),
+    ageMs:
+      readNullableNumber(
+        record,
+        'ageMs',
+      ),
+    windowMs:
+      readPositiveNumber(
+        record,
+        'windowMs',
+      ),
+    tradesCount:
+      readInteger(
+        record,
+        'tradesCount',
+      ),
+    ignoredFutureTradesCount:
+      readInteger(
+        record,
+        'ignoredFutureTradesCount',
+      ),
+    ignoredOutsideWindowTradesCount:
+      readInteger(
+        record,
+        'ignoredOutsideWindowTradesCount',
+      ),
+    executionsCount:
+      readInteger(
+        record,
+        'executionsCount',
+      ),
+    buyQuoteValue:
+      readNonNegativeNumber(
+        record,
+        'buyQuoteValue',
+      ),
+    sellQuoteValue:
+      readNonNegativeNumber(
+        record,
+        'sellQuoteValue',
+      ),
+    totalQuoteValue:
+      readNonNegativeNumber(
+        record,
+        'totalQuoteValue',
+      ),
+    quoteDelta:
+      readNumber(
+        record,
+        'quoteDelta',
+      ),
+    pressurePct:
+      readNullableNumber(
+        record,
+        'pressurePct',
+      ),
+  };
+}
+
+function parseRealtimeOrderBookEvidence(
+  value: unknown,
+): RealtimeConfirmationOrderBookEvidence {
+  const record =
+    readRecord(
+      value,
+      'realtimeConfirmation.evidence.orderBook',
+    );
+
+  return {
+    state:
+      readRealtimeSourceState(
+        record,
+        'state',
+      ),
+    synchronized:
+      readBoolean(
+        record,
+        'synchronized',
+      ),
+    updatedAt:
+      readNullableTimestamp(
+        record,
+        'updatedAt',
+      ),
+    updatedAfterCapture:
+      readBoolean(
+        record,
+        'updatedAfterCapture',
+      ),
+    ageMs:
+      readNullableNumber(
+        record,
+        'ageMs',
+      ),
+    staleAfterMs:
+      readNullableNumber(
+        record,
+        'staleAfterMs',
+      ),
+    bestBid:
+      readNullableNumber(
+        record,
+        'bestBid',
+      ),
+    bestAsk:
+      readNullableNumber(
+        record,
+        'bestAsk',
+      ),
+    spreadPct:
+      readNullableNumber(
+        record,
+        'spreadPct',
+      ),
+    bidDepthQuote:
+      readNullableNumber(
+        record,
+        'bidDepthQuote',
+      ),
+    askDepthQuote:
+      readNullableNumber(
+        record,
+        'askDepthQuote',
+      ),
+    totalDepthQuote:
+      readNullableNumber(
+        record,
+        'totalDepthQuote',
+      ),
+    imbalancePct:
+      readNullableNumber(
+        record,
+        'imbalancePct',
+      ),
+  };
+}
+
+function parseRealtimeMarketEvidence(
+  value: unknown,
+): RealtimeConfirmationMarketEvidence {
+  const record =
+    readRecord(
+      value,
+      'realtimeConfirmation.evidence',
+    );
+  const availability =
+    readString(
+      record,
+      'availability',
+    );
+
+  if (
+    availability !== 'complete'
+    && availability !== 'tape_only'
+    && availability !== 'order_book_only'
+    && availability !== 'unavailable'
+  ) {
+    throw new Error(
+      'Invalid Realtime Confirmation evidence availability',
+    );
+  }
+
+  return {
+    symbol:
+      normalizeMarketCandleSymbol(
+        readString(
+          record,
+          'symbol',
+        ),
+      ),
+    capturedAt:
+      readTimestamp(
+        record,
+        'capturedAt',
+      ),
+    availability,
+    tape:
+      parseRealtimeTapeEvidence(
+        record.tape,
+      ),
+    orderBook:
+      parseRealtimeOrderBookEvidence(
+        record.orderBook,
+      ),
+    sourceErrors:
+      readStringArray(
+        record,
+        'sourceErrors',
+      ),
+  };
+}
+
+function parseRealtimeLineEvaluation(
+  value: unknown,
+): LevelLineRealtimeConfirmation {
+  const record =
+    readRecord(
+      value,
+      'realtimeConfirmation.evaluation',
+    );
+  const interactionDirection =
+    readString(
+      record,
+      'interactionDirection',
+    );
+
+  if (
+    interactionDirection !== 'up'
+    && interactionDirection !== 'down'
+  ) {
+    throw new Error(
+      'Invalid Realtime Confirmation interaction direction',
+    );
+  }
+
+  const status =
+    readRealtimeStatus(
+      record,
+      'status',
+    );
+  const stage =
+    readNullableStage(
+      record,
+      'stage',
+      'CONFIRMATION',
+    );
+
+  if (
+    (status === 'confirmed')
+    !== (stage === 'CONFIRMATION')
+  ) {
+    throw new Error(
+      'Invalid Realtime Confirmation stage linkage',
+    );
+  }
+
+  return {
+    lineId:
+      readString(record, 'lineId'),
+    symbol:
+      normalizeMarketCandleSymbol(
+        readString(record, 'symbol'),
+      ),
+    timeframe:
+      normalizeTimeframe(
+        readString(record, 'timeframe'),
+      ),
+    kind:
+      readKind(record, 'kind'),
+    levelPrice:
+      readPositiveNumber(record, 'levelPrice'),
+    currentPrice:
+      readPositiveNumber(record, 'currentPrice'),
+    currentCandleIndex:
+      readInteger(record, 'currentCandleIndex'),
+    currentCandleOpenTime:
+      readTimestamp(record, 'currentCandleOpenTime'),
+    observedAt:
+      readTimestamp(record, 'observedAt'),
+    approachStage:
+      readNullableStage(
+        record,
+        'approachStage',
+        'APPROACH',
+      ),
+    interactionDirection,
+    approachSideValid:
+      readBoolean(record, 'approachSideValid'),
+    candleIntersectsLevelZone:
+      readBoolean(record, 'candleIntersectsLevelZone'),
+    tapePressurePercent:
+      readNullableNumber(record, 'tapePressurePercent'),
+    directionalTapePressurePercent:
+      readNullableNumber(
+        record,
+        'directionalTapePressurePercent',
+      ),
+    tapeState:
+      readRealtimeEvidenceState(record, 'tapeState'),
+    orderBookImbalancePercent:
+      readNullableNumber(
+        record,
+        'orderBookImbalancePercent',
+      ),
+    directionalOrderBookPressurePercent:
+      readNullableNumber(
+        record,
+        'directionalOrderBookPressurePercent',
+      ),
+    orderBookState:
+      readRealtimeEvidenceState(record, 'orderBookState'),
+    status,
+    stage,
+    reasons:
+      readStringArray(
+        record,
+        'reasons',
+      ).map(
+        readRealtimeReason,
+      ),
+  };
+}
+
+function parseRealtimeConfirmation(
+  value: unknown,
+): RealtimeConfirmationEvaluationResult {
+  const record =
+    readRecord(
+      value,
+      'realtimeConfirmation',
+    );
+  const options =
+    readRecord(
+      record.appliedOptions,
+      'realtimeConfirmation.appliedOptions',
+    );
+
+  if (
+    readString(record, 'version')
+      !== REALTIME_CONFIRMATION_ENGINE_VERSION
+    || readBoolean(record, 'observationalOnly') !== true
+    || readBoolean(record, 'evaluatesRealtimeConfirmation') !== true
+    || readBoolean(record, 'evaluatesBreakout') !== false
+    || readBoolean(record, 'evaluatesBounce') !== false
+    || readBoolean(record, 'createsSetup') !== false
+    || readBoolean(record, 'createsSignal') !== false
+    || readBoolean(record, 'createsScore') !== false
+    || readBoolean(record, 'learnsFromOutcome') !== false
+    || readBoolean(record, 'usesFutureCandles') !== false
+    || readBoolean(record, 'usesFutureRealtimeEvidence') !== false
+  ) {
+    throw new Error(
+      'Invalid Realtime Confirmation Engine contract',
+    );
+  }
+
+  return {
+    version:
+      REALTIME_CONFIRMATION_ENGINE_VERSION,
+    symbol:
+      normalizeMarketCandleSymbol(
+        readString(record, 'symbol'),
+      ),
+    timeframe:
+      normalizeTimeframe(
+        readString(record, 'timeframe'),
+      ),
+    evaluatedAt:
+      readTimestamp(record, 'evaluatedAt'),
+    evaluations:
+      readArray(record, 'evaluations').map(
+        parseRealtimeLineEvaluation,
+      ),
+    evidence:
+      parseRealtimeMarketEvidence(
+        record.evidence,
+      ),
+    appliedOptions: {
+      interactionTolerancePercent:
+        readPositiveNumber(
+          options,
+          'interactionTolerancePercent',
+        ),
+      tapeWindowMs:
+        readPositiveInteger(options, 'tapeWindowMs'),
+      tapeStaleAfterMs:
+        readPositiveInteger(options, 'tapeStaleAfterMs'),
+      minimumTapeTradesCount:
+        readPositiveInteger(
+          options,
+          'minimumTapeTradesCount',
+        ),
+      directionalPressureThresholdPercent:
+        readPositiveNumber(
+          options,
+          'directionalPressureThresholdPercent',
+        ),
+    },
+    observationalOnly: true,
+    evaluatesRealtimeConfirmation: true,
+    evaluatesBreakout: false,
+    evaluatesBounce: false,
+    createsSetup: false,
+    createsSignal: false,
+    createsScore: false,
+    learnsFromOutcome: false,
+    usesFutureCandles: false,
+    usesFutureRealtimeEvidence: false,
+  };
+}
+
 function parseCandle(
   value: unknown,
 ): LevelLinesCandle {
@@ -1355,6 +2077,10 @@ export function parseLevelLinesSnapshot(
     parseApproachEvaluationResult(
       record.approachEvaluation,
     );
+  const realtimeConfirmation =
+    parseRealtimeConfirmation(
+      record.realtimeConfirmation,
+    );
   const lineIds =
     new Set(
       lines.map(
@@ -1405,13 +2131,67 @@ export function parseLevelLinesSnapshot(
     ...approachEvaluation.evaluations.map(
       (item) => item.lineId,
     ),
+    ...realtimeConfirmation.evaluations.map(
+      (item) => item.lineId,
+    ),
   ];
+  const approachesByLineId =
+    new Map(
+      approachEvaluation.evaluations.map(
+        (item) => [
+          item.lineId,
+          item,
+        ],
+      ),
+    );
+  const realtimeLineIds =
+    new Set(
+      realtimeConfirmation.evaluations.map(
+        (item) => item.lineId,
+      ),
+    );
+  const realtimeLinkageValid =
+    realtimeConfirmation.evaluations.every(
+      (item) => {
+        const approach =
+          approachesByLineId.get(
+            item.lineId,
+          );
+
+        return approach !== undefined
+          && item.symbol === approach.symbol
+          && item.timeframe === approach.timeframe
+          && item.kind === approach.kind
+          && item.levelPrice === approach.levelPrice
+          && item.currentPrice === approach.currentPrice
+          && item.currentCandleIndex
+            === approach.currentCandleIndex
+          && item.currentCandleOpenTime
+            === approach.currentCandleOpenTime
+          && item.observedAt === approach.observedAt
+          && item.approachStage === approach.stage
+          && item.interactionDirection
+            === (
+              item.kind === 'resistance'
+                ? 'up'
+                : 'down'
+            );
+      },
+    );
 
   if (
     observationTracking.symbol !== symbol
     || observationTracking.timeframe !== timeframe
     || approachEvaluation.symbol !== symbol
     || approachEvaluation.timeframe !== timeframe
+    || realtimeConfirmation.symbol !== symbol
+    || realtimeConfirmation.timeframe !== timeframe
+    || realtimeConfirmation.evidence.symbol !== symbol
+    || realtimeConfirmation.evidence.capturedAt
+      !== realtimeConfirmation.evaluatedAt
+    || realtimeLineIds.size
+      !== realtimeConfirmation.evaluations.length
+    || !realtimeLinkageValid
     || linkedLineIds.some(
       (lineId) => !activeLineIds.has(lineId),
     )
@@ -1475,6 +2255,7 @@ export function parseLevelLinesSnapshot(
     activeLevels,
     observationTracking,
     approachEvaluation,
+    realtimeConfirmation,
     appliedOptions:
       parseAppliedOptions(
         record.appliedOptions,

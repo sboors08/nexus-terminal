@@ -72,6 +72,175 @@ function candidateLine() {
   };
 }
 
+function realtimeConfirmation(
+  evaluations = [],
+) {
+  return {
+    version:
+      'realtime-confirmation-engine-v0.1',
+    symbol:
+      'BTCUSDT',
+    timeframe:
+      '5m',
+    evaluatedAt:
+      '2026-08-07T12:02:00.000Z',
+    evaluations,
+    evidence: {
+      symbol:
+        'BTCUSDT',
+      capturedAt:
+        '2026-08-07T12:02:00.000Z',
+      availability:
+        'unavailable',
+      tape: {
+        state:
+          'collecting',
+        snapshotUpdatedAt:
+          null,
+        lastTradeAt:
+          null,
+        ageMs:
+          null,
+        windowMs:
+          10_000,
+        tradesCount:
+          0,
+        ignoredFutureTradesCount:
+          0,
+        ignoredOutsideWindowTradesCount:
+          0,
+        executionsCount:
+          0,
+        buyQuoteValue:
+          0,
+        sellQuoteValue:
+          0,
+        totalQuoteValue:
+          0,
+        quoteDelta:
+          0,
+        pressurePct:
+          null,
+      },
+      orderBook: {
+        state:
+          'collecting',
+        synchronized:
+          false,
+        updatedAt:
+          null,
+        updatedAfterCapture:
+          false,
+        ageMs:
+          null,
+        staleAfterMs:
+          null,
+        bestBid:
+          null,
+        bestAsk:
+          null,
+        spreadPct:
+          null,
+        bidDepthQuote:
+          null,
+        askDepthQuote:
+          null,
+        totalDepthQuote:
+          null,
+        imbalancePct:
+          null,
+      },
+      sourceErrors: [],
+    },
+    appliedOptions: {
+      interactionTolerancePercent:
+        0.15,
+      tapeWindowMs:
+        10_000,
+      tapeStaleAfterMs:
+        5_000,
+      minimumTapeTradesCount:
+        3,
+      directionalPressureThresholdPercent:
+        8,
+    },
+    observationalOnly:
+      true,
+    evaluatesRealtimeConfirmation:
+      true,
+    evaluatesBreakout:
+      false,
+    evaluatesBounce:
+      false,
+    createsSetup:
+      false,
+    createsSignal:
+      false,
+    createsScore:
+      false,
+    learnsFromOutcome:
+      false,
+    usesFutureCandles:
+      false,
+    usesFutureRealtimeEvidence:
+      false,
+  };
+}
+
+function confirmationEvaluation(
+  line,
+  overrides = {},
+) {
+  return {
+    lineId:
+      line.id,
+    symbol:
+      line.symbol,
+    timeframe:
+      line.timeframe,
+    kind:
+      line.kind,
+    levelPrice:
+      line.price,
+    currentPrice:
+      102.4,
+    currentCandleIndex:
+      1,
+    currentCandleOpenTime:
+      '2026-08-07T12:01:00.000Z',
+    observedAt:
+      '2026-08-07T12:01:59.999Z',
+    approachStage:
+      'APPROACH',
+    interactionDirection:
+      'up',
+    approachSideValid:
+      true,
+    candleIntersectsLevelZone:
+      true,
+    tapePressurePercent:
+      12,
+    directionalTapePressurePercent:
+      12,
+    tapeState:
+      'supports',
+    orderBookImbalancePercent:
+      9,
+    directionalOrderBookPressurePercent:
+      9,
+    orderBookState:
+      'supports',
+    status:
+      'confirmed',
+    stage:
+      'CONFIRMATION',
+    reasons: [
+      'trade_flow_and_order_book_support_interaction',
+    ],
+    ...overrides,
+  };
+}
+
 function snapshot() {
   const line =
     candidateLine();
@@ -171,6 +340,8 @@ function snapshot() {
       usesFutureCandles:
         false,
     },
+    realtimeConfirmation:
+      realtimeConfirmation(),
     appliedOptions: {
       atrPeriod:
         14,
@@ -427,7 +598,7 @@ test(
 );
 
 test(
-  'parses per-line Observation and Approach state without creating a setup',
+  'parses Observation, Approach, and backend Realtime Confirmation without creating downstream decisions',
   () => {
     const valid =
       snapshot();
@@ -499,6 +670,12 @@ test(
           'APPROACH',
       },
     ];
+    valid.realtimeConfirmation =
+      realtimeConfirmation([
+        confirmationEvaluation(
+          line,
+        ),
+      ]);
 
     const result =
       parseLevelLinesSnapshot(valid);
@@ -521,6 +698,30 @@ test(
     );
     assert.equal(
       result.approachEvaluation.createsRealtimeConfirmation,
+      false,
+    );
+    assert.equal(
+      result.realtimeConfirmation.evaluations[0]?.status,
+      'confirmed',
+    );
+    assert.equal(
+      result.realtimeConfirmation.evaluations[0]?.stage,
+      'CONFIRMATION',
+    );
+    assert.equal(
+      result.realtimeConfirmation.createsSignal,
+      false,
+    );
+    assert.equal(
+      result.realtimeConfirmation.createsScore,
+      false,
+    );
+    assert.equal(
+      result.realtimeConfirmation.evaluatesBreakout,
+      false,
+    );
+    assert.equal(
+      result.realtimeConfirmation.evaluatesBounce,
       false,
     );
   },
@@ -682,6 +883,84 @@ test(
       result.lines[0]
         ?.workedAt,
       broken.workedAt,
+    );
+  },
+);
+
+test(
+  'rejects unsafe or frontend-invented Realtime Confirmation contracts',
+  () => {
+    const unsafe =
+      snapshot();
+
+    unsafe.realtimeConfirmation.createsScore =
+      true;
+
+    assert.throws(
+      () =>
+        parseLevelLinesSnapshot(
+          unsafe,
+        ),
+      /Realtime Confirmation Engine contract/u,
+    );
+
+    const mismatched =
+      snapshot();
+    const line =
+      candidateLine();
+
+    mismatched.activeLevels = [
+      line,
+    ];
+    mismatched.approachEvaluation.evaluations = [
+      {
+        lineId:
+          line.id,
+        symbol:
+          line.symbol,
+        timeframe:
+          line.timeframe,
+        kind:
+          line.kind,
+        levelPrice:
+          line.price,
+        currentPrice:
+          102.4,
+        currentCandleIndex:
+          1,
+        currentCandleOpenTime:
+          '2026-08-07T12:01:00.000Z',
+        observedAt:
+          '2026-08-07T12:01:59.999Z',
+        observationProgress:
+          1,
+        observationStage:
+          'OBSERVATION',
+        distanceToLevelPercent:
+          0.4,
+        maxDistanceToLevelPercent:
+          0.5,
+        stage:
+          'APPROACH',
+      },
+    ];
+    mismatched.realtimeConfirmation =
+      realtimeConfirmation([
+        confirmationEvaluation(
+          line,
+          {
+            levelPrice:
+              103,
+          },
+        ),
+      ]);
+
+    assert.throws(
+      () =>
+        parseLevelLinesSnapshot(
+          mismatched,
+        ),
+      /causal linkage/u,
     );
   },
 );

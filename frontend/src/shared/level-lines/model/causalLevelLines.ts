@@ -4,6 +4,7 @@ import type {
 import type {
   LevelLine,
   LevelLineApproachEvaluation,
+  LevelLineRealtimeConfirmation,
   LevelLinesSnapshot,
   ObservationPathProgress,
 } from '../../api/runtime/levelLinesApi.js';
@@ -17,6 +18,7 @@ const VISIBLE_CANDLES = 160;
 export type CausalLevelStage =
   | 'OBSERVATION'
   | 'APPROACH'
+  | 'CONFIRMATION'
   | null;
 
 export interface CausalLevelState {
@@ -24,6 +26,8 @@ export interface CausalLevelState {
   readonly stage: CausalLevelStage;
   readonly observationProgress: number | null;
   readonly distanceToLevelPercent: number | null;
+  readonly realtimeConfirmation:
+    LevelLineRealtimeConfirmation | null;
 }
 
 export interface CausalLevelHorizontalSegment {
@@ -139,20 +143,26 @@ function buildState(
     ReadonlyMap<string, ObservationPathProgress>,
   approaches:
     ReadonlyMap<string, LevelLineApproachEvaluation>,
+  confirmations:
+    ReadonlyMap<string, LevelLineRealtimeConfirmation>,
 ): CausalLevelState {
   const observation =
     observations.get(line.id);
   const approach =
     approaches.get(line.id);
+  const confirmation =
+    confirmations.get(line.id);
 
   return {
     line,
     stage:
-      approach?.stage === 'APPROACH'
-        ? 'APPROACH'
-        : observation?.stage === 'OBSERVATION'
-          ? 'OBSERVATION'
-          : null,
+      confirmation?.stage === 'CONFIRMATION'
+        ? 'CONFIRMATION'
+        : approach?.stage === 'APPROACH'
+          ? 'APPROACH'
+          : observation?.stage === 'OBSERVATION'
+            ? 'OBSERVATION'
+            : null,
     observationProgress:
       approach
         ? clampProgress(
@@ -173,6 +183,8 @@ function buildState(
               line.price,
             )
       ),
+    realtimeConfirmation:
+      confirmation ?? null,
   };
 }
 
@@ -223,6 +235,10 @@ export function buildCausalLevelLinesView(
     indexByLineId(
       snapshot.approachEvaluation.evaluations,
     );
+  const confirmations =
+    indexByLineId(
+      snapshot.realtimeConfirmation.evaluations,
+    );
   const states =
     snapshot.activeLevels
       .map(
@@ -232,6 +248,7 @@ export function buildCausalLevelLinesView(
             price,
             observations,
             approaches,
+            confirmations,
           ),
       )
       .sort(
