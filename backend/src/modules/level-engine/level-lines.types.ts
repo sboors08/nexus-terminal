@@ -14,6 +14,9 @@ import type {
 import type {
   DepartureExtremumTrackingResult,
 } from './departure-extremum-tracker.types.js';
+import type {
+  ObservationTrackingResult,
+} from './observation-tracker.types.js';
 
 export const LEVEL_LINES_CONTRACT_VERSION =
   'level-lines-v0.1' as const;
@@ -96,6 +99,8 @@ export interface LevelLinesDetectionResult {
   readonly activeLevels: readonly LevelLine[];
   readonly departureExtremumTracking:
     DepartureExtremumTrackingResult;
+  readonly observationTracking:
+    ObservationTrackingResult;
   readonly appliedOptions:
     LevelLinesDetectionOptions;
   readonly observationalOnly: true;
