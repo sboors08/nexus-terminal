@@ -10,6 +10,11 @@ export type ReplayRouteContext = SetupRouteContext & {
   sessionId?: string | null;
 };
 
+export type WorkspaceViewRequest = {
+  setupId: string | null;
+  symbol: string | null;
+};
+
 export function buildWorkspaceUrl(route: string, context: SetupRouteContext) {
   const params = new URLSearchParams();
   params.set('setupId', context.setupId);
@@ -49,6 +54,93 @@ export function isMarketWorkspaceSetupId(
     && setupId.startsWith(
       'market-',
     );
+}
+
+export function resolveWorkspaceViewRequest(
+  setupId: string | null | undefined,
+  symbol: string | null | undefined,
+): WorkspaceViewRequest {
+  const normalizedSetupId =
+    setupId?.trim() || null;
+
+  const normalizedSymbol =
+    symbol
+      ?.trim()
+      .replace(
+        /\//g,
+        '',
+      )
+      .toUpperCase()
+    || null;
+
+  return {
+    setupId:
+      normalizedSetupId,
+
+    symbol:
+      normalizedSymbol,
+  };
+}
+
+export function buildCanonicalWorkspaceSearchParams(
+  current: URLSearchParams,
+  context: SetupRouteContext,
+) {
+  const params =
+    new URLSearchParams(
+      current,
+    );
+
+  params.delete(
+    'setup',
+  );
+  params.set(
+    'setupId',
+    context.setupId,
+  );
+
+  if (context.symbol) {
+    params.set(
+      'symbol',
+      context.symbol.toUpperCase(),
+    );
+  }
+
+  if (
+    isMarketWorkspaceSetupId(
+      context.setupId,
+    )
+  ) {
+    params.delete(
+      'preset',
+    );
+    params.delete(
+      'scannerWindow',
+    );
+  } else {
+    if (context.preset) {
+      params.set(
+        'preset',
+        context.preset,
+      );
+    }
+
+    if (context.scannerWindow) {
+      params.set(
+        'scannerWindow',
+        context.scannerWindow,
+      );
+    }
+  }
+
+  if (context.timeframe) {
+    params.set(
+      'timeframe',
+      context.timeframe,
+    );
+  }
+
+  return params;
 }
 
 export function buildMarketWorkspaceUrl(
@@ -92,8 +184,13 @@ export function buildReplayUrl(route: string, context: ReplayRouteContext) {
   return `${route}?${params.toString()}`;
 }
 
-export function isWorkspaceTimeframe(value: string | null): value is '1m' | '5m' | '15m' {
-  return value === '1m' || value === '5m' || value === '15m';
+export function isWorkspaceTimeframe(value: string | null): value is '1m' | '5m' | '15m' | '1h' | '4h' | '1d' {
+  return value === '1m'
+    || value === '5m'
+    || value === '15m'
+    || value === '1h'
+    || value === '4h'
+    || value === '1d';
 }
 
 export function buildSetupSelectionUrl(
