@@ -12,11 +12,13 @@ import {
   useRealtimeMarketData,
 } from '@/shared/realtime';
 import {
+  buildCanonicalWorkspaceSearchParams,
   buildMarketWorkspaceSetupId,
   buildReplayUrl,
   isMarketWorkspaceSetupId,
   buildSetupSelectionUrl,
   isWorkspaceTimeframe,
+  resolveWorkspaceViewRequest,
 } from '@/shared/routing/setupContext';
 import {
   TRADING_PRESETS,
@@ -52,7 +54,7 @@ import {
 } from '@/shared/ui/SetupStageBadge';
 import styles from './WorkspacePage.module.css';
 
-type Timeframe = '1m' | '5m' | '15m';
+type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
 type TapeFilter = 'all' | PrintSide;
 
 type WorkspacePageData = {
@@ -413,23 +415,45 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     );
 
   useEffect(() => {
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.delete('setup');
-    nextParams.set('setupId', contractSetup.id);
-    nextParams.set('symbol', contractSetup.symbol);
-    nextParams.set('preset', preset);
-    nextParams.set('scannerWindow', scannerWindow);
-    nextParams.set('timeframe', timeframe);
+    const nextParams =
+      buildCanonicalWorkspaceSearchParams(
+        searchParams,
+        {
+          setupId:
+            contractSetup.id,
+
+          symbol:
+            contractSetup.symbol,
+
+          preset,
+          scannerWindow,
+          timeframe,
+        },
+      );
+
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
     }
   }, [contractSetup.id, contractSetup.symbol, preset, scannerWindow, searchParams, setSearchParams, timeframe]);
 
   const selectTimeframe = (value: Timeframe) => {
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set('setupId', contractSetup.id);
-    nextParams.set('symbol', contractSetup.symbol);
-    nextParams.set('timeframe', value);
+    const nextParams =
+      buildCanonicalWorkspaceSearchParams(
+        searchParams,
+        {
+          setupId:
+            contractSetup.id,
+
+          symbol:
+            contractSetup.symbol,
+
+          preset,
+          scannerWindow,
+          timeframe:
+            value,
+        },
+      );
+
     setSearchParams(nextParams);
   };
 
@@ -1818,13 +1842,21 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
         <div className={styles.instrumentHeader}>
           <Link
             className={styles.backLink}
-            to={buildSetupSelectionUrl(ROUTES.scanner, contractSetup.id, {
-              symbol: contractSetup.symbol,
-              preset,
-              scannerWindow,
-              timeframe,
-            })}
-            aria-label="Вернуться в Scanner"
+            to={
+              isMarketPreview
+                ? ROUTES.market
+                : buildSetupSelectionUrl(ROUTES.scanner, contractSetup.id, {
+                    symbol: contractSetup.symbol,
+                    preset,
+                    scannerWindow,
+                    timeframe,
+                  })
+            }
+            aria-label={
+              isMarketPreview
+                ? 'Вернуться в Market'
+                : 'Вернуться в Scanner'
+            }
           >
             ←
           </Link>
@@ -1910,7 +1942,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
           <article className={styles.chartPanel}>
             <div className={styles.panelToolbar}>
               <div className={styles.timeframeControl} aria-label="Таймфрейм графика">
-                {(['1m', '5m', '15m'] as const).map((value) => (
+                {(['1m', '5m', '15m', '1h', '4h', '1d'] as const).map((value) => (
                   <button
                     key={value}
                     type="button"
@@ -2253,7 +2285,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                       <span>MARKET</span>
                     </div>
                     <p className={styles.testNotice}>
-                      Монета открыта из Market Scanner.
+                      Монета открыта из Market.
                       NEXUS не обнаружил для неё подтверждённый
                       торговый сетап, поэтому направление,
                       уровень и стадия не показываются.
@@ -2484,25 +2516,16 @@ export function WorkspacePage() {
   const query = useApiQuery(
     `workspace-context:${requestedSetupId}:${requestedSymbol}`,
     async (): Promise<WorkspacePageData | null> => {
-      const shouldPreferRuntimeSetup =
-        isMarketWorkspaceSetupId(
+      const workspaceRequest =
+        resolveWorkspaceViewRequest(
           requestedSetupId,
-        )
-        && requestedSymbol.length > 0;
-
-      const runtimeView =
-        shouldPreferRuntimeSetup
-          ? await nexusApi.getWorkspaceView(
-              null,
-              requestedSymbol,
-            )
-          : null;
+          requestedSymbol,
+        );
 
       const primaryView =
-        runtimeView
-        ?? await nexusApi.getWorkspaceView(
-          requestedSetupId || null,
-          requestedSymbol || null,
+        await nexusApi.getWorkspaceView(
+          workspaceRequest.setupId,
+          workspaceRequest.symbol,
         );
 
       const marketFallbackSetupId =
