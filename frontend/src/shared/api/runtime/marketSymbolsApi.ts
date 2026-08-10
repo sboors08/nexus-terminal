@@ -17,6 +17,12 @@ export interface FetchRuntimeMarketSymbolsOptions {
 type JsonRecord =
   Record<string, unknown>;
 
+const MARKET_SYMBOL_PATTERN =
+  /^[A-Z0-9]{5,20}$/;
+
+const MARKET_ASSET_PATTERN =
+  /^[A-Z0-9]{1,20}$/;
+
 function normalizeBaseUrl(
   value: string | undefined,
 ): string {
@@ -57,6 +63,28 @@ function readString(
     typeof value !== 'string'
     || value.trim().length === 0
   ) {
+    throw new Error(
+      `Invalid market symbol ${key} at index ${index}`,
+    );
+  }
+
+  return value;
+}
+
+function readMarketCode(
+  record: JsonRecord,
+  key: string,
+  index: number,
+  pattern: RegExp,
+): string {
+  const value =
+    readString(
+      record,
+      key,
+      index,
+    );
+
+  if (!pattern.test(value)) {
     throw new Error(
       `Invalid market symbol ${key} at index ${index}`,
     );
@@ -136,24 +164,27 @@ export function parseRuntimeMarketSymbols(
 
       return {
         symbol:
-          readString(
+          readMarketCode(
             record,
             'symbol',
             index,
+            MARKET_SYMBOL_PATTERN,
           ),
 
         baseAsset:
-          readString(
+          readMarketCode(
             record,
             'baseAsset',
             index,
+            MARKET_ASSET_PATTERN,
           ),
 
         quoteAsset:
-          readString(
+          readMarketCode(
             record,
             'quoteAsset',
             index,
+            MARKET_ASSET_PATTERN,
           ),
 
         exchange:

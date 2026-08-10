@@ -12,11 +12,13 @@ test('Binance USD-M Futures client maps public responses to NEXUS contracts', as
     if (url.pathname === '/fapi/v1/exchangeInfo') return json({ symbols: [
       { symbol: 'BTCUSDT', status: 'TRADING', baseAsset: 'BTC', quoteAsset: 'USDT', contractType: 'PERPETUAL' },
       { symbol: 'SOLUSDT', status: 'TRADING', baseAsset: 'SOL', quoteAsset: 'USDT', contractType: 'PERPETUAL' },
+      { symbol: '币安人生USDT', status: 'TRADING', baseAsset: '币安人生', quoteAsset: 'USDT', contractType: 'PERPETUAL' },
       { symbol: 'SOLEUR', status: 'TRADING', baseAsset: 'SOL', quoteAsset: 'EUR', contractType: 'PERPETUAL' },
     ] });
     if (url.pathname === '/fapi/v1/ticker/24hr') return json([
       { symbol: 'BTCUSDT', lastPrice: '100000', priceChangePercent: '2.5', openPrice: '98000', highPrice: '101000', lowPrice: '97000', quoteVolume: '2000000000', count: 1440000, closeTime: 1721275200000 },
       { symbol: 'SOLUSDT', lastPrice: '190.5', priceChangePercent: '5.25', openPrice: '181', highPrice: '192', lowPrice: '178', quoteVolume: '400000000', count: 288000, closeTime: 1721275200000 },
+      { symbol: '币安人生USDT', lastPrice: '0.23', priceChangePercent: '8.5', openPrice: '0.21', highPrice: '0.25', lowPrice: '0.2', quoteVolume: '900000000', count: 500000, closeTime: 1721275200000 },
     ]);
     if (url.pathname === '/fapi/v1/klines') return json([[1721275200000,'189.0','191.0','188.5','190.5','12345.6',1721275499999,'2345678.9',845,'6000','1100000','0']]);
     return json({ code: -1000, msg: 'Unexpected request' }, 500);
