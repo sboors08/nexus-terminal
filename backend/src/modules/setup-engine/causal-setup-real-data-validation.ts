@@ -83,9 +83,26 @@ export interface CausalSetupRealDataReplayProgress {
   readonly totalClosedCandleCount: number;
 }
 
+export interface CausalSetupRealDataReplayUpdate {
+  readonly candidateId: string;
+  readonly context: SetupCausalContext;
+}
+
+export interface CausalSetupRealDataReplayStep {
+  readonly symbol: string;
+  readonly currentCandleIndex: number;
+  readonly currentObservedAt: string;
+  readonly currentPrice: number | null;
+  readonly updates:
+    readonly CausalSetupRealDataReplayUpdate[];
+}
+
 export interface CausalSetupRealDataValidationDependencies {
   readonly onReplayProgress?: (
     progress: CausalSetupRealDataReplayProgress,
+  ) => void;
+  readonly onReplayStep?: (
+    step: CausalSetupRealDataReplayStep,
   ) => void;
 }
 
@@ -411,27 +428,32 @@ function toKline(
 
 class PrefixMarketStore
 implements SetupDetectionMarketStore {
-  private prefix:
-    readonly BinanceOneMinuteKlineUpdate[] =
-      Object.freeze([]);
+  private visibleCount = 0;
 
   constructor(
     private readonly symbol: string,
+    private readonly values:
+      readonly BinanceOneMinuteKlineUpdate[],
   ) {}
 
-  setPrefix(
-    values:
-      readonly BinanceOneMinuteKlineUpdate[],
+  setVisibleCount(
+    value: number,
   ): void {
-    this.prefix =
-      Object.freeze(
-        values.map(
-          (value) =>
-            Object.freeze({
-              ...value,
-            }),
-        ),
+    const visibleCount =
+      positiveInteger(
+        value,
+        'visible candle count',
       );
+
+    if (visibleCount > this.values.length) {
+      fail(
+        `visible candle count ${visibleCount} exceeds dataset length ${this.values.length}`,
+      );
+
+    }
+
+    this.visibleCount =
+      visibleCount;
   }
 
   getKlines(
@@ -447,20 +469,22 @@ implements SetupDetectionMarketStore {
       return [];
     }
 
-    const selected =
+    const end =
+      this.visibleCount;
+    const start =
       limit === undefined
-        ? this.prefix
-        : this.prefix.slice(
-            -positiveInteger(
+        ? 0
+        : Math.max(
+            0,
+            end - positiveInteger(
               limit,
               'market store limit',
             ),
           );
 
-    return selected.map(
-      (value) => ({
-        ...value,
-      }),
+    return this.values.slice(
+      start,
+      end,
     );
   }
 
@@ -484,7 +508,9 @@ implements SetupDetectionMarketStore {
     }
 
     const latest =
-      this.prefix.at(-1)
+      this.values[
+        this.visibleCount - 1
+      ]
       ?? null;
 
     return {
@@ -1055,12 +1081,16 @@ export function replayCausalSetupRealDataDataset(
       optionsValue,
     );
   const candles =
-    validated.closed.map(
-      (value) =>
-        toKline(
-          validated.symbol,
-          value.candle,
-        ),
+    Object.freeze(
+      validated.closed.map(
+        (value) =>
+          Object.freeze(
+            toKline(
+              validated.symbol,
+              value.candle,
+            ),
+          ),
+      ),
     );
 
   if (
@@ -1084,6 +1114,7 @@ export function replayCausalSetupRealDataDataset(
   const store =
     new PrefixMarketStore(
       validated.symbol,
+      candles,
     );
   let replayNow =
     new Date(0);
@@ -1138,11 +1169,8 @@ export function replayCausalSetupRealDataDataset(
       new Date(
         current.candle.closeTime,
       );
-    store.setPrefix(
-      candles.slice(
-        0,
-        closedCount,
-      ),
+    store.setVisibleCount(
+      closedCount,
     );
 
     const result =
@@ -1169,6 +1197,33 @@ export function replayCausalSetupRealDataDataset(
         `pipeline contract does not match ${validated.symbol} replay`,
       );
     }
+
+    dependencies.onReplayStep?.(
+      Object.freeze({
+        symbol:
+          validated.symbol,
+        currentCandleIndex:
+          current.originalIndex,
+        currentObservedAt:
+          current.candle.closeTime,
+        currentPrice:
+          result.currentPrice,
+        updates:
+          Object.freeze(
+            result.causalUpdates.map(
+              (update) =>
+                Object.freeze({
+                  candidateId:
+                    update.candidateId,
+                  context:
+                    cloneContext(
+                      update.context,
+                    ),
+                }),
+            ),
+          ),
+      }),
+    );
 
     activeLevelObservationCount +=
       result.levels.length;

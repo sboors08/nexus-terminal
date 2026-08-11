@@ -457,6 +457,12 @@ Frontend подключил эти параметры без изменения 
 - realtime confirmation не объявляет breakout или bounce: существующий closed-candle Setup Stage Evaluator по-прежнему отдельно определяет `BREAKOUT_CONFIRMED` или `REJECTION_CONFIRMED` по прежним правилам.
 - отдельный offline validator последовательно проигрывает реальные закрытые Binance `1m` свечи через production Setup Detection Pipeline, сохраняет candidate tracks, causal-стадии, задержки и нарушения инвариантов в JSON;
 - исторические `aggTrade` и снимки стакана в OHLC-датасете отсутствуют и не синтезируются: этот validator проверяет `OBSERVATION` и `APPROACH`, но честно помечает realtime `CONFIRMATION` и итог breakout/rejection как не проверенные.
+- фактический отчёт от `2026-08-11T18:01:05.684Z` содержит `311` уникальных candidate lines без нарушений инвариантов и pair anomalies, но `303` линии (`97,4%`) достигли `APPROACH` на той же закрытой свече, что и `OBSERVATION`; позднее подошли `6`, не подошли `2`;
+- lifecycle churn зафиксирован отдельно: `215` из `311` линий повторно появлялись, `151` — более одного раза; эти данные требуют последующего lifecycle-разбора, но churn не исправляется вместе с границей стадий.
+- Causal Stage Boundary Analysis v0.1 сравнил три политики на тех же `311` уникальных линиях: текущая сохранила `309` подходов, `next_closed_candle` — `274`, `outside_to_inside_crossing` — `36`;
+- `300` из `303` same-bar переходов возникли уже после того, как предыдущая закрытая свеча находилась внутри границы Approach, и только `3` действительно пересекли её на свече рождения Observation;
+- искусственная задержка на следующую свечу отклонена: она задерживает `268` текущих подходов и теряет `35`; crossing-only также отклонён: он теряет `273` текущих подхода и имеет медианную задержку `150` свечей;
+- production-правило не изменено: анализ доказал, что первопричина находится в слишком позднем causal-входе в `OBSERVATION` относительно фиксированной границы Approach, а не в разрешении same-snapshot перехода как таковом.
 
 ---
 
@@ -863,7 +869,7 @@ Replay обязателен для v1.0.
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134 |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
-| 7 | Setup Engine | Causal integration v0.1 реализована, real-data validation выполняется | Канонический Level Lines pipeline подключён к lifecycle; offline validator для реальных `1m` OHLC и causal-инвариантов реализован; realtime confirmation требует отдельного накопленного `aggTrade`/order-book dataset |
+| 7 | Setup Engine | Causal integration v0.1 реализована, граница стадий проверена | Канонический Level Lines pipeline подключён к lifecycle; Stage Boundary Analysis отклонил искусственную задержку и crossing-only, production сохранён без изменений; следующий узкий вопрос — causal-момент входа в Observation; realtime confirmation требует отдельного накопленного `aggTrade`/order-book dataset |
 | 8 | Alerts | Частично | Есть UI и integrity foundation; полноценные правила, cooldown, доставка и история срабатываний не завершены |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence и runtime event history; Auth, приглашения, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
@@ -971,20 +977,21 @@ Replay обязателен для v1.0.
 
 Текущая задача:
 
-**Causal Setup Real-Data Validation v0.1**
+**Causal Observation Entry Geometry Analysis v0.1**
 
 Граница реализации:
 
-- backend-only offline validation текущего production pipeline `1m` на последовательных префиксах реальных закрытых Binance-свечей;
-- повторно использовать уже загруженные Level Engine OHLC-датасеты, не обращаться к будущим свечам и не запускать legacy `setup-level-detector`;
-- зафиксировать для каждого causal-кандидата стабильные `candidateId/lineId`, LONG/SHORT, breakout/bounce, первое `OBSERVATION`, первое `APPROACH`, исчезновения/возвраты и задержки в свечах;
-- автоматически проверять включительные границы `progress >= 0,50` и `distance <= 0,50%`, отсутствие будущих наблюдений, смены causal identity и дубликатов эмиссии;
-- сохранять timestamped и `latest.json` отчёты с `appliedOptions`, per-symbol метриками и полным списком нарушений инвариантов;
-- не синтезировать исторические `aggTrade` или стакан: realtime `CONFIRMATION`, breakout/rejection outcome и прибыльность этой проверкой не подтверждаются;
-- не менять detector, production runtime, торговые правила, probability/profitability, обучение, финальный Setup Score, frontend, i18n/SEO, роли, подписки или Admin;
-- обязательны focused tests, полный backend check, production build и отдельный реальный запуск CLI с анализом итогового JSON.
+- backend-only и analysis-only на тех же сохранённых реальных закрытых `1m` OHLC-префиксах; не загружать новые рыночные данные и не обращаться к будущим свечам;
+- для каждой уникальной `symbol + lineId` определить, на какой первой причинно доступной свече уже существовали подтверждённая линия и валидный departure extremum до текущего входа в Observation;
+- измерить расстояние departure extremum до уровня, расстояние цены до уровня и progress на всех причинно допустимых точках до текущего Observation;
+- сравнить текущий `progress >= 0,50` с более ранними progress-порогами и с geometry-aware входом до границы `distance <= 0,50%`;
+- для каждой политики посчитать сохранённые и потерянные текущие Approach, lead time до Approach, same-bar долю, ложные ранние Observation без последующего Approach и per-symbol результаты;
+- отдельно показать, какая часть emission churn объясняется регрессом progress ниже Observation-порога, не меняя production lifecycle в этой задаче;
+- сохранить deterministic JSON и выбрать одно causal-правило входа в Observation только по фактическому сравнению;
+- не менять production detector, Observation Tracker, Approach Engine, Setup pipeline/runtime, пороги, realtime confirmation, outcome, probability/profitability, обучение, Setup Score или frontend;
+- обязательны focused regression tests, полный backend check, production build и отдельный запуск анализа на фактическом локальном dataset.
 
-Следующая продуктовая задача определяется только после анализа фактического real-data отчёта; нулевое число нарушений инвариантов не считается доказательством прибыльности сигналов.
+Цель задачи — исправить доказанную первопричину схлопывания стадий. Она не является новым сетапом или боковым исследованием; после выбора правила следующая ветка должна реализовать только выбранный causal-вход в Observation.
 
 ---
 
