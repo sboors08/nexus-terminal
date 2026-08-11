@@ -221,7 +221,7 @@ test(
     await assert.rejects(
       client.fetchOneMinuteKlines({
         symbol: 'BTCUSDT',
-        limit: 1_501,
+        limit: 1_001,
       }),
       BinanceMarketHistoryError,
     );

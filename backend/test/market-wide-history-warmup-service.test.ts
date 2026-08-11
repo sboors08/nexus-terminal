@@ -241,8 +241,9 @@ test(
         180,
         480,
         720,
-        1_500,
-        1_380,
+        1_000,
+        1_000,
+        880,
       ],
     );
 
@@ -284,6 +285,8 @@ test(
       new MarketWideHistoryWarmupService({
         minutesPerSymbol: 60,
         requestDelayMs: 0,
+        maxRequestAttempts: 1,
+        retryBaseDelayMs: 0,
         historySource: {
           fetchOneMinuteKlines:
             async (request) => {
@@ -347,6 +350,164 @@ test(
         currentSymbol: null,
         lastError:
           'temporary Binance failure',
+        currentStageIndex: 1,
+        totalStages: 1,
+        completedStages: 1,
+        currentStageTargetMinutes:
+          60,
+      },
+    );
+  },
+);
+
+test(
+  'retries a transient history request with exponential delay',
+  async () => {
+    let attempts = 0;
+
+    const delays:
+      number[] = [];
+
+    const service =
+      new MarketWideHistoryWarmupService({
+        minutesPerSymbol: 60,
+        requestDelayMs: 0,
+        maxRequestAttempts: 3,
+        retryBaseDelayMs: 10,
+        delay: async (delayMs) => {
+          delays.push(
+            delayMs,
+          );
+        },
+        historySource: {
+          fetchOneMinuteKlines:
+            async (request) => {
+              attempts += 1;
+
+              if (attempts < 3) {
+                throw new Error(
+                  'temporary Binance timeout',
+                );
+              }
+
+              return createPage(
+                request.symbol,
+                request.limit,
+                request.endTime,
+              );
+            },
+        },
+        target: {
+          applyHistoricalKlines:
+            (updates) =>
+              updates.length,
+        },
+      });
+
+    await service.start([
+      'BTCUSDT',
+    ]);
+
+    assert.equal(
+      attempts,
+      3,
+    );
+
+    assert.deepEqual(
+      delays,
+      [
+        10,
+        20,
+      ],
+    );
+
+    assert.equal(
+      service.getStatus()
+        .successfulSymbols,
+      1,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .failedSymbols,
+      0,
+    );
+  },
+);
+
+test(
+  'reprocesses a symbol that failed its first stage pass',
+  async () => {
+    const requests:
+      string[] = [];
+
+    let btcAttempts = 0;
+
+    const service =
+      new MarketWideHistoryWarmupService({
+        minutesPerSymbol: 60,
+        requestDelayMs: 0,
+        maxRequestAttempts: 1,
+        retryBaseDelayMs: 0,
+        historySource: {
+          fetchOneMinuteKlines:
+            async (request) => {
+              requests.push(
+                request.symbol,
+              );
+
+              if (
+                request.symbol
+                === 'BTCUSDT'
+              ) {
+                btcAttempts += 1;
+
+                if (btcAttempts === 1) {
+                  throw new Error(
+                    'temporary Binance timeout',
+                  );
+                }
+              }
+
+              return createPage(
+                request.symbol,
+                request.limit,
+                request.endTime,
+              );
+            },
+        },
+        target: {
+          applyHistoricalKlines:
+            (updates) =>
+              updates.length,
+        },
+      });
+
+    await service.start([
+      'BTCUSDT',
+      'SOLUSDT',
+    ]);
+
+    assert.deepEqual(
+      requests,
+      [
+        'BTCUSDT',
+        'SOLUSDT',
+        'BTCUSDT',
+      ],
+    );
+
+    assert.deepEqual(
+      service.getStatus(),
+      {
+        state: 'completed',
+        totalSymbols: 2,
+        processedSymbols: 2,
+        successfulSymbols: 2,
+        failedSymbols: 0,
+        appliedKlines: 120,
+        currentSymbol: null,
+        lastError: null,
         currentStageIndex: 1,
         totalStages: 1,
         completedStages: 1,

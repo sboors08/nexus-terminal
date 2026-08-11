@@ -36,7 +36,10 @@ export interface AppEnv {
   binanceMarketWideReconnectMaxDelayMs?: number;
   binanceMarketWideHistoryWarmupEnabled?: boolean;
   binanceMarketWideHistoryWarmupMinutesPerSymbol?: number;
+  binanceMarketWideHistoryWarmupRequestTimeoutMs?: number;
   binanceMarketWideHistoryWarmupRequestDelayMs?: number;
+  binanceMarketWideHistoryWarmupMaxRequestAttempts?: number;
+  binanceMarketWideHistoryWarmupRetryBaseDelayMs?: number;
 }
 
 function readEnum<T extends readonly string[]>(
@@ -235,10 +238,31 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       1,
       4_320,
     ),
+    binanceMarketWideHistoryWarmupRequestTimeoutMs: readInteger(
+      source.BINANCE_MARKET_WIDE_HISTORY_WARMUP_REQUEST_TIMEOUT_MS,
+      15_000,
+      'BINANCE_MARKET_WIDE_HISTORY_WARMUP_REQUEST_TIMEOUT_MS',
+      1_000,
+      60_000,
+    ),
     binanceMarketWideHistoryWarmupRequestDelayMs: readInteger(
       source.BINANCE_MARKET_WIDE_HISTORY_WARMUP_REQUEST_DELAY_MS,
       250,
       'BINANCE_MARKET_WIDE_HISTORY_WARMUP_REQUEST_DELAY_MS',
+      0,
+      60_000,
+    ),
+    binanceMarketWideHistoryWarmupMaxRequestAttempts: readInteger(
+      source.BINANCE_MARKET_WIDE_HISTORY_WARMUP_MAX_REQUEST_ATTEMPTS,
+      3,
+      'BINANCE_MARKET_WIDE_HISTORY_WARMUP_MAX_REQUEST_ATTEMPTS',
+      1,
+      5,
+    ),
+    binanceMarketWideHistoryWarmupRetryBaseDelayMs: readInteger(
+      source.BINANCE_MARKET_WIDE_HISTORY_WARMUP_RETRY_BASE_DELAY_MS,
+      1_000,
+      'BINANCE_MARKET_WIDE_HISTORY_WARMUP_RETRY_BASE_DELAY_MS',
       0,
       60_000,
     ),
