@@ -442,7 +442,7 @@ Frontend подключил эти параметры без изменения 
 
 Порог `0,50` меняется только после Replay и проверки, а не по ощущению.
 
-Текущее состояние causal-цепочки после PR #125–#135 и Causal Setup Pipeline Integration v0.1:
+Текущее состояние causal-цепочки после PR #125–#136 и Causal Setup Real-Data Validation v0.1:
 
 - Departure Extremum Tracker v0.1 реализован отдельно для каждой активной подтверждённой/рабочей линии;
 - Observation Tracker v0.1 причинно считает `progress` по последней закрытой свече и использует включительную границу `progress >= 0,50`;
@@ -455,6 +455,8 @@ Frontend подключил эти параметры без изменения 
 - causal-to-setup adapter создаёт кандидата только после `OBSERVATION` при `progress >= 0,50`, сохраняет `lineId/symbol/timeframe/stage/reason` и начинает срок жизни кандидата с момента входа в наблюдение;
 - `APPROACH` при `distance <= 0,50%` переводит существующий lifecycle в `APPROACHING_THIRD_TOUCH`, а подтверждённое realtime-взаимодействие — в `THIRD_TOUCH_CONFIRMED`;
 - realtime confirmation не объявляет breakout или bounce: существующий closed-candle Setup Stage Evaluator по-прежнему отдельно определяет `BREAKOUT_CONFIRMED` или `REJECTION_CONFIRMED` по прежним правилам.
+- отдельный offline validator последовательно проигрывает реальные закрытые Binance `1m` свечи через production Setup Detection Pipeline, сохраняет candidate tracks, causal-стадии, задержки и нарушения инвариантов в JSON;
+- исторические `aggTrade` и снимки стакана в OHLC-датасете отсутствуют и не синтезируются: этот validator проверяет `OBSERVATION` и `APPROACH`, но честно помечает realtime `CONFIRMATION` и итог breakout/rejection как не проверенные.
 
 ---
 
@@ -831,6 +833,8 @@ Replay обязателен для v1.0.
 | #131 | Согласованность causal-взаимодействия Workspace | единый активный уровень, зона, касания, расстояние и стадия; корректный фокус на поддержке/сопротивлении; встроенный Feedback |
 | #133–#134 | Market Recovery и Market → Workspace path recovery | реальные market-wide данные, выбранные symbol/timeframe и канонический переход в Workspace восстановлены |
 | #135 | CI verifier hotfix | статический trading-presets verifier приведён к текущему routing contract; runtime не изменён |
+| #136 | Causal Setup Pipeline Integration v0.1 | production Setup Detection Pipeline переведён на Level Lines; causal identity/stage/reason подключены к существующему lifecycle без изменения breakout/bounce правил |
+| #137 | History warm-up reliability | Binance-лимит страницы `1000`, отдельный timeout, retry/backoff и повтор неудачных символов внутри этапа warm-up |
 
 ### Важные границы текущей реализации
 
@@ -838,6 +842,7 @@ Replay обязателен для v1.0.
 - Level Lines v0.1 остаётся наблюдательным слоем и имеет `createsSetup: false`;
 - Level v2 quality dataset остаётся shadow-only и имеет `trainingApplied: false`;
 - Departure, Observation, Approach и realtime confirmation подключены к lifecycle существующего Setup Engine через отдельный causal-to-setup adapter;
+- offline causal Setup validation использует реальные `1m` OHLC-свечи и не подменяет отсутствующую историческую ленту/стакан синтетическими подтверждениями;
 - frontend только отображает backend causal-состояние и сам не меняет lifecycle Setup Engine; realtime confirmation остаётся подтверждением взаимодействия, а не торговым исходом;
 - пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
@@ -850,7 +855,7 @@ Replay обязателен для v1.0.
 
 Мелкие PR и внутренние чек-листы не заменяют этот маршрут. Статусы ниже не являются процентами и не означают автоматическое закрытие этапа.
 
-| Этап | Название | Состояние на 2026-08-10 | Граница этапа |
+| Этап | Название | Состояние на 2026-08-11 | Граница этапа |
 | --- | --- | --- | --- |
 | 1 | Публичная страница | Частично | Есть публичный frontend-фундамент и SEO/i18n-заготовки; финальные лендинг, тексты, локализация и заявка в beta не завершены |
 | 2 | Binance USDⓈ-M Futures Migration | Завершён | PR #27; целевой рынок переведён на активные USDT perpetual contracts |
@@ -858,7 +863,7 @@ Replay обязателен для v1.0.
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134 |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
-| 7 | Setup Engine | Causal integration v0.1 реализована, валидация продолжается | Канонический Level Lines pipeline подключён к существующему lifecycle; breakout/bounce и outcome-правила сохранены; real-data validation ещё требуется |
+| 7 | Setup Engine | Causal integration v0.1 реализована, real-data validation выполняется | Канонический Level Lines pipeline подключён к lifecycle; offline validator для реальных `1m` OHLC и causal-инвариантов реализован; realtime confirmation требует отдельного накопленного `aggTrade`/order-book dataset |
 | 8 | Alerts | Частично | Есть UI и integrity foundation; полноценные правила, cooldown, доставка и история срабатываний не завершены |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence и runtime event history; Auth, приглашения, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
@@ -966,21 +971,20 @@ Replay обязателен для v1.0.
 
 Текущая задача:
 
-**Causal Setup Pipeline Integration v0.1**
+**Causal Setup Real-Data Validation v0.1**
 
 Граница реализации:
 
-- backend-first и только текущий production runtime `1m`;
-- канонический источник уровня — Level Lines, без повторного поиска через legacy `setup-level-detector`;
-- Setup-кандидат появляется только после per-line `OBSERVATION` при включительном `progress >= 0,50`;
-- `APPROACH` использует существующую включительную границу `distance <= 0,50%`;
-- realtime `CONFIRMATION` завершает стадию взаимодействия, но не классифицирует breakout или bounce;
-- существующие LONG/SHORT, `level_breakout`/`level_bounce`, closed-candle outcome и expiration rules сохраняются;
-- read API, lifecycle events, event history, Scanner и Workspace получают один causal identity/stage/reason из backend-кандидата;
-- probability, profitability, обучение, финальный Setup Score и frontend-редизайн не входят в задачу;
-- обязательны focused integration/regression tests, полный backend check и production build.
+- backend-only offline validation текущего production pipeline `1m` на последовательных префиксах реальных закрытых Binance-свечей;
+- повторно использовать уже загруженные Level Engine OHLC-датасеты, не обращаться к будущим свечам и не запускать legacy `setup-level-detector`;
+- зафиксировать для каждого causal-кандидата стабильные `candidateId/lineId`, LONG/SHORT, breakout/bounce, первое `OBSERVATION`, первое `APPROACH`, исчезновения/возвраты и задержки в свечах;
+- автоматически проверять включительные границы `progress >= 0,50` и `distance <= 0,50%`, отсутствие будущих наблюдений, смены causal identity и дубликатов эмиссии;
+- сохранять timestamped и `latest.json` отчёты с `appliedOptions`, per-symbol метриками и полным списком нарушений инвариантов;
+- не синтезировать исторические `aggTrade` или стакан: realtime `CONFIRMATION`, breakout/rejection outcome и прибыльность этой проверкой не подтверждаются;
+- не менять detector, production runtime, торговые правила, probability/profitability, обучение, финальный Setup Score, frontend, i18n/SEO, роли, подписки или Admin;
+- обязательны focused tests, полный backend check, production build и отдельный реальный запуск CLI с анализом итогового JSON.
 
-Следующая продуктовая задача определяется после объединения этой интеграции и проверки causal-кандидатов на реальных данных; новый торговый scope в текущей задаче не добавляется.
+Следующая продуктовая задача определяется только после анализа фактического real-data отчёта; нулевое число нарушений инвариантов не считается доказательством прибыльности сигналов.
 
 ---
 
