@@ -51,6 +51,8 @@ export interface MarketWideHistoryWarmupOptions {
     MarketWideHistoryTarget;
   minutesPerSymbol: number;
   requestDelayMs: number;
+  maxRequestAttempts?: number;
+  retryBaseDelayMs?: number;
   delay?: (
     delayMs: number,
   ) => Promise<void>;
@@ -60,7 +62,16 @@ const SYMBOL_PATTERN =
   /^[A-Z0-9]{5,30}$/;
 
 const MAX_KLINES_PER_REQUEST =
-  1_500;
+  1_000;
+
+const DEFAULT_MAX_REQUEST_ATTEMPTS =
+  3;
+
+const DEFAULT_RETRY_BASE_DELAY_MS =
+  1_000;
+
+const MAX_RETRY_DELAY_MS =
+  60_000;
 
 const MAX_HISTORY_DEPTH_MINUTES =
   3 * 24 * 60;
@@ -224,6 +235,12 @@ export class MarketWideHistoryWarmupService {
   private readonly stageTargets:
     number[];
 
+  private readonly maxRequestAttempts:
+    number;
+
+  private readonly retryBaseDelayMs:
+    number;
+
   private readonly requestedMinutes =
     new Map<
       string,
@@ -254,6 +271,28 @@ export class MarketWideHistoryWarmupService {
       options.requestDelayMs,
       'requestDelayMs',
       0,
+    );
+
+    this.maxRequestAttempts =
+      options.maxRequestAttempts
+      ?? DEFAULT_MAX_REQUEST_ATTEMPTS;
+
+    validateInteger(
+      this.maxRequestAttempts,
+      'maxRequestAttempts',
+      1,
+      5,
+    );
+
+    this.retryBaseDelayMs =
+      options.retryBaseDelayMs
+      ?? DEFAULT_RETRY_BASE_DELAY_MS;
+
+    validateInteger(
+      this.retryBaseDelayMs,
+      'retryBaseDelayMs',
+      0,
+      MAX_RETRY_DELAY_MS,
     );
 
     this.delay =
@@ -398,6 +437,10 @@ export class MarketWideHistoryWarmupService {
       this.processedSymbols = 0;
       this.successfulSymbols = 0;
       this.failedSymbols = 0;
+      this.lastError = null;
+
+      const failedStageSymbols:
+        string[] = [];
 
       for (const symbol of symbols) {
         if (
@@ -432,6 +475,9 @@ export class MarketWideHistoryWarmupService {
           }
 
           this.failedSymbols += 1;
+          failedStageSymbols.push(
+            symbol,
+          );
 
           this.lastError =
             error instanceof Error
@@ -441,6 +487,65 @@ export class MarketWideHistoryWarmupService {
 
         this.processedSymbols += 1;
         this.currentSymbol = null;
+      }
+
+      if (
+        failedStageSymbols.length > 0
+        && this.retryBaseDelayMs > 0
+      ) {
+        await this.delay(
+          this.retryBaseDelayMs,
+        );
+      }
+
+      for (
+        const symbol
+        of failedStageSymbols
+      ) {
+        if (
+          generation
+          !== this.generation
+        ) {
+          return;
+        }
+
+        this.currentSymbol =
+          symbol;
+
+        try {
+          const completed =
+            await this.loadSymbolToTarget(
+              symbol,
+              targetMinutes,
+              generation,
+            );
+
+          if (!completed) {
+            return;
+          }
+
+          this.successfulSymbols += 1;
+          this.failedSymbols -= 1;
+        } catch (error) {
+          if (
+            generation
+            !== this.generation
+          ) {
+            return;
+          }
+
+          this.lastError =
+            error instanceof Error
+              ? error.message
+              : 'Unable to warm up '
+                + symbol;
+        }
+
+        this.currentSymbol = null;
+      }
+
+      if (this.failedSymbols === 0) {
+        this.lastError = null;
       }
 
       this.completedStages =
@@ -518,26 +623,14 @@ export class MarketWideHistoryWarmupService {
           ),
         };
 
-      let klines:
-        BinanceOneMinuteKlineUpdate[];
+      const klines =
+        await this.fetchPageWithRetry(
+          request,
+          generation,
+        );
 
-      try {
-        klines =
-          await this.options
-            .historySource
-            .fetchOneMinuteKlines(
-              request,
-            );
-      } finally {
-        if (
-          this.options
-            .requestDelayMs > 0
-        ) {
-          await this.delay(
-            this.options
-              .requestDelayMs,
-          );
-        }
+      if (klines === null) {
+        return false;
       }
 
       if (
@@ -609,5 +702,87 @@ export class MarketWideHistoryWarmupService {
     }
 
     return true;
+  }
+
+  private async fetchPageWithRetry(
+    request:
+      BinanceOneMinuteHistoryRequest,
+    generation: number,
+  ): Promise<
+    BinanceOneMinuteKlineUpdate[]
+    | null
+  > {
+    for (
+      let attempt = 1;
+      attempt
+        <= this.maxRequestAttempts;
+      attempt += 1
+    ) {
+      try {
+        const klines =
+          await this.options
+            .historySource
+            .fetchOneMinuteKlines(
+              request,
+            );
+
+        if (
+          this.options
+            .requestDelayMs > 0
+        ) {
+          await this.delay(
+            this.options
+              .requestDelayMs,
+          );
+        }
+
+        if (
+          generation
+          !== this.generation
+        ) {
+          return null;
+        }
+
+        return klines;
+      } catch (error) {
+        if (
+          generation
+          !== this.generation
+        ) {
+          return null;
+        }
+
+        if (
+          attempt
+          >= this.maxRequestAttempts
+        ) {
+          throw error;
+        }
+
+        const exponentialDelayMs =
+          Math.min(
+            this.retryBaseDelayMs
+            * 2 ** (
+              attempt - 1
+            ),
+            MAX_RETRY_DELAY_MS,
+          );
+
+        const retryDelayMs =
+          Math.max(
+            this.options
+              .requestDelayMs,
+            exponentialDelayMs,
+          );
+
+        if (retryDelayMs > 0) {
+          await this.delay(
+            retryDelayMs,
+          );
+        }
+      }
+    }
+
+    return null;
   }
 }

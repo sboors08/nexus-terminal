@@ -65,7 +65,7 @@ const SYMBOL_PATTERN =
   /^[A-Z0-9]{5,30}$/;
 
 const MAX_KLINES_PER_REQUEST =
-  1_500;
+  1_000;
 
 function normalizeSymbol(
   value: string,
@@ -92,7 +92,7 @@ function validateRequest(
       > MAX_KLINES_PER_REQUEST
   ) {
     throw new BinanceMarketHistoryError(
-      'Binance history limit must be an integer from 1 to 1500',
+      'Binance history limit must be an integer from 1 to 1000',
     );
   }
 
