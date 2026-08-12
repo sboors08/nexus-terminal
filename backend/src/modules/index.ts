@@ -101,6 +101,12 @@ import type {
 import {
   levelLinesRoutes,
 } from './level-engine/level-lines.routes.js';
+import {
+  alertsRoutes,
+} from './alerts/alerts.routes.js';
+import type {
+  AlertsRuntimeContract,
+} from './alerts/alerts.types.js';
 
 interface ApiModulesOptions {
   marketDataProvider:
@@ -135,6 +141,9 @@ interface ApiModulesOptions {
 
   setupEventHistoryReader?:
     SetupEventHistoryReader;
+
+  alertsRuntime?:
+    AlertsRuntimeContract;
 
   levelEngineFrozenSampleReader?:
     LevelEngineFrozenSampleReader;
@@ -409,6 +418,20 @@ FastifyPluginAsync<
               setupEventHistoryReader:
                 options
                   .setupEventHistoryReader,
+            }
+          : {}
+      ),
+    },
+  );
+
+  await app.register(
+    alertsRoutes,
+    {
+      ...(
+        options.alertsRuntime
+          ? {
+              alertsRuntime:
+                options.alertsRuntime,
             }
           : {}
       ),

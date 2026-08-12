@@ -866,7 +866,7 @@ Replay обязателен для v1.0.
 - пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
-- полноценные Alerts, Auth, постоянная History/Replay data layer, production deployment и закрытая beta не завершены.
+- Alerts имеют единый backend foundation с runtime-only правилами, cooldown/deduplication, bounded trigger history и Setup lifecycle adapter; постоянная пользовательская persistence, Scanner/BTC event adapters, внешняя доставка, Auth, постоянная History/Replay data layer, production deployment и закрытая beta не завершены.
 
 ---
 
@@ -883,7 +883,7 @@ Replay обязателен для v1.0.
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134 |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
 | 7 | Setup Engine | Causal integration v0.1 реализована, границы стадий проверены | Канонический Level Lines pipeline подключён к lifecycle; Stage Boundary и Observation Threshold Counterfactual Validation отклонили искусственную задержку, crossing-only и ранние progress-пороги; production `progress >= 0,50` сохранён; realtime confirmation требует отдельного накопленного `aggTrade`/order-book dataset |
-| 8 | Alerts | Частично | Есть UI и integrity foundation; полноценные правила, cooldown, доставка и история срабатываний не завершены |
+| 8 | Alerts | Backend foundation v0.1 реализован, развитие продолжается | Есть UI/integrity foundation и единый runtime-only backend-domain: правила, enabled state, symbol/timeframe binding, cooldown/deduplication, bounded trigger history, HTTP API и Setup lifecycle adapter; постоянная persistence, Scanner/BTC event adapters и внешняя доставка ещё впереди |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence и runtime event history; Auth, приглашения, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
 | 11 | Закрытая beta | Не начат | После готовности ключевого Setup/Alerts/data pipeline — 5–10 трейдеров |
@@ -990,29 +990,33 @@ Replay обязателен для v1.0.
 
 Завершённая текущая задача:
 
-**Causal Observation Threshold Counterfactual Validation v0.1**
+**Alerts Backend Foundation v0.1**
 
-Решение:
+Результат:
 
-- selection bias исходных `311` candidate lines снят на полном causal universe из `342` линий;
-- контрольный порог `0,50` воспроизведён без anomalies;
-- `0,40 / 0,30 / 0,20 / 0,10` отклонены: они не уменьшают same-bar переходы при policy-specific пересчёте Approach и создают больший lifecycle churn;
-- production `progress >= 0,50` сохранён без изменений.
+- подтверждено, что существующая Alerts page использует фиксированные frontend-события и локальные переключатели, а полноценного backend-domain ранее не было;
+- создан единый UI-независимый backend-контракт для alert rule, enabled state, symbol/timeframe binding и нормализованного source event;
+- добавлен bounded runtime-only store для правил и trigger history с явным `persistenceMode: runtime_only`;
+- реализованы cooldown по rule/symbol/timeframe/event scope и дедупликация по исходному source event;
+- causal Setup lifecycle подключён через отдельный adapter без повторного расчёта уровней, стадий или торговой логики;
+- generic contract заранее разделяет `market_scanner`, `setup_lifecycle`, `btc_market_mode`, `adaptive_ranking` и `custom` sources;
+- добавлены HTTP contracts для metadata, status, rules, enabled state и trigger history;
+- внешняя доставка, email/Telegram/push, Auth, billing, тарифы, Admin, постоянная пользовательская persistence, самообучение и frontend redesign не включались.
 
 Следующая отдельная задача:
 
-**Alerts Backend Foundation v0.1**
+**Alerts Market Event Sources v0.1**
 
 Граница следующей реализации:
 
-- перейти к этапу 8 официальной дорожной карты и сначала инвентаризировать существующие frontend Alerts contracts, routes и integrity foundation;
-- определить backend-domain для alert rule, enabled/disabled state, symbol/timeframe binding, trigger event, cooldown/deduplication и trigger history без привязки к одному UI-компоненту;
-- использовать существующие Scanner, Volume Spike, causal Setup lifecycle и BTC Market Mode как источники событий, не дублируя их расчёты внутри Alerts;
-- не смешивать в первой задаче внешнюю доставку, email/Telegram/push, тарифы, Auth, billing, Admin, самообучение и frontend redesign;
-- до изменения кода отдельно зафиксировать границу persistence: временный runtime store не выдавать за пользовательское постоянное хранение до этапа Auth/data layer;
-- обязательны backend contract tests, cooldown/deduplication tests, history bounds, полный backend check, production build и сохранение существующих Setup/Level safety-инвариантов.
+- инвентаризировать фактические backend-источники Volume Spike, аномального числа сделок, импульса и BTC Market Mode;
+- подключать только уже вычисленные Scanner/market события и изменения состояния, не переносить их математику внутрь Alerts;
+- если BTC Market Mode пока существует только как frontend/mock-представление, сначала определить канонический backend source contract, не подменяя его синтетическим alert-расчётом;
+- обеспечить стабильные source event IDs, корректную дедупликацию повторных snapshot/poll событий и изоляцию ошибок источников;
+- сохранить runtime-only persistence boundary и не добавлять внешние каналы доставки, Auth, billing или frontend redesign;
+- подтвердить adapters contract tests, повторные события, cooldown, bounded history, полный backend check и production build.
 
-Цель следующей задачи — заложить единый backend-контракт Alerts, который сможет безопасно потреблять уже готовые NEXUS-события и позднее получить пользовательскую persistence и каналы доставки без переписывания trigger logic.
+Цель следующей задачи — подключить к готовому Alerts-domain реальные market event sources без дублирования Scanner, Volume Spike и BTC-расчётов.
 
 ---
 
