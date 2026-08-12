@@ -866,7 +866,7 @@ Replay обязателен для v1.0.
 - пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
-- Alerts имеют единый backend foundation с runtime-only правилами, cooldown/deduplication, bounded trigger history, Setup lifecycle adapter, реальным Market Wide Volume Spike/trades source adapter и каноническим BTC Market Mode producer на свежих `5m` market metrics; frontend Alerts подключён к metadata/status/rules/enabled/triggers runtime contracts без mock fallback, поддерживает реальные create/update/enabled actions и безопасное polling-обновление trigger history; отдельного вычисленного impulse-source пока нет, постоянная пользовательская persistence, внешняя доставка, Auth, постоянная History/Replay data layer, production deployment и закрытая beta не завершены.
+- Alerts имеют единый backend foundation с runtime-only правилами, cooldown/deduplication, bounded trigger history, Setup lifecycle adapter, реальными Market Wide Volume Spike/trades adapters, каноническим BTC Market Mode producer и вычисленным impulse-source на свежих `5m` market metrics; frontend Alerts подключён к metadata/status/rules/enabled/triggers runtime contracts без mock fallback, поддерживает реальные create/update/enabled actions и безопасное polling-обновление trigger history; постоянная пользовательская persistence, внешняя доставка, Auth, постоянная History/Replay data layer, production deployment и закрытая beta не завершены.
 
 ---
 
@@ -883,7 +883,7 @@ Replay обязателен для v1.0.
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134 |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
 | 7 | Setup Engine | Causal integration v0.1 реализована, границы стадий проверены | Канонический Level Lines pipeline подключён к lifecycle; Stage Boundary и Observation Threshold Counterfactual Validation отклонили искусственную задержку, crossing-only и ранние progress-пороги; production `progress >= 0,50` сохранён; realtime confirmation требует отдельного накопленного `aggTrade`/order-book dataset |
-| 8 | Alerts | Backend и frontend runtime integration v0.1 реализованы, развитие продолжается | Есть единый runtime-only backend-domain, HTTP API, Setup lifecycle, Market Wide Volume Spike/trades adapters и BTC Market Mode producer; Alerts page использует реальные runtime contracts, create/update/enabled actions и trigger-history polling без mock fallback; impulse source, постоянная persistence и внешняя доставка ещё впереди |
+| 8 | Alerts | Backend и frontend runtime integration v0.1 реализованы, развитие продолжается | Есть единый runtime-only backend-domain, HTTP API, Setup lifecycle, Market Wide Volume Spike/trades adapters, BTC Market Mode producer и вычисленный impulse-source; Alerts page использует реальные runtime contracts, create/update/enabled actions и trigger-history polling без mock fallback; постоянная persistence и внешняя доставка ещё впереди |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence и runtime event history; Auth, приглашения, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
 | 11 | Закрытая beta | Не начат | После готовности ключевого Setup/Alerts/data pipeline — 5–10 трейдеров |
@@ -990,33 +990,34 @@ Replay обязателен для v1.0.
 
 Завершённая текущая задача:
 
-**Alerts BTC Market Mode Producer v0.1**
+**Alerts Impulse Event Source v0.1**
 
 Результат:
 
-- канонические режимы backend зафиксированы как `risk_on`, `neutral` и `risk_off` на окне `5m`;
-- причинные входы ограничены существующими реальными market metrics: `BTCUSDT.priceChangePct` и доля растущих/падающих остальных USDT perpetual symbols; BTC не входит в breadth;
-- `risk_on` требует движение BTC не меньше `+0,15%` и не меньше `60%` растущих рынков, `risk_off` — движение BTC не больше `-0,15%` и не меньше `60%` падающих рынков; остальные валидные состояния считаются `neutral`;
-- producer требует минимум `20` рынков с обновлением не старше `90` секунд, допускает не более `5` секунд future clock skew и не вычисляет режим при collecting/stale/unavailable data;
-- `degraded` market source может дать режим только при сохранении полного freshness/minimum-universe boundary, а качество явно записывается в payload;
-- первая валидная snapshot после запуска становится тихой baseline; history warm-up может обновить baseline, но не создаёт alert; публикуются только реальные последующие `live` state changes;
-- пересчёт запускается только причинным `BTCUSDT` kline tick и читает последний свежий market snapshot; alt-symbol ticks не запускают полный universe scan, polling и таймеры отсутствуют;
-- producer подключён к существующему `BtcMarketModeAlertEventSource`; событие получает `BTCUSDT`, timeframe `5m`, causal evidence timestamp, предыдущий режим, thresholds и breadth evidence без polling и synthetic событий;
-- stop/restart сбрасывает baseline и отписывается от market source; duplicate mode snapshots, source/listener errors и availability-состояния диагностируются отдельно.
+- канонический backend impulse зафиксирован как направленное состояние `long`/`short` на окне `5m`, построенное только из уже рассчитанных real market metrics без frontend-пересчёта;
+- activation boundary требует абсолютное движение цены не меньше `0,50%`, аномалию объёма не меньше `1,50×`, аномалию сделок не меньше `1,50×`, волатильность не меньше `0,60%`, quote volume не меньше `50 000` и хотя бы одну сделку;
+- producer требует полный metrics snapshot с обновлением не старше `90` секунд, допускает не более `5` секунд future clock skew и не вычисляет impulse при collecting/stale/unavailable data;
+- `degraded` market source может дать impulse только при сохранении полного metric/freshness boundary, а качество явно записывается в payload;
+- первая валидная snapshot каждого symbol после запуска становится тихой baseline; history warm-up может обновить baseline, но не создаёт alert; публикуется только реальный последующий `live` переход из no-impulse в impulse или смена направления;
+- повторное активное направление не создаёт новый alert, выход из impulse очищает состояние без alert, а новая активация после очистки снова может сработать;
+- producer реагирует только на причинно изменившиеся symbols и читает `5m` metrics отдельно для них; полного universe scan, polling, timer-driven событий и synthetic values нет;
+- адаптер публикует канонический `market_scanner/impulse` event с causal evidence timestamp, symbol/timeframe scope, bounded source-event deduplication, предыдущим направлением, thresholds и полным evidence payload;
+- stop/restart сбрасывает symbol baselines и отписывается от market source; duplicate, out-of-order, incomplete, stale, unavailable, source/listener error состояния диагностируются отдельно.
 
 Следующая отдельная задача:
 
-**Alerts Impulse Event Source v0.1**
+**Alerts Persistence Foundation v0.1**
 
 Граница следующей реализации:
 
-- определить канонический backend impulse contract из существующих price, volume, trades и volatility metrics без frontend-пересчётов;
-- подключить impulse producer к Alerts runtime с причинным timestamp, symbol/timeframe scope и защитой от повторов;
-- явно зафиксировать warm-up, freshness, threshold и unavailable/degraded boundaries;
-- не добавлять persistent rules, external delivery, Auth, billing или новый frontend redesign;
-- подтвердить source contract, deduplication, restart lifecycle, backend regression и production builds.
+- определить версионированный storage contract для alert rules, enabled state и bounded trigger history без привязки domain-логики к конкретному файлу или базе;
+- обеспечить deterministic hydration до подписки на event sources и безопасное сохранение после create/update/enabled/trigger mutations;
+- зафиксировать поведение при пустом, повреждённом, устаревшем и недоступном storage, не теряя диагностируемость runtime;
+- сохранить cooldown/deduplication semantics после restart и явно отделить source-event dedupe от persisted trigger history;
+- не добавлять external delivery, Auth, billing, multi-user ownership или frontend redesign до отдельной задачи;
+- подтвердить restart persistence, migration/version boundaries, backend regression и production builds.
 
-Цель следующей задачи — закрыть оставшийся вычисляемый market-source типа `impulse`, сохранив уже реализованные Alerts runtime и frontend boundaries.
+Цель следующей задачи — убрать runtime-only потерю alert rules и history на restart через явную storage boundary, не смешивая persistence с Auth или внешней доставкой.
 
 ---
 
