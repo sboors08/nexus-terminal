@@ -11,6 +11,7 @@ import {
 } from '../src/modules/alerts/alerts-runtime.service.js';
 import {
   BtcMarketModeAlertEventSource,
+  type BtcMarketMode,
   type BtcMarketModeChange,
   type BtcMarketModeChangeListener,
   type BtcMarketModeSourceContract,
@@ -199,13 +200,14 @@ implements BtcMarketModeSourceContract {
 
 function modeChange(
   sourceEventId: string,
-  mode: string,
-  previousMode: string | null,
+  mode: BtcMarketMode,
+  previousMode: BtcMarketMode | null,
 ): BtcMarketModeChange {
   return {
     sourceEventId,
     occurredAt:
       '2026-08-12T12:00:00.000Z',
+    timeframe: '5m',
     mode,
     previousMode,
     payload: {
@@ -513,6 +515,7 @@ test(
         source: event.source,
         eventType: event.eventType,
         symbol: event.symbol,
+        timeframe: event.timeframe,
         mode: event.payload.mode,
       })),
       [
@@ -521,6 +524,7 @@ test(
           eventType:
             'btc_market_mode_changed',
           symbol: 'BTCUSDT',
+          timeframe: '5m',
           mode: 'risk_on',
         },
         {
@@ -528,6 +532,7 @@ test(
           eventType:
             'btc_market_mode_changed',
           symbol: 'BTCUSDT',
+          timeframe: '5m',
           mode: 'risk_off',
         },
       ],
