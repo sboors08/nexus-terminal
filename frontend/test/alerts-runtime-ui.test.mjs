@@ -22,6 +22,9 @@ test('uses backend mutations for create, update and enabled actions', () => {
 });
 
 test('labels persistence and session-only read state explicitly', () => {
+  assert.match(pageSource, /data\.status\.persistenceMode === 'persistent'/u);
+  assert.match(pageSource, /PERSISTENT v/u);
+  assert.match(pageSource, /lastPersistenceError/u);
   assert.match(pageSource, /RUNTIME ONLY/u);
   assert.match(pageSource, /сбрасываются при перезапуске backend/u);
   assert.match(pageSource, /только в этой вкладке/u);

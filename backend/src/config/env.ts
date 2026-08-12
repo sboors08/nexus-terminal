@@ -13,6 +13,8 @@ export interface AppEnv {
   logLevel: LogLevel;
   levelEngineFrozenSamplePath?: string;
   feedbackStorePath?: string;
+  alertsPersistenceEnabled?: boolean;
+  alertsPersistencePath?: string;
   binanceBaseUrl?: string;
   binanceRequestTimeoutMs?: number;
   binanceSymbolsLimit?: number;
@@ -145,6 +147,14 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       source.LEVEL_ENGINE_FROZEN_SAMPLE_PATH?.trim()
       || './.tmp/level-engine-validation/latest-frozen-sample.json',
     feedbackStorePath: source.FEEDBACK_STORE_PATH?.trim() || './data/feedback.jsonl',
+    alertsPersistenceEnabled: readBoolean(
+      source.ALERTS_PERSISTENCE_ENABLED,
+      source.NODE_ENV !== 'test',
+      'ALERTS_PERSISTENCE_ENABLED',
+    ),
+    alertsPersistencePath:
+      source.ALERTS_PERSISTENCE_PATH?.trim()
+      || './data/alerts-runtime-v1.json',
     binanceBaseUrl: readHttpUrl(source.BINANCE_BASE_URL, 'https://fapi.binance.com', 'BINANCE_BASE_URL'),
     binanceRequestTimeoutMs: readInteger(source.BINANCE_REQUEST_TIMEOUT_MS, 5_000, 'BINANCE_REQUEST_TIMEOUT_MS', 250, 30_000),
     binanceSymbolsLimit: readInteger(

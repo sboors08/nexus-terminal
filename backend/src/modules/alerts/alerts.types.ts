@@ -30,6 +30,22 @@ export type AlertEventSource =
   | 'btc_market_mode'
   | 'adaptive_ranking';
 
+export const ALERT_EVENT_SOURCE_BY_TYPE:
+Record<AlertEventType, AlertEventSource> = {
+  custom_condition: 'custom',
+  volume_spike: 'market_scanner',
+  trades_anomaly: 'market_scanner',
+  impulse: 'market_scanner',
+  price_near_level: 'setup_lifecycle',
+  setup_stage_changed: 'setup_lifecycle',
+  setup_confirmation: 'setup_lifecycle',
+  setup_breakout: 'setup_lifecycle',
+  setup_bounce: 'setup_lifecycle',
+  setup_invalidated: 'setup_lifecycle',
+  btc_market_mode_changed: 'btc_market_mode',
+  rating_changed: 'adaptive_ranking',
+};
+
 export type AlertParameterValue =
   | string
   | number
@@ -123,6 +139,17 @@ export type AlertsRuntimeState =
   | 'running'
   | 'stopped';
 
+export type AlertsPersistenceMode =
+  | 'runtime_only'
+  | 'persistent';
+
+export type AlertsPersistenceState =
+  | 'disabled'
+  | 'pending'
+  | 'loading'
+  | 'ready'
+  | 'degraded';
+
 export interface AlertsRuntimeOptions {
   maxRules: number;
   maxTriggers: number;
@@ -134,7 +161,19 @@ export interface AlertsRuntimeOptions {
 
 export interface AlertsRuntimeStatus {
   state: AlertsRuntimeState;
-  persistenceMode: 'runtime_only';
+  persistenceMode: AlertsPersistenceMode;
+  persistenceState: AlertsPersistenceState;
+  persistenceAdapter: string | null;
+  persistenceVersion: number | null;
+  persistenceLoadAttempts: number;
+  persistenceSaveAttempts: number;
+  persistenceSavesCount: number;
+  persistenceErrorsCount: number;
+  hydratedRulesCount: number;
+  hydratedTriggersCount: number;
+  pendingPersistenceWrites: number;
+  lastPersistedAt: string | null;
+  lastPersistenceError: string | null;
   rulesCount: number;
   enabledRulesCount: number;
   triggersCount: number;
@@ -159,8 +198,8 @@ export interface AlertEventSourceContract {
 }
 
 export interface AlertsRuntimeLifecycle {
-  start(): void;
-  stop(): void;
+  start(): void | Promise<void>;
+  stop(): void | Promise<void>;
 }
 
 export interface AlertsRuntimeReader {

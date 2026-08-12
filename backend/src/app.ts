@@ -41,6 +41,10 @@ import {
   AlertsRuntimeService,
 } from './modules/alerts/alerts-runtime.service.js';
 import {
+  JsonFileAlertsPersistence,
+  type AlertsPersistenceContract,
+} from './modules/alerts/alerts-persistence.js';
+import {
   SetupLifecycleAlertEventSource,
 } from './modules/alerts/setup-lifecycle-alert-event-source.js';
 import {
@@ -90,6 +94,7 @@ export interface BuildAppOptions {
   setupEventHistoryService?: SetupEventHistoryLifecycle | null;
   setupEventHistoryReader?: SetupEventHistoryReader | null;
   alertsRuntimeService?: AlertsRuntimeContract | null;
+  alertsPersistence?: AlertsPersistenceContract | null;
   levelEngineFrozenSampleReader?:
     LevelEngineFrozenSampleReader | null;
 }
@@ -459,6 +464,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           : null
       : options.setupEventHistoryReader;
 
+  const alertsPersistenceEnabled =
+    env.alertsPersistenceEnabled
+    ?? env.nodeEnv !== 'test';
+
+  const alertsPersistence =
+    options.alertsPersistence
+    === undefined
+      ? alertsPersistenceEnabled
+        ? new JsonFileAlertsPersistence({
+            filePath:
+              env.alertsPersistencePath
+              ?? './data/alerts-runtime-v1.json',
+          })
+        : null
+      : options.alertsPersistence;
+
   const alertsRuntimeService =
     options.alertsRuntimeService
     === undefined
@@ -467,6 +488,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
             marketWideRealtimeService,
             setupDetectionRuntimeEventSource,
           ),
+          {},
+          alertsPersistence,
         )
       : options.alertsRuntimeService;
 
@@ -525,14 +548,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     app.addHook(
       'onReady',
       async () => {
-        alertsRuntimeService.start();
+        await alertsRuntimeService.start();
       },
     );
 
     app.addHook(
       'onClose',
       async () => {
-        alertsRuntimeService.stop();
+        await alertsRuntimeService.stop();
       },
     );
   }

@@ -153,7 +153,11 @@ async (app, options) => {
   app.get(
     '/alerts/meta',
     async () => ({
-      persistenceMode: 'runtime_only' as const,
+      persistenceMode:
+        options.alertsRuntime
+          ?.getStatus()
+          .persistenceMode
+        ?? 'runtime_only' as const,
       eventTypes: ALERT_EVENT_TYPES,
       eventSources: ALERT_EVENT_SOURCES,
       deliveryChannels: [] as string[],

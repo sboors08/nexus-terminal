@@ -90,6 +90,11 @@ test(
 
     assert.match(
       pageSource,
+      /PERSISTENT v/u,
+    );
+
+    assert.match(
+      pageSource,
       /RUNTIME ONLY/u,
     );
 

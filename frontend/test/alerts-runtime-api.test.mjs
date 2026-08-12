@@ -62,7 +62,19 @@ function createTrigger() {
 function createStatus() {
   return {
     state: 'running',
-    persistenceMode: 'runtime_only',
+    persistenceMode: 'persistent',
+    persistenceState: 'ready',
+    persistenceAdapter: 'json_file',
+    persistenceVersion: 1,
+    persistenceLoadAttempts: 1,
+    persistenceSaveAttempts: 2,
+    persistenceSavesCount: 2,
+    persistenceErrorsCount: 0,
+    hydratedRulesCount: 1,
+    hydratedTriggersCount: 1,
+    pendingPersistenceWrites: 0,
+    lastPersistedAt: now,
+    lastPersistenceError: null,
     rulesCount: 1,
     enabledRulesCount: 1,
     triggersCount: 1,
@@ -87,7 +99,7 @@ test('fetches and validates the complete Alerts runtime view', async () => {
     assert.equal(new Headers(init?.headers).get('accept'), 'application/json');
     if (url.endsWith('/alerts/meta')) {
       return Response.json({
-        persistenceMode: 'runtime_only',
+        persistenceMode: 'persistent',
         eventTypes: ['volume_spike', 'setup_confirmation'],
         eventSources: ['market_scanner', 'setup_lifecycle'],
         deliveryChannels: [],
@@ -105,7 +117,9 @@ test('fetches and validates the complete Alerts runtime view', async () => {
     fetcher,
   });
 
-  assert.equal(result.metadata.persistenceMode, 'runtime_only');
+  assert.equal(result.metadata.persistenceMode, 'persistent');
+  assert.equal(result.status.persistenceState, 'ready');
+  assert.equal(result.status.persistenceVersion, 1);
   assert.equal(result.status.state, 'running');
   assert.equal(result.rules[0].source, 'market_scanner');
   assert.equal(result.triggers[0].payload.volumeRatio, 2.4);
