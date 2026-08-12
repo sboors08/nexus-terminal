@@ -53,6 +53,13 @@ import {
 import {
   MarketWideAlertEventSource,
 } from './modules/alerts/market-wide-alert-event-source.js';
+import {
+  MarketImpulseAlertEventSource,
+} from './modules/alerts/market-impulse-alert-event-source.js';
+import {
+  MarketImpulseProducer,
+  type MarketImpulseMetricsSource,
+} from './modules/alerts/market-impulse-producer.js';
 import type {
   AlertEventSourceContract,
   AlertsRuntimeContract,
@@ -135,6 +142,20 @@ function createAlertEventSources(
         ),
       );
     }
+
+    if (
+      isMarketImpulseMetricsSource(
+        marketWideRealtimeService,
+      )
+    ) {
+      sources.push(
+        new MarketImpulseAlertEventSource(
+          new MarketImpulseProducer(
+            marketWideRealtimeService,
+          ),
+        ),
+      );
+    }
   }
 
   if (
@@ -158,6 +179,26 @@ function isBtcMarketModeMetricsSource(
   const candidate =
     value as Partial<
       BtcMarketModeMetricsSource
+    >;
+
+  return (
+    typeof candidate.subscribeKlineChanges
+      === 'function'
+    && typeof candidate.getMetrics
+      === 'function'
+    && typeof candidate.getStatus
+      === 'function'
+  );
+}
+
+function isMarketImpulseMetricsSource(
+  value: MarketWideRealtimeService,
+): value is
+  MarketWideRealtimeService
+  & MarketImpulseMetricsSource {
+  const candidate =
+    value as Partial<
+      MarketImpulseMetricsSource
     >;
 
   return (

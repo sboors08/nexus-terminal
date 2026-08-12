@@ -665,7 +665,7 @@ test(
 
     assert.equal(
       source.listenersCount,
-      2,
+      3,
     );
 
     const created =
