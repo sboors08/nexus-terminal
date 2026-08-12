@@ -971,3 +971,167 @@
   font-size: 11px;
   line-height: 1.45;
 }
+
+.runtimeStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nexus-space-1);
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.runtimeStatus_running .liveDot {
+  background: var(--nexus-color-long);
+}
+
+.runtimeStatus_idle .liveDot {
+  background: var(--nexus-color-stage-approach);
+  box-shadow: none;
+}
+
+.runtimeStatus_stopped .liveDot {
+  background: var(--nexus-color-short);
+  box-shadow: none;
+}
+
+.refreshWarning,
+.operationError {
+  margin: 0 0 var(--nexus-space-2);
+  padding: 10px 12px;
+  border: var(--nexus-border-width) solid var(--nexus-color-short);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-short);
+  background: var(--nexus-color-short-soft);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.emptyDetail {
+  min-height: 180px;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  color: var(--nexus-color-text-muted);
+  text-align: center;
+}
+
+.emptyDetail strong {
+  color: var(--nexus-color-text-primary);
+  font-size: var(--nexus-font-size-sm);
+}
+
+.emptyDetail span,
+.rulesEmpty {
+  color: var(--nexus-color-text-muted);
+  font-size: 10px;
+}
+
+.ruleForm {
+  display: grid;
+  gap: 9px;
+  margin-bottom: var(--nexus-space-2);
+  padding: 12px;
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-md);
+  background: var(--nexus-color-bg-canvas);
+}
+
+.ruleFormHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nexus-space-1);
+}
+
+.ruleFormHeader strong {
+  color: var(--nexus-color-text-primary);
+  font-size: 11px;
+}
+
+.ruleFormHeader button,
+.editRuleButton {
+  padding: 0;
+  border: 0;
+  color: var(--nexus-color-info);
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.ruleFormHeader button:hover,
+.editRuleButton:hover {
+  color: var(--nexus-color-text-primary);
+}
+
+.ruleForm label {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.ruleForm label > span {
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+  font-weight: var(--nexus-font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ruleForm input,
+.ruleForm select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 9px;
+  border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-surface);
+  font-size: 10px;
+}
+
+.ruleForm input:focus,
+.ruleForm select:focus {
+  border-color: var(--nexus-color-border-accent);
+}
+
+.ruleFormRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.ruleForm .primaryButton {
+  width: 100%;
+  border: 0;
+}
+
+.ruleForm .primaryButton:disabled,
+.toggle:disabled,
+.editRuleButton:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.operationError {
+  margin-bottom: var(--nexus-space-1);
+}
+
+.editRuleButton {
+  width: max-content;
+  margin-top: 3px;
+}
+
+.rulesEmpty {
+  padding: 16px 0;
+  border-top: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  text-align: center;
+}
+
+@media (max-width: 420px) {
+  .ruleFormRow {
+    grid-template-columns: 1fr;
+  }
+}

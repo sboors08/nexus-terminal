@@ -81,36 +81,41 @@ test(
 );
 
 test(
-  'labels fixture events and local-only controls honestly',
+  'labels backend runtime events and persistence boundary honestly',
   () => {
     assert.match(
       pageSource,
-      /TEST DATA: события, причины, метрики и правила/u,
+      /Backend Alerts runtime/u,
     );
 
     assert.match(
       pageSource,
-      /фиксированный сценарий интерфейса/u,
+      /RUNTIME ONLY/u,
     );
 
     assert.match(
       pageSource,
-      /локально до перезагрузки/u,
+      /сбрасываются при перезапуске backend/u,
     );
 
     assert.match(
       pageSource,
-      /сбрасываются после перезагрузки/u,
+      /только в этой вкладке/u,
     );
 
     assert.match(
       pageSource,
-      /Тестовые правила/u,
+      /Правила Alerts/u,
     );
 
     assert.doesNotMatch(
       pageSource,
-      /Сработали сегодня/u,
+      /TEST DATA/u,
+    );
+
+    assert.doesNotMatch(
+      pageSource,
+      /nexusApi\.getAlertsView/u,
     );
   },
 );

@@ -866,7 +866,7 @@ Replay обязателен для v1.0.
 - пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
-- Alerts имеют единый backend foundation с runtime-only правилами, cooldown/deduplication, bounded trigger history, Setup lifecycle adapter и реальным Market Wide Volume Spike/trades source adapter; отдельного вычисленного impulse-source и канонического BTC Market Mode producer пока нет, постоянная пользовательская persistence, внешняя доставка, Auth, постоянная History/Replay data layer, production deployment и закрытая beta не завершены.
+- Alerts имеют единый backend foundation с runtime-only правилами, cooldown/deduplication, bounded trigger history, Setup lifecycle adapter и реальным Market Wide Volume Spike/trades source adapter; frontend Alerts подключён к metadata/status/rules/enabled/triggers runtime contracts без mock fallback, поддерживает реальные create/update/enabled actions и безопасное polling-обновление trigger history; отдельного вычисленного impulse-source и канонического BTC Market Mode producer пока нет, постоянная пользовательская persistence, внешняя доставка, Auth, постоянная History/Replay data layer, production deployment и закрытая beta не завершены.
 
 ---
 
@@ -883,7 +883,7 @@ Replay обязателен для v1.0.
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134 |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
 | 7 | Setup Engine | Causal integration v0.1 реализована, границы стадий проверены | Канонический Level Lines pipeline подключён к lifecycle; Stage Boundary и Observation Threshold Counterfactual Validation отклонили искусственную задержку, crossing-only и ранние progress-пороги; production `progress >= 0,50` сохранён; realtime confirmation требует отдельного накопленного `aggTrade`/order-book dataset |
-| 8 | Alerts | Backend foundation и Market Event Sources v0.1 реализованы, развитие продолжается | Есть единый runtime-only backend-domain, HTTP API, Setup lifecycle adapter и adapter готовых Market Wide Volume Spike/trades state changes; BTC contract определён без synthetic producer, impulse source отсутствует; frontend runtime integration, постоянная persistence и внешняя доставка ещё впереди |
+| 8 | Alerts | Backend и frontend runtime integration v0.1 реализованы, развитие продолжается | Есть единый runtime-only backend-domain, HTTP API, Setup lifecycle и Market Wide Volume Spike/trades adapters; Alerts page использует реальные runtime contracts, create/update/enabled actions и trigger-history polling без mock fallback; BTC contract определён без synthetic producer, impulse source, постоянная persistence и внешняя доставка ещё впереди |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence и runtime event history; Auth, приглашения, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
 | 11 | Закрытая beta | Не начат | После готовности ключевого Setup/Alerts/data pipeline — 5–10 трейдеров |
@@ -990,34 +990,32 @@ Replay обязателен для v1.0.
 
 Завершённая текущая задача:
 
-**Alerts Market Event Sources v0.1**
+**Alerts Frontend Runtime Integration v0.1**
 
 Результат:
 
-- подтверждено, что backend уже вычисляет `MarketVolumeSpike` и связанные `volumeRatio`/`tradesRatio`, поэтому Alerts получает готовую классификацию и не повторяет Scanner/Volume Spike math;
-- `MarketWideAlertEventSource` подписан на существующие live/history kline changes и преобразует готовый Volume Spike в нормализованные `volume_spike` и `trades_anomaly` события;
-- source event IDs строятся стабильно из symbol, period, period start и signal status, а повторные snapshot/poll обновления с тем же состоянием не создают новые события;
-- ошибка одного symbol snapshot и ошибка одного listener изолируются и не останавливают обработку остальных symbols/listeners;
-- подтверждено отсутствие отдельного вычисленного backend impulse signal, поэтому synthetic impulse threshold внутри Alerts не добавлялся;
-- подтверждено, что текущий BTC Market Mode является frontend/mock-представлением; определены канонический backend state-change contract и adapter с дедупликацией повторного mode snapshot, но fake producer в production не подключался;
-- production `buildApp` подключает реальный Market Wide adapter до запуска market runtime, сохраняя существующий Setup lifecycle source;
-- runtime-only persistence boundary сохранена; внешняя доставка, Auth, billing, постоянная persistence и frontend redesign не включались.
+- существующая Alerts page подключена к backend `metadata`, `status`, `rules`, `enabled` и `triggers` contracts; `nexusApi.getAlertsView()` и mock alert events больше не участвуют в runtime-экране;
+- frontend API boundary валидирует metadata/status/rule/trigger payloads, сохраняет HTTP status и domain error code и не подменяет `503 alerts_runtime_unavailable` фиктивными данными;
+- правила создаются и редактируются через реальные `POST/PATCH` contracts, а переключатель enabled использует отдельный backend endpoint;
+- trigger history безопасно обновляется каждые 5 секунд с `preserveData`, ручным retry и явным предупреждением при временной ошибке повторного запроса;
+- empty history не скрывает runtime status и панель создания правил; loading, unavailable, retry и empty states обработаны без возврата к mock events;
+- существующая responsive-композиция, Binance live-price overlay и переходы в setup/market Workspace сохранены; market trigger без setup context не получает synthetic direction/stage/setupId;
+- `runtime_only`, отсутствие external delivery и сессионная граница отметки «просмотрено» явно показаны пользователю;
+- добавлены отдельные frontend contract, mapping и integrity tests; старый Alerts verifier обновлён так, чтобы запрещать возврат к `TEST DATA` и `nexusApi.getAlertsView()`.
 
 Следующая отдельная задача:
 
-**Alerts Frontend Runtime Integration v0.1**
+**Alerts BTC Market Mode Producer v0.1**
 
 Граница следующей реализации:
 
-- подключить существующую Alerts page к backend metadata/status/rules/enabled/triggers contracts без изменения backend market/setup расчётов;
-- заменить локальные фиктивные переключатели реальными create/update/enabled actions и явно отображать `runtime_only` boundary;
-- сохранить текущую визуальную композицию, responsive-поведение, i18n-границы и переходы в Workspace;
-- определить безопасное обновление trigger history через существующий API, не подменяя отсутствующую external delivery локальными browser-уведомлениями;
-- обработать loading, empty, unavailable и retry states без возврата к mock alert events;
-- не добавлять Auth, billing, постоянную пользовательскую persistence, email/Telegram/push или frontend redesign;
-- подтвердить frontend contract/integrity tests, backend regression check и production builds.
+- определить канонический backend producer BTC Market Mode из существующих реальных market metrics, не копируя frontend/mock классификацию вслепую;
+- подключить producer к уже готовому `BtcMarketModeAlertEventSource` state-change contract без polling duplicates и synthetic событий;
+- явно зафиксировать режимы, причинные входы, warm-up/freshness boundary и поведение при unavailable/degraded market data;
+- не добавлять persistent rules, external delivery, Auth, billing или новый frontend redesign;
+- подтвердить source contract, deduplication, restart lifecycle, backend regression и production builds.
 
-Цель следующей задачи — сделать существующую Alerts page реальным клиентом готового backend-domain, сохранив runtime-only и delivery boundaries.
+Цель следующей задачи — заменить отсутствующий BTC producer реальным backend state source, сохранив уже реализованные Alerts runtime и frontend boundaries.
 
 ---
 
