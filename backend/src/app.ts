@@ -37,6 +37,15 @@ import type {
   SetupEventHistoryLifecycle,
   SetupEventHistoryReader,
 } from './modules/setup-engine/setup-event-history.types.js';
+import {
+  AlertsRuntimeService,
+} from './modules/alerts/alerts-runtime.service.js';
+import {
+  SetupLifecycleAlertEventSource,
+} from './modules/alerts/setup-lifecycle-alert-event-source.js';
+import type {
+  AlertsRuntimeContract,
+} from './modules/alerts/alerts.types.js';
 import type { RealtimeMarketDataService } from './modules/realtime-market-data/realtime-market-data.types.js';
 import type { OrderBookDepthRuntimeService } from './modules/realtime-market-data/order-book-depth-runtime.types.js';
 import {
@@ -62,6 +71,7 @@ export interface BuildAppOptions {
   levelV2ShadowRuntimeReader?: LevelV2ShadowRuntimeReader | null;
   setupEventHistoryService?: SetupEventHistoryLifecycle | null;
   setupEventHistoryReader?: SetupEventHistoryReader | null;
+  alertsRuntimeService?: AlertsRuntimeContract | null;
   levelEngineFrozenSampleReader?:
     LevelEngineFrozenSampleReader | null;
 }
@@ -333,6 +343,20 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           : null
       : options.setupEventHistoryReader;
 
+  const alertsRuntimeService =
+    options.alertsRuntimeService
+    === undefined
+      ? new AlertsRuntimeService(
+          setupDetectionRuntimeEventSource
+            ? [
+                new SetupLifecycleAlertEventSource(
+                  setupDetectionRuntimeEventSource,
+                ),
+              ]
+            : [],
+        )
+      : options.alertsRuntimeService;
+
   const levelEngineFrozenSampleReader =
     options.levelEngineFrozenSampleReader
     === undefined
@@ -380,6 +404,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       'onClose',
       async () => {
         setupEventHistoryService.stop();
+      },
+    );
+  }
+
+  if (alertsRuntimeService) {
+    app.addHook(
+      'onReady',
+      async () => {
+        alertsRuntimeService.start();
+      },
+    );
+
+    app.addHook(
+      'onClose',
+      async () => {
+        alertsRuntimeService.stop();
       },
     );
   }
@@ -499,6 +539,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : {}),
     ...(setupEventHistoryReader
       ? { setupEventHistoryReader }
+      : {}),
+    ...(alertsRuntimeService
+      ? { alertsRuntime: alertsRuntimeService }
       : {}),
   });
 
