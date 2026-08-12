@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import {
+  ALERT_EVENT_SOURCE_BY_TYPE,
   ALERT_EVENT_TYPES,
   AlertsDomainError,
-  type AlertEventSource,
   type AlertEventSourceContract,
   type AlertEventType,
   type AlertParameters,
@@ -17,6 +17,14 @@ import {
   type AlertTriggerEvent,
   type AlertTriggerFilters,
 } from './alerts.types.js';
+import {
+  ALERTS_PERSISTENCE_SCHEMA,
+  ALERTS_PERSISTENCE_VERSION,
+  AlertsPersistenceError,
+  normalizeAlertsPersistenceSnapshot,
+  type AlertsPersistenceContract,
+  type AlertsPersistenceSnapshotV1,
+} from './alerts-persistence.js';
 
 const MAX_COOLDOWN_MS =
   7 * 24 * 60 * 60 * 1_000;
@@ -29,22 +37,6 @@ const TIMEFRAME_PATTERN =
 
 const ID_PATTERN =
   /^[A-Za-z0-9._:-]{1,300}$/;
-
-const EVENT_SOURCE_BY_TYPE:
-Record<AlertEventType, AlertEventSource> = {
-  custom_condition: 'custom',
-  volume_spike: 'market_scanner',
-  trades_anomaly: 'market_scanner',
-  impulse: 'market_scanner',
-  price_near_level: 'setup_lifecycle',
-  setup_stage_changed: 'setup_lifecycle',
-  setup_confirmation: 'setup_lifecycle',
-  setup_breakout: 'setup_lifecycle',
-  setup_bounce: 'setup_lifecycle',
-  setup_invalidated: 'setup_lifecycle',
-  btc_market_mode_changed: 'btc_market_mode',
-  rating_changed: 'adaptive_ranking',
-};
 
 export const DEFAULT_ALERTS_RUNTIME_OPTIONS:
 AlertsRuntimeOptions = {
@@ -364,7 +356,7 @@ function normalizeSourceEvent(
     );
 
   const expectedSource =
-    EVENT_SOURCE_BY_TYPE[eventType];
+    ALERT_EVENT_SOURCE_BY_TYPE[eventType];
 
   if (input.source !== expectedSource) {
     domainError(
@@ -552,6 +544,14 @@ implements AlertsRuntimeContract {
   private readonly unsubscribers:
     Array<() => void> = [];
 
+  private persistenceQueue:
+    Promise<void> = Promise.resolve();
+
+  private startPromise:
+    Promise<void> | null = null;
+
+  private lifecycleRevision = 0;
+
   private state:
     AlertsRuntimeStatus['state'] = 'idle';
 
@@ -562,6 +562,26 @@ implements AlertsRuntimeContract {
   private lastSourceEventAt: string | null = null;
   private lastTriggeredAt: string | null = null;
 
+  private persistenceState:
+    AlertsRuntimeStatus['persistenceState'];
+
+  private persistenceVersion:
+    number | null = null;
+
+  private persistenceLoadAttempts = 0;
+  private persistenceSaveAttempts = 0;
+  private persistenceSavesCount = 0;
+  private persistenceErrorsCount = 0;
+  private hydratedRulesCount = 0;
+  private hydratedTriggersCount = 0;
+  private pendingPersistenceWrites = 0;
+  private lastPersistedAt:
+    string | null = null;
+  private lastPersistenceError:
+    string | null = null;
+  private persistenceHydrated = false;
+  private persistenceWritable = true;
+
   private readonly options:
     AlertsRuntimeOptions;
 
@@ -570,6 +590,8 @@ implements AlertsRuntimeContract {
       readonly AlertEventSourceContract[] = [],
     options:
       Partial<AlertsRuntimeOptions> = {},
+    private readonly persistence:
+      AlertsPersistenceContract | null = null,
   ) {
     this.options = {
       ...DEFAULT_ALERTS_RUNTIME_OPTIONS,
@@ -577,9 +599,76 @@ implements AlertsRuntimeContract {
     };
 
     validateOptions(this.options);
+
+    this.persistenceState =
+      this.persistence
+        ? 'pending'
+        : 'disabled';
+
+    if (
+      this.persistence
+      && (
+        typeof this.persistence.adapter
+          !== 'string'
+        || this.persistence.adapter.trim().length
+          === 0
+      )
+    ) {
+      domainError(
+        'invalid_alerts_persistence_adapter',
+        'Alerts persistence adapter is required',
+      );
+    }
   }
 
-  start(): void {
+  start(): void | Promise<void> {
+    if (this.state === 'running') {
+      return;
+    }
+
+    if (!this.persistence) {
+      this.subscribeSources();
+      return;
+    }
+
+    if (this.startPromise) {
+      return this.startPromise;
+    }
+
+    const revision =
+      ++this.lifecycleRevision;
+
+    this.startPromise =
+      this.startPersistentRuntime(
+        revision,
+      );
+
+    return this.startPromise;
+  }
+
+  stop(): void | Promise<void> {
+    this.lifecycleRevision += 1;
+
+    for (const unsubscribe of
+      this.unsubscribers.splice(0)) {
+      unsubscribe();
+    }
+
+    this.state = 'stopped';
+
+    if (this.persistence) {
+      return this.stopPersistentRuntime(
+        this.startPromise,
+      );
+    }
+  }
+
+  async flushPersistence():
+  Promise<void> {
+    await this.persistenceQueue;
+  }
+
+  private subscribeSources(): void {
     if (this.state === 'running') {
       return;
     }
@@ -600,13 +689,35 @@ implements AlertsRuntimeContract {
     }
   }
 
-  stop(): void {
+  private async startPersistentRuntime(
+    revision: number,
+  ):
+  Promise<void> {
+    try {
+      if (!this.persistenceHydrated) {
+        await this.hydratePersistence();
+      }
+
+      if (revision === this.lifecycleRevision) {
+        this.subscribeSources();
+      }
+    } finally {
+      this.startPromise = null;
+    }
+  }
+
+  private async stopPersistentRuntime(
+    starting: Promise<void> | null,
+  ): Promise<void> {
+    await starting;
+
     for (const unsubscribe of
       this.unsubscribers.splice(0)) {
       unsubscribe();
     }
 
     this.state = 'stopped';
+    await this.flushPersistence();
   }
 
   getStatus(): AlertsRuntimeStatus {
@@ -615,7 +726,35 @@ implements AlertsRuntimeContract {
 
     return {
       state: this.state,
-      persistenceMode: 'runtime_only',
+      persistenceMode:
+        this.persistence
+          ? 'persistent'
+          : 'runtime_only',
+      persistenceState:
+        this.persistenceState,
+      persistenceAdapter:
+        this.persistence?.adapter
+        ?? null,
+      persistenceVersion:
+        this.persistenceVersion,
+      persistenceLoadAttempts:
+        this.persistenceLoadAttempts,
+      persistenceSaveAttempts:
+        this.persistenceSaveAttempts,
+      persistenceSavesCount:
+        this.persistenceSavesCount,
+      persistenceErrorsCount:
+        this.persistenceErrorsCount,
+      hydratedRulesCount:
+        this.hydratedRulesCount,
+      hydratedTriggersCount:
+        this.hydratedTriggersCount,
+      pendingPersistenceWrites:
+        this.pendingPersistenceWrites,
+      lastPersistedAt:
+        this.lastPersistedAt,
+      lastPersistenceError:
+        this.lastPersistenceError,
       rulesCount: rules.length,
       enabledRulesCount:
         rules.filter((rule) => rule.enabled).length,
@@ -697,6 +836,8 @@ implements AlertsRuntimeContract {
   createRule(
     input: AlertRuleCreateInput,
   ): AlertRule {
+    this.assertPersistenceReadyForMutation();
+
     if (this.rules.size >= this.options.maxRules) {
       domainError(
         'alert_rule_capacity_reached',
@@ -728,7 +869,7 @@ implements AlertsRuntimeContract {
           input.description ?? null,
         ),
       eventType,
-      source: EVENT_SOURCE_BY_TYPE[eventType],
+      source: ALERT_EVENT_SOURCE_BY_TYPE[eventType],
       enabled: input.enabled ?? true,
       symbol:
         normalizeSymbol(input.symbol ?? null),
@@ -755,6 +896,8 @@ implements AlertsRuntimeContract {
 
     this.rules.set(id, rule);
 
+    this.queuePersistence();
+
     return cloneRule(rule);
   }
 
@@ -762,6 +905,8 @@ implements AlertsRuntimeContract {
     ruleIdValue: string,
     input: AlertRuleUpdateInput,
   ): AlertRule | null {
+    this.assertPersistenceReadyForMutation();
+
     const ruleId =
       normalizeId(ruleIdValue, 'rule');
     const current = this.rules.get(ruleId);
@@ -813,7 +958,7 @@ implements AlertsRuntimeContract {
             )
           : current.description,
       eventType,
-      source: EVENT_SOURCE_BY_TYPE[eventType],
+      source: ALERT_EVENT_SOURCE_BY_TYPE[eventType],
       enabled,
       symbol:
         hasOwn(input, 'symbol')
@@ -836,6 +981,8 @@ implements AlertsRuntimeContract {
     };
 
     this.rules.set(ruleId, updated);
+
+    this.queuePersistence();
 
     return cloneRule(updated);
   }
@@ -860,6 +1007,8 @@ implements AlertsRuntimeContract {
   ingestEvent(
     input: AlertTriggerEvent,
   ): AlertTrigger[] {
+    this.assertPersistenceReadyForMutation();
+
     const event = normalizeSourceEvent(input);
     this.sourceEventsCount += 1;
     this.lastSourceEventAt = event.occurredAt;
@@ -944,6 +1093,8 @@ implements AlertsRuntimeContract {
       this.enforceTriggerBound();
     }
 
+    this.queuePersistence();
+
     return created;
   }
 
@@ -980,5 +1131,266 @@ implements AlertsRuntimeContract {
 
     this.triggers.splice(0, overflow);
     this.droppedTriggersCount += overflow;
+  }
+
+  private assertPersistenceReadyForMutation():
+  void {
+    if (
+      this.persistence
+      && !this.persistenceHydrated
+    ) {
+      domainError(
+        'alerts_persistence_not_ready',
+        'Alerts persistence must be hydrated before runtime mutations',
+      );
+    }
+  }
+
+  private async hydratePersistence():
+  Promise<void> {
+    if (!this.persistence) {
+      return;
+    }
+
+    this.persistenceState = 'loading';
+    this.persistenceLoadAttempts += 1;
+
+    try {
+      const loaded =
+        await this.persistence.load();
+
+      if (loaded !== null) {
+        const snapshot =
+          normalizeAlertsPersistenceSnapshot(
+            loaded,
+          );
+
+        this.applyPersistenceSnapshot(
+          snapshot,
+        );
+      } else {
+        this.persistenceVersion =
+          ALERTS_PERSISTENCE_VERSION;
+      }
+
+      this.persistenceState = 'ready';
+      this.lastPersistenceError = null;
+    } catch (error) {
+      this.persistenceWritable = false;
+      this.recordPersistenceError(error);
+    } finally {
+      this.persistenceHydrated = true;
+    }
+  }
+
+  private applyPersistenceSnapshot(
+    snapshot: AlertsPersistenceSnapshotV1,
+  ): void {
+    if (
+      snapshot.rules.length
+      > this.options.maxRules
+    ) {
+      throw new AlertsPersistenceError(
+        'alerts_persistence_corrupt',
+        `Persisted Alerts rules exceed runtime capacity ${this.options.maxRules}`,
+      );
+    }
+
+    const nowMs =
+      this.options.now().getTime();
+
+    if (!Number.isFinite(nowMs)) {
+      throw new AlertsPersistenceError(
+        'alerts_persistence_corrupt',
+        'Alerts runtime clock returned an invalid date during hydration',
+      );
+    }
+
+    this.rules.clear();
+    this.triggers.splice(0);
+    this.dedupeKeys.clear();
+    this.dedupeOrder.splice(0);
+    this.cooldownByRuleScope.clear();
+
+    for (const rule of snapshot.rules) {
+      this.rules.set(
+        rule.id,
+        cloneRule(rule),
+      );
+    }
+
+    const triggerOverflow =
+      Math.max(
+        0,
+        snapshot.triggers.length
+          - this.options.maxTriggers,
+      );
+
+    const retainedTriggers =
+      snapshot.triggers.slice(
+        -this.options.maxTriggers,
+      );
+
+    this.triggers.push(
+      ...retainedTriggers.map(
+        cloneTrigger,
+      ),
+    );
+
+    this.droppedTriggersCount +=
+      triggerOverflow;
+
+    const retainedDedupeKeys =
+      snapshot.sourceEventDedupeKeys.slice(
+        -this.options.maxDedupeKeys,
+      );
+
+    for (const key of retainedDedupeKeys) {
+      this.dedupeKeys.add(key);
+      this.dedupeOrder.push(key);
+    }
+
+    for (const cooldown of snapshot.cooldowns) {
+      const cooldownUntilMs =
+        Date.parse(
+          cooldown.cooldownUntil,
+        );
+
+      if (cooldownUntilMs > nowMs) {
+        this.cooldownByRuleScope.set(
+          cooldown.scope,
+          cooldownUntilMs,
+        );
+      }
+    }
+
+    this.persistenceVersion =
+      snapshot.version;
+    this.hydratedRulesCount =
+      this.rules.size;
+    this.hydratedTriggersCount =
+      this.triggers.length;
+    this.lastPersistedAt =
+      snapshot.savedAt;
+
+    this.lastTriggeredAt =
+      this.triggers.reduce<
+        string | null
+      >(
+        (latest, trigger) =>
+          latest === null
+          || trigger.triggeredAt > latest
+            ? trigger.triggeredAt
+            : latest,
+        null,
+      );
+
+    this.lastSourceEventAt =
+      this.triggers.reduce<
+        string | null
+      >(
+        (latest, trigger) =>
+          latest === null
+          || trigger.occurredAt > latest
+            ? trigger.occurredAt
+            : latest,
+        null,
+      );
+  }
+
+  private buildPersistenceSnapshot():
+  AlertsPersistenceSnapshotV1 {
+    const savedAt =
+      this.options.now().toISOString();
+
+    const savedAtMs =
+      Date.parse(savedAt);
+
+    const cooldowns =
+      [...this.cooldownByRuleScope.entries()]
+        .filter(
+          ([, cooldownUntilMs]) =>
+            cooldownUntilMs > savedAtMs,
+        )
+        .map(
+          ([scope, cooldownUntilMs]) => ({
+            scope,
+            cooldownUntil:
+              new Date(
+                cooldownUntilMs,
+              ).toISOString(),
+          }),
+        );
+
+    return {
+      schema: ALERTS_PERSISTENCE_SCHEMA,
+      version:
+        ALERTS_PERSISTENCE_VERSION,
+      savedAt,
+      rules:
+        [...this.rules.values()]
+          .map(cloneRule),
+      triggers:
+        this.triggers.map(cloneTrigger),
+      sourceEventDedupeKeys: [
+        ...this.dedupeOrder,
+      ],
+      cooldowns,
+    };
+  }
+
+  private queuePersistence(): void {
+    if (
+      !this.persistence
+      || !this.persistenceHydrated
+      || !this.persistenceWritable
+    ) {
+      return;
+    }
+
+    const snapshot =
+      this.buildPersistenceSnapshot();
+
+    this.persistenceSaveAttempts += 1;
+    this.pendingPersistenceWrites += 1;
+
+    const write =
+      async () => {
+        try {
+          await this.persistence?.save(
+            snapshot,
+          );
+
+          this.persistenceSavesCount += 1;
+          this.persistenceState = 'ready';
+          this.persistenceVersion =
+            snapshot.version;
+          this.lastPersistedAt =
+            snapshot.savedAt;
+          this.lastPersistenceError = null;
+        } catch (error) {
+          this.recordPersistenceError(error);
+        } finally {
+          this.pendingPersistenceWrites -= 1;
+        }
+      };
+
+    this.persistenceQueue =
+      this.persistenceQueue
+        .catch(
+          () => undefined,
+        )
+        .then(write);
+  }
+
+  private recordPersistenceError(
+    error: unknown,
+  ): void {
+    this.persistenceState = 'degraded';
+    this.persistenceErrorsCount += 1;
+    this.lastPersistenceError =
+      error instanceof Error
+        ? error.message
+        : 'Unknown Alerts persistence error';
   }
 }

@@ -2,9 +2,9 @@
 
 **Статус:** основной источник правды по продукту и разработке
 **Репозиторий:** `sboors08/nexus-terminal`
-**Дата фиксации:** 2026-08-10
+**Дата фиксации:** 2026-08-12
 **Язык работы:** русский
-**Базовое состояние:** `main` на merge-коммите `d8fabc8`, PR #131
+**Базовое состояние:** `main` на merge-коммите `65c3dab`, PR #146
 **Текущая ориентировочная готовность:** числовой процент не подтверждён; фактический статус 13 этапов зафиксирован в разделах 25–26
 
 ---
@@ -811,18 +811,18 @@ Replay обязателен для v1.0.
 
 ---
 
-## 25. Фактическое состояние `main` на 2026-08-10
+## 25. Фактическое состояние `main` и текущей ветки на 2026-08-12
 
 Базовая точка:
 
-- `main` и `origin/main`: merge-коммит `d8fabc8`;
-- последний объединённый PR: #131;
-- PR #131 согласовал causal-уровень и состояние взаимодействия во всех блоках Workspace;
-- GitHub Actions для head-коммита PR #131 `cb105af`: Backend — `success`, Frontend — `success`;
-- backend: 465 автоматических тестов на последнем изменявшем backend PR #129;
-- frontend: 261 автоматический тест после PR #131;
+- `main` и `origin/main`: merge-коммит `65c3dab`;
+- последний объединённый PR: #146;
+- PR #146 добавил вычисляемый Alerts impulse-source; GitHub Actions Backend и Frontend — `success`;
+- текущая ветка `backend-alerts-persistence-foundation-v0-1` добавляет Alerts Persistence Foundation v0.1 без изменения Auth, ownership или external delivery;
+- backend в текущей ветке: `503/503` автоматических теста, focused Alerts persistence regression: `38/38`;
+- frontend в текущей ветке: Alerts runtime tests `8/8`, realtime regression `266/266`;
 - backend и frontend production builds: успешно;
-- последний dependency audit после PR #123: `0 vulnerabilities`.
+- backend dependency audit: `0 vulnerabilities`.
 
 Последний baseline подтверждает целостность реализации и сборки. Он не подтверждает прибыльность торговых правил.
 
@@ -854,6 +854,13 @@ Replay обязателен для v1.0.
 | #135 | CI verifier hotfix | статический trading-presets verifier приведён к текущему routing contract; runtime не изменён |
 | #136 | Causal Setup Pipeline Integration v0.1 | production Setup Detection Pipeline переведён на Level Lines; causal identity/stage/reason подключены к существующему lifecycle без изменения breakout/bounce правил |
 | #137 | History warm-up reliability | Binance-лимит страницы `1000`, отдельный timeout, retry/backoff и повтор неудачных символов внутри этапа warm-up |
+| #138–#141 | Causal Setup validation | real-data replay, stage boundary, observation entry geometry и threshold counterfactual validation; production `progress >= 0,50` сохранён |
+| #142 | Alerts Backend Foundation v0.1 | единый backend runtime правил, cooldown/deduplication, bounded trigger history, HTTP contracts и Setup lifecycle source |
+| #143 | Alerts Market Event Sources v0.1 | существующие Market Wide Volume Spike и trades anomaly подключены без frontend-пересчёта source metrics |
+| #144 | Alerts Frontend Runtime Integration v0.1 | Alerts page подключена к runtime metadata/status/rules/enabled/triggers contracts без mock fallback |
+| #145 | Alerts BTC Market Mode Producer v0.1 | канонический BTC mode producer публикует только реальные causal state changes после тихой baseline |
+| #146 | Alerts Impulse Event Source v0.1 | вычисляемый `5m` impulse producer и adapter подключены к общему Alerts runtime |
+| Текущая ветка | Alerts Persistence Foundation v0.1 | versioned snapshot v1, atomic JSON adapter, hydration до source subscription, restart-safe rules/history/dedupe/cooldown и degraded diagnostics |
 
 ### Важные границы текущей реализации
 
@@ -866,7 +873,7 @@ Replay обязателен для v1.0.
 - пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
-- Alerts имеют единый backend foundation с runtime-only правилами, cooldown/deduplication, bounded trigger history, Setup lifecycle adapter, реальными Market Wide Volume Spike/trades adapters, каноническим BTC Market Mode producer и вычисленным impulse-source на свежих `5m` market metrics; frontend Alerts подключён к metadata/status/rules/enabled/triggers runtime contracts без mock fallback, поддерживает реальные create/update/enabled actions и безопасное polling-обновление trigger history; постоянная пользовательская persistence, внешняя доставка, Auth, постоянная History/Replay data layer, production deployment и закрытая beta не завершены.
+- Alerts имеют единый backend runtime с versioned persistence snapshot v1 для rules, enabled state, bounded trigger history, source-event dedupe и активных cooldown scopes; production использует атомарный JSON file adapter через абстрактный storage contract, hydration завершается до source subscription, а повреждённый/неподдерживаемый storage переводит runtime в диагностируемый memory-only `degraded` без перезаписи исходника. Подключены Setup lifecycle, реальные Market Wide Volume Spike/trades adapters, BTC Market Mode producer и вычисленный impulse-source на свежих `5m` market metrics; frontend использует runtime contracts и честно показывает persistence state. Multi-user ownership, внешняя доставка, Auth, постоянная History/Replay data layer, production DB/backup и закрытая beta не завершены.
 
 ---
 
@@ -883,8 +890,8 @@ Replay обязателен для v1.0.
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134 |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
 | 7 | Setup Engine | Causal integration v0.1 реализована, границы стадий проверены | Канонический Level Lines pipeline подключён к lifecycle; Stage Boundary и Observation Threshold Counterfactual Validation отклонили искусственную задержку, crossing-only и ранние progress-пороги; production `progress >= 0,50` сохранён; realtime confirmation требует отдельного накопленного `aggTrade`/order-book dataset |
-| 8 | Alerts | Backend и frontend runtime integration v0.1 реализованы, развитие продолжается | Есть единый runtime-only backend-domain, HTTP API, Setup lifecycle, Market Wide Volume Spike/trades adapters, BTC Market Mode producer и вычисленный impulse-source; Alerts page использует реальные runtime contracts, create/update/enabled actions и trigger-history polling без mock fallback; постоянная persistence и внешняя доставка ещё впереди |
-| 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence и runtime event history; Auth, приглашения, Watchlist persistence и постоянная история сетапов не завершены |
+| 8 | Alerts | Backend, frontend и persistence foundation v0.1 реализованы, развитие продолжается | Есть versioned persistent backend-domain, HTTP API, Setup lifecycle, Market Wide Volume Spike/trades adapters, BTC Market Mode producer и вычисленный impulse-source; Alerts page использует реальные runtime contracts, create/update/enabled actions и trigger-history polling без mock fallback; внешняя доставка и multi-user ownership ещё впереди |
+| 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence, Alerts Persistence Foundation и runtime event history; Auth, приглашения, ownership, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
 | 11 | Закрытая beta | Не начат | После готовности ключевого Setup/Alerts/data pipeline — 5–10 трейдеров |
 | 12 | Развитие beta до NEXUS v1.0 | Не начат | Новые сетапы, Market History, публичные карточки, тарифы, Admin Panel и самообучение после beta-данных |
@@ -990,34 +997,34 @@ Replay обязателен для v1.0.
 
 Завершённая текущая задача:
 
-**Alerts Impulse Event Source v0.1**
+**Alerts Persistence Foundation v0.1**
 
 Результат:
 
-- канонический backend impulse зафиксирован как направленное состояние `long`/`short` на окне `5m`, построенное только из уже рассчитанных real market metrics без frontend-пересчёта;
-- activation boundary требует абсолютное движение цены не меньше `0,50%`, аномалию объёма не меньше `1,50×`, аномалию сделок не меньше `1,50×`, волатильность не меньше `0,60%`, quote volume не меньше `50 000` и хотя бы одну сделку;
-- producer требует полный metrics snapshot с обновлением не старше `90` секунд, допускает не более `5` секунд future clock skew и не вычисляет impulse при collecting/stale/unavailable data;
-- `degraded` market source может дать impulse только при сохранении полного metric/freshness boundary, а качество явно записывается в payload;
-- первая валидная snapshot каждого symbol после запуска становится тихой baseline; history warm-up может обновить baseline, но не создаёт alert; публикуется только реальный последующий `live` переход из no-impulse в impulse или смена направления;
-- повторное активное направление не создаёт новый alert, выход из impulse очищает состояние без alert, а новая активация после очистки снова может сработать;
-- producer реагирует только на причинно изменившиеся symbols и читает `5m` metrics отдельно для них; полного universe scan, polling, timer-driven событий и synthetic values нет;
-- адаптер публикует канонический `market_scanner/impulse` event с causal evidence timestamp, symbol/timeframe scope, bounded source-event deduplication, предыдущим направлением, thresholds и полным evidence payload;
-- stop/restart сбрасывает symbol baselines и отписывается от market source; duplicate, out-of-order, incomplete, stale, unavailable, source/listener error состояния диагностируются отдельно.
+- определён storage-neutral `AlertsPersistenceContract` и строгий snapshot `nexus.alerts.runtime` version `1`; domain runtime не зависит от JSON-файла или будущей базы;
+- snapshot отдельно сохраняет rules/enabled state, bounded trigger history, bounded source-event dedupe keys и незавершённые cooldown scopes; dedupe не восстанавливается эвристически из истории триггеров;
+- production JSON adapter создаёт каталог и заменяет snapshot через уникальный temporary file; путь и включение задаются `ALERTS_PERSISTENCE_PATH` и `ALERTS_PERSISTENCE_ENABLED`;
+- deterministic hydration завершается до подписки на alert event sources; mutation до завершения hydration отклоняется явной ошибкой `alerts_persistence_not_ready`;
+- отсутствующий файл означает пустое готовое хранилище; corrupt, unsupported-version и read-failure переводят runtime в работающий `degraded` memory mode с отключённой записью, поэтому исходный storage не перезаписывается;
+- create/update/enabled/event mutations ставят immutable snapshot в последовательную async write queue; save failure виден в status и повторяется на следующей мутации без остановки runtime;
+- runtime status и frontend contract показывают adapter, version, load/save attempts, successful saves, errors, hydrated counts, pending writes и последнюю persistence error; Alerts page больше не называет persistent runtime временным;
+- подтверждены реальный `buildApp` restart, atomic JSON round-trip, hydration ordering, cooldown/dedupe continuity, independent bounded history, corrupt/unsupported boundaries и retry после save failure;
+- focused Alerts persistence regression: `38/38`; полный backend: `503/503`; frontend Alerts: `8/8`; frontend realtime regression: `266/266`; backend/frontend production builds прошли; backend audit: `0 vulnerabilities`.
 
 Следующая отдельная задача:
 
-**Alerts Persistence Foundation v0.1**
+**Alerts External Delivery Foundation v0.1**
 
 Граница следующей реализации:
 
-- определить версионированный storage contract для alert rules, enabled state и bounded trigger history без привязки domain-логики к конкретному файлу или базе;
-- обеспечить deterministic hydration до подписки на event sources и безопасное сохранение после create/update/enabled/trigger mutations;
-- зафиксировать поведение при пустом, повреждённом, устаревшем и недоступном storage, не теряя диагностируемость runtime;
-- сохранить cooldown/deduplication semantics после restart и явно отделить source-event dedupe от persisted trigger history;
-- не добавлять external delivery, Auth, billing, multi-user ownership или frontend redesign до отдельной задачи;
-- подтвердить restart persistence, migration/version boundaries, backend regression и production builds.
+- определить provider-neutral delivery contract и persisted outbox, связанный с immutable trigger id, без повторного вычисления market/setup событий;
+- зафиксировать состояния `pending/sending/delivered/failed`, bounded attempts, retry/backoff и idempotency после process restart;
+- отделить отказ доставки от создания trigger: временно недоступный delivery adapter не должен терять историю Alerts или останавливать event sources;
+- добавить диагностируемые delivery status/counters и безопасную lifecycle-очистку без раскрытия секретов в API;
+- не добавлять Auth, billing, multi-user ownership, произвольные пользовательские URL или vendor-specific credentials до отдельного решения;
+- подтвердить duplicate suppression, restart recovery, permanent/transient failure boundaries, backend regression и production builds.
 
-Цель следующей задачи — убрать runtime-only потерю alert rules и history на restart через явную storage boundary, не смешивая persistence с Auth или внешней доставкой.
+Цель следующей задачи — заложить надёжную restart-safe границу внешней доставки поверх уже сохранённых trigger events, не смешивая transport lifecycle с вычислением Alerts или будущим Auth.
 
 ---
 

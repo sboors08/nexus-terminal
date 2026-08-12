@@ -266,6 +266,15 @@ function AlertsPageContent({
     }
   };
 
+  const persistenceHeadline = data.status.persistenceMode === 'persistent'
+    ? data.status.persistenceState === 'ready'
+      ? `PERSISTENT v${data.status.persistenceVersion ?? '?'}: правила и история сохраняются на backend`
+      : `PERSISTENCE ${data.status.persistenceState.toUpperCase()}: backend работает с диагностируемым ограничением хранения`
+    : 'RUNTIME ONLY: правила и история не сохраняются постоянно';
+  const persistenceDescription = data.status.persistenceMode === 'persistent'
+    ? `Storage: ${data.status.persistenceAdapter ?? 'unknown'}; восстановлено правил: ${data.status.hydratedRulesCount}, триггеров: ${data.status.hydratedTriggersCount}. Внешняя доставка не настроена; отметка «просмотрено» действует только в этой вкладке.`
+    : 'Данные приходят из backend Alerts API и сбрасываются при перезапуске backend. Внешняя доставка не настроена; отметка «просмотрено» действует только в этой вкладке.';
+
   return (
     <section className={styles.alertsPage}>
       <header className={styles.pageHeader}>
@@ -293,8 +302,9 @@ function AlertsPageContent({
       </section>
 
       <section className={styles.dataNotice} aria-label="Граница хранения Alerts">
-        <strong>RUNTIME ONLY: правила и история не сохраняются постоянно</strong>
-        <span>Данные приходят из backend Alerts API и сбрасываются при перезапуске backend. Внешняя доставка не настроена; отметка «просмотрено» действует только в этой вкладке.</span>
+        <strong>{persistenceHeadline}</strong>
+        <span>{persistenceDescription}</span>
+        {data.status.lastPersistenceError && <span>Ошибка persistence: {data.status.lastPersistenceError}</span>}
       </section>
 
       <section className={styles.filtersPanel} aria-label="Фильтры уведомлений">

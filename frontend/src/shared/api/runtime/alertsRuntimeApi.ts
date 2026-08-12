@@ -30,9 +30,11 @@ export type AlertEventType = typeof ALERT_EVENT_TYPES[number];
 export type AlertEventSource = typeof ALERT_EVENT_SOURCES[number];
 export type AlertParameterValue = string | number | boolean | null;
 export type AlertParameters = Record<string, AlertParameterValue>;
+export type AlertsPersistenceMode = 'runtime_only' | 'persistent';
+export type AlertsPersistenceState = 'disabled' | 'pending' | 'loading' | 'ready' | 'degraded';
 
 export interface AlertsMetadata {
-  persistenceMode: 'runtime_only';
+  persistenceMode: AlertsPersistenceMode;
   eventTypes: AlertEventType[];
   eventSources: AlertEventSource[];
   deliveryChannels: string[];
@@ -40,7 +42,19 @@ export interface AlertsMetadata {
 
 export interface AlertsRuntimeStatus {
   state: 'idle' | 'running' | 'stopped';
-  persistenceMode: 'runtime_only';
+  persistenceMode: AlertsPersistenceMode;
+  persistenceState: AlertsPersistenceState;
+  persistenceAdapter: string | null;
+  persistenceVersion: number | null;
+  persistenceLoadAttempts: number;
+  persistenceSaveAttempts: number;
+  persistenceSavesCount: number;
+  persistenceErrorsCount: number;
+  hydratedRulesCount: number;
+  hydratedTriggersCount: number;
+  pendingPersistenceWrites: number;
+  lastPersistedAt: string | null;
+  lastPersistenceError: string | null;
   rulesCount: number;
   enabledRulesCount: number;
   triggersCount: number;
@@ -175,6 +189,14 @@ function readNonNegativeInteger(record: Record<string, unknown>, key: string): n
   return value as number;
 }
 
+function readNullableNonNegativeInteger(
+  record: Record<string, unknown>,
+  key: string,
+): number | null {
+  if (record[key] === null) return null;
+  return readNonNegativeInteger(record, key);
+}
+
 function readTimestamp(record: Record<string, unknown>, key: string): string {
   const value = readString(record, key);
   if (!Number.isFinite(Date.parse(value))) {
@@ -282,7 +304,7 @@ async function requestJson(
 export function parseAlertsMetadata(value: unknown): AlertsMetadata {
   const metadata = readRecord(value, 'metadata');
   const persistenceMode = readString(metadata, 'persistenceMode');
-  if (persistenceMode !== 'runtime_only') {
+  if (persistenceMode !== 'runtime_only' && persistenceMode !== 'persistent') {
     throw new Error('Invalid Alerts response: persistenceMode');
   }
   const eventTypes = readStringArray(metadata, 'eventTypes');
@@ -305,15 +327,37 @@ export function parseAlertsRuntimeStatus(value: unknown): AlertsRuntimeStatus {
   const status = readRecord(value, 'status');
   const state = readString(status, 'state');
   const persistenceMode = readString(status, 'persistenceMode');
+  const persistenceState = readString(status, 'persistenceState');
   if (state !== 'idle' && state !== 'running' && state !== 'stopped') {
     throw new Error('Invalid Alerts response: state');
   }
-  if (persistenceMode !== 'runtime_only') {
+  if (persistenceMode !== 'runtime_only' && persistenceMode !== 'persistent') {
     throw new Error('Invalid Alerts response: persistenceMode');
+  }
+  if (
+    persistenceState !== 'disabled'
+    && persistenceState !== 'pending'
+    && persistenceState !== 'loading'
+    && persistenceState !== 'ready'
+    && persistenceState !== 'degraded'
+  ) {
+    throw new Error('Invalid Alerts response: persistenceState');
   }
   return {
     state,
     persistenceMode,
+    persistenceState,
+    persistenceAdapter: readNullableString(status, 'persistenceAdapter'),
+    persistenceVersion: readNullableNonNegativeInteger(status, 'persistenceVersion'),
+    persistenceLoadAttempts: readNonNegativeInteger(status, 'persistenceLoadAttempts'),
+    persistenceSaveAttempts: readNonNegativeInteger(status, 'persistenceSaveAttempts'),
+    persistenceSavesCount: readNonNegativeInteger(status, 'persistenceSavesCount'),
+    persistenceErrorsCount: readNonNegativeInteger(status, 'persistenceErrorsCount'),
+    hydratedRulesCount: readNonNegativeInteger(status, 'hydratedRulesCount'),
+    hydratedTriggersCount: readNonNegativeInteger(status, 'hydratedTriggersCount'),
+    pendingPersistenceWrites: readNonNegativeInteger(status, 'pendingPersistenceWrites'),
+    lastPersistedAt: readNullableTimestamp(status, 'lastPersistedAt'),
+    lastPersistenceError: readNullableString(status, 'lastPersistenceError'),
     rulesCount: readNonNegativeInteger(status, 'rulesCount'),
     enabledRulesCount: readNonNegativeInteger(status, 'enabledRulesCount'),
     triggersCount: readNonNegativeInteger(status, 'triggersCount'),
