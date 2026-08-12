@@ -43,7 +43,11 @@ import {
 import {
   SetupLifecycleAlertEventSource,
 } from './modules/alerts/setup-lifecycle-alert-event-source.js';
+import {
+  MarketWideAlertEventSource,
+} from './modules/alerts/market-wide-alert-event-source.js';
 import type {
+  AlertEventSourceContract,
   AlertsRuntimeContract,
 } from './modules/alerts/alerts.types.js';
 import type { RealtimeMarketDataService } from './modules/realtime-market-data/realtime-market-data.types.js';
@@ -93,6 +97,36 @@ function isSetupDetectionRuntimeEventSource(
     ).subscribeLifecycleEvents
       === 'function',
   );
+}
+
+function createAlertEventSources(
+  marketWideRealtimeService:
+    MarketWideRealtimeService | null,
+  setupDetectionRuntimeEventSource:
+    SetupDetectionRuntimeEventSource | null,
+): AlertEventSourceContract[] {
+  const sources:
+  AlertEventSourceContract[] = [];
+
+  if (marketWideRealtimeService) {
+    sources.push(
+      new MarketWideAlertEventSource(
+        marketWideRealtimeService,
+      ),
+    );
+  }
+
+  if (
+    setupDetectionRuntimeEventSource
+  ) {
+    sources.push(
+      new SetupLifecycleAlertEventSource(
+        setupDetectionRuntimeEventSource,
+      ),
+    );
+  }
+
+  return sources;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -347,13 +381,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     options.alertsRuntimeService
     === undefined
       ? new AlertsRuntimeService(
-          setupDetectionRuntimeEventSource
-            ? [
-                new SetupLifecycleAlertEventSource(
-                  setupDetectionRuntimeEventSource,
-                ),
-              ]
-            : [],
+          createAlertEventSources(
+            marketWideRealtimeService,
+            setupDetectionRuntimeEventSource,
+          ),
         )
       : options.alertsRuntimeService;
 
