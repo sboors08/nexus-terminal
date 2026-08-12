@@ -469,6 +469,13 @@ Frontend подключил эти параметры без изменения 
 - `1042` replay-disappearance полностью совпали с источником: `785` (`75,3%`) объясняются регрессом progress ниже `0,50`, ещё `257` — временной потерей доступной геометрии; следовательно, перенос порога без отдельной проверки lifecycle stability не считается достаточным исправлением;
 - ранний progress-порог пока не выбран: исходные `311` линий условно отобраны текущим `progress >= 0,50`, поэтому одинаковые `2` false-early случая измеряют только исходные current candidates и не учитывают дополнительные линии, которые ранний порог допустил бы, но которые никогда не достигли бы `0,50`;
 - production-правило не изменено: следующий counterfactual-анализ должен расширить universe до всех причинно доступных подтверждённых/рабочих линий с валидным departure extremum, включая линии без текущего Observation, и только после этого выбрать порог по дополнительным входам, последующим Approach и churn каждой политики.
+- Causal Observation Threshold Counterfactual Validation v0.1 расширил causal universe до `342` подтверждённых/рабочих линий с валидным departure extremum: `311` current candidate lines и `31` линия вне исходной выборки; replay/identity anomalies — `0`;
+- текущий `progress >= 0,50` точно воспроизвёл baseline: `311` entries, `309` последующих Approach, `2` без Approach, `303` same-bar перехода, `1042` disappearance и `740` reappearance;
+- пороги `0,40 / 0,30 / 0,20 / 0,10` допустили соответственно `10 / 19 / 28 / 28` дополнительных линий, однако при отдельном причинном пересчёте Approach для каждой политики не уменьшили схлопывание стадий: same-bar составил `316 из 319 / 325 из 328 / 334 из 339 / 338 из 339`, а медианное время до Approach осталось `0` свечей для каждого порога;
+- прежний entry-geometry результат с медианным опережением `1 / 3 / 4 / 5` свечей измерял ранний вход относительно неизменённого current Approach; полный counterfactual уточнил вывод, потому что более ранний Observation причинно разрешает и более ранний пересчёт Approach;
+- lifecycle churn монотонно ухудшился при снижении порога: disappearance на entry line вырос с `3,350482` при `0,50` до `4,018692 / 4,948485 / 5,333333 / 5,778761`, а reappearance на entry line — с `2,379421` до `3,052960 / 4,021212 / 4,471976 / 4,932153`;
+- ранний progress-порог отклонён: ни один вариант не выполнил обязательный критерий уменьшения same-bar `OBSERVATION → APPROACH`, а churn у всех вариантов выше текущего baseline; дополнительные линии сами по себе не компенсируют это ухудшение;
+- production-порог обоснованно сохранён на `progress >= 0,50`; production detector, Observation Tracker, Approach Engine, Setup pipeline/runtime, realtime confirmation, outcome, score, обучение и frontend не изменены.
 
 ---
 
@@ -875,7 +882,7 @@ Replay обязателен для v1.0.
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134 |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
-| 7 | Setup Engine | Causal integration v0.1 реализована, граница стадий проверена | Канонический Level Lines pipeline подключён к lifecycle; Stage Boundary Analysis отклонил искусственную задержку и crossing-only, production сохранён без изменений; следующий узкий вопрос — causal-момент входа в Observation; realtime confirmation требует отдельного накопленного `aggTrade`/order-book dataset |
+| 7 | Setup Engine | Causal integration v0.1 реализована, границы стадий проверены | Канонический Level Lines pipeline подключён к lifecycle; Stage Boundary и Observation Threshold Counterfactual Validation отклонили искусственную задержку, crossing-only и ранние progress-пороги; production `progress >= 0,50` сохранён; realtime confirmation требует отдельного накопленного `aggTrade`/order-book dataset |
 | 8 | Alerts | Частично | Есть UI и integrity foundation; полноценные правила, cooldown, доставка и история срабатываний не завершены |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence и runtime event history; Auth, приглашения, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
@@ -981,24 +988,31 @@ Replay обязателен для v1.0.
 
 ## 31. Следующий шаг
 
-Текущая задача:
+Завершённая текущая задача:
 
 **Causal Observation Threshold Counterfactual Validation v0.1**
 
-Граница реализации:
+Решение:
 
-- backend-only и analysis-only на тех же сохранённых реальных закрытых `1m` OHLC-префиксах; новые рыночные данные не загружать, а будущие свечи не использовать для решения о входе;
-- сформировать counterfactual universe не из current candidate tracks, а из всех причинно доступных подтверждённых/рабочих Level Lines с валидным departure extremum, включая линии, которые никогда не достигли текущего `progress >= 0,50`;
-- сохранить стабильную причинную идентичность каждой `symbol + lineId` и доказать отсутствие pair/replay anomalies относительно тех же production Level Lines и Departure Extremum contracts;
-- сравнить `progress >= 0,50` с порогами `0,40 / 0,30 / 0,20 / 0,10`; geometry-only вход повторно не рассматривать как production-кандидат, поскольку он уже потерял `274` из `309` текущих Approach;
-- для каждой политики отдельно посчитать current candidates, дополнительные counterfactual entries, линии без последующего Approach, долю и время до Approach, same-bar переходы, disappearance/reappearance churn и непрерывную длительность Observation;
-- отдельно показать результаты по символам и разложить churn каждой политики на progress regression и потерю geometry, а не переносить показатели текущего порога на альтернативы;
-- последующие свечи разрешены только для offline-оценки результата уже причинно принятого входа и не могут участвовать в самом решении о входе;
-- выбрать один progress-порог для следующей production-ветки только если он уменьшает схлопывание `OBSERVATION → APPROACH`, не создавая неприемлемого количества дополнительных бесполезных entries и lifecycle churn; иначе честно сохранить текущий порог и зафиксировать причину;
-- не менять production detector, Observation Tracker, Approach Engine, Setup pipeline/runtime, пороги, realtime confirmation, outcome, probability/profitability, обучение, Setup Score или frontend;
-- обязательны deterministic JSON, focused regression tests, полный backend check, production build и отдельный запуск анализа на фактическом локальном dataset.
+- selection bias исходных `311` candidate lines снят на полном causal universe из `342` линий;
+- контрольный порог `0,50` воспроизведён без anomalies;
+- `0,40 / 0,30 / 0,20 / 0,10` отклонены: они не уменьшают same-bar переходы при policy-specific пересчёте Approach и создают больший lifecycle churn;
+- production `progress >= 0,50` сохранён без изменений.
 
-Цель задачи — снять selection bias текущей выборки и получить достаточное causal-доказательство для одного production-решения по порогу Observation. Это последний analysis-only шаг перед отдельной веткой реализации выбранного правила либо обоснованным сохранением `0,50`.
+Следующая отдельная задача:
+
+**Alerts Backend Foundation v0.1**
+
+Граница следующей реализации:
+
+- перейти к этапу 8 официальной дорожной карты и сначала инвентаризировать существующие frontend Alerts contracts, routes и integrity foundation;
+- определить backend-domain для alert rule, enabled/disabled state, symbol/timeframe binding, trigger event, cooldown/deduplication и trigger history без привязки к одному UI-компоненту;
+- использовать существующие Scanner, Volume Spike, causal Setup lifecycle и BTC Market Mode как источники событий, не дублируя их расчёты внутри Alerts;
+- не смешивать в первой задаче внешнюю доставку, email/Telegram/push, тарифы, Auth, billing, Admin, самообучение и frontend redesign;
+- до изменения кода отдельно зафиксировать границу persistence: временный runtime store не выдавать за пользовательское постоянное хранение до этапа Auth/data layer;
+- обязательны backend contract tests, cooldown/deduplication tests, history bounds, полный backend check, production build и сохранение существующих Setup/Level safety-инвариантов.
+
+Цель следующей задачи — заложить единый backend-контракт Alerts, который сможет безопасно потреблять уже готовые NEXUS-события и позднее получить пользовательскую persistence и каналы доставки без переписывания trigger logic.
 
 ---
 
