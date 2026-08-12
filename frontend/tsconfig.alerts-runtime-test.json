@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "./src",
+    "outDir": "./node_modules/.tmp/alerts-runtime-test",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.alerts-runtime-test.tsbuildinfo"
+  },
+  "include": [
+    "src/vite-env.d.ts",
+    "src/shared/api/runtime/alertsRuntimeApi.ts",
+    "src/shared/alerts/alertsRuntimeView.ts"
+  ]
+}
