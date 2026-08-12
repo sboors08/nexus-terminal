@@ -866,7 +866,7 @@ Replay обязателен для v1.0.
 - пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
-- Alerts имеют единый backend foundation с runtime-only правилами, cooldown/deduplication, bounded trigger history и Setup lifecycle adapter; постоянная пользовательская persistence, Scanner/BTC event adapters, внешняя доставка, Auth, постоянная History/Replay data layer, production deployment и закрытая beta не завершены.
+- Alerts имеют единый backend foundation с runtime-only правилами, cooldown/deduplication, bounded trigger history, Setup lifecycle adapter и реальным Market Wide Volume Spike/trades source adapter; отдельного вычисленного impulse-source и канонического BTC Market Mode producer пока нет, постоянная пользовательская persistence, внешняя доставка, Auth, постоянная History/Replay data layer, production deployment и закрытая beta не завершены.
 
 ---
 
@@ -874,7 +874,7 @@ Replay обязателен для v1.0.
 
 Мелкие PR и внутренние чек-листы не заменяют этот маршрут. Статусы ниже не являются процентами и не означают автоматическое закрытие этапа.
 
-| Этап | Название | Состояние на 2026-08-11 | Граница этапа |
+| Этап | Название | Состояние на 2026-08-12 | Граница этапа |
 | --- | --- | --- | --- |
 | 1 | Публичная страница | Частично | Есть публичный frontend-фундамент и SEO/i18n-заготовки; финальные лендинг, тексты, локализация и заявка в beta не завершены |
 | 2 | Binance USDⓈ-M Futures Migration | Завершён | PR #27; целевой рынок переведён на активные USDT perpetual contracts |
@@ -883,7 +883,7 @@ Replay обязателен для v1.0.
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134 |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
 | 7 | Setup Engine | Causal integration v0.1 реализована, границы стадий проверены | Канонический Level Lines pipeline подключён к lifecycle; Stage Boundary и Observation Threshold Counterfactual Validation отклонили искусственную задержку, crossing-only и ранние progress-пороги; production `progress >= 0,50` сохранён; realtime confirmation требует отдельного накопленного `aggTrade`/order-book dataset |
-| 8 | Alerts | Backend foundation v0.1 реализован, развитие продолжается | Есть UI/integrity foundation и единый runtime-only backend-domain: правила, enabled state, symbol/timeframe binding, cooldown/deduplication, bounded trigger history, HTTP API и Setup lifecycle adapter; постоянная persistence, Scanner/BTC event adapters и внешняя доставка ещё впереди |
+| 8 | Alerts | Backend foundation и Market Event Sources v0.1 реализованы, развитие продолжается | Есть единый runtime-only backend-domain, HTTP API, Setup lifecycle adapter и adapter готовых Market Wide Volume Spike/trades state changes; BTC contract определён без synthetic producer, impulse source отсутствует; frontend runtime integration, постоянная persistence и внешняя доставка ещё впереди |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence и runtime event history; Auth, приглашения, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
 | 11 | Закрытая beta | Не начат | После готовности ключевого Setup/Alerts/data pipeline — 5–10 трейдеров |
@@ -990,33 +990,34 @@ Replay обязателен для v1.0.
 
 Завершённая текущая задача:
 
-**Alerts Backend Foundation v0.1**
+**Alerts Market Event Sources v0.1**
 
 Результат:
 
-- подтверждено, что существующая Alerts page использует фиксированные frontend-события и локальные переключатели, а полноценного backend-domain ранее не было;
-- создан единый UI-независимый backend-контракт для alert rule, enabled state, symbol/timeframe binding и нормализованного source event;
-- добавлен bounded runtime-only store для правил и trigger history с явным `persistenceMode: runtime_only`;
-- реализованы cooldown по rule/symbol/timeframe/event scope и дедупликация по исходному source event;
-- causal Setup lifecycle подключён через отдельный adapter без повторного расчёта уровней, стадий или торговой логики;
-- generic contract заранее разделяет `market_scanner`, `setup_lifecycle`, `btc_market_mode`, `adaptive_ranking` и `custom` sources;
-- добавлены HTTP contracts для metadata, status, rules, enabled state и trigger history;
-- внешняя доставка, email/Telegram/push, Auth, billing, тарифы, Admin, постоянная пользовательская persistence, самообучение и frontend redesign не включались.
+- подтверждено, что backend уже вычисляет `MarketVolumeSpike` и связанные `volumeRatio`/`tradesRatio`, поэтому Alerts получает готовую классификацию и не повторяет Scanner/Volume Spike math;
+- `MarketWideAlertEventSource` подписан на существующие live/history kline changes и преобразует готовый Volume Spike в нормализованные `volume_spike` и `trades_anomaly` события;
+- source event IDs строятся стабильно из symbol, period, period start и signal status, а повторные snapshot/poll обновления с тем же состоянием не создают новые события;
+- ошибка одного symbol snapshot и ошибка одного listener изолируются и не останавливают обработку остальных symbols/listeners;
+- подтверждено отсутствие отдельного вычисленного backend impulse signal, поэтому synthetic impulse threshold внутри Alerts не добавлялся;
+- подтверждено, что текущий BTC Market Mode является frontend/mock-представлением; определены канонический backend state-change contract и adapter с дедупликацией повторного mode snapshot, но fake producer в production не подключался;
+- production `buildApp` подключает реальный Market Wide adapter до запуска market runtime, сохраняя существующий Setup lifecycle source;
+- runtime-only persistence boundary сохранена; внешняя доставка, Auth, billing, постоянная persistence и frontend redesign не включались.
 
 Следующая отдельная задача:
 
-**Alerts Market Event Sources v0.1**
+**Alerts Frontend Runtime Integration v0.1**
 
 Граница следующей реализации:
 
-- инвентаризировать фактические backend-источники Volume Spike, аномального числа сделок, импульса и BTC Market Mode;
-- подключать только уже вычисленные Scanner/market события и изменения состояния, не переносить их математику внутрь Alerts;
-- если BTC Market Mode пока существует только как frontend/mock-представление, сначала определить канонический backend source contract, не подменяя его синтетическим alert-расчётом;
-- обеспечить стабильные source event IDs, корректную дедупликацию повторных snapshot/poll событий и изоляцию ошибок источников;
-- сохранить runtime-only persistence boundary и не добавлять внешние каналы доставки, Auth, billing или frontend redesign;
-- подтвердить adapters contract tests, повторные события, cooldown, bounded history, полный backend check и production build.
+- подключить существующую Alerts page к backend metadata/status/rules/enabled/triggers contracts без изменения backend market/setup расчётов;
+- заменить локальные фиктивные переключатели реальными create/update/enabled actions и явно отображать `runtime_only` boundary;
+- сохранить текущую визуальную композицию, responsive-поведение, i18n-границы и переходы в Workspace;
+- определить безопасное обновление trigger history через существующий API, не подменяя отсутствующую external delivery локальными browser-уведомлениями;
+- обработать loading, empty, unavailable и retry states без возврата к mock alert events;
+- не добавлять Auth, billing, постоянную пользовательскую persistence, email/Telegram/push или frontend redesign;
+- подтвердить frontend contract/integrity tests, backend regression check и production builds.
 
-Цель следующей задачи — подключить к готовому Alerts-domain реальные market event sources без дублирования Scanner, Volume Spike и BTC-расчётов.
+Цель следующей задачи — сделать существующую Alerts page реальным клиентом готового backend-domain, сохранив runtime-only и delivery boundaries.
 
 ---
 
