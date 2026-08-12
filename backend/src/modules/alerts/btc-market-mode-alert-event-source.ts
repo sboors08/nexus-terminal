@@ -1,3 +1,7 @@
+import {
+  isMarketScannerWindowId,
+  type MarketScannerWindowId,
+} from '../realtime-market-data/scanner-windows.js';
 import type {
   AlertEventListener,
   AlertEventSourceContract,
@@ -5,11 +9,21 @@ import type {
   AlertTriggerEvent,
 } from './alerts.types.js';
 
+export const BTC_MARKET_MODES = [
+  'risk_on',
+  'neutral',
+  'risk_off',
+] as const;
+
+export type BtcMarketMode =
+  typeof BTC_MARKET_MODES[number];
+
 export interface BtcMarketModeChange {
   sourceEventId: string;
   occurredAt: string;
-  mode: string;
-  previousMode: string | null;
+  timeframe: MarketScannerWindowId;
+  mode: BtcMarketMode;
+  previousMode: BtcMarketMode | null;
   payload: AlertParameters;
 }
 
@@ -29,20 +43,20 @@ export interface BtcMarketModeAlertEventSourceStatus {
   emittedEventsCount: number;
   sourceErrorsCount: number;
   listenerErrorsCount: number;
-  currentMode: string | null;
+  currentMode: BtcMarketMode | null;
   lastEventAt: string | null;
   lastError: string | null;
 }
 
 function normalizeMode(
   value: string,
-): string {
+): BtcMarketMode {
   const mode =
     value.trim().toLowerCase();
 
   if (
-    !/^[a-z0-9._:-]{1,80}$/.test(
-      mode,
+    !BTC_MARKET_MODES.includes(
+      mode as BtcMarketMode,
     )
   ) {
     throw new Error(
@@ -50,7 +64,7 @@ function normalizeMode(
     );
   }
 
-  return mode;
+  return mode as BtcMarketMode;
 }
 
 function normalizeTimestamp(
@@ -73,6 +87,16 @@ function normalizeTimestamp(
 export function mapBtcMarketModeChangeToAlert(
   change: BtcMarketModeChange,
 ): AlertTriggerEvent {
+  if (
+    !isMarketScannerWindowId(
+      change.timeframe,
+    )
+  ) {
+    throw new Error(
+      `Invalid BTC market mode timeframe: ${change.timeframe}`,
+    );
+  }
+
   const mode =
     normalizeMode(change.mode);
 
@@ -94,8 +118,9 @@ export function mapBtcMarketModeChangeToAlert(
         change.occurredAt,
       ),
     symbol: 'BTCUSDT',
-    timeframe: null,
-    entityId: 'btc-market-mode',
+    timeframe: change.timeframe,
+    entityId:
+      `btc-market-mode:${change.timeframe}`,
     payload: {
       ...change.payload,
       mode,
@@ -118,7 +143,7 @@ implements AlertEventSourceContract {
   private sourceErrorsCount = 0;
   private listenerErrorsCount = 0;
   private currentMode:
-    string | null = null;
+    BtcMarketMode | null = null;
   private hasCurrentMode = false;
   private lastEventAt:
     string | null = null;
@@ -213,16 +238,19 @@ implements AlertEventSourceContract {
           change,
         );
 
-      const mode =
+      const modeValue =
         event.payload.mode;
 
       if (
-        typeof mode !== 'string'
+        typeof modeValue !== 'string'
       ) {
         throw new Error(
           'BTC market mode adapter produced an invalid mode',
         );
       }
+
+      const mode =
+        normalizeMode(modeValue);
 
       if (
         this.hasCurrentMode

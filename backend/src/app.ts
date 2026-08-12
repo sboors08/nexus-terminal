@@ -44,6 +44,13 @@ import {
   SetupLifecycleAlertEventSource,
 } from './modules/alerts/setup-lifecycle-alert-event-source.js';
 import {
+  BtcMarketModeAlertEventSource,
+} from './modules/alerts/btc-market-mode-alert-event-source.js';
+import {
+  BtcMarketModeProducer,
+  type BtcMarketModeMetricsSource,
+} from './modules/alerts/btc-market-mode-producer.js';
+import {
   MarketWideAlertEventSource,
 } from './modules/alerts/market-wide-alert-event-source.js';
 import type {
@@ -114,6 +121,20 @@ function createAlertEventSources(
         marketWideRealtimeService,
       ),
     );
+
+    if (
+      isBtcMarketModeMetricsSource(
+        marketWideRealtimeService,
+      )
+    ) {
+      sources.push(
+        new BtcMarketModeAlertEventSource(
+          new BtcMarketModeProducer(
+            marketWideRealtimeService,
+          ),
+        ),
+      );
+    }
   }
 
   if (
@@ -127,6 +148,26 @@ function createAlertEventSources(
   }
 
   return sources;
+}
+
+function isBtcMarketModeMetricsSource(
+  value: MarketWideRealtimeService,
+): value is
+  MarketWideRealtimeService
+  & BtcMarketModeMetricsSource {
+  const candidate =
+    value as Partial<
+      BtcMarketModeMetricsSource
+    >;
+
+  return (
+    typeof candidate.subscribeKlineChanges
+      === 'function'
+    && typeof candidate.getMetrics
+      === 'function'
+    && typeof candidate.getStatus
+      === 'function'
+  );
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
