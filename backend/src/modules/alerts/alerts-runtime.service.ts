@@ -23,8 +23,13 @@ import {
   AlertsPersistenceError,
   normalizeAlertsPersistenceSnapshot,
   type AlertsPersistenceContract,
-  type AlertsPersistenceSnapshotV1,
+  type AlertsPersistenceSnapshot,
 } from './alerts-persistence.js';
+import {
+  AlertsDeliveryService,
+  type AlertDeliveryAdapter,
+  type AlertsDeliveryOptions,
+} from './alerts-delivery.js';
 
 const MAX_COOLDOWN_MS =
   7 * 24 * 60 * 60 * 1_000;
@@ -582,6 +587,9 @@ implements AlertsRuntimeContract {
   private persistenceHydrated = false;
   private persistenceWritable = true;
 
+  private readonly delivery:
+    AlertsDeliveryService;
+
   private readonly options:
     AlertsRuntimeOptions;
 
@@ -592,6 +600,10 @@ implements AlertsRuntimeContract {
       Partial<AlertsRuntimeOptions> = {},
     private readonly persistence:
       AlertsPersistenceContract | null = null,
+    deliveryAdapters:
+      readonly AlertDeliveryAdapter[] = [],
+    deliveryOptions:
+      Partial<AlertsDeliveryOptions> = {},
   ) {
     this.options = {
       ...DEFAULT_ALERTS_RUNTIME_OPTIONS,
@@ -599,6 +611,16 @@ implements AlertsRuntimeContract {
     };
 
     validateOptions(this.options);
+
+    this.delivery =
+      new AlertsDeliveryService(
+        deliveryAdapters,
+        {
+          now: this.options.now,
+          ...deliveryOptions,
+        },
+        () => this.queuePersistence(),
+      );
 
     this.persistenceState =
       this.persistence
@@ -661,6 +683,8 @@ implements AlertsRuntimeContract {
         this.startPromise,
       );
     }
+
+    return this.delivery.stop();
   }
 
   async flushPersistence():
@@ -668,11 +692,18 @@ implements AlertsRuntimeContract {
     await this.persistenceQueue;
   }
 
+  async flushDelivery():
+  Promise<void> {
+    await this.delivery.flushDue();
+    await this.flushPersistence();
+  }
+
   private subscribeSources(): void {
     if (this.state === 'running') {
       return;
     }
 
+    this.delivery.start();
     this.state = 'running';
 
     for (const source of this.sources) {
@@ -717,12 +748,15 @@ implements AlertsRuntimeContract {
     }
 
     this.state = 'stopped';
+    await this.delivery.stop();
     await this.flushPersistence();
   }
 
   getStatus(): AlertsRuntimeStatus {
     const rules =
       [...this.rules.values()];
+    const delivery =
+      this.delivery.getStatus();
 
     return {
       state: this.state,
@@ -755,6 +789,56 @@ implements AlertsRuntimeContract {
         this.lastPersistedAt,
       lastPersistenceError:
         this.lastPersistenceError,
+      deliveryState:
+        delivery.state,
+      deliveryChannels:
+        delivery.channels,
+      deliveryAdapters:
+        delivery.adapters,
+      deliveryOutboxCount:
+        delivery.outboxCount,
+      deliveryPendingCount:
+        delivery.pendingCount,
+      deliverySendingCount:
+        delivery.sendingCount,
+      deliveryDeliveredCount:
+        delivery.deliveredCount,
+      deliveryFailedCount:
+        delivery.failedCount,
+      deliveryRetryScheduledCount:
+        delivery.retryScheduledCount,
+      deliveryUnavailableChannelCount:
+        delivery.unavailableChannelCount,
+      deliveryMaxOutboxItems:
+        delivery.maxOutboxItems,
+      deliveryMaxAttempts:
+        delivery.maxAttempts,
+      deliveryEnqueuedCount:
+        delivery.enqueuedCount,
+      deliveryDuplicateEnqueuesCount:
+        delivery.duplicateEnqueuesCount,
+      deliveryRejectedEnqueuesCount:
+        delivery.rejectedEnqueuesCount,
+      deliveryAttemptsCount:
+        delivery.attemptsCount,
+      deliverySuccessesCount:
+        delivery.successesCount,
+      deliveryFailuresCount:
+        delivery.failuresCount,
+      deliveryTerminalFailuresCount:
+        delivery.terminalFailuresCount,
+      deliveryRecoveredSendingCount:
+        delivery.recoveredSendingCount,
+      deliveryCleanedItemsCount:
+        delivery.cleanedItemsCount,
+      deliveryHydratedItemsCount:
+        delivery.hydratedItemsCount,
+      lastDeliveryAttemptAt:
+        delivery.lastAttemptAt,
+      lastDeliveredAt:
+        delivery.lastDeliveredAt,
+      lastDeliveryErrorCode:
+        delivery.lastErrorCode,
       rulesCount: rules.length,
       enabledRulesCount:
         rules.filter((rule) => rule.enabled).length,
@@ -1088,6 +1172,13 @@ implements AlertsRuntimeContract {
       };
 
       this.triggers.push(trigger);
+
+      try {
+        this.delivery.enqueue(trigger);
+      } catch {
+        this.delivery.reportEnqueueFailure();
+      }
+
       created.push(cloneTrigger(trigger));
       this.lastTriggeredAt = trigger.triggeredAt;
       this.enforceTriggerBound();
@@ -1184,7 +1275,7 @@ implements AlertsRuntimeContract {
   }
 
   private applyPersistenceSnapshot(
-    snapshot: AlertsPersistenceSnapshotV1,
+    snapshot: AlertsPersistenceSnapshot,
   ): void {
     if (
       snapshot.rules.length
@@ -1211,6 +1302,10 @@ implements AlertsRuntimeContract {
     this.dedupeKeys.clear();
     this.dedupeOrder.splice(0);
     this.cooldownByRuleScope.clear();
+
+    this.delivery.hydrate(
+      snapshot.deliveryOutbox,
+    );
 
     for (const rule of snapshot.rules) {
       this.rules.set(
@@ -1299,7 +1394,7 @@ implements AlertsRuntimeContract {
   }
 
   private buildPersistenceSnapshot():
-  AlertsPersistenceSnapshotV1 {
+  AlertsPersistenceSnapshot {
     const savedAt =
       this.options.now().toISOString();
 
@@ -1336,16 +1431,18 @@ implements AlertsRuntimeContract {
         ...this.dedupeOrder,
       ],
       cooldowns,
+      deliveryOutbox:
+        this.delivery.exportOutbox(),
     };
   }
 
-  private queuePersistence(): void {
+  private queuePersistence(): Promise<void> {
     if (
       !this.persistence
       || !this.persistenceHydrated
       || !this.persistenceWritable
     ) {
-      return;
+      return Promise.resolve();
     }
 
     const snapshot =
@@ -1381,6 +1478,8 @@ implements AlertsRuntimeContract {
           () => undefined,
         )
         .then(write);
+
+    return this.persistenceQueue;
   }
 
   private recordPersistenceError(

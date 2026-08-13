@@ -160,7 +160,11 @@ async (app, options) => {
         ?? 'runtime_only' as const,
       eventTypes: ALERT_EVENT_TYPES,
       eventSources: ALERT_EVENT_SOURCES,
-      deliveryChannels: [] as string[],
+      deliveryChannels:
+        options.alertsRuntime
+          ?.getStatus()
+          .deliveryChannels
+        ?? [],
     }),
   );
 

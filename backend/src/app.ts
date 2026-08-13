@@ -68,6 +68,9 @@ import type {
   AlertEventSourceContract,
   AlertsRuntimeContract,
 } from './modules/alerts/alerts.types.js';
+import type {
+  AlertDeliveryAdapter,
+} from './modules/alerts/alerts-delivery.js';
 import type { RealtimeMarketDataService } from './modules/realtime-market-data/realtime-market-data.types.js';
 import type { OrderBookDepthRuntimeService } from './modules/realtime-market-data/order-book-depth-runtime.types.js';
 import {
@@ -95,6 +98,8 @@ export interface BuildAppOptions {
   setupEventHistoryReader?: SetupEventHistoryReader | null;
   alertsRuntimeService?: AlertsRuntimeContract | null;
   alertsPersistence?: AlertsPersistenceContract | null;
+  alertsDeliveryAdapters?:
+    readonly AlertDeliveryAdapter[];
   levelEngineFrozenSampleReader?:
     LevelEngineFrozenSampleReader | null;
 }
@@ -490,6 +495,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           ),
           {},
           alertsPersistence,
+          options.alertsDeliveryAdapters
+          ?? [],
         )
       : options.alertsRuntimeService;
 

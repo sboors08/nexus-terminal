@@ -272,8 +272,11 @@ function AlertsPageContent({
       : `PERSISTENCE ${data.status.persistenceState.toUpperCase()}: backend работает с диагностируемым ограничением хранения`
     : 'RUNTIME ONLY: правила и история не сохраняются постоянно';
   const persistenceDescription = data.status.persistenceMode === 'persistent'
-    ? `Storage: ${data.status.persistenceAdapter ?? 'unknown'}; восстановлено правил: ${data.status.hydratedRulesCount}, триггеров: ${data.status.hydratedTriggersCount}. Внешняя доставка не настроена; отметка «просмотрено» действует только в этой вкладке.`
-    : 'Данные приходят из backend Alerts API и сбрасываются при перезапуске backend. Внешняя доставка не настроена; отметка «просмотрено» действует только в этой вкладке.';
+    ? `Storage: ${data.status.persistenceAdapter ?? 'unknown'}; восстановлено правил: ${data.status.hydratedRulesCount}, триггеров: ${data.status.hydratedTriggersCount}.`
+    : 'Данные приходят из backend Alerts API и сбрасываются при перезапуске backend.';
+  const deliveryDescription = data.status.deliveryState === 'disabled'
+    ? 'Внешняя доставка не настроена: provider-neutral outbox готов, но активных каналов нет.'
+    : `Delivery ${data.status.deliveryState}: каналов ${data.status.deliveryChannels.length}, в outbox ${data.status.deliveryOutboxCount}, ожидают ${data.status.deliveryPendingCount}, доставлено ${data.status.deliveryDeliveredCount}, ошибок ${data.status.deliveryFailedCount}.`;
 
   return (
     <section className={styles.alertsPage}>
@@ -304,7 +307,9 @@ function AlertsPageContent({
       <section className={styles.dataNotice} aria-label="Граница хранения Alerts">
         <strong>{persistenceHeadline}</strong>
         <span>{persistenceDescription}</span>
+        <span>{deliveryDescription} Отметка «просмотрено» действует только в этой вкладке.</span>
         {data.status.lastPersistenceError && <span>Ошибка persistence: {data.status.lastPersistenceError}</span>}
+        {data.status.lastDeliveryErrorCode && <span>Delivery diagnostic: {data.status.lastDeliveryErrorCode}</span>}
       </section>
 
       <section className={styles.filtersPanel} aria-label="Фильтры уведомлений">

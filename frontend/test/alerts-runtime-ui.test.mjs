@@ -25,6 +25,9 @@ test('labels persistence and session-only read state explicitly', () => {
   assert.match(pageSource, /data\.status\.persistenceMode === 'persistent'/u);
   assert.match(pageSource, /PERSISTENT v/u);
   assert.match(pageSource, /lastPersistenceError/u);
+  assert.match(pageSource, /data\.status\.deliveryState === 'disabled'/u);
+  assert.match(pageSource, /provider-neutral outbox готов/u);
+  assert.match(pageSource, /lastDeliveryErrorCode/u);
   assert.match(pageSource, /RUNTIME ONLY/u);
   assert.match(pageSource, /сбрасываются при перезапуске backend/u);
   assert.match(pageSource, /только в этой вкладке/u);

@@ -21,11 +21,19 @@ import {
   type AlertRule,
   type AlertTrigger,
 } from './alerts.types.js';
+import {
+  ALERT_DELIVERY_STATES,
+  cloneAlertDeliveryOutboxItem,
+  type AlertDeliveryOutboxItem,
+  type AlertDeliveryState,
+} from './alerts-delivery.js';
 
 export const ALERTS_PERSISTENCE_SCHEMA =
   'nexus.alerts.runtime';
 
-export const ALERTS_PERSISTENCE_VERSION = 1;
+export const ALERTS_PERSISTENCE_VERSION = 2;
+
+export const ALERTS_PERSISTENCE_LEGACY_VERSION = 1;
 
 export interface AlertsPersistedCooldown {
   scope: string;
@@ -34,7 +42,7 @@ export interface AlertsPersistedCooldown {
 
 export interface AlertsPersistenceSnapshotV1 {
   schema: typeof ALERTS_PERSISTENCE_SCHEMA;
-  version: typeof ALERTS_PERSISTENCE_VERSION;
+  version: typeof ALERTS_PERSISTENCE_LEGACY_VERSION;
   savedAt: string;
   rules: AlertRule[];
   triggers: AlertTrigger[];
@@ -42,13 +50,27 @@ export interface AlertsPersistenceSnapshotV1 {
   cooldowns: AlertsPersistedCooldown[];
 }
 
+export interface AlertsPersistenceSnapshotV2 {
+  schema: typeof ALERTS_PERSISTENCE_SCHEMA;
+  version: typeof ALERTS_PERSISTENCE_VERSION;
+  savedAt: string;
+  rules: AlertRule[];
+  triggers: AlertTrigger[];
+  sourceEventDedupeKeys: string[];
+  cooldowns: AlertsPersistedCooldown[];
+  deliveryOutbox: AlertDeliveryOutboxItem[];
+}
+
+export type AlertsPersistenceSnapshot =
+  AlertsPersistenceSnapshotV2;
+
 export interface AlertsPersistenceContract {
   readonly adapter: string;
 
   load(): Promise<unknown | null>;
 
   save(
-    snapshot: AlertsPersistenceSnapshotV1,
+    snapshot: AlertsPersistenceSnapshot,
   ): Promise<void>;
 }
 
@@ -98,6 +120,15 @@ const MAX_DEDUPE_KEYS_IN_SNAPSHOT =
 
 const MAX_COOLDOWNS_IN_SNAPSHOT =
   100_000;
+
+const MAX_DELIVERY_OUTBOX_IN_SNAPSHOT =
+  100_000;
+
+const DELIVERY_CHANNEL_PATTERN =
+  /^[a-z0-9][a-z0-9_-]{0,63}$/;
+
+const DELIVERY_ERROR_CODE_PATTERN =
+  /^[a-z0-9][a-z0-9._:-]{0,99}$/;
 
 const MAX_ALERT_COOLDOWN_MS =
   7 * 24 * 60 * 60 * 1_000;
@@ -611,6 +642,235 @@ function normalizeTrigger(
   };
 }
 
+function normalizeNullableTimestamp(
+  value: unknown,
+  label: string,
+): string | null {
+  return value === null
+    ? null
+    : normalizeTimestamp(
+        value,
+        label,
+      );
+}
+
+function normalizeDeliveryOutboxItem(
+  value: unknown,
+): AlertDeliveryOutboxItem {
+  const record =
+    requireRecord(
+      value,
+      'delivery outbox item',
+    );
+  const id =
+    normalizeId(
+      record.id,
+      'delivery outbox',
+    );
+  const trigger =
+    normalizeTrigger(
+      record.trigger,
+    );
+  const triggerId =
+    normalizeId(
+      record.triggerId,
+      'trigger',
+    );
+
+  if (triggerId !== trigger.id) {
+    corrupt(
+      `Persisted Alerts delivery ${id} references a mismatched trigger`,
+    );
+  }
+
+  if (
+    typeof record.channel !== 'string'
+    || !DELIVERY_CHANNEL_PATTERN.test(
+      record.channel,
+    )
+  ) {
+    corrupt(
+      `Invalid persisted Alerts delivery channel: ${id}`,
+    );
+  }
+
+  const channel =
+    record.channel;
+  const expectedIdempotencyKey =
+    `nexus.alerts:${channel}:${triggerId}`;
+
+  if (
+    record.idempotencyKey
+    !== expectedIdempotencyKey
+  ) {
+    corrupt(
+      `Invalid persisted Alerts delivery idempotency key: ${id}`,
+    );
+  }
+
+  if (
+    typeof record.state !== 'string'
+    || !ALERT_DELIVERY_STATES.includes(
+      record.state as AlertDeliveryState,
+    )
+  ) {
+    corrupt(
+      `Invalid persisted Alerts delivery state: ${id}`,
+    );
+  }
+
+  const state =
+    record.state as AlertDeliveryState;
+  const attempts =
+    normalizeNonNegativeInteger(
+      record.attempts,
+      'delivery attempts',
+    );
+  const maxAttempts =
+    normalizePositiveInteger(
+      record.maxAttempts,
+      'delivery maxAttempts',
+    );
+
+  if (attempts > maxAttempts) {
+    corrupt(
+      `Persisted Alerts delivery ${id} exceeds maxAttempts`,
+    );
+  }
+
+  const createdAt =
+    normalizeTimestamp(
+      record.createdAt,
+      'delivery createdAt',
+    );
+  const updatedAt =
+    normalizeTimestamp(
+      record.updatedAt,
+      'delivery updatedAt',
+    );
+  const nextAttemptAt =
+    normalizeNullableTimestamp(
+      record.nextAttemptAt,
+      'delivery nextAttemptAt',
+    );
+  const lastAttemptAt =
+    normalizeNullableTimestamp(
+      record.lastAttemptAt,
+      'delivery lastAttemptAt',
+    );
+  const deliveredAt =
+    normalizeNullableTimestamp(
+      record.deliveredAt,
+      'delivery deliveredAt',
+    );
+  const lastErrorCode =
+    record.lastErrorCode === null
+      ? null
+      : typeof record.lastErrorCode === 'string'
+        && DELIVERY_ERROR_CODE_PATTERN.test(
+          record.lastErrorCode,
+        )
+        ? record.lastErrorCode
+        : corrupt(
+            `Invalid persisted Alerts delivery error code: ${id}`,
+          );
+
+  if (
+    updatedAt < createdAt
+    || (
+      lastAttemptAt !== null
+      && lastAttemptAt < createdAt
+    )
+    || (
+      deliveredAt !== null
+      && deliveredAt < createdAt
+    )
+  ) {
+    corrupt(
+      `Invalid persisted Alerts delivery timestamps: ${id}`,
+    );
+  }
+
+  if (
+    state === 'pending'
+    && (
+      nextAttemptAt === null
+      || deliveredAt !== null
+      || lastErrorCode !== null
+    )
+  ) {
+    corrupt(
+      `Invalid pending Alerts delivery state: ${id}`,
+    );
+  }
+
+  if (
+    state === 'sending'
+    && (
+      attempts < 1
+      || lastAttemptAt === null
+      || nextAttemptAt !== null
+      || deliveredAt !== null
+      || lastErrorCode !== null
+    )
+  ) {
+    corrupt(
+      `Invalid sending Alerts delivery state: ${id}`,
+    );
+  }
+
+  if (
+    state === 'delivered'
+    && (
+      attempts < 1
+      || lastAttemptAt === null
+      || deliveredAt === null
+      || nextAttemptAt !== null
+      || lastErrorCode !== null
+    )
+  ) {
+    corrupt(
+      `Invalid delivered Alerts delivery state: ${id}`,
+    );
+  }
+
+  if (
+    state === 'failed'
+    && (
+      attempts < 1
+      || lastAttemptAt === null
+      || deliveredAt !== null
+      || lastErrorCode === null
+      || (
+        nextAttemptAt !== null
+        && attempts >= maxAttempts
+      )
+    )
+  ) {
+    corrupt(
+      `Invalid failed Alerts delivery state: ${id}`,
+    );
+  }
+
+  return {
+    id,
+    triggerId,
+    channel,
+    idempotencyKey:
+      expectedIdempotencyKey,
+    trigger,
+    state,
+    attempts,
+    maxAttempts,
+    createdAt,
+    updatedAt,
+    nextAttemptAt,
+    lastAttemptAt,
+    deliveredAt,
+    lastErrorCode,
+  };
+}
+
 function normalizeDedupeKey(
   value: unknown,
 ): string {
@@ -700,7 +960,7 @@ function requireUnique(
 
 export function normalizeAlertsPersistenceSnapshot(
   value: unknown,
-): AlertsPersistenceSnapshotV1 {
+): AlertsPersistenceSnapshot {
   const record =
     requireRecord(
       value,
@@ -713,7 +973,12 @@ export function normalizeAlertsPersistenceSnapshot(
     );
   }
 
-  if (record.version !== ALERTS_PERSISTENCE_VERSION) {
+  if (
+    record.version
+      !== ALERTS_PERSISTENCE_LEGACY_VERSION
+    && record.version
+      !== ALERTS_PERSISTENCE_VERSION
+  ) {
     throw new AlertsPersistenceError(
       'alerts_persistence_unsupported_version',
       `Unsupported Alerts persistence version: ${String(record.version)}`,
@@ -748,6 +1013,18 @@ export function normalizeAlertsPersistenceSnapshot(
       MAX_COOLDOWNS_IN_SNAPSHOT,
     ).map(normalizeCooldown);
 
+  const deliveryOutbox =
+    record.version
+      === ALERTS_PERSISTENCE_LEGACY_VERSION
+      ? []
+      : requireArray(
+          record.deliveryOutbox,
+          'deliveryOutbox',
+          MAX_DELIVERY_OUTBOX_IN_SNAPSHOT,
+        ).map(
+          normalizeDeliveryOutboxItem,
+        );
+
   requireUnique(
     rules.map((rule) => rule.id),
     'rule id',
@@ -765,6 +1042,19 @@ export function normalizeAlertsPersistenceSnapshot(
       (cooldown) => cooldown.scope,
     ),
     'cooldown scope',
+  );
+  requireUnique(
+    deliveryOutbox.map(
+      (item) => item.id,
+    ),
+    'delivery outbox id',
+  );
+  requireUnique(
+    deliveryOutbox.map(
+      (item) =>
+        `${item.channel}:${item.triggerId}`,
+    ),
+    'delivery trigger/channel identity',
   );
 
   const rulesById =
@@ -843,6 +1133,10 @@ export function normalizeAlertsPersistenceSnapshot(
           ...cooldown,
         }),
       ),
+    deliveryOutbox:
+      deliveryOutbox.map(
+        cloneAlertDeliveryOutboxItem,
+      ),
   };
 }
 
@@ -870,7 +1164,7 @@ implements AlertsPersistenceContract {
   }
 
   async load():
-  Promise<AlertsPersistenceSnapshotV1 | null> {
+  Promise<AlertsPersistenceSnapshot | null> {
     let source: string;
 
     try {
@@ -917,7 +1211,7 @@ implements AlertsPersistenceContract {
   }
 
   async save(
-    snapshot: AlertsPersistenceSnapshotV1,
+    snapshot: AlertsPersistenceSnapshot,
   ): Promise<void> {
     const normalized =
       normalizeAlertsPersistenceSnapshot(
