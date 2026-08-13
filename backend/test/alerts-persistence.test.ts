@@ -18,7 +18,7 @@ import type {
 import {
   JsonFileAlertsPersistence,
   type AlertsPersistenceContract,
-  type AlertsPersistenceSnapshotV1,
+  type AlertsPersistenceSnapshot,
 } from '../src/modules/alerts/alerts-persistence.js';
 import {
   AlertsRuntimeService,
@@ -68,7 +68,7 @@ implements AlertsPersistenceContract {
   readonly adapter = 'memory';
 
   snapshot:
-    AlertsPersistenceSnapshotV1 | unknown | null = null;
+    AlertsPersistenceSnapshot | unknown | null = null;
 
   loadError: Error | null = null;
   saveFailuresRemaining = 0;
@@ -88,7 +88,7 @@ implements AlertsPersistenceContract {
   }
 
   async save(
-    snapshot: AlertsPersistenceSnapshotV1,
+    snapshot: AlertsPersistenceSnapshot,
   ): Promise<void> {
     this.saveCalls += 1;
 
@@ -161,9 +161,10 @@ test('writes and loads an atomic versioned JSON snapshot', async () => {
     ) as Record<string, unknown>;
 
     assert.equal(persisted.schema, 'nexus.alerts.runtime');
-    assert.equal(persisted.version, 1);
+    assert.equal(persisted.version, 2);
     assert.equal((persisted.rules as unknown[]).length, 1);
     assert.equal((persisted.triggers as unknown[]).length, 1);
+    assert.deepEqual(persisted.deliveryOutbox, []);
     assert.deepEqual(
       await readdir(directory),
       ['alerts.json'],
@@ -201,7 +202,7 @@ test('restores rules, trigger history, dedupe and cooldown across restart', asyn
   const hydrated = second.getStatus();
   assert.equal(hydrated.persistenceMode, 'persistent');
   assert.equal(hydrated.persistenceState, 'ready');
-  assert.equal(hydrated.persistenceVersion, 1);
+  assert.equal(hydrated.persistenceVersion, 2);
   assert.equal(hydrated.hydratedRulesCount, 1);
   assert.equal(hydrated.hydratedTriggersCount, 1);
   assert.equal(second.ingestEvent(sourceEvent('event-1')).length, 0);
@@ -289,7 +290,7 @@ test('keeps corrupt and unsupported storage intact in degraded memory mode', asy
       name: 'unsupported version',
       source: JSON.stringify({
         schema: 'nexus.alerts.runtime',
-        version: 2,
+        version: 3,
       }),
       message: 'Unsupported Alerts persistence version',
     },
@@ -349,7 +350,7 @@ test('reports a save failure and retries on the next mutation', async () => {
   assert.equal(recovered.persistenceSavesCount, 1);
   assert.equal(recovered.lastPersistenceError, null);
   assert.equal(
-    (persistence.snapshot as AlertsPersistenceSnapshotV1)
+    (persistence.snapshot as AlertsPersistenceSnapshot)
       .rules[0]?.enabled,
     false,
   );
@@ -373,7 +374,7 @@ test('bounds hydrated history and keeps dedupe independent from triggers', async
   first.ingestEvent(sourceEvent('event-3'));
   await first.stop();
 
-  const snapshot = persistence.snapshot as AlertsPersistenceSnapshotV1;
+  const snapshot = persistence.snapshot as AlertsPersistenceSnapshot;
   snapshot.sourceEventDedupeKeys = [
     'setup_lifecycle:event-3',
     'setup_lifecycle:event-4',

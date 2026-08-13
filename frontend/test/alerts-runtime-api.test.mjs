@@ -65,7 +65,7 @@ function createStatus() {
     persistenceMode: 'persistent',
     persistenceState: 'ready',
     persistenceAdapter: 'json_file',
-    persistenceVersion: 1,
+    persistenceVersion: 2,
     persistenceLoadAttempts: 1,
     persistenceSaveAttempts: 2,
     persistenceSavesCount: 2,
@@ -75,6 +75,31 @@ function createStatus() {
     pendingPersistenceWrites: 0,
     lastPersistedAt: now,
     lastPersistenceError: null,
+    deliveryState: 'disabled',
+    deliveryChannels: [],
+    deliveryAdapters: [],
+    deliveryOutboxCount: 0,
+    deliveryPendingCount: 0,
+    deliverySendingCount: 0,
+    deliveryDeliveredCount: 0,
+    deliveryFailedCount: 0,
+    deliveryRetryScheduledCount: 0,
+    deliveryUnavailableChannelCount: 0,
+    deliveryMaxOutboxItems: 10000,
+    deliveryMaxAttempts: 5,
+    deliveryEnqueuedCount: 0,
+    deliveryDuplicateEnqueuesCount: 0,
+    deliveryRejectedEnqueuesCount: 0,
+    deliveryAttemptsCount: 0,
+    deliverySuccessesCount: 0,
+    deliveryFailuresCount: 0,
+    deliveryTerminalFailuresCount: 0,
+    deliveryRecoveredSendingCount: 0,
+    deliveryCleanedItemsCount: 0,
+    deliveryHydratedItemsCount: 0,
+    lastDeliveryAttemptAt: null,
+    lastDeliveredAt: null,
+    lastDeliveryErrorCode: null,
     rulesCount: 1,
     enabledRulesCount: 1,
     triggersCount: 1,
@@ -119,7 +144,9 @@ test('fetches and validates the complete Alerts runtime view', async () => {
 
   assert.equal(result.metadata.persistenceMode, 'persistent');
   assert.equal(result.status.persistenceState, 'ready');
-  assert.equal(result.status.persistenceVersion, 1);
+  assert.equal(result.status.persistenceVersion, 2);
+  assert.equal(result.status.deliveryState, 'disabled');
+  assert.equal(result.status.deliveryOutboxCount, 0);
   assert.equal(result.status.state, 'running');
   assert.equal(result.rules[0].source, 'market_scanner');
   assert.equal(result.triggers[0].payload.volumeRatio, 2.4);

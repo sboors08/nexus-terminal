@@ -174,6 +174,35 @@ export interface AlertsRuntimeStatus {
   pendingPersistenceWrites: number;
   lastPersistedAt: string | null;
   lastPersistenceError: string | null;
+  deliveryState:
+    | 'disabled'
+    | 'idle'
+    | 'running'
+    | 'stopped';
+  deliveryChannels: string[];
+  deliveryAdapters: string[];
+  deliveryOutboxCount: number;
+  deliveryPendingCount: number;
+  deliverySendingCount: number;
+  deliveryDeliveredCount: number;
+  deliveryFailedCount: number;
+  deliveryRetryScheduledCount: number;
+  deliveryUnavailableChannelCount: number;
+  deliveryMaxOutboxItems: number;
+  deliveryMaxAttempts: number;
+  deliveryEnqueuedCount: number;
+  deliveryDuplicateEnqueuesCount: number;
+  deliveryRejectedEnqueuesCount: number;
+  deliveryAttemptsCount: number;
+  deliverySuccessesCount: number;
+  deliveryFailuresCount: number;
+  deliveryTerminalFailuresCount: number;
+  deliveryRecoveredSendingCount: number;
+  deliveryCleanedItemsCount: number;
+  deliveryHydratedItemsCount: number;
+  lastDeliveryAttemptAt: string | null;
+  lastDeliveredAt: string | null;
+  lastDeliveryErrorCode: string | null;
   rulesCount: number;
   enabledRulesCount: number;
   triggersCount: number;

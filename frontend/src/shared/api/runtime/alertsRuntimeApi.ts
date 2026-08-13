@@ -55,6 +55,31 @@ export interface AlertsRuntimeStatus {
   pendingPersistenceWrites: number;
   lastPersistedAt: string | null;
   lastPersistenceError: string | null;
+  deliveryState: 'disabled' | 'idle' | 'running' | 'stopped';
+  deliveryChannels: string[];
+  deliveryAdapters: string[];
+  deliveryOutboxCount: number;
+  deliveryPendingCount: number;
+  deliverySendingCount: number;
+  deliveryDeliveredCount: number;
+  deliveryFailedCount: number;
+  deliveryRetryScheduledCount: number;
+  deliveryUnavailableChannelCount: number;
+  deliveryMaxOutboxItems: number;
+  deliveryMaxAttempts: number;
+  deliveryEnqueuedCount: number;
+  deliveryDuplicateEnqueuesCount: number;
+  deliveryRejectedEnqueuesCount: number;
+  deliveryAttemptsCount: number;
+  deliverySuccessesCount: number;
+  deliveryFailuresCount: number;
+  deliveryTerminalFailuresCount: number;
+  deliveryRecoveredSendingCount: number;
+  deliveryCleanedItemsCount: number;
+  deliveryHydratedItemsCount: number;
+  lastDeliveryAttemptAt: string | null;
+  lastDeliveredAt: string | null;
+  lastDeliveryErrorCode: string | null;
   rulesCount: number;
   enabledRulesCount: number;
   triggersCount: number;
@@ -328,6 +353,7 @@ export function parseAlertsRuntimeStatus(value: unknown): AlertsRuntimeStatus {
   const state = readString(status, 'state');
   const persistenceMode = readString(status, 'persistenceMode');
   const persistenceState = readString(status, 'persistenceState');
+  const deliveryState = readString(status, 'deliveryState');
   if (state !== 'idle' && state !== 'running' && state !== 'stopped') {
     throw new Error('Invalid Alerts response: state');
   }
@@ -342,6 +368,14 @@ export function parseAlertsRuntimeStatus(value: unknown): AlertsRuntimeStatus {
     && persistenceState !== 'degraded'
   ) {
     throw new Error('Invalid Alerts response: persistenceState');
+  }
+  if (
+    deliveryState !== 'disabled'
+    && deliveryState !== 'idle'
+    && deliveryState !== 'running'
+    && deliveryState !== 'stopped'
+  ) {
+    throw new Error('Invalid Alerts response: deliveryState');
   }
   return {
     state,
@@ -358,6 +392,31 @@ export function parseAlertsRuntimeStatus(value: unknown): AlertsRuntimeStatus {
     pendingPersistenceWrites: readNonNegativeInteger(status, 'pendingPersistenceWrites'),
     lastPersistedAt: readNullableTimestamp(status, 'lastPersistedAt'),
     lastPersistenceError: readNullableString(status, 'lastPersistenceError'),
+    deliveryState,
+    deliveryChannels: readStringArray(status, 'deliveryChannels'),
+    deliveryAdapters: readStringArray(status, 'deliveryAdapters'),
+    deliveryOutboxCount: readNonNegativeInteger(status, 'deliveryOutboxCount'),
+    deliveryPendingCount: readNonNegativeInteger(status, 'deliveryPendingCount'),
+    deliverySendingCount: readNonNegativeInteger(status, 'deliverySendingCount'),
+    deliveryDeliveredCount: readNonNegativeInteger(status, 'deliveryDeliveredCount'),
+    deliveryFailedCount: readNonNegativeInteger(status, 'deliveryFailedCount'),
+    deliveryRetryScheduledCount: readNonNegativeInteger(status, 'deliveryRetryScheduledCount'),
+    deliveryUnavailableChannelCount: readNonNegativeInteger(status, 'deliveryUnavailableChannelCount'),
+    deliveryMaxOutboxItems: readNonNegativeInteger(status, 'deliveryMaxOutboxItems'),
+    deliveryMaxAttempts: readNonNegativeInteger(status, 'deliveryMaxAttempts'),
+    deliveryEnqueuedCount: readNonNegativeInteger(status, 'deliveryEnqueuedCount'),
+    deliveryDuplicateEnqueuesCount: readNonNegativeInteger(status, 'deliveryDuplicateEnqueuesCount'),
+    deliveryRejectedEnqueuesCount: readNonNegativeInteger(status, 'deliveryRejectedEnqueuesCount'),
+    deliveryAttemptsCount: readNonNegativeInteger(status, 'deliveryAttemptsCount'),
+    deliverySuccessesCount: readNonNegativeInteger(status, 'deliverySuccessesCount'),
+    deliveryFailuresCount: readNonNegativeInteger(status, 'deliveryFailuresCount'),
+    deliveryTerminalFailuresCount: readNonNegativeInteger(status, 'deliveryTerminalFailuresCount'),
+    deliveryRecoveredSendingCount: readNonNegativeInteger(status, 'deliveryRecoveredSendingCount'),
+    deliveryCleanedItemsCount: readNonNegativeInteger(status, 'deliveryCleanedItemsCount'),
+    deliveryHydratedItemsCount: readNonNegativeInteger(status, 'deliveryHydratedItemsCount'),
+    lastDeliveryAttemptAt: readNullableTimestamp(status, 'lastDeliveryAttemptAt'),
+    lastDeliveredAt: readNullableTimestamp(status, 'lastDeliveredAt'),
+    lastDeliveryErrorCode: readNullableString(status, 'lastDeliveryErrorCode'),
     rulesCount: readNonNegativeInteger(status, 'rulesCount'),
     enabledRulesCount: readNonNegativeInteger(status, 'enabledRulesCount'),
     triggersCount: readNonNegativeInteger(status, 'triggersCount'),
