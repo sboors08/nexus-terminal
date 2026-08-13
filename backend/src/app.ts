@@ -85,6 +85,14 @@ import {
 import type {
   UnifiedDecisionMarketContextReader,
 } from './modules/decision-engine/unified-decision.types.js';
+import {
+  JsonFileUnifiedDecisionLiveObservationPersistence,
+  UnifiedDecisionLiveObservationService,
+} from './modules/decision-engine/unified-decision-live-observation.js';
+import type {
+  UnifiedDecisionLiveObservationPersistence,
+  UnifiedDecisionLiveObservationRecorder,
+} from './modules/decision-engine/unified-decision-live-observation.types.js';
 
 export interface BuildAppOptions {
   env?: AppEnv;
@@ -108,6 +116,10 @@ export interface BuildAppOptions {
     readonly AlertDeliveryAdapter[];
   unifiedDecisionMarketContextReader?:
     UnifiedDecisionMarketContextReader | null;
+  unifiedDecisionLiveObservationRecorder?:
+    UnifiedDecisionLiveObservationRecorder | null;
+  unifiedDecisionLiveObservationPersistence?:
+    UnifiedDecisionLiveObservationPersistence | null;
   levelEngineFrozenSampleReader?:
     LevelEngineFrozenSampleReader | null;
 }
@@ -512,6 +524,40 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : options
           .unifiedDecisionMarketContextReader;
 
+  const unifiedDecisionLiveObservationEnabled =
+    env.unifiedDecisionLiveObservationEnabled
+    ?? env.nodeEnv !== 'test';
+
+  const unifiedDecisionLiveObservationPersistence =
+    options
+      .unifiedDecisionLiveObservationPersistence
+    === undefined
+      ? unifiedDecisionLiveObservationEnabled
+        ? new JsonFileUnifiedDecisionLiveObservationPersistence({
+            filePath:
+              env.unifiedDecisionLiveObservationPath
+              ?? './data/unified-decision-live-observations-v1.json',
+          })
+        : null
+      : options
+          .unifiedDecisionLiveObservationPersistence;
+
+  const unifiedDecisionLiveObservationRecorder =
+    options
+      .unifiedDecisionLiveObservationRecorder
+    === undefined
+      ? unifiedDecisionLiveObservationEnabled
+        ? new UnifiedDecisionLiveObservationService({
+            persistence:
+              unifiedDecisionLiveObservationPersistence,
+            capacity:
+              env.unifiedDecisionLiveObservationCapacity
+              ?? 5_000,
+          })
+        : null
+      : options
+          .unifiedDecisionLiveObservationRecorder;
+
   const alertsPersistenceEnabled =
     env.alertsPersistenceEnabled
     ?? env.nodeEnv !== 'test';
@@ -608,6 +654,26 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       'onClose',
       async () => {
         await alertsRuntimeService.stop();
+      },
+    );
+  }
+
+  if (
+    unifiedDecisionLiveObservationRecorder
+  ) {
+    app.addHook(
+      'onReady',
+      async () => {
+        await unifiedDecisionLiveObservationRecorder
+          .start();
+      },
+    );
+
+    app.addHook(
+      'onClose',
+      async () => {
+        await unifiedDecisionLiveObservationRecorder
+          .stop();
       },
     );
   }
@@ -734,6 +800,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     ...(unifiedDecisionMarketContextReader
       ? {
           unifiedDecisionMarketContextReader,
+        }
+      : {}),
+    ...(unifiedDecisionLiveObservationRecorder
+      ? {
+          unifiedDecisionLiveObservationRecorder,
         }
       : {}),
   });

@@ -110,6 +110,12 @@ import type {
 import type {
   UnifiedDecisionMarketContextReader,
 } from './decision-engine/unified-decision.types.js';
+import {
+  unifiedDecisionLiveObservationRoutes,
+} from './decision-engine/unified-decision-live-observation.routes.js';
+import type {
+  UnifiedDecisionLiveObservationRecorder,
+} from './decision-engine/unified-decision-live-observation.types.js';
 
 interface ApiModulesOptions {
   marketDataProvider:
@@ -150,6 +156,9 @@ interface ApiModulesOptions {
 
   unifiedDecisionMarketContextReader?:
     UnifiedDecisionMarketContextReader;
+
+  unifiedDecisionLiveObservationRecorder?:
+    UnifiedDecisionLiveObservationRecorder;
 
   levelEngineFrozenSampleReader?:
     LevelEngineFrozenSampleReader;
@@ -208,6 +217,16 @@ FastifyPluginAsync<
               unifiedDecisionMarketContextReader:
                 options
                   .unifiedDecisionMarketContextReader,
+            }
+          : {}
+      ),
+      ...(
+        options
+          .unifiedDecisionLiveObservationRecorder
+          ? {
+              unifiedDecisionLiveObservationRecorder:
+                options
+                  .unifiedDecisionLiveObservationRecorder,
             }
           : {}
       ),
@@ -458,6 +477,22 @@ FastifyPluginAsync<
           ? {
               alertsRuntime:
                 options.alertsRuntime,
+            }
+          : {}
+      ),
+    },
+  );
+
+  await app.register(
+    unifiedDecisionLiveObservationRoutes,
+    {
+      ...(
+        options
+          .unifiedDecisionLiveObservationRecorder
+          ? {
+              recorder:
+                options
+                  .unifiedDecisionLiveObservationRecorder,
             }
           : {}
       ),

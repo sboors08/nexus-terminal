@@ -15,6 +15,9 @@ export interface AppEnv {
   feedbackStorePath?: string;
   alertsPersistenceEnabled?: boolean;
   alertsPersistencePath?: string;
+  unifiedDecisionLiveObservationEnabled?: boolean;
+  unifiedDecisionLiveObservationPath?: string;
+  unifiedDecisionLiveObservationCapacity?: number;
   binanceBaseUrl?: string;
   binanceRequestTimeoutMs?: number;
   binanceSymbolsLimit?: number;
@@ -155,6 +158,23 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     alertsPersistencePath:
       source.ALERTS_PERSISTENCE_PATH?.trim()
       || './data/alerts-runtime-v1.json',
+    unifiedDecisionLiveObservationEnabled:
+      readBoolean(
+        source.UNIFIED_DECISION_LIVE_OBSERVATION_ENABLED,
+        source.NODE_ENV !== 'test',
+        'UNIFIED_DECISION_LIVE_OBSERVATION_ENABLED',
+      ),
+    unifiedDecisionLiveObservationPath:
+      source.UNIFIED_DECISION_LIVE_OBSERVATION_PATH?.trim()
+      || './data/unified-decision-live-observations-v1.json',
+    unifiedDecisionLiveObservationCapacity:
+      readInteger(
+        source.UNIFIED_DECISION_LIVE_OBSERVATION_CAPACITY,
+        5_000,
+        'UNIFIED_DECISION_LIVE_OBSERVATION_CAPACITY',
+        100,
+        100_000,
+      ),
     binanceBaseUrl: readHttpUrl(source.BINANCE_BASE_URL, 'https://fapi.binance.com', 'BINANCE_BASE_URL'),
     binanceRequestTimeoutMs: readInteger(source.BINANCE_REQUEST_TIMEOUT_MS, 5_000, 'BINANCE_REQUEST_TIMEOUT_MS', 250, 30_000),
     binanceSymbolsLimit: readInteger(

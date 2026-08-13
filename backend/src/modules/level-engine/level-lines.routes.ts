@@ -32,6 +32,10 @@ import type {
   UnifiedDecisionMarketContext,
   UnifiedDecisionMarketContextReader,
 } from '../decision-engine/unified-decision.types.js';
+import type {
+  UnifiedDecisionLiveObservationRecorder,
+  UnifiedDecisionLiveSourceReadState,
+} from '../decision-engine/unified-decision-live-observation.types.js';
 import {
   detectLevelLines,
 } from './level-lines-detector.js';
@@ -70,6 +74,11 @@ export interface LevelLinesRoutesOptions {
     >;
   readonly unifiedDecisionMarketContextReader?:
     UnifiedDecisionMarketContextReader;
+  readonly unifiedDecisionLiveObservationRecorder?:
+    Pick<
+      UnifiedDecisionLiveObservationRecorder,
+      'record'
+    >;
   readonly now?: () => Date;
 }
 
@@ -88,19 +97,45 @@ UnifiedDecisionMarketContext =
     }),
   });
 
+interface SetupReadResult {
+  readonly readState:
+    UnifiedDecisionLiveSourceReadState;
+  readonly candidates:
+    readonly SetupEngineState[];
+}
+
+interface MarketContextReadResult {
+  readonly readState:
+    UnifiedDecisionLiveSourceReadState;
+  readonly value:
+    UnifiedDecisionMarketContext;
+}
+
 function readSetups(
   reader:
     LevelLinesRoutesOptions[
       'setupDetectionRuntimeReader'
     ],
   symbol: string,
-): readonly SetupEngineState[] {
+): SetupReadResult {
+  if (!reader) {
+    return {
+      readState: 'unavailable',
+      candidates: [],
+    };
+  }
+
   try {
-    return reader
-      ?.getCandidates(symbol)
-      ?? [];
+    return {
+      readState: 'available',
+      candidates:
+        reader.getCandidates(symbol),
+    };
   } catch {
-    return [];
+    return {
+      readState: 'error',
+      candidates: [],
+    };
   }
 }
 
@@ -109,13 +144,27 @@ function readMarketContext(
     UnifiedDecisionMarketContextReader
     | undefined,
   symbol: string,
-): UnifiedDecisionMarketContext {
+): MarketContextReadResult {
+  if (!reader) {
+    return {
+      readState: 'unavailable',
+      value:
+        UNAVAILABLE_MARKET_CONTEXT,
+    };
+  }
+
   try {
-    return reader
-      ?.getMarketContext(symbol)
-      ?? UNAVAILABLE_MARKET_CONTEXT;
+    return {
+      readState: 'available',
+      value:
+        reader.getMarketContext(symbol),
+    };
   } catch {
-    return UNAVAILABLE_MARKET_CONTEXT;
+    return {
+      readState: 'error',
+      value:
+        UNAVAILABLE_MARKET_CONTEXT,
+    };
   }
 }
 
@@ -319,22 +368,26 @@ FastifyPluginAsync<
             realtimeConfirmation,
             candles,
           });
+        const setups =
+          readSetups(
+            options
+              .setupDetectionRuntimeReader,
+            symbol,
+          );
+        const marketContext =
+          readMarketContext(
+            options
+              .unifiedDecisionMarketContextReader,
+            symbol,
+          );
         const unifiedDecision =
           buildUnifiedDecision({
             levelLines:
               baseSnapshot,
             setups:
-              readSetups(
-                options
-                  .setupDetectionRuntimeReader,
-                symbol,
-              ),
+              setups.candidates,
             marketContext:
-              readMarketContext(
-                options
-                  .unifiedDecisionMarketContextReader,
-                symbol,
-              ),
+              marketContext.value,
           });
         const snapshot:
         LevelLinesSnapshot =
@@ -342,6 +395,43 @@ FastifyPluginAsync<
             ...baseSnapshot,
             unifiedDecision,
           });
+
+        try {
+          options
+            .unifiedDecisionLiveObservationRecorder
+            ?.record({
+              symbol,
+              timeframe,
+              decision:
+                unifiedDecision,
+              realtime: {
+                capturedAt:
+                  realtimeEvidence
+                    .capturedAt,
+                tape:
+                  realtimeEvidence.tape,
+                orderBook:
+                  realtimeEvidence
+                    .orderBook,
+                sourceErrors:
+                  realtimeEvidence
+                    .sourceErrors,
+                evaluatedEvidence:
+                  realtimeConfirmation
+                    .evidence,
+                evaluations:
+                  realtimeConfirmation
+                    .evaluations,
+              },
+              setups,
+              marketContext,
+            });
+        } catch (error: unknown) {
+          request.log.warn(
+            { error },
+            'Unable to record Unified Decision live observation',
+          );
+        }
 
         return snapshot;
       } catch (error: unknown) {
