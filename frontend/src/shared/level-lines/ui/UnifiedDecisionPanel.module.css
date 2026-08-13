@@ -1,0 +1,155 @@
+.panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--nexus-color-border);
+  background:
+    linear-gradient(
+      145deg,
+      rgb(45 212 146 / 8%),
+      transparent 48%
+    );
+}
+
+.heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.heading span,
+.matrix span {
+  color: var(--nexus-color-text-muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.heading h3 {
+  margin: 4px 0 0;
+  color: var(--nexus-color-text);
+  font-size: 17px;
+  line-height: 1.15;
+}
+
+.heading > strong {
+  padding: 6px 9px;
+  border: 1px solid currentcolor;
+  border-radius: 7px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.long,
+.confirmed {
+  color: var(--nexus-color-long);
+  background: rgb(50 213 131 / 10%);
+}
+
+.short {
+  color: var(--nexus-color-short);
+  background: rgb(255 98 115 / 10%);
+}
+
+.wait,
+.observe {
+  color: var(--nexus-color-stage-approach);
+  background: rgb(250 204 21 / 8%);
+}
+
+.skip {
+  color: var(--nexus-color-text-muted);
+  background: rgb(148 163 184 / 8%);
+}
+
+.summary,
+.missing,
+.boundary {
+  margin: 0;
+  color: var(--nexus-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.matrix {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--nexus-color-border);
+  border-radius: 8px;
+}
+
+.matrix > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.matrix > div:nth-child(odd) {
+  border-right: 1px solid var(--nexus-color-border);
+}
+
+.matrix > div:nth-child(-n + 2) {
+  border-bottom: 1px solid var(--nexus-color-border);
+}
+
+.matrix strong {
+  overflow: hidden;
+  color: var(--nexus-color-text);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reasons {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  color: var(--nexus-color-text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  list-style: none;
+}
+
+.reasons li {
+  position: relative;
+  padding-left: 13px;
+}
+
+.reasons li::before {
+  position: absolute;
+  top: 0.55em;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--nexus-color-long);
+  content: '';
+}
+
+.missing strong {
+  color: var(--nexus-color-stage-approach);
+}
+
+.boundary {
+  color: var(--nexus-color-text-muted);
+  font-size: 10px;
+}
+
+@media (max-width: 520px) {
+  .matrix {
+    grid-template-columns: 1fr;
+  }
+
+  .matrix > div:nth-child(n) {
+    border-right: 0;
+    border-bottom: 1px solid var(--nexus-color-border);
+  }
+
+  .matrix > div:last-child {
+    border-bottom: 0;
+  }
+}

@@ -20,3 +20,6 @@ export {
 export {
   CausalRealtimeConfirmationPanel,
 } from './ui/CausalRealtimeConfirmationPanel.js';
+export {
+  UnifiedDecisionPanel,
+} from './ui/UnifiedDecisionPanel.js';

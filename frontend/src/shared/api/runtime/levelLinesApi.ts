@@ -5,6 +5,9 @@ import {
   normalizeMarketCandleSymbol,
   parseMarketCandle,
 } from '../../charts/api/marketCandles.js';
+import type {
+  SetupRuntimeStage,
+} from './setupRuntimeApi.js';
 
 export const LEVEL_LINES_PATH =
   '/api/v1/level-engine/lines';
@@ -20,6 +23,9 @@ export const APPROACH_ENGINE_VERSION =
 
 export const REALTIME_CONFIRMATION_ENGINE_VERSION =
   'realtime-confirmation-engine-v0.1' as const;
+
+export const UNIFIED_DECISION_VERSION =
+  'unified-decision-v0.1' as const;
 
 export const LEVEL_LINES_TIMEFRAMES = [
   '1m',
@@ -309,6 +315,175 @@ export interface RealtimeConfirmationEvaluationResult {
   readonly usesFutureRealtimeEvidence: false;
 }
 
+export type UnifiedDecisionState =
+  | 'observe'
+  | 'possible_long'
+  | 'possible_short'
+  | 'wait_confirmation'
+  | 'setup_confirmed'
+  | 'skip';
+
+export type UnifiedDecisionScenario =
+  | 'bounce'
+  | 'breakout'
+  | null;
+
+export type UnifiedDecisionDirection =
+  | 'long'
+  | 'short'
+  | null;
+
+export type UnifiedDecisionCausalStage =
+  | 'LEVEL'
+  | 'OBSERVATION'
+  | 'APPROACH'
+  | 'CONFIRMATION'
+  | 'OUTCOME'
+  | null;
+
+export type UnifiedDecisionMarketAlignment =
+  | 'aligned'
+  | 'opposed'
+  | 'neutral'
+  | 'unavailable';
+
+export type UnifiedDecisionMarketAvailability =
+  | 'idle'
+  | 'collecting'
+  | 'ready'
+  | 'degraded'
+  | 'unavailable'
+  | 'stale'
+  | 'error';
+
+export type UnifiedDecisionReason =
+  | 'no_active_level'
+  | 'level_candidate_detected'
+  | 'level_confirmed'
+  | 'observation_progress_active'
+  | 'approach_active'
+  | 'realtime_sources_support_breakout'
+  | 'realtime_sources_support_bounce'
+  | 'setup_breakout_confirmed'
+  | 'setup_bounce_confirmed'
+  | 'btc_context_aligned'
+  | 'symbol_impulse_aligned'
+  | 'market_context_conflict'
+  | 'market_context_double_conflict';
+
+export type UnifiedDecisionMissingConfirmation =
+  | 'active_level'
+  | 'observation_progress'
+  | 'approach_to_level'
+  | 'realtime_tape'
+  | 'realtime_order_book'
+  | 'realtime_direction_consensus'
+  | 'setup_outcome'
+  | 'btc_market_mode'
+  | 'symbol_market_impulse';
+
+export type UnifiedDecisionInvalidation =
+  | 'level_superseded_or_broken'
+  | 'realtime_evidence_reversal'
+  | 'market_context_reversal'
+  | 'setup_expired'
+  | 'source_freshness_lost';
+
+export interface UnifiedDecision {
+  readonly version:
+    typeof UNIFIED_DECISION_VERSION;
+  readonly symbol: string;
+  readonly timeframe:
+    LevelLinesTimeframe;
+  readonly generatedAt: string;
+  readonly state:
+    UnifiedDecisionState;
+  readonly direction:
+    UnifiedDecisionDirection;
+  readonly scenario:
+    UnifiedDecisionScenario;
+  readonly causalStage:
+    UnifiedDecisionCausalStage;
+  readonly level: null | {
+    readonly lineId: string;
+    readonly kind: LevelLineKind;
+    readonly status: LevelLineStatus;
+    readonly levelPrice: number;
+    readonly currentPrice: number | null;
+    readonly distanceToLevelPercent:
+      number | null;
+    readonly observationProgress:
+      number | null;
+    readonly causalStage:
+      Exclude<
+        UnifiedDecisionCausalStage,
+        'OUTCOME' | null
+      >;
+    readonly realtimeStatus:
+      RealtimeConfirmationStatus;
+    readonly tapeState:
+      RealtimeConfirmationEvidenceState;
+    readonly orderBookState:
+      RealtimeConfirmationEvidenceState;
+  };
+  readonly setup: null | {
+    readonly candidateId: string;
+    readonly setupType:
+      'level_breakout'
+      | 'level_bounce';
+    readonly direction:
+      Exclude<
+        UnifiedDecisionDirection,
+        null
+      >;
+    readonly stage:
+      SetupRuntimeStage;
+    readonly outcome:
+      'breakout'
+      | 'rejection'
+      | null;
+    readonly updatedAt: string;
+    readonly expiresAt: string;
+  };
+  readonly marketContext: {
+    readonly btc: {
+      readonly availability:
+        UnifiedDecisionMarketAvailability;
+      readonly mode:
+        'risk_on'
+        | 'neutral'
+        | 'risk_off'
+        | null;
+      readonly observedAt: string | null;
+      readonly alignment:
+        UnifiedDecisionMarketAlignment;
+    };
+    readonly impulse: {
+      readonly availability:
+        UnifiedDecisionMarketAvailability;
+      readonly direction:
+        UnifiedDecisionDirection;
+      readonly observedAt: string | null;
+      readonly alignment:
+        UnifiedDecisionMarketAlignment;
+    };
+  };
+  readonly reasons:
+    readonly UnifiedDecisionReason[];
+  readonly missingConfirmations:
+    readonly UnifiedDecisionMissingConfirmation[];
+  readonly invalidations:
+    readonly UnifiedDecisionInvalidation[];
+  readonly decisionSupportOnly: true;
+  readonly createsTradeOrder: false;
+  readonly createsSetup: false;
+  readonly createsSignal: false;
+  readonly createsScore: false;
+  readonly estimatesProfitability: false;
+  readonly changesExistingLifecycle: false;
+  readonly usesFutureData: false;
+}
+
 export interface LevelLinesAppliedOptions {
   readonly atrPeriod: number;
   readonly pivotLeftBars: number;
@@ -350,6 +525,8 @@ export interface LevelLinesSnapshot {
   readonly approachEvaluation: ApproachEvaluationResult;
   readonly realtimeConfirmation:
     RealtimeConfirmationEvaluationResult;
+  readonly unifiedDecision:
+    UnifiedDecision;
   readonly appliedOptions:
     LevelLinesAppliedOptions;
   readonly observationalOnly: true;
@@ -2035,6 +2212,583 @@ function parseAppliedOptions(
   };
 }
 
+function parseUnifiedDecision(
+  value: unknown,
+): UnifiedDecision {
+  const record =
+    readRecord(
+      value,
+      'unifiedDecision',
+    );
+
+  if (
+    readString(
+      record,
+      'version',
+    ) !== UNIFIED_DECISION_VERSION
+  ) {
+    throw new Error(
+      'Unsupported Unified Decision version',
+    );
+  }
+
+  const state =
+    readString(
+      record,
+      'state',
+    );
+  const states:
+    readonly UnifiedDecisionState[] = [
+      'observe',
+      'possible_long',
+      'possible_short',
+      'wait_confirmation',
+      'setup_confirmed',
+      'skip',
+    ];
+
+  if (
+    !states.includes(
+      state as UnifiedDecisionState,
+    )
+  ) {
+    throw new Error(
+      'Invalid Unified Decision state',
+    );
+  }
+
+  const directionValue =
+    record.direction;
+  const direction:
+    UnifiedDecisionDirection =
+    directionValue === null
+      ? null
+      : directionValue === 'long'
+        || directionValue === 'short'
+        ? directionValue
+        : (() => {
+            throw new Error(
+              'Invalid Unified Decision direction',
+            );
+          })();
+  const scenarioValue =
+    record.scenario;
+  const scenario:
+    UnifiedDecisionScenario =
+    scenarioValue === null
+      ? null
+      : scenarioValue === 'bounce'
+        || scenarioValue === 'breakout'
+        ? scenarioValue
+        : (() => {
+            throw new Error(
+              'Invalid Unified Decision scenario',
+            );
+          })();
+  const causalStageValue =
+    record.causalStage;
+  const causalStage:
+    UnifiedDecisionCausalStage =
+    causalStageValue === null
+      ? null
+      : [
+          'LEVEL',
+          'OBSERVATION',
+          'APPROACH',
+          'CONFIRMATION',
+          'OUTCOME',
+        ].includes(
+          String(causalStageValue),
+        )
+        ? causalStageValue as
+          Exclude<
+            UnifiedDecisionCausalStage,
+            null
+          >
+        : (() => {
+            throw new Error(
+              'Invalid Unified Decision causal stage',
+            );
+          })();
+
+  const readAlignment = (
+    context: JsonRecord,
+  ): UnifiedDecisionMarketAlignment => {
+    const alignment =
+      readString(
+        context,
+        'alignment',
+      );
+
+    if (
+      alignment !== 'aligned'
+      && alignment !== 'opposed'
+      && alignment !== 'neutral'
+      && alignment !== 'unavailable'
+    ) {
+      throw new Error(
+        'Invalid Unified Decision market alignment',
+      );
+    }
+
+    return alignment;
+  };
+  const parseLevelContext = (
+    source: unknown,
+  ): UnifiedDecision['level'] => {
+    if (source === null) {
+      return null;
+    }
+
+    const context =
+      readRecord(
+        source,
+        'unifiedDecision.level',
+      );
+    const stage =
+      readString(
+        context,
+        'causalStage',
+      );
+
+    if (
+      stage !== 'LEVEL'
+      && stage !== 'OBSERVATION'
+      && stage !== 'APPROACH'
+      && stage !== 'CONFIRMATION'
+    ) {
+      throw new Error(
+        'Invalid Unified Decision level stage',
+      );
+    }
+
+    const realtimeStatus =
+      readString(
+        context,
+        'realtimeStatus',
+      );
+    const evidenceStates = [
+      'supports',
+      'opposes',
+      'neutral',
+      'unavailable',
+    ] as const;
+    const tapeState =
+      readString(
+        context,
+        'tapeState',
+      );
+    const orderBookState =
+      readString(
+        context,
+        'orderBookState',
+      );
+
+    if (
+      ![
+        'not_applicable',
+        'collecting',
+        'not_ready',
+        'partial',
+        'confirmed',
+      ].includes(realtimeStatus)
+      || !evidenceStates.includes(
+        tapeState as
+          RealtimeConfirmationEvidenceState,
+      )
+      || !evidenceStates.includes(
+        orderBookState as
+          RealtimeConfirmationEvidenceState,
+      )
+    ) {
+      throw new Error(
+        'Invalid Unified Decision realtime evidence',
+      );
+    }
+
+    return {
+      lineId:
+        readString(
+          context,
+          'lineId',
+        ),
+      kind:
+        readKind(
+          context,
+          'kind',
+        ),
+      status:
+        readStatus(
+          context,
+          'status',
+        ),
+      levelPrice:
+        readPositiveNumber(
+          context,
+          'levelPrice',
+        ),
+      currentPrice:
+        readNullableNumber(
+          context,
+          'currentPrice',
+        ),
+      distanceToLevelPercent:
+        readNullableNumber(
+          context,
+          'distanceToLevelPercent',
+        ),
+      observationProgress:
+        readNullableNumber(
+          context,
+          'observationProgress',
+        ),
+      causalStage: stage,
+      realtimeStatus:
+        realtimeStatus as
+          RealtimeConfirmationStatus,
+      tapeState:
+        tapeState as
+          RealtimeConfirmationEvidenceState,
+      orderBookState:
+        orderBookState as
+          RealtimeConfirmationEvidenceState,
+    };
+  };
+  const parseSetupContext = (
+    source: unknown,
+  ): UnifiedDecision['setup'] => {
+    if (source === null) {
+      return null;
+    }
+
+    const context =
+      readRecord(
+        source,
+        'unifiedDecision.setup',
+      );
+    const setupType =
+      readString(
+        context,
+        'setupType',
+      );
+    const setupDirection =
+      readString(
+        context,
+        'direction',
+      );
+    const setupStage =
+      readString(
+        context,
+        'stage',
+      );
+    const outcome =
+      context.outcome;
+
+    if (
+      setupType !== 'level_breakout'
+      && setupType !== 'level_bounce'
+      || setupDirection !== 'long'
+        && setupDirection !== 'short'
+      || ![
+        'LEVEL_CONFIRMED',
+        'APPROACHING_THIRD_TOUCH',
+        'THIRD_TOUCH_CONFIRMED',
+        'BREAKOUT_CONFIRMED',
+        'REJECTION_CONFIRMED',
+        'SETUP_EXPIRED',
+      ].includes(setupStage)
+      || outcome !== null
+        && outcome !== 'breakout'
+        && outcome !== 'rejection'
+    ) {
+      throw new Error(
+        'Invalid Unified Decision setup context',
+      );
+    }
+
+    return {
+      candidateId:
+        readString(
+          context,
+          'candidateId',
+        ),
+      setupType,
+      direction:
+        setupDirection,
+      stage:
+        setupStage as
+          SetupRuntimeStage,
+      outcome,
+      updatedAt:
+        readTimestamp(
+          context,
+          'updatedAt',
+        ),
+      expiresAt:
+        readTimestamp(
+          context,
+          'expiresAt',
+        ),
+    };
+  };
+  const marketContext =
+    readRecord(
+      record.marketContext,
+      'unifiedDecision.marketContext',
+    );
+  const btc =
+    readRecord(
+      marketContext.btc,
+      'unifiedDecision.marketContext.btc',
+    );
+  const impulse =
+    readRecord(
+      marketContext.impulse,
+      'unifiedDecision.marketContext.impulse',
+    );
+  const btcMode =
+    btc.mode;
+  const impulseDirection =
+    impulse.direction;
+  const marketAvailabilities:
+    readonly UnifiedDecisionMarketAvailability[] = [
+      'idle',
+      'collecting',
+      'ready',
+      'degraded',
+      'unavailable',
+      'stale',
+      'error',
+    ];
+  const btcAvailability =
+    readString(
+      btc,
+      'availability',
+    );
+  const impulseAvailability =
+    readString(
+      impulse,
+      'availability',
+    );
+
+  if (
+    btcMode !== null
+    && btcMode !== 'risk_on'
+    && btcMode !== 'neutral'
+    && btcMode !== 'risk_off'
+    || impulseDirection !== null
+      && impulseDirection !== 'long'
+      && impulseDirection !== 'short'
+    || !marketAvailabilities.includes(
+      btcAvailability as
+        UnifiedDecisionMarketAvailability,
+    )
+    || !marketAvailabilities.includes(
+      impulseAvailability as
+        UnifiedDecisionMarketAvailability,
+    )
+  ) {
+    throw new Error(
+      'Invalid Unified Decision market context',
+    );
+  }
+
+  const reasons =
+    readStringArray(
+      record,
+      'reasons',
+    );
+  const missingConfirmations =
+    readStringArray(
+      record,
+      'missingConfirmations',
+    );
+  const invalidations =
+    readStringArray(
+      record,
+      'invalidations',
+    );
+  const validReasons:
+    readonly UnifiedDecisionReason[] = [
+      'no_active_level',
+      'level_candidate_detected',
+      'level_confirmed',
+      'observation_progress_active',
+      'approach_active',
+      'realtime_sources_support_breakout',
+      'realtime_sources_support_bounce',
+      'setup_breakout_confirmed',
+      'setup_bounce_confirmed',
+      'btc_context_aligned',
+      'symbol_impulse_aligned',
+      'market_context_conflict',
+      'market_context_double_conflict',
+    ];
+  const validMissing:
+    readonly UnifiedDecisionMissingConfirmation[] = [
+      'active_level',
+      'observation_progress',
+      'approach_to_level',
+      'realtime_tape',
+      'realtime_order_book',
+      'realtime_direction_consensus',
+      'setup_outcome',
+      'btc_market_mode',
+      'symbol_market_impulse',
+    ];
+  const validInvalidations:
+    readonly UnifiedDecisionInvalidation[] = [
+      'level_superseded_or_broken',
+      'realtime_evidence_reversal',
+      'market_context_reversal',
+      'setup_expired',
+      'source_freshness_lost',
+    ];
+
+  if (
+    reasons.some(
+      (reason) =>
+        !validReasons.includes(
+          reason as
+            UnifiedDecisionReason,
+        ),
+    )
+    || missingConfirmations.some(
+      (item) =>
+        !validMissing.includes(
+          item as
+            UnifiedDecisionMissingConfirmation,
+        ),
+    )
+    || invalidations.some(
+      (item) =>
+        !validInvalidations.includes(
+          item as
+            UnifiedDecisionInvalidation,
+        ),
+    )
+  ) {
+    throw new Error(
+      'Invalid Unified Decision explanation',
+    );
+  }
+
+  for (const safetyField of [
+    'createsTradeOrder',
+    'createsSetup',
+    'createsSignal',
+    'createsScore',
+    'estimatesProfitability',
+    'changesExistingLifecycle',
+    'usesFutureData',
+  ]) {
+    if (
+      readBoolean(
+        record,
+        safetyField,
+      ) !== false
+    ) {
+      throw new Error(
+        'Invalid Unified Decision safety flags',
+      );
+    }
+  }
+
+  if (
+    readBoolean(
+      record,
+      'decisionSupportOnly',
+    ) !== true
+  ) {
+    throw new Error(
+      'Invalid Unified Decision support boundary',
+    );
+  }
+
+  return {
+    version:
+      UNIFIED_DECISION_VERSION,
+    symbol:
+      normalizeMarketCandleSymbol(
+        readString(
+          record,
+          'symbol',
+        ),
+      ),
+    timeframe:
+      normalizeTimeframe(
+        readString(
+          record,
+          'timeframe',
+        ),
+      ),
+    generatedAt:
+      readTimestamp(
+        record,
+        'generatedAt',
+      ),
+    state:
+      state as UnifiedDecisionState,
+    direction,
+    scenario,
+    causalStage,
+    level:
+      parseLevelContext(
+        record.level,
+      ),
+    setup:
+      parseSetupContext(
+        record.setup,
+      ),
+    marketContext: {
+      btc: {
+        availability:
+          btcAvailability as
+            UnifiedDecisionMarketAvailability,
+        mode: btcMode,
+        observedAt:
+          readNullableTimestamp(
+            btc,
+            'observedAt',
+          ),
+        alignment:
+          readAlignment(btc),
+      },
+      impulse: {
+        availability:
+          impulseAvailability as
+            UnifiedDecisionMarketAvailability,
+        direction:
+          impulseDirection,
+        observedAt:
+          readNullableTimestamp(
+            impulse,
+            'observedAt',
+          ),
+        alignment:
+          readAlignment(impulse),
+      },
+    },
+    reasons:
+      reasons as
+        readonly UnifiedDecisionReason[],
+    missingConfirmations:
+      missingConfirmations as
+        readonly UnifiedDecisionMissingConfirmation[],
+    invalidations:
+      invalidations as
+        readonly UnifiedDecisionInvalidation[],
+    decisionSupportOnly: true,
+    createsTradeOrder: false,
+    createsSetup: false,
+    createsSignal: false,
+    createsScore: false,
+    estimatesProfitability: false,
+    changesExistingLifecycle: false,
+    usesFutureData: false,
+  };
+}
+
 export function parseLevelLinesSnapshot(
   value: unknown,
 ): LevelLinesSnapshot {
@@ -2081,6 +2835,10 @@ export function parseLevelLinesSnapshot(
     parseRealtimeConfirmation(
       record.realtimeConfirmation,
     );
+  const unifiedDecision =
+    parseUnifiedDecision(
+      record.unifiedDecision,
+    );
   const lineIds =
     new Set(
       lines.map(
@@ -2117,6 +2875,11 @@ export function parseLevelLinesSnapshot(
         record,
         'timeframe',
       ),
+    );
+  const generatedAt =
+    readTimestamp(
+      record,
+      'generatedAt',
     );
   const activeLineIds =
     new Set(
@@ -2178,6 +2941,27 @@ export function parseLevelLinesSnapshot(
             );
       },
     );
+  const unifiedDecisionLine =
+    unifiedDecision.level === null
+      ? null
+      : lines.find(
+          (line) =>
+            line.id
+              === unifiedDecision.level
+                ?.lineId,
+        );
+  const unifiedDecisionLinkageValid =
+    unifiedDecision.level === null
+      || (
+        unifiedDecisionLine !== null
+        && unifiedDecisionLine !== undefined
+        && unifiedDecisionLine.kind
+          === unifiedDecision.level.kind
+        && unifiedDecisionLine.status
+          === unifiedDecision.level.status
+        && unifiedDecisionLine.price
+          === unifiedDecision.level.levelPrice
+      );
 
   if (
     observationTracking.symbol !== symbol
@@ -2189,6 +2973,11 @@ export function parseLevelLinesSnapshot(
     || realtimeConfirmation.evidence.symbol !== symbol
     || realtimeConfirmation.evidence.capturedAt
       !== realtimeConfirmation.evaluatedAt
+    || unifiedDecision.symbol !== symbol
+    || unifiedDecision.timeframe !== timeframe
+    || unifiedDecision.generatedAt
+      !== generatedAt
+    || !unifiedDecisionLinkageValid
     || realtimeLineIds.size
       !== realtimeConfirmation.evaluations.length
     || !realtimeLinkageValid
@@ -2230,10 +3019,7 @@ export function parseLevelLinesSnapshot(
     symbol,
     timeframe,
     generatedAt:
-      readTimestamp(
-        record,
-        'generatedAt',
-      ),
+      generatedAt,
     closedCandlesCount:
       readInteger(
         record,
@@ -2256,6 +3042,7 @@ export function parseLevelLinesSnapshot(
     observationTracking,
     approachEvaluation,
     realtimeConfirmation,
+    unifiedDecision,
     appliedOptions:
       parseAppliedOptions(
         record.appliedOptions,

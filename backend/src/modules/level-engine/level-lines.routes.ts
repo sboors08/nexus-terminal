@@ -19,6 +19,19 @@ import type {
 import type {
   RealtimeMarketDataService,
 } from '../realtime-market-data/realtime-market-data.types.js';
+import type {
+  SetupDetectionRuntimeReader,
+} from '../setup-engine/setup-detection-runtime.types.js';
+import type {
+  SetupEngineState,
+} from '../setup-engine/setup-engine.types.js';
+import {
+  buildUnifiedDecision,
+} from '../decision-engine/unified-decision.js';
+import type {
+  UnifiedDecisionMarketContext,
+  UnifiedDecisionMarketContextReader,
+} from '../decision-engine/unified-decision.types.js';
 import {
   detectLevelLines,
 } from './level-lines-detector.js';
@@ -50,7 +63,60 @@ export interface LevelLinesRoutesOptions {
       OrderBookDepthRuntimeService,
       'getSnapshot'
     >;
+  readonly setupDetectionRuntimeReader?:
+    Pick<
+      SetupDetectionRuntimeReader,
+      'getCandidates'
+    >;
+  readonly unifiedDecisionMarketContextReader?:
+    UnifiedDecisionMarketContextReader;
   readonly now?: () => Date;
+}
+
+const UNAVAILABLE_MARKET_CONTEXT:
+UnifiedDecisionMarketContext =
+  Object.freeze({
+    btc: Object.freeze({
+      availability: 'unavailable',
+      mode: null,
+      observedAt: null,
+    }),
+    impulse: Object.freeze({
+      availability: 'unavailable',
+      direction: null,
+      observedAt: null,
+    }),
+  });
+
+function readSetups(
+  reader:
+    LevelLinesRoutesOptions[
+      'setupDetectionRuntimeReader'
+    ],
+  symbol: string,
+): readonly SetupEngineState[] {
+  try {
+    return reader
+      ?.getCandidates(symbol)
+      ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function readMarketContext(
+  reader:
+    UnifiedDecisionMarketContextReader
+    | undefined,
+  symbol: string,
+): UnifiedDecisionMarketContext {
+  try {
+    return reader
+      ?.getMarketContext(symbol)
+      ?? UNAVAILABLE_MARKET_CONTEXT;
+  } catch {
+    return UNAVAILABLE_MARKET_CONTEXT;
+  }
 }
 
 function sendError(
@@ -242,13 +308,39 @@ FastifyPluginAsync<
             evidence:
               realtimeEvidence,
           });
-        const snapshot:
-        LevelLinesSnapshot =
+        const baseSnapshot:
+        Omit<
+          LevelLinesSnapshot,
+          'unifiedDecision'
+        > =
           Object.freeze({
             ...detection,
             generatedAt,
             realtimeConfirmation,
             candles,
+          });
+        const unifiedDecision =
+          buildUnifiedDecision({
+            levelLines:
+              baseSnapshot,
+            setups:
+              readSetups(
+                options
+                  .setupDetectionRuntimeReader,
+                symbol,
+              ),
+            marketContext:
+              readMarketContext(
+                options
+                  .unifiedDecisionMarketContextReader,
+                symbol,
+              ),
+          });
+        const snapshot:
+        LevelLinesSnapshot =
+          Object.freeze({
+            ...baseSnapshot,
+            unifiedDecision,
           });
 
         return snapshot;

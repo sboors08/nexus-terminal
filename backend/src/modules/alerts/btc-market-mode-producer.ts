@@ -82,6 +82,16 @@ export interface BtcMarketModeProducerStatus {
   lastError: string | null;
 }
 
+export interface BtcMarketModeCurrentSnapshot {
+  readonly availability:
+    BtcMarketModeAvailability;
+  readonly scannerWindow:
+    MarketScannerWindowId;
+  readonly mode:
+    BtcMarketMode | null;
+  readonly observedAt: string | null;
+}
+
 interface TimedMetric {
   metric: MarketScannerMetrics;
   timestampMs: number;
@@ -445,6 +455,41 @@ implements BtcMarketModeSourceContract {
       lastError:
         this.lastError,
     };
+  }
+
+  getCurrentSnapshot():
+  BtcMarketModeCurrentSnapshot {
+    const observedAt =
+      this.lastEvidenceAt;
+    const observedAtMs =
+      Date.parse(observedAt ?? '');
+    const nowMs =
+      this.options.now().getTime();
+    const ageMs =
+      nowMs - observedAtMs;
+    const fresh =
+      Number.isFinite(nowMs)
+      && Number.isFinite(observedAtMs)
+      && ageMs <= this.options.freshnessMs
+      && ageMs
+        >= -this.options.maximumFutureSkewMs;
+    const availability =
+      (
+        this.availability === 'ready'
+        || this.availability === 'degraded'
+      )
+      && !fresh
+        ? 'stale'
+        : this.availability;
+
+    return Object.freeze({
+      availability,
+      scannerWindow:
+        this.options.scannerWindow,
+      mode:
+        this.currentMode,
+      observedAt,
+    });
   }
 
   private evaluate(

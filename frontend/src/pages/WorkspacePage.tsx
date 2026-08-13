@@ -44,6 +44,7 @@ import {
 import {
   CausalRealtimeConfirmationPanel,
   CausalLevelStateStrip,
+  UnifiedDecisionPanel,
   useCausalLevelLines,
 } from '@/shared/level-lines';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
@@ -2269,6 +2270,10 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               />
             )}
           </div>
+
+          <UnifiedDecisionPanel
+            levels={causalLevelLines}
+          />
 
           <CausalRealtimeConfirmationPanel
             levels={causalLevelLines}

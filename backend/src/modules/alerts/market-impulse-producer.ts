@@ -83,6 +83,17 @@ export interface MarketImpulseProducerStatus {
   lastError: string | null;
 }
 
+export interface MarketImpulseCurrentSnapshot {
+  readonly symbol: string;
+  readonly availability:
+    MarketImpulseAvailability;
+  readonly scannerWindow:
+    MarketScannerWindowId;
+  readonly direction:
+    MarketImpulseDirection | null;
+  readonly observedAt: string | null;
+}
+
 interface CompleteImpulseMetric
 extends MarketScannerMetrics {
   price: number;
@@ -456,6 +467,69 @@ implements MarketImpulseSourceContract {
       lastError:
         this.lastError,
     };
+  }
+
+  getCurrentSnapshot(
+    value: string,
+  ): MarketImpulseCurrentSnapshot {
+    const symbol =
+      normalizeSymbol(value);
+    const hasEvidence =
+      this.directionsBySymbol
+        .has(symbol);
+    const evidenceTimestampMs =
+      this.evidenceTimestampsBySymbol
+        .get(symbol);
+    const nowMs =
+      this.options.now().getTime();
+    const ageMs =
+      evidenceTimestampMs === undefined
+        ? Number.POSITIVE_INFINITY
+        : nowMs - evidenceTimestampMs;
+    const fresh =
+      Number.isFinite(nowMs)
+      && evidenceTimestampMs !== undefined
+      && Number.isFinite(
+        evidenceTimestampMs,
+      )
+      && ageMs <= this.options.freshnessMs
+      && ageMs
+        >= -this.options.maximumFutureSkewMs;
+    const availability:
+      MarketImpulseAvailability =
+      this.unsubscribeSource === null
+        ? 'idle'
+        : !hasEvidence
+          ? this.availability === 'error'
+            || this.availability === 'unavailable'
+              ? this.availability
+              : 'collecting'
+          : !fresh
+            ? 'stale'
+            : this.sourceState === 'degraded'
+              ? 'degraded'
+              : this.sourceState === 'connected'
+                ? 'ready'
+                : 'unavailable';
+
+    return Object.freeze({
+      symbol,
+      availability,
+      scannerWindow:
+        this.options.scannerWindow,
+      direction:
+        hasEvidence
+          ? this.directionsBySymbol
+              .get(symbol)
+            ?? null
+          : null,
+      observedAt:
+        evidenceTimestampMs === undefined
+          ? null
+          : new Date(
+              evidenceTimestampMs,
+            ).toISOString(),
+    });
   }
 
   private evaluate(

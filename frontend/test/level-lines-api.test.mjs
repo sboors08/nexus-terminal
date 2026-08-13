@@ -241,6 +241,79 @@ function confirmationEvaluation(
   };
 }
 
+function unifiedDecision(
+  overrides = {},
+) {
+  return {
+    version:
+      'unified-decision-v0.1',
+    symbol:
+      'BTCUSDT',
+    timeframe:
+      '5m',
+    generatedAt:
+      '2026-08-07T12:02:00.000Z',
+    state:
+      'skip',
+    direction:
+      null,
+    scenario:
+      null,
+    causalStage:
+      null,
+    level:
+      null,
+    setup:
+      null,
+    marketContext: {
+      btc: {
+        availability:
+          'unavailable',
+        mode:
+          null,
+        observedAt:
+          null,
+        alignment:
+          'unavailable',
+      },
+      impulse: {
+        availability:
+          'unavailable',
+        direction:
+          null,
+        observedAt:
+          null,
+        alignment:
+          'unavailable',
+      },
+    },
+    reasons: [
+      'no_active_level',
+    ],
+    missingConfirmations: [
+      'active_level',
+    ],
+    invalidations: [],
+    decisionSupportOnly:
+      true,
+    createsTradeOrder:
+      false,
+    createsSetup:
+      false,
+    createsSignal:
+      false,
+    createsScore:
+      false,
+    estimatesProfitability:
+      false,
+    changesExistingLifecycle:
+      false,
+    usesFutureData:
+      false,
+    ...overrides,
+  };
+}
+
 function snapshot() {
   const line =
     candidateLine();
@@ -342,6 +415,8 @@ function snapshot() {
     },
     realtimeConfirmation:
       realtimeConfirmation(),
+    unifiedDecision:
+      unifiedDecision(),
     appliedOptions: {
       atrPeriod:
         14,
@@ -499,6 +574,24 @@ test(
       result.mergesNearbyExtrema,
       false,
     );
+    assert.equal(
+      result
+        .unifiedDecision
+        .state,
+      'skip',
+    );
+    assert.equal(
+      result
+        .unifiedDecision
+        .decisionSupportOnly,
+      true,
+    );
+    assert.equal(
+      result
+        .unifiedDecision
+        .createsTradeOrder,
+      false,
+    );
   },
 );
 
@@ -533,6 +626,224 @@ test(
       result.activeLevels[0]
         ?.status,
       'confirmed',
+    );
+  },
+);
+
+test(
+  'parses a backend possible-long decision without frontend inference',
+  () => {
+    const valid =
+      snapshot();
+    valid.lines[0].status =
+      'confirmed';
+    valid.lines[0].confirmedAt =
+      '2026-08-07T12:01:59.999Z';
+    valid.activeLevels = [
+      valid.lines[0],
+    ];
+
+    valid.unifiedDecision =
+      unifiedDecision({
+        state:
+          'possible_long',
+        direction:
+          'long',
+        scenario:
+          'breakout',
+        causalStage:
+          'CONFIRMATION',
+        level: {
+          lineId:
+            'BTCUSDT-5m-line-resistance-1',
+          kind:
+            'resistance',
+          status:
+            'confirmed',
+          levelPrice:
+            102,
+          currentPrice:
+            101.9,
+          distanceToLevelPercent:
+            0.1,
+          observationProgress:
+            0.95,
+          causalStage:
+            'CONFIRMATION',
+          realtimeStatus:
+            'confirmed',
+          tapeState:
+            'supports',
+          orderBookState:
+            'supports',
+        },
+        marketContext: {
+          btc: {
+            availability:
+              'ready',
+            mode:
+              'risk_on',
+            observedAt:
+              '2026-08-07T12:02:00.000Z',
+            alignment:
+              'aligned',
+          },
+          impulse: {
+            availability:
+              'ready',
+            direction:
+              'long',
+            observedAt:
+              '2026-08-07T12:02:00.000Z',
+            alignment:
+              'aligned',
+          },
+        },
+        reasons: [
+          'realtime_sources_support_breakout',
+          'btc_context_aligned',
+          'symbol_impulse_aligned',
+        ],
+        missingConfirmations: [
+          'setup_outcome',
+        ],
+        invalidations: [
+          'realtime_evidence_reversal',
+        ],
+      });
+
+    const parsed =
+      parseLevelLinesSnapshot(
+        valid,
+      );
+
+    assert.equal(
+      parsed.unifiedDecision.state,
+      'possible_long',
+    );
+    assert.equal(
+      parsed.unifiedDecision.scenario,
+      'breakout',
+    );
+    assert.equal(
+      parsed.unifiedDecision
+        .marketContext.btc.alignment,
+      'aligned',
+    );
+    assert.equal(
+      parsed.unifiedDecision
+        .level?.realtimeStatus,
+      'confirmed',
+    );
+  },
+);
+
+test(
+  'rejects a Unified Decision linked to a different causal line',
+  () => {
+    const invalid =
+      snapshot();
+    invalid.unifiedDecision =
+      unifiedDecision({
+        state:
+          'observe',
+        causalStage:
+          'LEVEL',
+        level: {
+          lineId:
+            'BTCUSDT-5m-line-resistance-unknown',
+          kind:
+            'resistance',
+          status:
+            'candidate',
+          levelPrice:
+            102,
+          currentPrice:
+            101.9,
+          distanceToLevelPercent:
+            0.1,
+          observationProgress:
+            0.25,
+          causalStage:
+            'LEVEL',
+          realtimeStatus:
+            'not_applicable',
+          tapeState:
+            'unavailable',
+          orderBookState:
+            'unavailable',
+        },
+      });
+
+    assert.throws(
+      () =>
+        parseLevelLinesSnapshot(
+          invalid,
+        ),
+      /causal linkage/u,
+    );
+  },
+);
+
+test(
+  'rejects a Unified Decision that claims trade execution or profitability',
+  () => {
+    const unsafeOrder =
+      snapshot();
+    unsafeOrder.unifiedDecision =
+      unifiedDecision({
+        createsTradeOrder: true,
+      });
+    const unsafeProfit =
+      snapshot();
+    unsafeProfit.unifiedDecision =
+      unifiedDecision({
+        estimatesProfitability: true,
+      });
+    const invalidAvailability =
+      snapshot();
+    invalidAvailability
+      .unifiedDecision
+      .marketContext
+      .btc
+      .availability =
+        'invented';
+    const invalidReason =
+      snapshot();
+    invalidReason.unifiedDecision =
+      unifiedDecision({
+        reasons: [
+          'frontend_guess',
+        ],
+      });
+
+    assert.throws(
+      () =>
+        parseLevelLinesSnapshot(
+          unsafeOrder,
+        ),
+      /Unified Decision safety flags/u,
+    );
+    assert.throws(
+      () =>
+        parseLevelLinesSnapshot(
+          unsafeProfit,
+        ),
+      /Unified Decision safety flags/u,
+    );
+    assert.throws(
+      () =>
+        parseLevelLinesSnapshot(
+          invalidAvailability,
+        ),
+      /market context/u,
+    );
+    assert.throws(
+      () =>
+        parseLevelLinesSnapshot(
+          invalidReason,
+        ),
+      /Unified Decision explanation/u,
     );
   },
 );
