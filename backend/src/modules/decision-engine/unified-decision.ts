@@ -4,6 +4,7 @@ import type {
 import type {
   LevelLine,
   LevelLinesSnapshot,
+  LevelLinesSnapshotCandle,
 } from '../level-engine/level-lines.types.js';
 import type {
   ObservationPathProgress,
@@ -34,18 +35,27 @@ import {
 } from './unified-decision.types.js';
 
 type UnifiedDecisionLevelSource =
-  Pick<
-    LevelLinesSnapshot,
-    | 'symbol'
-    | 'timeframe'
-    | 'generatedAt'
-    | 'candles'
-    | 'lines'
-    | 'activeLevels'
-    | 'observationTracking'
-    | 'approachEvaluation'
-    | 'realtimeConfirmation'
-  >;
+  Omit<
+    Pick<
+      LevelLinesSnapshot,
+      | 'symbol'
+      | 'timeframe'
+      | 'generatedAt'
+      | 'candles'
+      | 'lines'
+      | 'activeLevels'
+      | 'observationTracking'
+      | 'approachEvaluation'
+      | 'realtimeConfirmation'
+    >,
+    'candles'
+  > & {
+    readonly candles:
+      readonly Pick<
+        LevelLinesSnapshotCandle,
+        'close' | 'isClosed'
+      >[];
+  };
 
 export interface BuildUnifiedDecisionInput {
   readonly levelLines:
