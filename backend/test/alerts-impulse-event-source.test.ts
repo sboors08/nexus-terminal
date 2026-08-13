@@ -325,11 +325,16 @@ test(
   () => {
     const source =
       new TestMarketImpulseMetricsSource();
+    let currentNow =
+      fixedNow();
 
     const producer =
       new MarketImpulseProducer(
         source,
-        { now: fixedNow },
+        {
+          now: () =>
+            currentNow,
+        },
       );
 
     const signals:
@@ -447,6 +452,36 @@ test(
     assert.equal(status.clearedSignalsCount, 1);
     assert.equal(status.emittedSignalsCount, 3);
     assert.equal(status.activeSignalsCount, 1);
+    assert.deepEqual(
+      producer.getCurrentSnapshot(
+        'solusdt',
+      ),
+      {
+        symbol: 'SOLUSDT',
+        availability: 'ready',
+        scannerWindow: '5m',
+        direction: 'short',
+        observedAt:
+          '2026-08-12T12:00:05.000Z',
+      },
+    );
+    currentNow =
+      new Date(
+        '2026-08-12T12:02:00.000Z',
+      );
+    assert.deepEqual(
+      producer.getCurrentSnapshot(
+        'solusdt',
+      ),
+      {
+        symbol: 'SOLUSDT',
+        availability: 'stale',
+        scannerWindow: '5m',
+        direction: 'short',
+        observedAt:
+          '2026-08-12T12:00:05.000Z',
+      },
+    );
   },
 );
 

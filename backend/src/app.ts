@@ -79,6 +79,12 @@ import {
 import type {
   LevelEngineFrozenSampleReader,
 } from './modules/level-engine/level-engine-frozen-sample-reader.js';
+import {
+  ProducerUnifiedDecisionMarketContextReader,
+} from './modules/decision-engine/unified-decision-market-context.js';
+import type {
+  UnifiedDecisionMarketContextReader,
+} from './modules/decision-engine/unified-decision.types.js';
 
 export interface BuildAppOptions {
   env?: AppEnv;
@@ -100,6 +106,8 @@ export interface BuildAppOptions {
   alertsPersistence?: AlertsPersistenceContract | null;
   alertsDeliveryAdapters?:
     readonly AlertDeliveryAdapter[];
+  unifiedDecisionMarketContextReader?:
+    UnifiedDecisionMarketContextReader | null;
   levelEngineFrozenSampleReader?:
     LevelEngineFrozenSampleReader | null;
 }
@@ -124,48 +132,34 @@ function isSetupDetectionRuntimeEventSource(
 }
 
 function createAlertEventSources(
-  marketWideRealtimeService:
-    MarketWideRealtimeService | null,
+  marketWideAlertEventSource:
+    AlertEventSourceContract | null,
+  btcMarketModeAlertEventSource:
+    AlertEventSourceContract | null,
+  marketImpulseAlertEventSource:
+    AlertEventSourceContract | null,
   setupDetectionRuntimeEventSource:
     SetupDetectionRuntimeEventSource | null,
 ): AlertEventSourceContract[] {
   const sources:
   AlertEventSourceContract[] = [];
 
-  if (marketWideRealtimeService) {
+  if (marketWideAlertEventSource) {
     sources.push(
-      new MarketWideAlertEventSource(
-        marketWideRealtimeService,
-      ),
+      marketWideAlertEventSource,
     );
+  }
 
-    if (
-      isBtcMarketModeMetricsSource(
-        marketWideRealtimeService,
-      )
-    ) {
-      sources.push(
-        new BtcMarketModeAlertEventSource(
-          new BtcMarketModeProducer(
-            marketWideRealtimeService,
-          ),
-        ),
-      );
-    }
+  if (btcMarketModeAlertEventSource) {
+    sources.push(
+      btcMarketModeAlertEventSource,
+    );
+  }
 
-    if (
-      isMarketImpulseMetricsSource(
-        marketWideRealtimeService,
-      )
-    ) {
-      sources.push(
-        new MarketImpulseAlertEventSource(
-          new MarketImpulseProducer(
-            marketWideRealtimeService,
-          ),
-        ),
-      );
-    }
+  if (marketImpulseAlertEventSource) {
+    sources.push(
+      marketImpulseAlertEventSource,
+    );
   }
 
   if (
@@ -469,6 +463,55 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           : null
       : options.setupEventHistoryReader;
 
+  const marketWideAlertEventSource =
+    marketWideRealtimeService
+      ? new MarketWideAlertEventSource(
+          marketWideRealtimeService,
+        )
+      : null;
+  const btcMarketModeProducer =
+    marketWideRealtimeService
+    && isBtcMarketModeMetricsSource(
+      marketWideRealtimeService,
+    )
+      ? new BtcMarketModeProducer(
+          marketWideRealtimeService,
+        )
+      : null;
+  const btcMarketModeAlertEventSource =
+    btcMarketModeProducer
+      ? new BtcMarketModeAlertEventSource(
+          btcMarketModeProducer,
+        )
+      : null;
+  const marketImpulseProducer =
+    marketWideRealtimeService
+    && isMarketImpulseMetricsSource(
+      marketWideRealtimeService,
+    )
+      ? new MarketImpulseProducer(
+          marketWideRealtimeService,
+        )
+      : null;
+  const marketImpulseAlertEventSource =
+    marketImpulseProducer
+      ? new MarketImpulseAlertEventSource(
+          marketImpulseProducer,
+        )
+      : null;
+  const unifiedDecisionMarketContextReader =
+    options
+      .unifiedDecisionMarketContextReader
+    === undefined
+      ? new ProducerUnifiedDecisionMarketContextReader({
+          btc:
+            btcMarketModeProducer,
+          impulse:
+            marketImpulseProducer,
+        })
+      : options
+          .unifiedDecisionMarketContextReader;
+
   const alertsPersistenceEnabled =
     env.alertsPersistenceEnabled
     ?? env.nodeEnv !== 'test';
@@ -490,7 +533,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     === undefined
       ? new AlertsRuntimeService(
           createAlertEventSources(
-            marketWideRealtimeService,
+            marketWideAlertEventSource,
+            btcMarketModeAlertEventSource,
+            marketImpulseAlertEventSource,
             setupDetectionRuntimeEventSource,
           ),
           {},
@@ -685,6 +730,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : {}),
     ...(alertsRuntimeService
       ? { alertsRuntime: alertsRuntimeService }
+      : {}),
+    ...(unifiedDecisionMarketContextReader
+      ? {
+          unifiedDecisionMarketContextReader,
+        }
       : {}),
   });
 

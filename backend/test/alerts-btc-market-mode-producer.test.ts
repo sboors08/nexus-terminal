@@ -231,15 +231,17 @@ test(
   () => {
     const source =
       new TestBtcMarketMetricsSource();
+    let currentNow =
+      new Date(
+        '2026-08-12T12:00:30.000Z',
+      );
 
     const producer =
       new BtcMarketModeProducer(
         source,
         {
           now: () =>
-            new Date(
-              '2026-08-12T12:00:30.000Z',
-            ),
+            currentNow,
         },
       );
 
@@ -368,6 +370,32 @@ test(
         lastEventAt:
           '2026-08-12T12:00:20.000Z',
         lastError: null,
+      },
+    );
+
+    assert.deepEqual(
+      producer.getCurrentSnapshot(),
+      {
+        availability: 'degraded',
+        scannerWindow: '5m',
+        mode: 'risk_off',
+        observedAt:
+          '2026-08-12T12:00:20.000Z',
+      },
+    );
+
+    currentNow =
+      new Date(
+        '2026-08-12T12:02:00.000Z',
+      );
+    assert.deepEqual(
+      producer.getCurrentSnapshot(),
+      {
+        availability: 'stale',
+        scannerWindow: '5m',
+        mode: 'risk_off',
+        observedAt:
+          '2026-08-12T12:00:20.000Z',
       },
     );
   },

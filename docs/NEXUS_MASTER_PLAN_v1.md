@@ -815,13 +815,13 @@ Replay обязателен для v1.0.
 
 Базовая точка:
 
-- `main` и `origin/main` на момент создания ветки: merge-коммит `4e4a821`;
-- последний объединённый PR: #147;
-- PR #147 добавил Alerts Persistence Foundation v0.1; GitHub Actions Backend и Frontend — `success`;
-- текущая ветка `backend-alerts-external-delivery-foundation-v0-1` добавляет provider-neutral restart-safe delivery foundation без реального vendor adapter, Auth, ownership или credentials;
-- backend в текущей ветке: `516/516` автоматических тестов, focused Alerts delivery regression: `51/51`;
-- frontend в текущей ветке: Alerts runtime tests `8/8`, realtime regression `266/266`;
-- backend и frontend production builds: успешно;
+- `main` и `origin/main` на момент создания ветки: merge-коммит `b3d5ec1`;
+- последний объединённый PR: #148;
+- PR #148 добавил Alerts External Delivery Foundation v0.1; GitHub Actions Backend и Frontend — `success`;
+- текущая ветка `backend-unified-decision-contract-v0-1` добавляет backend-only Unified Decision Contract и его beginner-facing представление в Workspace без торгового приказа, score или изменения Setup lifecycle;
+- backend в текущей ветке: `526/526` автоматических тестов, focused Unified Decision regression: `44/44`;
+- frontend в текущей ветке: realtime regression `272/272`;
+- backend и frontend typecheck и production builds: успешно;
 - backend и frontend dependency audit: `0 vulnerabilities`.
 
 Последний baseline подтверждает целостность реализации и сборки. Он не подтверждает прибыльность торговых правил.
@@ -861,7 +861,8 @@ Replay обязателен для v1.0.
 | #145 | Alerts BTC Market Mode Producer v0.1 | канонический BTC mode producer публикует только реальные causal state changes после тихой baseline |
 | #146 | Alerts Impulse Event Source v0.1 | вычисляемый `5m` impulse producer и adapter подключены к общему Alerts runtime |
 | #147 | Alerts Persistence Foundation v0.1 | versioned snapshot v1, atomic JSON adapter, hydration до source subscription, restart-safe rules/history/dedupe/cooldown и degraded diagnostics |
-| Текущая ветка | Alerts External Delivery Foundation v0.1 | provider-neutral adapters, persisted outbox v2, stable idempotency, bounded retry/backoff, restart recovery и безопасные diagnostics; production adapters по умолчанию не настроены |
+| #148 | Alerts External Delivery Foundation v0.1 | provider-neutral adapters, persisted outbox v2, stable idempotency, bounded retry/backoff, restart recovery и безопасные diagnostics; production adapters по умолчанию не настроены |
+| Текущая ветка | NEXUS Unified Decision Contract v0.1 | backend объединяет causal Level/Observation/Approach/Realtime Confirmation, существующий Setup outcome, BTC mode и symbol impulse в объяснимые `observe/possible_long/possible_short/wait_confirmation/setup_confirmed/skip`; frontend только отображает готовый contract |
 
 ### Важные границы текущей реализации
 
@@ -871,6 +872,7 @@ Replay обязателен для v1.0.
 - Departure, Observation, Approach и realtime confirmation подключены к lifecycle существующего Setup Engine через отдельный causal-to-setup adapter;
 - offline causal Setup validation использует реальные `1m` OHLC-свечи и не подменяет отсутствующую историческую ленту/стакан синтетическими подтверждениями;
 - frontend только отображает backend causal-состояние и сам не меняет lifecycle Setup Engine; realtime confirmation остаётся подтверждением взаимодействия, а не торговым исходом;
+- Unified Decision выбирает один causal-уровень, отделяет `bounce/breakout` от `long/short`, использует BTC mode и symbol impulse только как freshness-aware фильтры и повышает состояние до `setup_confirmed` только по уже существующему terminal outcome Setup Engine. `possible_long/possible_short` означают возможный сценарий, а не приказ открыть позицию; contract имеет `decisionSupportOnly: true`, не создаёт order/setup/signal/score, не оценивает прибыльность и не использует будущие данные;
 - пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
@@ -888,9 +890,9 @@ Replay обязателен для v1.0.
 | 2 | Binance USDⓈ-M Futures Migration | Завершён | PR #27; целевой рынок переведён на активные USDT perpetual contracts |
 | 3 | Futures Market Metrics | Частично | Реализованы realtime и multi-window цена/объём/сделки/волатильность/BTC-метрики; Funding Rate, Open Interest и ликвидации ещё впереди |
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
-| 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134 |
+| 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134; Workspace отображает backend Unified Decision без frontend-пересчёта направления |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
-| 7 | Setup Engine | Causal integration v0.1 реализована, границы стадий проверены | Канонический Level Lines pipeline подключён к lifecycle; Stage Boundary и Observation Threshold Counterfactual Validation отклонили искусственную задержку, crossing-only и ранние progress-пороги; production `progress >= 0,50` сохранён; realtime confirmation требует отдельного накопленного `aggTrade`/order-book dataset |
+| 7 | Setup Engine | Causal integration и Unified Decision Contract v0.1 реализованы, валидация продолжается | Канонический Level Lines pipeline подключён к lifecycle; Stage Boundary и Observation Threshold Counterfactual Validation отклонили искусственную задержку, crossing-only и ранние progress-пороги; production `progress >= 0,50` сохранён; Unified Decision не меняет lifecycle и требует отдельной real-data validation выборки с накопленными `aggTrade`/order-book snapshots |
 | 8 | Alerts | Backend, frontend, persistence и external delivery foundation v0.1 реализованы, развитие продолжается | Есть versioned persistent backend-domain, HTTP API, Setup lifecycle, Market Wide Volume Spike/trades adapters, BTC Market Mode producer, вычисленный impulse-source и restart-safe provider-neutral outbox; Alerts page использует реальные runtime contracts без mock fallback. Реальный delivery adapter, канал/credentials и multi-user ownership ещё впереди |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence, Alerts Persistence Foundation и runtime event history; Auth, приглашения, ownership, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
@@ -909,6 +911,7 @@ Replay обязателен для v1.0.
 - Канонические Level Lines являются единственным источником уровней production Setup Detection Pipeline.
 - После Level Lines реализован фиксированный порядок: Departure Extremum → Observation 50% → Approach Engine → realtime confirmation.
 - Существующий Setup Engine потребляет per-line causal-цепочку через adapter, сохраняя прежние breakout/bounce и outcome-правила.
+- Unified Decision читает готовые causal-факты, terminal outcome Setup Engine и текущие BTC/impulse producer snapshots; он не запускает дублирующие расчёты и не является источником исполнения сделки.
 - History нужен Replay и Self-Learning.
 - Сбор контекста начинается в Scanner, Workspace, Alerts, History и Replay до запуска Self-Learning.
 - Реальное самообучение начинается только после History + Replay, достаточной выборки и отдельного уведомления пользователя.
@@ -998,36 +1001,35 @@ Replay обязателен для v1.0.
 
 Завершённая текущая задача:
 
-**Alerts External Delivery Foundation v0.1**
+**NEXUS Unified Decision Contract v0.1**
 
 Результат:
 
-- добавлен provider-neutral `AlertDeliveryAdapter`: канал и transport отделены от Alerts rule matching, market/setup producers и будущего Auth;
-- каждый immutable trigger ставится в persisted outbox с отдельной записью на настроенный канал и стабильным idempotency key `channel + triggerId`; повторный enqueue не создаёт дубликат;
-- lifecycle доставки фиксирует `pending/sending/delivered/failed`, bounded attempts и bounded exponential retry/backoff; permanent failure не повторяется, transient failure повторяется до лимита;
-- persistence snapshot обновлён до version `2` и сохраняет outbox; legacy snapshot v1 загружается как v2 с пустым outbox без изменения прежних rules/history/dedupe/cooldown;
-- запись, оставшаяся в `sending` после падения процесса, восстанавливается как retryable с тем же idempotency key; отсутствующий channel adapter сохраняет работу в outbox и не имитирует доставку;
-- capacity и retention cleanup удаляют только terminal delivery records и никогда не выбрасывают активную работу; переполнение outbox диагностируется, но trigger остаётся созданным;
-- enqueue/delivery failures не останавливают Alerts runtime и event sources; adapter message, credentials и payload secrets не сохраняются и не возвращаются через HTTP, доступны только нормализованные safe error codes и counters;
-- production `buildApp` не регистрирует ни одного реального delivery adapter по умолчанию: foundation готов, но внешняя отправка выключена до отдельного выбора канала и credentials policy;
-- frontend runtime contract и Alerts page показывают честные delivery state/channels/counters без заявления о работающей внешней отправке;
-- подтверждены duplicate suppression, transient/permanent boundaries, max attempts, restart recovery, persistence migration, capacity safety, failure isolation и HTTP diagnostics;
-- focused Alerts delivery regression: `51/51`; полный backend: `516/516`; frontend Alerts: `8/8`; frontend realtime regression: `266/266`; backend/frontend typecheck и production builds прошли; backend/frontend audit: `0 vulnerabilities`.
+- добавлен детерминированный backend contract `unified-decision-v0.1`, который читает существующие Level/Observation/Approach/Realtime Confirmation, Setup lifecycle, BTC mode и symbol impulse без повторного вычисления source metrics;
+- состояния ограничены `observe`, `possible_long`, `possible_short`, `wait_confirmation`, `setup_confirmed`, `skip`; `scenario` (`bounce/breakout`) отделён от направления (`long/short`);
+- согласованное движение ленты и стакана к уровню формирует breakout-сценарий, согласованное противодействие — bounce-сценарий; resistance/support зеркально преобразуются в направление, а partial/disagreement остаются `wait_confirmation`;
+- BTC mode и symbol impulse применяются только как freshness-aware фильтры: один конфликт переводит возможный сценарий в ожидание, два конфликта — в пропуск; stale/missing context не подменяется выдуманным значением;
+- `setup_confirmed` возникает только из уже существующего неистёкшего terminal outcome Setup Engine; Unified Decision не создаёт и не меняет setup lifecycle;
+- API возвращает reasons, missing confirmations и invalidation conditions, а frontend строго валидирует safety flags и causal linkage с линией уровня;
+- Workspace показывает одно beginner-facing решение перед подробной панелью подтверждения и прямо сообщает, что `possible long/short` не является командой на вход;
+- producers BTC mode и market impulse отдают read-time freshness snapshots тем же потребителям без дублирующих подписок; отказ optional context reader не роняет Level Lines API;
+- contract имеет `decisionSupportOnly: true`, `createsTradeOrder/setup/signal/score: false`, `estimatesProfitability: false`, `changesExistingLifecycle: false`, `usesFutureData: false`;
+- focused Unified Decision regression: `44/44`; полный backend: `526/526`; frontend realtime regression: `272/272`; backend/frontend typecheck и production builds прошли; backend/frontend audit: `0 vulnerabilities`.
 
 Следующая отдельная задача:
 
-**NEXUS Unified Decision Contract v0.1**
+**NEXUS Unified Decision Real-Data Validation v0.1**
 
 Граница следующей реализации:
 
-- определить единый backend-only decision contract поверх уже существующих causal facts Level/Observation/Approach/Realtime Confirmation, Setup lifecycle, BTC mode и market impulse без повторного расчёта метрик на frontend;
-- разделить тип сценария (`bounce/breakout`) и предполагаемое направление, чтобы support/resistance не превращались в ошибочный автоматический long/short вывод;
-- вернуть понятное пользователю состояние из ограниченного набора: `observe`, `possible_long`, `possible_short`, `wait_confirmation`, `setup_confirmed`, `skip`;
-- вместе с состоянием вернуть фактические reasons, missing confirmations и invalidation conditions, чтобы команда была объяснимой начинающему трейдеру;
-- сохранить строгую границу: это decision-support, а не приказ купить/продать, не вероятность прибыли, не автоторговля и не изменение существующих lifecycle/outcome правил;
-- подключать UI только к готовому backend decision contract и подтвердить scenario matrix, stale/missing-source boundaries, deterministic replay и regression tests.
+- собрать versioned validation dataset из реальных последовательных Unified Decision observations с точными source timestamps и availability, не дополняя отсутствующие `aggTrade`/order-book данные синтетикой;
+- проверить детерминированность одного и того же causal prefix, отсутствие future leakage и соответствие решения фактическому Level/Setup lifecycle на момент observation;
+- измерить распределение состояний, сценариев, направлений, missing confirmations, market-context conflicts и переходов между состояниями;
+- отдельно проверить support/resistance breakout/bounce symmetry, stale-source downgrade и отсутствие `setup_confirmed` без terminal Setup outcome;
+- не менять thresholds, production rules, ranking или lifecycle по результатам первой выборки и не заявлять качество/прибыльность до достаточного накопленного cohort;
+- сохранить production behavior неизменным: validation только наблюдает и формирует воспроизводимый отчёт.
 
-Цель следующей задачи — объединить уже доступные факты NEXUS в одну объяснимую пользовательскую команду без выдумывания сигнала и без смешивания аналитического состояния с исполнением сделки.
+Цель следующей задачи — проверить Unified Decision на накопленных реальных causal observations до любых изменений правил или интерпретации возможных long/short сценариев.
 
 ---
 

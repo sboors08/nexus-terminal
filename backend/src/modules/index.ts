@@ -107,6 +107,9 @@ import {
 import type {
   AlertsRuntimeContract,
 } from './alerts/alerts.types.js';
+import type {
+  UnifiedDecisionMarketContextReader,
+} from './decision-engine/unified-decision.types.js';
 
 interface ApiModulesOptions {
   marketDataProvider:
@@ -145,6 +148,9 @@ interface ApiModulesOptions {
   alertsRuntime?:
     AlertsRuntimeContract;
 
+  unifiedDecisionMarketContextReader?:
+    UnifiedDecisionMarketContextReader;
+
   levelEngineFrozenSampleReader?:
     LevelEngineFrozenSampleReader;
 }
@@ -182,6 +188,26 @@ FastifyPluginAsync<
               orderBookDepthService:
                 options
                   .orderBookDepthService,
+            }
+          : {}
+      ),
+      ...(
+        options
+          .setupDetectionRuntimeReader
+          ? {
+              setupDetectionRuntimeReader:
+                options
+                  .setupDetectionRuntimeReader,
+            }
+          : {}
+      ),
+      ...(
+        options
+          .unifiedDecisionMarketContextReader
+          ? {
+              unifiedDecisionMarketContextReader:
+                options
+                  .unifiedDecisionMarketContextReader,
             }
           : {}
       ),

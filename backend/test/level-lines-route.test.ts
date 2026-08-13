@@ -71,6 +71,23 @@ test(
         env: testEnv,
         marketDataProvider:
           provider,
+        unifiedDecisionMarketContextReader: {
+          getMarketContext:
+            () => ({
+              btc: {
+                availability: 'ready',
+                mode: 'risk_on',
+                observedAt:
+                  '2026-08-13T12:00:00.000Z',
+              },
+              impulse: {
+                availability: 'ready',
+                direction: 'long',
+                observedAt:
+                  '2026-08-13T12:00:00.000Z',
+              },
+            }),
+        },
       });
 
     t.after(
@@ -274,6 +291,64 @@ test(
       payload
         .realtimeConfirmation
         .evaluatedAt,
+    );
+    assert.equal(
+      payload
+        .unifiedDecision
+        .version,
+      'unified-decision-v0.1',
+    );
+    assert.equal(
+      payload
+        .unifiedDecision
+        .symbol,
+      payload.symbol,
+    );
+    assert.equal(
+      payload
+        .unifiedDecision
+        .generatedAt,
+      payload.generatedAt,
+    );
+    assert.equal(
+      payload
+        .unifiedDecision
+        .marketContext
+        .btc
+        .mode,
+      'risk_on',
+    );
+    assert.equal(
+      payload
+        .unifiedDecision
+        .marketContext
+        .impulse
+        .direction,
+      'long',
+    );
+    assert.equal(
+      payload
+        .unifiedDecision
+        .decisionSupportOnly,
+      true,
+    );
+    assert.equal(
+      payload
+        .unifiedDecision
+        .createsTradeOrder,
+      false,
+    );
+    assert.equal(
+      payload
+        .unifiedDecision
+        .createsSignal,
+      false,
+    );
+    assert.equal(
+      payload
+        .unifiedDecision
+        .estimatesProfitability,
+      false,
     );
     assert.equal(
       payload.candles.every(
@@ -488,6 +563,78 @@ test(
         .orderBook
         .imbalancePct,
       20,
+    );
+  },
+);
+
+test(
+  'keeps Level Lines available when an optional decision context reader fails',
+  async (t) => {
+    const provider:
+    MarketDataProvider = {
+      getMarketSymbols:
+        async () =>
+          marketSymbols,
+      getCandles:
+        async (
+          symbol,
+          timeframe,
+        ) =>
+          createCandles(
+            symbol,
+            timeframe,
+          ),
+    };
+    const app =
+      await buildApp({
+        env: testEnv,
+        marketDataProvider:
+          provider,
+        unifiedDecisionMarketContextReader: {
+          getMarketContext:
+            () => {
+              throw new Error(
+                'optional context unavailable',
+              );
+            },
+        },
+      });
+
+    t.after(
+      async () =>
+        app.close(),
+    );
+
+    const response =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/level-engine/lines'
+          + '?symbol=BTCUSDT'
+          + '&timeframe=5m',
+      });
+    const payload =
+      response.json();
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+    assert.equal(
+      payload
+        .unifiedDecision
+        .marketContext
+        .btc
+        .availability,
+      'unavailable',
+    );
+    assert.equal(
+      payload
+        .unifiedDecision
+        .marketContext
+        .impulse
+        .availability,
+      'unavailable',
     );
   },
 );

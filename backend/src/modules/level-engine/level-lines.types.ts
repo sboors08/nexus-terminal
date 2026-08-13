@@ -23,6 +23,9 @@ import type {
 import type {
   RealtimeConfirmationEvaluationResult,
 } from './realtime-confirmation-engine.types.js';
+import type {
+  UnifiedDecision,
+} from '../decision-engine/unified-decision.types.js';
 
 export const LEVEL_LINES_CONTRACT_VERSION =
   'level-lines-v0.1' as const;
@@ -127,6 +130,8 @@ export interface LevelLinesSnapshot
   readonly generatedAt: string;
   readonly realtimeConfirmation:
     RealtimeConfirmationEvaluationResult;
+  readonly unifiedDecision:
+    UnifiedDecision;
   readonly candles:
     readonly LevelLinesSnapshotCandle[];
 }
