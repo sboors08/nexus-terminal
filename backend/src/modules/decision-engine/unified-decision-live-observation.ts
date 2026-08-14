@@ -26,6 +26,7 @@ import {
   type UnifiedDecisionLiveObservationDataset,
   type UnifiedDecisionLiveObservationFilter,
   type UnifiedDecisionLiveObservationInput,
+  type UnifiedDecisionLiveObservationListener,
   type UnifiedDecisionLiveObservationPersistence,
   type UnifiedDecisionLiveObservationPersistenceSnapshot,
   type UnifiedDecisionLiveObservationRecorder,
@@ -440,6 +441,10 @@ implements UnifiedDecisionLiveObservationRecorder {
     string | null = null;
   private saveQueue: Promise<void> =
     Promise.resolve();
+  private readonly listeners =
+    new Set<
+      UnifiedDecisionLiveObservationListener
+    >();
 
   constructor(
     options:
@@ -651,7 +656,25 @@ implements UnifiedDecisionLiveObservationRecorder {
 
     this.enqueueSave();
 
+    for (const listener of this.listeners) {
+      try {
+        listener(clone(observation));
+      } catch {
+        // Diagnostic consumers must never affect the live decision response.
+      }
+    }
+
     return clone(observation);
+  }
+
+  subscribe(
+    listener: UnifiedDecisionLiveObservationListener,
+  ): () => void {
+    this.listeners.add(listener);
+
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   async flush(): Promise<void> {

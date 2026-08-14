@@ -93,6 +93,14 @@ import type {
   UnifiedDecisionLiveObservationPersistence,
   UnifiedDecisionLiveObservationRecorder,
 } from './modules/decision-engine/unified-decision-live-observation.types.js';
+import {
+  JsonFileUnifiedDecisionCoverageGapPersistence,
+  UnifiedDecisionCoverageGapObservationService,
+} from './modules/decision-engine/unified-decision-coverage-gap-observation.js';
+import type {
+  UnifiedDecisionCoverageGapObserver,
+  UnifiedDecisionCoverageGapPersistence,
+} from './modules/decision-engine/unified-decision-coverage-gap-observation.types.js';
 
 export interface BuildAppOptions {
   env?: AppEnv;
@@ -120,6 +128,10 @@ export interface BuildAppOptions {
     UnifiedDecisionLiveObservationRecorder | null;
   unifiedDecisionLiveObservationPersistence?:
     UnifiedDecisionLiveObservationPersistence | null;
+  unifiedDecisionCoverageGapObserver?:
+    UnifiedDecisionCoverageGapObserver | null;
+  unifiedDecisionCoverageGapPersistence?:
+    UnifiedDecisionCoverageGapPersistence | null;
   levelEngineFrozenSampleReader?:
     LevelEngineFrozenSampleReader | null;
 }
@@ -558,6 +570,35 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : options
           .unifiedDecisionLiveObservationRecorder;
 
+  const unifiedDecisionCoverageGapObservationEnabled =
+    env.unifiedDecisionCoverageGapObservationEnabled
+    ?? env.nodeEnv !== 'test';
+
+  const unifiedDecisionCoverageGapPersistence =
+    options.unifiedDecisionCoverageGapPersistence === undefined
+      ? unifiedDecisionCoverageGapObservationEnabled
+        ? new JsonFileUnifiedDecisionCoverageGapPersistence({
+            filePath:
+              env.unifiedDecisionCoverageGapObservationPath
+              ?? './data/unified-decision-coverage-gaps-v1.json',
+          })
+        : null
+      : options.unifiedDecisionCoverageGapPersistence;
+
+  const unifiedDecisionCoverageGapObserver =
+    options.unifiedDecisionCoverageGapObserver === undefined
+      ? unifiedDecisionCoverageGapObservationEnabled
+        && unifiedDecisionLiveObservationRecorder?.subscribe
+        ? new UnifiedDecisionCoverageGapObservationService({
+            source: unifiedDecisionLiveObservationRecorder,
+            persistence: unifiedDecisionCoverageGapPersistence,
+            capacity:
+              env.unifiedDecisionCoverageGapObservationCapacity
+              ?? 1_000,
+          })
+        : null
+      : options.unifiedDecisionCoverageGapObserver;
+
   const alertsPersistenceEnabled =
     env.alertsPersistenceEnabled
     ?? env.nodeEnv !== 'test';
@@ -666,12 +707,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       async () => {
         await unifiedDecisionLiveObservationRecorder
           .start();
+        await unifiedDecisionCoverageGapObserver
+          ?.start();
       },
     );
 
     app.addHook(
       'onClose',
       async () => {
+        await unifiedDecisionCoverageGapObserver
+          ?.stop();
         await unifiedDecisionLiveObservationRecorder
           .stop();
       },
@@ -805,6 +850,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     ...(unifiedDecisionLiveObservationRecorder
       ? {
           unifiedDecisionLiveObservationRecorder,
+        }
+      : {}),
+    ...(unifiedDecisionCoverageGapObserver
+      ? {
+          unifiedDecisionCoverageGapObserver,
         }
       : {}),
   });

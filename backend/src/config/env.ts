@@ -18,6 +18,9 @@ export interface AppEnv {
   unifiedDecisionLiveObservationEnabled?: boolean;
   unifiedDecisionLiveObservationPath?: string;
   unifiedDecisionLiveObservationCapacity?: number;
+  unifiedDecisionCoverageGapObservationEnabled?: boolean;
+  unifiedDecisionCoverageGapObservationPath?: string;
+  unifiedDecisionCoverageGapObservationCapacity?: number;
   binanceBaseUrl?: string;
   binanceRequestTimeoutMs?: number;
   binanceSymbolsLimit?: number;
@@ -173,6 +176,23 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
         5_000,
         'UNIFIED_DECISION_LIVE_OBSERVATION_CAPACITY',
         100,
+        100_000,
+      ),
+    unifiedDecisionCoverageGapObservationEnabled:
+      readBoolean(
+        source.UNIFIED_DECISION_COVERAGE_GAP_OBSERVATION_ENABLED,
+        source.NODE_ENV !== 'test',
+        'UNIFIED_DECISION_COVERAGE_GAP_OBSERVATION_ENABLED',
+      ),
+    unifiedDecisionCoverageGapObservationPath:
+      source.UNIFIED_DECISION_COVERAGE_GAP_OBSERVATION_PATH?.trim()
+      || './data/unified-decision-coverage-gaps-v1.json',
+    unifiedDecisionCoverageGapObservationCapacity:
+      readInteger(
+        source.UNIFIED_DECISION_COVERAGE_GAP_OBSERVATION_CAPACITY,
+        1_000,
+        'UNIFIED_DECISION_COVERAGE_GAP_OBSERVATION_CAPACITY',
+        10,
         100_000,
       ),
     binanceBaseUrl: readHttpUrl(source.BINANCE_BASE_URL, 'https://fapi.binance.com', 'BINANCE_BASE_URL'),

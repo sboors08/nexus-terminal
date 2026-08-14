@@ -116,6 +116,12 @@ import {
 import type {
   UnifiedDecisionLiveObservationRecorder,
 } from './decision-engine/unified-decision-live-observation.types.js';
+import {
+  unifiedDecisionCoverageGapObservationRoutes,
+} from './decision-engine/unified-decision-coverage-gap-observation.routes.js';
+import type {
+  UnifiedDecisionCoverageGapObserver,
+} from './decision-engine/unified-decision-coverage-gap-observation.types.js';
 
 interface ApiModulesOptions {
   marketDataProvider:
@@ -159,6 +165,9 @@ interface ApiModulesOptions {
 
   unifiedDecisionLiveObservationRecorder?:
     UnifiedDecisionLiveObservationRecorder;
+
+  unifiedDecisionCoverageGapObserver?:
+    UnifiedDecisionCoverageGapObserver;
 
   levelEngineFrozenSampleReader?:
     LevelEngineFrozenSampleReader;
@@ -496,6 +505,15 @@ FastifyPluginAsync<
             }
           : {}
       ),
+    },
+  );
+
+  await app.register(
+    unifiedDecisionCoverageGapObservationRoutes,
+    {
+      ...(options.unifiedDecisionCoverageGapObserver
+        ? { observer: options.unifiedDecisionCoverageGapObserver }
+        : {}),
     },
   );
 
