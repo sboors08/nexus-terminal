@@ -159,6 +159,10 @@ export interface UnifiedDecisionLiveObservationPersistence {
   ): Promise<void>;
 }
 
+export type UnifiedDecisionLiveObservationListener = (
+  observation: UnifiedDecisionLiveObservation,
+) => void;
+
 export interface UnifiedDecisionLiveObservationRecorder {
   start(): Promise<void>;
   stop(): Promise<void>;
@@ -173,4 +177,7 @@ export interface UnifiedDecisionLiveObservationRecorder {
   exportDataset(
     filter?: UnifiedDecisionLiveObservationFilter,
   ): UnifiedDecisionLiveObservationDataset;
+  subscribe?(
+    listener: UnifiedDecisionLiveObservationListener,
+  ): () => void;
 }

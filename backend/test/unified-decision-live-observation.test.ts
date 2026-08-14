@@ -278,6 +278,28 @@ function makeSetup(
 }
 
 test(
+  'isolates diagnostic subscribers from the live recorder response',
+  async () => {
+    const service =
+      new UnifiedDecisionLiveObservationService();
+    await service.start();
+    let received = 0;
+    service.subscribe(() => {
+      throw new Error('diagnostic consumer failed');
+    });
+    const unsubscribe = service.subscribe(() => {
+      received += 1;
+    });
+    const recorded = service.record(makeInput());
+    assert.equal(recorded.sequence, 1);
+    assert.equal(received, 1);
+    unsubscribe();
+    service.record(makeInput());
+    assert.equal(received, 1);
+  },
+);
+
+test(
   'captures bounded live source evidence and removes raw source errors',
   async () => {
     const service =
