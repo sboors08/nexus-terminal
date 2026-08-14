@@ -811,16 +811,16 @@ Replay обязателен для v1.0.
 
 ---
 
-## 25. Фактическое состояние `main` и текущей ветки на 2026-08-13
+## 25. Фактическое состояние `main` и текущей ветки на 2026-08-14
 
 Базовая точка:
 
-- `main` и `origin/main` на момент создания ветки: merge-коммит `8a0b07f`;
-- последний объединённый PR: #150;
-- PR #150 добавил Unified Decision Real-Data Validation v0.1; GitHub Actions Backend и Frontend — `success`;
-- текущая ветка `backend-unified-decision-live-observation-dataset-v0-1` добавляет bounded/versioned live recorder существующих production snapshots без новых подписок, повторных source calculations или изменения Unified Decision;
-- focused live-observation + Unified Decision/Level Lines regression: `21/21`, полный backend regression: `538/538`; backend typecheck, production build и audit — успешно, `0 vulnerabilities`;
-- frontend-код в текущей ветке не меняется; frontend realtime regression `272/272`, typecheck, production build и audit — успешно, `0 vulnerabilities`.
+- `main` и `origin/main` на момент создания ветки: merge-коммит `fb27a34`;
+- последний объединённый PR: #151;
+- PR #151 добавил Unified Decision Live Observation Dataset v0.1; GitHub Actions Backend и Frontend — `success`;
+- текущая ветка `backend-unified-decision-live-cohort-validation-v0-1` добавляет отдельный versioned validator/report поверх уже накопленных production snapshots и не меняет Unified Decision или source producers;
+- focused cohort/live-observation/Unified Decision regression: `21/21`, полный backend regression: `542/542`; backend typecheck и production build — успешно;
+- frontend-код в текущей ветке не меняется; последний объединённый frontend CI baseline из PR #151 остаётся `success`.
 
 Последний baseline подтверждает целостность реализации и сборки. Он не подтверждает прибыльность торговых правил.
 
@@ -862,7 +862,8 @@ Replay обязателен для v1.0.
 | #148 | Alerts External Delivery Foundation v0.1 | provider-neutral adapters, persisted outbox v2, stable idempotency, bounded retry/backoff, restart recovery и безопасные diagnostics; production adapters по умолчанию не настроены |
 | #149 | NEXUS Unified Decision Contract v0.1 | backend объединяет causal Level/Observation/Approach/Realtime Confirmation, существующий Setup outcome, BTC mode и symbol impulse в объяснимые `observe/possible_long/possible_short/wait_confirmation/setup_confirmed/skip`; frontend только отображает готовый contract |
 | #150 | NEXUS Unified Decision Real-Data Validation v0.1 | versioned последовательный replay реальных закрытых `1m`-свечей через production Level Lines и Unified Decision; точная availability отсутствующих historical sources, распределения, transitions и invariant violations без синтетической ленты/стакана |
-| Текущая ветка | NEXUS Unified Decision Live Observation Dataset v0.1 | bounded/versioned JSON dataset реальных готовых Unified Decision observations с использованными aggTrade/order-book captures, Setup candidates и BTC/impulse availability/observedAt; безопасные status/list/export diagnostics без credentials/PII |
+| #151 | NEXUS Unified Decision Live Observation Dataset v0.1 | bounded/versioned JSON dataset реальных готовых Unified Decision observations с использованными aggTrade/order-book captures, Setup candidates и BTC/impulse availability/observedAt; безопасные status/list/export diagnostics без credentials/PII |
+| Текущая ветка | NEXUS Unified Decision Live Cohort Validation v0.1 | отдельный versioned report проверяет реальную 12-часовую cohort, symmetry четырёх level/scenario/direction cases, source-loss/disagreement downgrade, market freshness, Setup causal linkage, transitions и safety invariants без изменения production rules |
 
 ### Важные границы текущей реализации
 
@@ -875,6 +876,8 @@ Replay обязателен для v1.0.
 - Unified Decision выбирает один causal-уровень, отделяет `bounce/breakout` от `long/short`, использует BTC mode и symbol impulse только как freshness-aware фильтры и повышает состояние до `setup_confirmed` только по уже существующему terminal outcome Setup Engine. `possible_long/possible_short` означают возможный сценарий, а не приказ открыть позицию; contract имеет `decisionSupportOnly: true`, не создаёт order/setup/signal/score, не оценивает прибыльность и не использует будущие данные;
 - Unified Decision Real-Data Validation v0.1 повторно использует реальные Binance `1m` datasets и на каждом закрытом causal prefix запускает production Level Lines, realtime-confirmation fallback и Unified Decision дважды. Фактическая выборка из `1 495` закрытых свечей дала `1 038 observe`, `296 wait_confirmation`, `71 skip`, `0 possible_long`, `0 possible_short`, `0 setup_confirmed`, `127` уникальных выбранных линий и `0` deterministic/future/safety violations. Исторические `aggTrade`, order-book, Setup lifecycle, BTC mode и symbol impulse в OHLC-выборке недоступны и записываются как `availability: unavailable`, `observedAt: null`; они не синтезируются. Поэтому эта выборка подтверждает offline fallback и causal-инварианты, но не подтверждает real-observation symmetry, stale downgrade или terminal Setup outcomes;
 - Unified Decision Live Observation Dataset v0.1 записывает один observation только после готового ответа production Level Lines/Unified Decision и получает уже захваченные realtime evidence, Setup candidates и market-context snapshots из этой же causal-операции. Он не открывает Binance subscriptions и не пересчитывает source metrics. JSON snapshot v1 сохраняется атомарно с capacity `5 000` по умолчанию; trades и Setup candidates внутри observation также bounded. Corrupt/unsupported storage не перезаписывается: recorder продолжает собирать bounded memory cohort в degraded mode, а сбой record/save не изменяет ответ Level Lines. Raw source error messages не сохраняются — только безопасные коды; status/list/export endpoints не содержат credentials или персональных данных;
+- Unified Decision Live Cohort Validation v0.1 проверил точный диапазон sequence `10–2051`: `2 042` observations за период `2026-08-13T18:54:12.794Z` — `2026-08-14T06:53:21.576Z`, `381` state transition, `1 349 observe`, `572 wait_confirmation`, `64 possible_long`, `57 possible_short`, `0 setup_confirmed`, `0 skip`. Symmetry подтверждена во всех четырёх ячейках: resistance breakout long `35`, resistance bounce short `41`, support breakout short `16`, support bounce long `29`. Realtime downgrade подтверждён на `88` non-live tape, `3` non-live order-book, `822` disagreement и `179` partial observations; possible-state при source loss — `0`. Market freshness подтверждена, invariant/safety violations — `0`, изменение decision rules не рекомендовано;
+- cohort не содержал ни одного market-context conflict и ни одного terminal Setup outcome. Эти две области имеют статус `not_observed`, а общий report — `validated_with_coverage_gaps`; это не ошибка текущих правил и не основание менять thresholds/ranking/lifecycle. Полная validation этих ветвей требует новой фактической выборки без синтетических observations;
 - пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
@@ -894,7 +897,7 @@ Replay обязателен для v1.0.
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134; Workspace отображает backend Unified Decision без frontend-пересчёта направления |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
-| 7 | Setup Engine | Causal integration, Unified Decision Contract, offline validation и live-observation dataset v0.1 реализованы; накопление cohort и его validation впереди | Канонический Level Lines pipeline подключён к lifecycle; production `progress >= 0,50` сохранён; offline replay подтвердил детерминизм/future-safety на `1 405` observations, а bounded live recorder теперь сохраняет фактические `aggTrade`/order-book/Setup/market-context snapshots без новых subscriptions. Проверка symmetry/stale/conflicts/outcomes начнётся после накопления достаточного live cohort |
+| 7 | Setup Engine | Causal integration, Unified Decision Contract, offline и первая 12-часовая live-cohort validation v0.1 реализованы; coverage-gap observation продолжается | Канонический Level Lines pipeline подключён к lifecycle; production `progress >= 0,50` сохранён. Live cohort из `2 042` observations подтвердила symmetry, source-loss/disagreement downgrade и `0` safety violations; market-context conflict и terminal Setup outcome в окне не наблюдались и остаются отдельными coverage gaps без изменения правил |
 | 8 | Alerts | Backend, frontend, persistence и external delivery foundation v0.1 реализованы, развитие продолжается | Есть versioned persistent backend-domain, HTTP API, Setup lifecycle, Market Wide Volume Spike/trades adapters, BTC Market Mode producer, вычисленный impulse-source и restart-safe provider-neutral outbox; Alerts page использует реальные runtime contracts без mock fallback. Реальный delivery adapter, канал/credentials и multi-user ownership ещё впереди |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence, Alerts Persistence Foundation и runtime event history; Auth, приглашения, ownership, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
@@ -1003,34 +1006,32 @@ Replay обязателен для v1.0.
 
 Завершённая текущая задача:
 
-**NEXUS Unified Decision Live Observation Dataset v0.1**
+**NEXUS Unified Decision Live Cohort Validation v0.1**
 
 Результат:
 
-- добавлен versioned contract `unified-decision-live-observation-dataset-v0.1` и persistence schema `nexus.unified-decision.live-observations` version `1`;
-- recorder вызывается в существующей точке формирования `/level-engine/lines` после готового Unified Decision и сохраняет именно использованные в этой операции snapshots: causal line/decision, actual recent `aggTrade`, order-book capture/evaluation, Setup candidates, BTC mode и symbol impulse availability/observedAt;
-- отдельные Binance subscriptions, повторные source calculations и frontend inference не добавлены; collection не меняет thresholds, decision rules, ranking, Setup lifecycle или production source producers;
-- retention ограничен общей capacity `5 000` по умолчанию, а также per-observation лимитами для trades и Setup candidates; параметры пути/capacity вынесены в environment contract;
-- JSON persistence пишет атомарно через temporary file + rename и продолжает sequence после restart. Corrupt или unsupported storage остаётся нетронутым, recorder переходит в bounded degraded memory mode; ошибки записи не ломают Level Lines API;
-- raw upstream error messages не попадают в dataset: сохраняются только стабильные `tape_read_failed/order_book_read_failed/source_read_failed`. Dataset не содержит credentials, request IDs или персональные данные;
-- добавлены диагностические endpoints `/decision-engine/live-observations/status`, `/decision-engine/live-observations` и `/decision-engine/live-observations/export` с безопасными symbol/timeframe/state/direction/limit filters;
-- каждый observation сохраняет точный causal linkage и safety flags `diagnosticOnly: true`, `createsTradeOrder/createsSetup/createsSignal/changesDecisionRules: false`;
-- focused live-observation + Unified Decision/Level Lines regression: `21/21`; полный backend regression: `538/538`; frontend realtime regression: `272/272`; backend/frontend typecheck, production builds и audits прошли, `0 vulnerabilities`.
+- добавлен versioned contract/report `unified-decision-live-cohort-validation-v0.1`, который читает существующий persistence snapshot или export dataset и валидирует выбранный sequence range отдельно от collection/runtime;
+- проверена точная 12-часовая cohort sequence `10–2051`: `2 042` observations, `381` transitions, `64 possible_long`, `57 possible_short`, `0` invariant/safety violations;
+- support/resistance breakout/bounce symmetry подтверждена на четырёх фактических ячейках `35/41/16/29` без синтетических observations;
+- source-loss/disagreement downgrade подтверждён на `88` non-live tape, `3` non-live order-book, `822` disagreement и `179` partial observations; ни один possible-state не использовал потерянный source;
+- market freshness подтверждена. Market-context conflict и terminal Setup outcome в этой cohort не встретились и записаны как отдельные `not_observed` coverage gaps, а не как успешная validation отсутствующих ветвей;
+- итоговый status — `validated_with_coverage_gaps`; изменение thresholds/rules/ranking/lifecycle не рекомендовано, trade order/signal/score/learning/profitability не добавлены;
+- focused cohort/live-observation/Unified Decision regression: `21/21`; полный backend regression: `542/542`; backend typecheck и production build прошли.
 
 Следующая отдельная задача:
 
-**NEXUS Unified Decision Live Cohort Validation v0.1**
+**NEXUS Unified Decision Coverage-Gap Observation v0.1**
 
 Граница следующей реализации:
 
-- сначала накопить достаточный live cohort через уже включённый recorder; пустая или недостаточная выборка не должна приводить к выводам о качестве правил;
-- валидировать support/resistance breakout/bounce symmetry на фактических `possible_long/possible_short`, не добавляя синтетические observations;
-- проверить downgrade при stale/missing tape, order book, BTC mode и impulse, а также partial/disagreement и market-context conflict cases;
-- подтвердить, что `setup_confirmed` возникает только из существующего terminal Setup outcome и сохраняет causal linkage к той же Level Line;
-- сформировать versioned report с coverage, state transitions и invariant violations отдельно от collection/runtime;
-- не менять thresholds/rules/ranking/lifecycle, не создавать торговый приказ, signal, score, обучение или оценку прибыльности без отдельного решения после отчёта.
+- продолжить реальное наблюдение до появления market-context conflict и terminal Setup outcome, не генерируя синтетические observations и не ослабляя freshness/Setup guards;
+- сохранять эти редкие cases отдельно от общей bounded cohort, чтобы rolling capacity не удаляла единственное causal evidence до проверки;
+- для single/double market conflict подтвердить только предусмотренные downgrade `wait_confirmation/skip`, обязательные reason/invalidation и отсутствие possible-state при конфликте;
+- для terminal Setup outcome подтвердить `setup_confirmed` только при captured terminal candidate и causal linkage к той же Level Line;
+- выпускать versioned coverage-gap report с observed/not_observed, transitions и violations; отсутствие case не считать успешной validation;
+- не менять thresholds/rules/ranking/lifecycle и не создавать order/signal/score/learning/profitability до отдельного решения по фактическому отчёту.
 
-Цель следующей задачи — проверить Unified Decision на накопленных реально доступных live snapshots и только после достаточного coverage решить, нужны ли отдельные изменения правил.
+Цель следующей задачи — закрыть два оставшихся фактических coverage gaps и только после наблюдения этих ветвей решать, нужны ли отдельные изменения правил.
 
 ---
 
