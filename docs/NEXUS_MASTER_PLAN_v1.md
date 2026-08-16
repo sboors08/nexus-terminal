@@ -2,9 +2,9 @@
 
 **Статус:** основной источник правды по продукту и разработке
 **Репозиторий:** `sboors08/nexus-terminal`
-**Дата фиксации:** 2026-08-12
+**Дата фиксации:** 2026-08-16
 **Язык работы:** русский
-**Базовое состояние:** `main` на merge-коммите `65c3dab`, PR #146
+**Базовое состояние:** `main` на merge-коммите `e40cb22`, PR #153
 **Текущая ориентировочная готовность:** числовой процент не подтверждён; фактический статус 13 этапов зафиксирован в разделах 25–26
 
 ---
@@ -811,16 +811,16 @@ Replay обязателен для v1.0.
 
 ---
 
-## 25. Фактическое состояние `main` и текущей ветки на 2026-08-14
+## 25. Фактическое состояние `main` и текущей ветки на 2026-08-16
 
 Базовая точка:
 
-- `main` и `origin/main` на момент создания ветки: merge-коммит `fb27a34`;
-- последний объединённый PR: #151;
-- PR #151 добавил Unified Decision Live Observation Dataset v0.1; GitHub Actions Backend и Frontend — `success`;
-- текущая ветка `backend-unified-decision-live-cohort-validation-v0-1` добавляет отдельный versioned validator/report поверх уже накопленных production snapshots и не меняет Unified Decision или source producers;
-- focused cohort/live-observation/Unified Decision regression: `21/21`, полный backend regression: `542/542`; backend typecheck и production build — успешно;
-- frontend-код в текущей ветке не меняется; последний объединённый frontend CI baseline из PR #151 остаётся `success`.
+- `main` и `origin/main` на момент создания ветки: merge-коммит `e40cb22`;
+- последний объединённый PR: #153;
+- PR #153 добавил Unified Decision Coverage-Gap Observation v0.1; GitHub Actions Backend и Frontend — `success`;
+- текущая ветка `backend-unified-decision-coverage-gap-live-collection-v0-1` фиксирует фактический 24-часовой collection result и не меняет backend/frontend production code;
+- последний объединённый focused Coverage-Gap/Live Observation/Unified Decision regression: `31/31`, полный backend regression: `556/556`; production builds — успешно;
+- новый collection artifact документирует `3 940` успешных запросов, подтверждённые внешние transport gaps и отсутствие всех трёх rare cases без изменения decision rules.
 
 Последний baseline подтверждает целостность реализации и сборки. Он не подтверждает прибыльность торговых правил.
 
@@ -864,7 +864,8 @@ Replay обязателен для v1.0.
 | #150 | NEXUS Unified Decision Real-Data Validation v0.1 | versioned последовательный replay реальных закрытых `1m`-свечей через production Level Lines и Unified Decision; точная availability отсутствующих historical sources, распределения, transitions и invariant violations без синтетической ленты/стакана |
 | #151 | NEXUS Unified Decision Live Observation Dataset v0.1 | bounded/versioned JSON dataset реальных готовых Unified Decision observations с использованными aggTrade/order-book captures, Setup candidates и BTC/impulse availability/observedAt; безопасные status/list/export diagnostics без credentials/PII |
 | #152 | NEXUS Unified Decision Live Cohort Validation v0.1 | отдельный versioned report проверяет реальную 12-часовую cohort, symmetry четырёх level/scenario/direction cases, source-loss/disagreement downgrade, market freshness, Setup causal linkage, transitions и safety invariants без изменения production rules |
-| Текущая ветка | NEXUS Unified Decision Coverage-Gap Observation v0.1 | отдельный persistent rare-case store подписан на готовые live observations и сохраняет single/double market-context conflict и terminal Setup outcome с transition, observed/not_observed coverage и contract violations без повторного расчёта sources и без изменения production rules |
+| #153 | NEXUS Unified Decision Coverage-Gap Observation v0.1 | отдельный persistent rare-case store подписан на готовые live observations и сохраняет single/double market-context conflict и terminal Setup outcome с transition, observed/not_observed coverage и contract violations без повторного расчёта sources и без изменения production rules |
+| Текущая ветка | NEXUS Unified Decision Coverage-Gap Live Collection v0.1 | 24-часовой wall-clock сбор дал `3 940` успешных controlled requests; после подтверждённых отключений интернета collector восстановился, recorder/observer остались ready, но все три gap kind сохранили `not_observed` |
 
 ### Важные границы текущей реализации
 
@@ -880,6 +881,7 @@ Replay обязателен для v1.0.
 - Unified Decision Live Cohort Validation v0.1 проверил точный диапазон sequence `10–2051`: `2 042` observations за период `2026-08-13T18:54:12.794Z` — `2026-08-14T06:53:21.576Z`, `381` state transition, `1 349 observe`, `572 wait_confirmation`, `64 possible_long`, `57 possible_short`, `0 setup_confirmed`, `0 skip`. Symmetry подтверждена во всех четырёх ячейках: resistance breakout long `35`, resistance bounce short `41`, support breakout short `16`, support bounce long `29`. Realtime downgrade подтверждён на `88` non-live tape, `3` non-live order-book, `822` disagreement и `179` partial observations; possible-state при source loss — `0`. Market freshness подтверждена, invariant/safety violations — `0`, изменение decision rules не рекомендовано;
 - cohort не содержал ни одного market-context conflict и ни одного terminal Setup outcome. Эти две области имеют статус `not_observed`, а общий report — `validated_with_coverage_gaps`; это не ошибка текущих правил и не основание менять thresholds/ranking/lifecycle. Полная validation этих ветвей требует новой фактической выборки без синтетических observations;
 - Unified Decision Coverage-Gap Observation v0.1 подписывается на уже записанный live-observation stream и не открывает дополнительные Binance connections. Только три редких вида (`market_context_single_conflict`, `market_context_double_conflict`, `terminal_setup_outcome`) сохраняются в отдельный atomic JSON snapshot v1; capacity применяется отдельно к каждому виду, поэтому частый conflict не удаляет единственный terminal outcome. Каждый case содержит исходный causal observation, transition от предыдущего observation того же symbol, safe contract violations и safety flags. Status/list/export API выпускает versioned report с `observed/not_observed`, transitions и violations. Ошибка subscriber или persistence изолирована от Level Lines/Unified Decision ответа; corrupt storage не перезаписывается, observer продолжает bounded memory collection в degraded mode;
+- Unified Decision Coverage-Gap Live Collection v0.1 работал `2026-08-14 18:45:41` — `2026-08-15 18:46:37` по `BTCUSDT/ETHUSDT/SOLUSDT`, `1m`, с интервалом 60 секунд. Из `4 290` запросов `3 940` завершились успешно; `350` transport failures пользователь связал с отключениями интернета. Collector продолжил работу после восстановления, а recorder/observer завершили окно в `ready` без persistence error. Все три kind остались `not_observed: 0`; `0` violations не валидирует отсутствующие cases. Вместе с первой cohort получено не менее `5 982` controlled real observations без этих редких ветвей, поэтому следующий шаг — reachability diagnostics, а не изменение production rules или слепое повторение того же окна;
 - пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
@@ -899,7 +901,7 @@ Replay обязателен для v1.0.
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134; Workspace отображает backend Unified Decision без frontend-пересчёта направления |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
-| 7 | Setup Engine | Causal integration, Unified Decision Contract, offline и первая 12-часовая live-cohort validation v0.1 реализованы; coverage-gap observation продолжается | Канонический Level Lines pipeline подключён к lifecycle; production `progress >= 0,50` сохранён. Live cohort из `2 042` observations подтвердила symmetry, source-loss/disagreement downgrade и `0` safety violations; market-context conflict и terminal Setup outcome в окне не наблюдались и остаются отдельными coverage gaps без изменения правил |
+| 7 | Setup Engine | Causal integration, Unified Decision Contract и live validation v0.1 реализованы; reachability diagnostics для редких ветвей впереди | Канонический Level Lines pipeline подключён к lifecycle; production `progress >= 0,50` сохранён. Первая cohort и дополнительный 24-часовой collection дали не менее `5 982` controlled real observations, но market-context conflict и terminal Setup outcome не наблюдались; отсутствие не считается validation и требует отдельной проверки достижимости без изменения правил |
 | 8 | Alerts | Backend, frontend, persistence и external delivery foundation v0.1 реализованы, развитие продолжается | Есть versioned persistent backend-domain, HTTP API, Setup lifecycle, Market Wide Volume Spike/trades adapters, BTC Market Mode producer, вычисленный impulse-source и restart-safe provider-neutral outbox; Alerts page использует реальные runtime contracts без mock fallback. Реальный delivery adapter, канал/credentials и multi-user ownership ещё впереди |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence, Alerts Persistence Foundation и runtime event history; Auth, приглашения, ownership, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
@@ -1008,37 +1010,37 @@ Replay обязателен для v1.0.
 
 Завершённая предыдущая задача:
 
-**NEXUS Unified Decision Live Cohort Validation v0.1**
+**NEXUS Unified Decision Coverage-Gap Observation v0.1**
 
 Результат:
 
-- добавлен versioned contract/report `unified-decision-live-cohort-validation-v0.1`, который читает существующий persistence snapshot или export dataset и валидирует выбранный sequence range отдельно от collection/runtime;
-- проверена точная 12-часовая cohort sequence `10–2051`: `2 042` observations, `381` transitions, `64 possible_long`, `57 possible_short`, `0` invariant/safety violations;
-- support/resistance breakout/bounce symmetry подтверждена на четырёх фактических ячейках `35/41/16/29` без синтетических observations;
-- source-loss/disagreement downgrade подтверждён на `88` non-live tape, `3` non-live order-book, `822` disagreement и `179` partial observations; ни один possible-state не использовал потерянный source;
-- market freshness подтверждена. Market-context conflict и terminal Setup outcome в этой cohort не встретились и записаны как отдельные `not_observed` coverage gaps, а не как успешная validation отсутствующих ветвей;
-- итоговый status — `validated_with_coverage_gaps`; изменение thresholds/rules/ranking/lifecycle не рекомендовано, trade order/signal/score/learning/profitability не добавлены;
-- focused cohort/live-observation/Unified Decision regression: `21/21`; полный backend regression: `542/542`; backend typecheck и production build прошли.
+- PR #153 добавил отдельную subscription к готовому live-observation stream без дополнительного чтения Binance или пересчёта source metrics;
+- single/double market conflict и terminal Setup outcome сохраняются в отдельный persistent bounded store с независимым лимитом на каждый вид;
+- versioned status/list/export report содержит исходный observation, transition, `observed/not_observed` coverage и contract violations;
+- отсутствие case остаётся `not_observed`, а corrupt/unsupported persistence и listener/save failures не меняют production response;
+- focused Coverage-Gap/Live Observation/Unified Decision regression: `31/31`; полный backend regression: `556/556`; CI Backend и Frontend прошли.
 
 Текущая отдельная задача:
 
-**NEXUS Unified Decision Coverage-Gap Observation v0.1**
+**NEXUS Unified Decision Coverage-Gap Live Collection v0.1**
 
-Реализованная граница:
+Фактический результат:
 
-- добавлена отдельная subscription к готовому live-observation stream без дополнительного чтения Binance или пересчёта source metrics;
-- single/double market conflict и terminal Setup outcome сохраняются в отдельный persistent bounded store с независимым лимитом на каждый вид, чтобы один частый вид не вытеснил единственное causal evidence другого;
-- versioned status/list/export report содержит исходный observation, transition, `observed/not_observed` coverage и contract violations; отсутствие case остаётся `not_observed`, а не успешной validation;
-- single/double conflict проверяются на `wait_confirmation/skip`, обязательные reason/invalidation и запрет possible-state; terminal outcome — на captured terminal candidate, `setup_confirmed`, matching reason и causal linkage к той же Level Line;
-- corrupt/unsupported persistence и listener/save failures переводят diagnostics в безопасный degraded/runtime режим и не меняют production Level Lines/Unified Decision response;
-- thresholds/rules/ranking/lifecycle не изменены, order/signal/score/learning/profitability не добавлены;
-- focused Coverage-Gap/Live Observation/Unified Decision regression: `31/31`; полный backend regression: `556/556`; backend typecheck и production build прошли.
+- controlled collection работал 24 часа wall-clock: `2026-08-14 18:45:41` — `2026-08-15 18:46:37`;
+- выполнено `1 430` раундов по `BTCUSDT`, `ETHUSDT`, `SOLUSDT`, timeframe `1m`, интервал 60 секунд;
+- `3 940` запросов завершились успешно, `350` запросов не завершились во время подтверждённых пользователем отключений интернета;
+- после восстановления соединения collector продолжил работу; итоговые состояния `Recorder=ready`, `Observer=ready`, persistence error отсутствует;
+- live store достиг bounded capacity `5 000`, что является штатным ограничением и не означает ошибку persistence;
+- `market_context_single_conflict`, `market_context_double_conflict` и `terminal_setup_outcome` остались `not_observed: 0`;
+- `Transitions=0` и `Violations=0` относятся к отсутствующим cases и не считаются validation редких контрактов;
+- точный итог — `collected_with_unobserved_gaps`; thresholds/rules/ranking/lifecycle не изменены, trade order/signal/score/learning/profitability не добавлены;
+- versioned результат зафиксирован в `docs/NEXUS_UNIFIED_DECISION_COVERAGE_GAP_LIVE_COLLECTION_v0.1.md`.
 
 Следующая отдельная задача:
 
-**NEXUS Unified Decision Coverage-Gap Live Collection v0.1**
+**NEXUS Unified Decision Coverage-Gap Reachability Diagnostics v0.1**
 
-Цель — оставить backend с новым observer на реальных данных до фактического появления coverage-gap cases, экспортировать versioned report и только затем решать, закрыта ли соответствующая ветвь. Отсутствие case не считать подтверждением; thresholds/rules/ranking/lifecycle не менять.
+Цель — без изменения production behavior проверить достижимость предусловий трёх редких ветвей на существующих live observations: посчитать precursor states, market-context readiness/alignment, Setup terminal lifecycle evidence и точку обрыва causal path. Только фактическая достижимость определит, нужен ли новый collection window или исправление wiring; отсутствие case по-прежнему не считать подтверждением.
 
 ---
 
