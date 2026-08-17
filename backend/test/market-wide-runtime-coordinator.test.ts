@@ -490,3 +490,83 @@ test(
     warmup.complete();
   },
 );
+test(
+  'recovers market-wide realtime and warm-up when startup universe was empty',
+  async () => {
+    const universe =
+      new TestSymbolUniverse(
+        createSnapshot([]),
+      );
+
+    const realtime =
+      new TestMarketWideRealtime();
+
+    const warmup =
+      new TestHistoryWarmup();
+
+    const coordinator =
+      new MarketWideRuntimeCoordinator(
+        universe,
+        realtime,
+        warmup,
+      );
+
+    await coordinator.start();
+
+    assert.deepEqual(
+      realtime.getSymbols(),
+      [],
+    );
+
+    assert.deepEqual(
+      warmup.starts,
+      [
+        [],
+      ],
+    );
+
+    const recovered =
+      createSnapshot([
+        {
+          symbol: 'BTCUSDT',
+          status: 'active',
+        },
+        {
+          symbol: 'ETHUSDT',
+          status: 'active',
+        },
+        {
+          symbol: 'SOLUSDT',
+          status: 'active',
+        },
+      ]);
+
+    universe.emit(
+      recovered,
+    );
+
+    assert.deepEqual(
+      realtime.getSymbols(),
+      [
+        'BTCUSDT',
+        'ETHUSDT',
+        'SOLUSDT',
+      ],
+    );
+
+    assert.deepEqual(
+      warmup.starts,
+      [
+        [],
+        [
+          'BTCUSDT',
+          'ETHUSDT',
+          'SOLUSDT',
+        ],
+      ],
+    );
+
+    coordinator.stop();
+    warmup.complete();
+  },
+);
