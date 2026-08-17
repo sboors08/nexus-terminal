@@ -584,6 +584,7 @@ export class OrderBookDepthClient {
             payload,
           );
 
+        this.lifecycleState = 'open';
         this.error =
           null;
 
@@ -613,6 +614,7 @@ export class OrderBookDepthClient {
             payload,
           );
 
+        this.lifecycleState = 'open';
         this.error =
           null;
 

@@ -392,3 +392,111 @@ test(
     );
   },
 );
+test(
+  'emits a universe snapshot when the first successful refresh recovers from startup failure',
+  async () => {
+    let requestIndex = 0;
+
+    const events:
+      string[][] = [];
+
+    const service =
+      new BinanceSymbolUniverseService({
+        baseUrl:
+          'https://fapi.binance.com',
+        quoteAsset: 'USDT',
+        refreshIntervalMs:
+          60_000,
+        requestTimeoutMs:
+          1_000,
+        collectingDurationMs:
+          600_000,
+        fetchImpl: async () => {
+          requestIndex += 1;
+
+          return requestIndex === 1
+            ? jsonResponse(
+                {
+                  error:
+                    'temporary unavailable',
+                },
+                503,
+              )
+            : jsonResponse(
+                exchangeInfo([
+                  'BTCUSDT',
+                  'ETHUSDT',
+                  'SOLUSDT',
+                ]),
+              );
+        },
+        scheduler:
+          new TestScheduler(),
+        now: () =>
+          new Date(
+            '2026-08-17T18:00:00.000Z',
+          ),
+      });
+
+    service.subscribe(
+      (event) => {
+        events.push(
+          [...event.snapshot.activeSymbols],
+        );
+      },
+    );
+
+    const initial =
+      await service.start();
+
+    assert.equal(
+      initial.initialized,
+      false,
+    );
+
+    assert.equal(
+      initial.serviceState,
+      'error',
+    );
+
+    assert.equal(
+      events.length,
+      0,
+    );
+
+    const recovered =
+      await service.refresh();
+
+    assert.equal(
+      recovered.initialized,
+      true,
+    );
+
+    assert.equal(
+      recovered.serviceState,
+      'ready',
+    );
+
+    assert.deepEqual(
+      recovered.activeSymbols,
+      [
+        'BTCUSDT',
+        'ETHUSDT',
+        'SOLUSDT',
+      ],
+    );
+
+    assert.deepEqual(
+      events,
+      [
+        [
+          'BTCUSDT',
+          'ETHUSDT',
+          'SOLUSDT',
+        ],
+      ],
+    );
+
+    service.stop();
+  },
+);

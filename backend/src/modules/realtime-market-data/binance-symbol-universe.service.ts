@@ -318,6 +318,9 @@ export class BinanceSymbolUniverseService {
   Promise<
     BinanceSymbolUniverseRuntimeSnapshot
   > {
+    const isRecoveryFromInitialFailure =
+      !this.initialized
+      && this.lastError !== null;
     this.state = 'refreshing';
 
     try {
@@ -366,7 +369,8 @@ export class BinanceSymbolUniverseService {
         this.getSnapshot();
 
       if (
-        nextUniverse.addedSymbols
+        isRecoveryFromInitialFailure
+        || nextUniverse.addedSymbols
           .length > 0
         || nextUniverse.removedSymbols
           .length > 0

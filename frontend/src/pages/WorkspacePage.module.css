@@ -1899,3 +1899,95 @@
   font-size: 9px;
   line-height: 1.4;
 }
+
+/* Market Workspace Runtime UX Hotfix v0.1 */
+
+.symbolPicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.symbolPicker > span {
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+  font-weight: var(--nexus-font-weight-semibold);
+  text-transform: uppercase;
+}
+
+.symbolPicker select {
+  width: 154px;
+  min-height: 30px;
+  padding: 0 28px 0 9px;
+  border: var(--nexus-border-width) solid var(--nexus-color-border-strong);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-surface-raised);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 11px;
+  font-weight: var(--nexus-font-weight-semibold);
+  cursor: pointer;
+}
+
+.symbolPicker select:hover,
+.symbolPicker select:focus {
+  border-color: var(--nexus-color-border-accent);
+  outline: none;
+}
+
+@media (min-width: 821px) {
+  .pageHeader {
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .instrumentHeader {
+    align-items: center;
+    gap: 8px;
+  }
+
+  .backLink {
+    width: 32px;
+    height: 32px;
+    margin-top: 0;
+    font-size: 16px;
+  }
+
+  .eyebrow {
+    font-size: 8px;
+  }
+
+  .symbolRow {
+    margin-top: 2px;
+  }
+
+  .symbolRow h1 {
+    font-size: 22px;
+  }
+
+  .setupDescription {
+    margin-top: 3px;
+    font-size: var(--nexus-font-size-xs);
+  }
+
+  .headerRight {
+    gap: 8px;
+  }
+
+  .priceBlock strong {
+    font-size: 19px;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .alertButtonActive,
+  .externalButton,
+  .secondaryLink {
+    min-height: 32px;
+    padding-inline: 10px;
+    font-size: var(--nexus-font-size-xs);
+  }
+}

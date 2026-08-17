@@ -112,9 +112,31 @@ export class MarketWideRuntimeCoordinator {
     this.unsubscribeUniverse =
       this.symbolUniverse.subscribe(
         (event) => {
+          const previousSymbolsCount =
+            this.marketWideRealtime
+              .getSymbols()
+              .length;
+
           this.syncSnapshot(
             event.snapshot,
           );
+
+          const nextSymbols =
+            this.marketWideRealtime
+              .getSymbols();
+
+          if (
+            this.started
+            && previousSymbolsCount === 0
+            && nextSymbols.length > 0
+            && this.historyWarmup
+          ) {
+            void this.historyWarmup
+              .start(
+                nextSymbols,
+              )
+              .catch(() => {});
+          }
         },
       );
 
