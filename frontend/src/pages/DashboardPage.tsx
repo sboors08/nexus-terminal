@@ -24,7 +24,7 @@ import {
   createDefaultScannerFilterState,
   filterAndSortScannerRows,
   buildDashboardScannerMetricView,
-  buildDashboardScannerWorkspaceUrl,
+
   normalizeDashboardRealtimeSymbol,
   sortDashboardScannerRows,
   useBinanceSymbolUniverse,
@@ -620,7 +620,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
 
   const symbolUniverse =
     useBinanceSymbolUniverse({
-      intervalMs: 60_000,
+      intervalMs: 10_000,
     });
 
   const scannerUniverseEntries =
@@ -1350,24 +1350,6 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                       selected={symbol === selected}
                       onSelect={() => {
                         setSelected(symbol);
-                        navigate(
-                          buildWorkspaceUrl(
-                            ROUTES.workspace,
-                            {
-                              setupId:
-                                buildMarketWorkspaceSetupId(
-                                  symbol,
-                                ),
-                              symbol:
-                                normalizeDashboardRealtimeSymbol(
-                                  symbol,
-                                ),
-                              scannerWindow,
-                              timeframe:
-                                scannerWindow,
-                            },
-                          ),
-                        );
                       }}
                     />
                   );
@@ -1483,41 +1465,27 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
 
           {filteredDashboardScannerRows.map(
             ({ row, view }, index) => (
-              <div
+              <button
                 key={String(row[0])}
-                className={styles.scannerRow}
-                role="link"
-                tabIndex={0}
+                type="button"
+                className={[
+                  styles.scannerRow,
+                  normalizeDashboardRealtimeSymbol(
+                    String(row[0]),
+                  ) === dashboardChartSymbol
+                    ? styles.scannerRowSelected
+                    : '',
+                ].filter(Boolean).join(' ')}
                 aria-label={
-                  `Открыть ${String(row[0])} в Charts / Workspace`
+                  `Показать ${String(row[0])} на графике`
                 }
                 onClick={() => {
-                  navigate(
-                    buildDashboardScannerWorkspaceUrl(
-                      ROUTES.workspace,
-                      String(row[0]),
-                    ),
-                  );
-                }}
-                onKeyDown={(event) => {
-                  if (
-                    event.key !== 'Enter'
-                    && event.key !== ' '
-                  ) {
-                    return;
-                  }
-
-                  event.preventDefault();
-
-                  navigate(
-                    buildDashboardScannerWorkspaceUrl(
-                      ROUTES.workspace,
-                      String(row[0]),
-                    ),
+                  setSelected(
+                    String(row[0]),
                   );
                 }}
                 title={
-                  `Открыть ${String(row[0])} в Charts / Workspace · `
+                  `Показать ${String(row[0])} на графике · `
                   + `${view.sourceLabel} · `
                   + view.updatedAtLabel
                 }
@@ -1644,7 +1612,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                     ),
                   )}
                 </span>
-              </div>
+              </button>
             ),
           )}
         </div>
@@ -2140,6 +2108,31 @@ const barCount =
               </button>
             ))}
           </div>
+
+          <button
+            type="button"
+            className={styles.chartWorkspaceButton}
+            onClick={() => {
+              navigate(
+                buildWorkspaceUrl(
+                  ROUTES.workspace,
+                  {
+                    setupId:
+                      buildMarketWorkspaceSetupId(
+                        dashboardChartSymbol,
+                      ),
+                    symbol:
+                      dashboardChartSymbol,
+                    scannerWindow,
+                    timeframe:
+                      dashboardChartTimeframe,
+                  },
+                ),
+              );
+            }}
+          >
+            Открыть в Workspace
+          </button>
 
           <div className={styles.chartQuote}>
             <strong>

@@ -184,6 +184,7 @@ export class RealtimeMarketDataClient {
       const payload = this.parsePayload<RealtimeConnectionStatus>(event, 'status');
       if (payload === null) return;
       this.status = payload;
+      this.lifecycleState = 'open';
       this.error = null;
       this.notify();
     };
@@ -192,6 +193,7 @@ export class RealtimeMarketDataClient {
       const payload = this.parsePayload<RealtimeSymbolSnapshot>(event, 'snapshot');
       if (payload === null) return;
       this.snapshots.set(payload.symbol, payload);
+      this.lifecycleState = 'open';
       this.error = null;
       this.notify();
     };

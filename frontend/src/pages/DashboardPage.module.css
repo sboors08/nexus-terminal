@@ -1,4 +1,4 @@
-.dashboard {
+﻿.dashboard {
   --panel: #071116;
   --panel-2: #09151b;
   --line: #18342a;
@@ -1817,4 +1817,100 @@
 .chartCanvas > div {
   height: 100%;
   min-height: 0;
+}
+
+/* Market Workspace Runtime UX Hotfix v0.1 */
+
+.scannerRow {
+  width: 100%;
+  padding: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  text-align: left;
+  background: transparent;
+  appearance: none;
+}
+
+.scannerRowSelected {
+  background: rgb(53 223 141 / 8%);
+  box-shadow: inset 2px 0 0 #35df8d;
+}
+
+.insights {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.insightList {
+  min-width: 0;
+  overflow: auto;
+}
+
+.insightList > div,
+.insightList > div > div {
+  min-width: 0;
+}
+
+.insightList strong,
+.insightList p,
+.insightConclusion {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.chartWorkspaceButton {
+  flex: 0 0 auto;
+  min-height: 27px;
+  padding: 0 10px;
+  border: 1px solid #1f6549;
+  border-radius: 4px;
+  color: #35df8d;
+  background: rgb(53 223 141 / 8%);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chartWorkspaceButton:hover {
+  border-color: #35df8d;
+  background: rgb(53 223 141 / 13%);
+}
+
+/* Market Insights visual fit v0.1 */
+.dashboardSidebar {
+  grid-template-rows:
+    220px
+    136px
+    minmax(0, 1fr);
+}
+
+.dashboardSidebar .insightList {
+  overflow: visible;
+}
+
+/* Dashboard compact top row v0.1 */
+@media (min-width: 1451px) {
+  .dashboard {
+    grid-template-rows:
+      250px
+      288px
+      430px;
+  }
+
+  .marketMode,
+  .hotList {
+    height: 250px;
+    align-self: start;
+  }
+
+  .hotCard {
+    grid-template-rows:
+      auto
+      auto
+      auto;
+    align-content: start;
+  }
 }

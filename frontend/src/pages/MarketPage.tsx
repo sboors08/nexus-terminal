@@ -391,6 +391,24 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
 export function MarketPage() {
   const marketQuery = useApiQuery('market-symbols', nexusApi.getMarketSymbols);
 
+  useEffect(() => {
+    if (marketQuery.status !== 'error') {
+      return;
+    }
+
+    const retryTimer =
+      window.setTimeout(
+        () => {
+          marketQuery.retry();
+        },
+        3_000,
+      );
+
+    return () => {
+      window.clearTimeout(retryTimer);
+    };
+  }, [marketQuery.status]);
+
   if (marketQuery.status === 'loading') return <AsyncDataState state="loading" title="Загружаем обзор рынка" message="Получаем актуальные метрики Binance из backend NEXUS." />;
   if (marketQuery.status === 'error') return <AsyncDataState state="error" title="Market не загрузился" message={marketQuery.error?.message ?? 'Не удалось получить список монет из backend NEXUS.'} onRetry={marketQuery.retry} />;
   if (!marketQuery.data || marketQuery.data.length === 0) return <AsyncDataState state="empty" title="В Market пока нет монет" message="Backend NEXUS не вернул доступные торговые пары." />;

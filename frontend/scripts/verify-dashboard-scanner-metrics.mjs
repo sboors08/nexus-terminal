@@ -1,4 +1,4 @@
-﻿import {
+import {
   access,
   readFile,
 } from 'node:fs/promises';
@@ -58,10 +58,10 @@ const requiredMarkers = [
   'activityIsLive',
   'quoteVolumeValue',
   'ranks live scanner rows by activity and quote volume',
-  'role="link"',
-  'tabIndex={0}',
-  "event.key !== 'Enter'",
-  "event.key !== ' '",
+  'Показать ${String(row[0])} на графике',
+  'scannerRowSelected',
+  'chartWorkspaceButton',
+  'Открыть в Workspace',
   '.scannerRow:hover',
   '.scannerRow:focus-visible',
   'cursor: pointer',
@@ -107,5 +107,5 @@ if (
 }
 
 console.log(
-  'NEXUS frontend verified: Dashboard Market Scanner Integration, Row Navigation, Activity Ranking and BTC Comparison v0.1 are present.',
+  'NEXUS frontend verified: Dashboard Market Scanner Integration, Local Row Selection, Explicit Workspace Navigation, Activity Ranking and BTC Comparison v0.1 are present.',
 );

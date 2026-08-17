@@ -8,6 +8,7 @@ import {
   buildWorkspaceRealtimeView,
   buildWorkspaceTradeTape,
   resolveWorkspaceLiquidityBucketSize,
+  useBinanceSymbolUniverse,
   useOrderBookDepth,
   useRealtimeMarketData,
 } from '@/shared/realtime';
@@ -81,6 +82,10 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     selectedSetup.runtimeData
     === true;
   const [searchParams, setSearchParams] = useSearchParams();
+  const requestedWorkspaceSymbol =
+    searchParams.get('symbol')
+      ?.toUpperCase()
+    ?? '';
   const requestedPreset = searchParams.get('preset');
   const preset: TradingPreset = isTradingPreset(requestedPreset)
     ? requestedPreset
@@ -95,6 +100,33 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
   const requestedTimeframe = searchParams.get('timeframe');
   const defaultTimeframe: Timeframe = isWorkspaceTimeframe(selectedSetup.timeframe) ? selectedSetup.timeframe : '5m';
   const timeframe: Timeframe = isWorkspaceTimeframe(requestedTimeframe) ? requestedTimeframe : defaultTimeframe;
+
+  const workspaceSymbolUniverse =
+    useBinanceSymbolUniverse({
+      intervalMs: 10_000,
+    });
+
+  const workspaceSymbols =
+    useMemo(
+      () =>
+        [
+          ...new Set([
+            contractSetup.symbol,
+            ...(
+              workspaceSymbolUniverse
+                .snapshot
+                ?.activeSymbols
+              ?? []
+            ),
+          ]),
+        ].sort(),
+      [
+        contractSetup.symbol,
+        workspaceSymbolUniverse
+          .snapshot
+          ?.activeSymbols,
+      ],
+    );
 
   const candlesQuery = useMarketCandles({
     symbol: contractSetup.symbol,
@@ -416,6 +448,14 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     );
 
   useEffect(() => {
+    if (
+      requestedWorkspaceSymbol.length > 0
+      && requestedWorkspaceSymbol
+        !== contractSetup.symbol
+    ) {
+      return;
+    }
+
     const nextParams =
       buildCanonicalWorkspaceSearchParams(
         searchParams,
@@ -435,7 +475,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
     }
-  }, [contractSetup.id, contractSetup.symbol, preset, scannerWindow, searchParams, setSearchParams, timeframe]);
+  }, [contractSetup.id, contractSetup.symbol, preset, requestedWorkspaceSymbol, scannerWindow, searchParams, setSearchParams, timeframe]);
 
   const selectTimeframe = (value: Timeframe) => {
     const nextParams =
@@ -452,6 +492,40 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
           scannerWindow,
           timeframe:
             value,
+        },
+      );
+
+    setSearchParams(nextParams);
+  };
+
+  const selectSymbol = (
+    value: string,
+  ) => {
+    const symbol =
+      value
+        .trim()
+        .toUpperCase();
+
+    if (
+      symbol.length === 0
+      || symbol === contractSetup.symbol
+    ) {
+      return;
+    }
+
+    const nextParams =
+      buildCanonicalWorkspaceSearchParams(
+        searchParams,
+        {
+          setupId:
+            buildMarketWorkspaceSetupId(
+              symbol,
+            ),
+
+          symbol,
+          preset,
+          scannerWindow,
+          timeframe,
         },
       );
 
@@ -1873,6 +1947,43 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             </p>
             <div className={styles.symbolRow}>
               <h1>{selectedSetup.symbol}</h1>
+
+              <label
+                className={styles.symbolPicker}
+              >
+                <span>Монета</span>
+
+                <select
+                  value={contractSetup.symbol}
+                  aria-label="Выбрать монету Workspace"
+                  onChange={(event) => {
+                    selectSymbol(
+                      event.currentTarget.value,
+                    );
+                  }}
+                >
+                  {workspaceSymbols.map(
+                    (symbol) => (
+                      <option
+                        key={symbol}
+                        value={symbol}
+                      >
+                        {
+                          symbol.endsWith('USDT')
+                            ? `${
+                                symbol.slice(
+                                  0,
+                                  -4,
+                                )
+                              }/USDT`
+                            : symbol
+                        }
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+
               {!isMarketPreview && (
                 <DirectionBadge
                   direction={
