@@ -1178,6 +1178,8 @@ export class MarketWideRealtimeService {
           this.manuallyStopped
           || generation
             !== this.generation
+          || shard.socket
+            !== socket
         ) {
           return;
         }
@@ -1194,6 +1196,7 @@ export class MarketWideRealtimeService {
         this.handleMessage(
           shard,
           generation,
+          socket,
           event,
         );
       },
@@ -1206,6 +1209,8 @@ export class MarketWideRealtimeService {
           this.manuallyStopped
           || generation
             !== this.generation
+          || shard.socket
+            !== socket
         ) {
           return;
         }
@@ -1222,6 +1227,8 @@ export class MarketWideRealtimeService {
           this.manuallyStopped
           || generation
             !== this.generation
+          || shard.socket
+            !== socket
         ) {
           return;
         }
@@ -1321,6 +1328,8 @@ export class MarketWideRealtimeService {
     shard:
       MarketWideShardRuntime,
     generation: number,
+    socket:
+      RealtimeWebSocket,
     event:
       RealtimeSocketEvent,
   ): void {
@@ -1328,6 +1337,8 @@ export class MarketWideRealtimeService {
       this.manuallyStopped
       || generation
         !== this.generation
+      || shard.socket
+        !== socket
     ) {
       return;
     }
@@ -1377,6 +1388,8 @@ export class MarketWideRealtimeService {
             !this.manuallyStopped
             && generation
               === this.generation
+            && shard.socket
+              === socket
           ) {
             this.processTextMessage(
               shard,
