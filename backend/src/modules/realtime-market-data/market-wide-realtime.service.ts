@@ -65,6 +65,8 @@ export interface MarketWideRealtimeServiceOptions {
   reconnectMaxDelayMs: number;
   socketFactory?: RealtimeWebSocketFactory;
   scheduler?: ReconnectScheduler;
+  watchdogScheduler?: ReconnectScheduler;
+  silentStreamTimeoutMs?: number;
   now?: () => Date;
 }
 
@@ -107,12 +109,16 @@ interface MarketWideShardRuntime
   connected: boolean;
   reconnectAttempts: number;
   reconnectHandle: unknown;
+  watchdogHandle: unknown;
 }
 
 const SYMBOL_PATTERN =
   /^[A-Z0-9]{5,30}$/;
 
 const MARKET_WIDE_EVENT_STALE_AFTER_MS =
+  30_000;
+
+const MARKET_WIDE_SILENT_STREAM_TIMEOUT_MS =
   30_000;
 
 const defaultScheduler:
@@ -657,6 +663,13 @@ export class MarketWideRealtimeService {
     RealtimeWebSocketFactory;
   private readonly scheduler:
     ReconnectScheduler;
+
+  private readonly watchdogScheduler:
+    ReconnectScheduler;
+
+  private readonly silentStreamTimeoutMs:
+    number;
+
   private readonly now: () => Date;
 
   private readonly metricsStore:
@@ -711,6 +724,17 @@ export class MarketWideRealtimeService {
       options.reconnectBaseDelayMs,
     );
 
+    if (
+      options.silentStreamTimeoutMs
+      !== undefined
+    ) {
+      validateInteger(
+        options.silentStreamTimeoutMs,
+        'silentStreamTimeoutMs',
+        1,
+      );
+    }
+
     this.baseUrl =
       options.baseUrl.replace(
         /\/$/,
@@ -735,6 +759,14 @@ export class MarketWideRealtimeService {
     this.scheduler =
       options.scheduler
       ?? defaultScheduler;
+
+    this.watchdogScheduler =
+      options.watchdogScheduler
+      ?? defaultScheduler;
+
+    this.silentStreamTimeoutMs =
+      options.silentStreamTimeoutMs
+      ?? MARKET_WIDE_SILENT_STREAM_TIMEOUT_MS;
 
     this.now =
       options.now
@@ -1086,6 +1118,7 @@ export class MarketWideRealtimeService {
           connected: false,
           reconnectAttempts: 0,
           reconnectHandle: null,
+          watchdogHandle: null,
         }),
       );
 
@@ -1115,6 +1148,10 @@ export class MarketWideRealtimeService {
         shard.reconnectHandle =
           null;
       }
+
+      this.cancelShardWatchdog(
+        shard,
+      );
 
       const socket =
         shard.socket;
@@ -1187,6 +1224,12 @@ export class MarketWideRealtimeService {
         shard.connected = true;
         shard.reconnectAttempts = 0;
         this.lastError = null;
+
+        this.armShardWatchdog(
+          shard,
+          generation,
+          socket,
+        );
       },
     );
 
@@ -1232,6 +1275,10 @@ export class MarketWideRealtimeService {
         ) {
           return;
         }
+
+        this.cancelShardWatchdog(
+          shard,
+        );
 
         shard.socket = null;
         shard.connected = false;
@@ -1348,6 +1395,8 @@ export class MarketWideRealtimeService {
     if (typeof data === 'string') {
       this.processTextMessage(
         shard,
+        generation,
+        socket,
         data,
       );
 
@@ -1357,6 +1406,8 @@ export class MarketWideRealtimeService {
     if (data instanceof ArrayBuffer) {
       this.processTextMessage(
         shard,
+        generation,
+        socket,
         new TextDecoder()
           .decode(data),
       );
@@ -1374,6 +1425,8 @@ export class MarketWideRealtimeService {
 
       this.processTextMessage(
         shard,
+        generation,
+        socket,
         new TextDecoder()
           .decode(bytes),
       );
@@ -1393,6 +1446,8 @@ export class MarketWideRealtimeService {
           ) {
             this.processTextMessage(
               shard,
+              generation,
+              socket,
               text,
             );
           }
@@ -1403,6 +1458,9 @@ export class MarketWideRealtimeService {
   private processTextMessage(
     shard:
       MarketWideShardRuntime,
+    generation: number,
+    socket:
+      RealtimeWebSocket,
     text: string,
   ): void {
     let payload:
@@ -1470,6 +1528,12 @@ export class MarketWideRealtimeService {
         this.lastMessageAt =
           receivedAt;
 
+        this.armShardWatchdog(
+          shard,
+          generation,
+          socket,
+        );
+
         const applied =
           this.metricsStore.applyKline(
             update,
@@ -1532,6 +1596,12 @@ export class MarketWideRealtimeService {
         this.lastMessageAt =
           receivedAt;
 
+        this.armShardWatchdog(
+          shard,
+          generation,
+          socket,
+        );
+
         this.metricsStore
           .applyBookTicker(
             ticker,
@@ -1578,6 +1648,135 @@ export class MarketWideRealtimeService {
     );
   }
 
+  private cancelShardWatchdog(
+    shard:
+      MarketWideShardRuntime,
+  ): void {
+    const handle =
+      shard.watchdogHandle;
+
+    shard.watchdogHandle =
+      null;
+
+    if (handle !== null) {
+      this.watchdogScheduler
+        .cancel(
+          handle,
+        );
+    }
+  }
+
+  private armShardWatchdog(
+    shard:
+      MarketWideShardRuntime,
+    generation: number,
+    socket:
+      RealtimeWebSocket,
+  ): void {
+    if (
+      this.manuallyStopped
+      || generation
+        !== this.generation
+      || shard.socket
+        !== socket
+      || !shard.connected
+    ) {
+      return;
+    }
+
+    this.cancelShardWatchdog(
+      shard,
+    );
+
+    let handle:
+      unknown = null;
+
+    handle =
+      this.watchdogScheduler
+        .schedule(
+          () => {
+            /*
+             * Ignore a callback belonging to an older,
+             * already cancelled watchdog generation.
+             */
+            if (
+              shard.watchdogHandle
+              !== handle
+            ) {
+              return;
+            }
+
+            shard.watchdogHandle =
+              null;
+
+            if (
+              this.manuallyStopped
+              || generation
+                !== this.generation
+              || shard.socket
+                !== socket
+              || !shard.connected
+            ) {
+              return;
+            }
+
+            this.recoverSilentShard(
+              shard,
+              generation,
+              socket,
+            );
+          },
+          this.silentStreamTimeoutMs,
+        );
+
+    shard.watchdogHandle =
+      handle;
+  }
+
+  private recoverSilentShard(
+    shard:
+      MarketWideShardRuntime,
+    generation: number,
+    socket:
+      RealtimeWebSocket,
+  ): void {
+    if (
+      this.manuallyStopped
+      || generation
+        !== this.generation
+      || shard.socket
+        !== socket
+      || shard.reconnectHandle
+        !== null
+    ) {
+      return;
+    }
+
+    this.cancelShardWatchdog(
+      shard,
+    );
+
+    shard.socket =
+      null;
+
+    shard.connected =
+      false;
+
+    this.lastError =
+      `Binance market-wide shard ${shard.id} silent stream: `
+      + `no fresh messages for ${this.silentStreamTimeoutMs}ms`;
+
+    this.scheduleReconnect(
+      shard,
+      generation,
+    );
+
+    socket.close(
+      1000,
+      'NEXUS silent stream recovery',
+    );
+  }
+
   private recoverStaleShard(
     shard:
       MarketWideShardRuntime,
@@ -1591,6 +1790,10 @@ export class MarketWideRealtimeService {
     ) {
       return;
     }
+
+    this.cancelShardWatchdog(
+      shard,
+    );
 
     const socket =
       shard.socket;
