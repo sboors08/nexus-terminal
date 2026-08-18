@@ -351,7 +351,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
             symbols: [],
             maxStreamsPerSocket:
               env.binanceMarketWideMaxStreamsPerSocket
-              ?? 800,
+              ?? 100,
             reconnectBaseDelayMs:
               env.binanceMarketWideReconnectBaseDelayMs
               ?? 1_000,

@@ -57,6 +57,9 @@ const BINANCE_WEBSOCKET_ROUTES:
     'public',
   ];
 
+const BINANCE_WEBSOCKET_EVENT_STALE_AFTER_MS =
+  30_000;
+
 interface BinanceAggregateTradeEvent {
   E?: number;
   s?: string;
@@ -739,12 +742,16 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     const data = event.data;
 
     if (typeof data === 'string') {
-      this.processTextMessage(data);
+      this.processTextMessage(
+        route,
+        data,
+      );
       return;
     }
 
     if (data instanceof ArrayBuffer) {
       this.processTextMessage(
+        route,
         new TextDecoder().decode(data),
       );
       return;
@@ -765,6 +772,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       );
 
       this.processTextMessage(
+        route,
         new TextDecoder().decode(bytes),
       );
 
@@ -780,36 +788,187 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
           )
           && !this.manuallyStopped
         ) {
-          this.processTextMessage(text);
+          this.processTextMessage(
+            route,
+            text,
+          );
         }
       });
     }
   }
 
-  private processTextMessage(text: string): void {
+  private processTextMessage(
+    route: BinanceWebSocketRoute,
+    text: string,
+  ): void {
     let payload: CombinedStreamPayload;
+
     try {
-      payload = JSON.parse(text) as CombinedStreamPayload;
+      payload =
+        JSON.parse(
+          text,
+        ) as CombinedStreamPayload;
     } catch {
-      this.status = { ...this.status, lastError: 'Binance WebSocket returned invalid JSON' };
+      this.status = {
+        ...this.status,
+        lastError:
+          'Binance WebSocket returned invalid JSON',
+      };
+
       this.emitStatus();
       return;
     }
 
-    if (!payload.stream || !payload.data || typeof payload.data !== 'object') return;
+    if (
+      !payload.stream
+      || !payload.data
+      || typeof payload.data
+        !== 'object'
+    ) {
+      return;
+    }
 
-    const receivedAt = this.now().toISOString();
-    this.status = { ...this.status, lastMessageAt: receivedAt };
-    const stream = payload.stream.toLowerCase();
+    const stream =
+      payload.stream.toLowerCase();
 
-    if (stream.endsWith('@aggtrade')) {
+    const receivedAtDate =
+      this.now();
+
+    const receivedAtMs =
+      receivedAtDate.getTime();
+
+    const receivedAt =
+      receivedAtDate.toISOString();
+
+    const exchangeEventTimeMs =
+      stream.endsWith(
+        '@aggtrade',
+      )
+        ? (
+            numberValue(
+              (
+                payload.data as
+                  BinanceAggregateTradeEvent
+              ).T,
+            )
+            ?? numberValue(
+              (
+                payload.data as
+                  BinanceAggregateTradeEvent
+              ).E,
+            )
+          )
+        : stream.endsWith(
+            '@bookticker',
+          )
+          ? numberValue(
+              (
+                payload.data as
+                  BinanceBookTickerEvent
+              ).E,
+            )
+          : null;
+
+    if (
+      exchangeEventTimeMs !== null
+    ) {
+      const lagMs =
+        receivedAtMs
+        - exchangeEventTimeMs;
+
+      if (
+        lagMs
+        > BINANCE_WEBSOCKET_EVENT_STALE_AFTER_MS
+      ) {
+        this.recoverStaleRoute(
+          route,
+          stream,
+          lagMs,
+        );
+
+        return;
+      }
+    }
+
+    this.status = {
+      ...this.status,
+      lastMessageAt:
+        receivedAt,
+    };
+
+    if (
+      stream.endsWith(
+        '@aggtrade',
+      )
+    ) {
       this.applyTrade(
-        payload.data as BinanceAggregateTradeEvent,
+        payload.data as
+          BinanceAggregateTradeEvent,
         receivedAt,
       );
-    } else if (stream.endsWith('@bookticker')) {
-      this.applyBookTicker(payload.data as BinanceBookTickerEvent, receivedAt);
+    } else if (
+      stream.endsWith(
+        '@bookticker',
+      )
+    ) {
+      this.applyBookTicker(
+        payload.data as
+          BinanceBookTickerEvent,
+        receivedAt,
+      );
     }
+  }
+
+  private recoverStaleRoute(
+    route: BinanceWebSocketRoute,
+    stream: string,
+    lagMs: number,
+  ): void {
+    if (this.manuallyStopped) {
+      return;
+    }
+
+    const socket =
+      this.sockets.get(
+        route,
+      );
+
+    this.incrementRouteGeneration(
+      route,
+    );
+
+    this.sockets.delete(
+      route,
+    );
+
+    this.openRoutes.delete(
+      route,
+    );
+
+    const reason =
+      `Binance Futures ${route} WebSocket stale exchange event `
+      + `${stream}: lag ${Math.round(lagMs)}ms`;
+
+    this.status = {
+      ...this.status,
+      state:
+        'reconnecting',
+      disconnectedAt:
+        this.now().toISOString(),
+      lastError:
+        reason,
+    };
+
+    this.emitStatus();
+
+    socket?.close(
+      1000,
+      'NEXUS stale exchange event recovery',
+    );
+
+    this.scheduleReconnect(
+      route,
+    );
   }
 
   private applyTrade(

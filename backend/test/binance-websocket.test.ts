@@ -560,7 +560,7 @@ test(
     const sockets: FakeSocket[] = [];
     const urls: string[] = [];
 
-    const currentTime =
+    let currentTime =
       new Date(
         '2026-07-21T12:00:40.000Z',
       );
@@ -637,6 +637,16 @@ test(
       const timestampMs =
         Date.parse(timestamp);
 
+      // Synthetic trades are generated as if they
+      // arrive live. Keep the service clock close
+      // to the exchange event time so the freshness
+      // watchdog does not interpret test history as
+      // a delayed production WebSocket event.
+      currentTime =
+        new Date(
+          timestampMs + 100,
+        );
+
       marketSocket.emit('message', {
         data: JSON.stringify({
           stream:
@@ -697,6 +707,13 @@ test(
       );
     }
 
+    // Restore the intended scanner reference time
+    // after the synthetic live events were delivered.
+    currentTime =
+      new Date(
+        '2026-07-21T12:00:40.000Z',
+      );
+
     const solMetrics =
       service.getScannerMetrics(
         'SOLUSDT',
@@ -747,6 +764,258 @@ test(
     assert.equal(
       btcMetrics.relativeStrengthPct,
       0,
+    );
+
+    service.stop();
+  },
+);
+
+test(
+  'reconnects the generic Binance route when an exchange event arrives stale',
+  () => {
+    const sockets:
+      FakeSocket[] = [];
+
+    const urls:
+      string[] = [];
+
+    const scheduled:
+      Array<{
+        callback: () => void;
+        delayMs: number;
+      }> = [];
+
+    const scheduler:
+      ReconnectScheduler = {
+        schedule(
+          callback,
+          delayMs,
+        ) {
+          const handle = {
+            callback,
+            delayMs,
+          };
+
+          scheduled.push(
+            handle,
+          );
+
+          return handle;
+        },
+
+        cancel(handle) {
+          const index =
+            scheduled.indexOf(
+              handle as {
+                callback: () => void;
+                delayMs: number;
+              },
+            );
+
+          if (index >= 0) {
+            scheduled.splice(
+              index,
+              1,
+            );
+          }
+        },
+      };
+
+    const eventTimeMs =
+      1_784_390_400_000;
+
+    const service =
+      new BinanceWebSocketMarketDataService({
+        baseUrl:
+          'wss://fstream.binance.com',
+        symbols: [
+          'BTCUSDT',
+        ],
+        reconnectBaseDelayMs:
+          1_000,
+        reconnectMaxDelayMs:
+          30_000,
+        tradesBufferSize:
+          100,
+        socketFactory(url) {
+          urls.push(
+            url,
+          );
+
+          const socket =
+            new FakeSocket();
+
+          sockets.push(
+            socket,
+          );
+
+          return socket;
+        },
+        scheduler,
+        now: () =>
+          new Date(
+            eventTimeMs
+            + 60_001,
+          ),
+      });
+
+    service.start();
+
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/market/stream?streams=',
+          ),
+      );
+
+    const publicSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/public/stream?streams=',
+          ),
+      );
+
+    assert.notEqual(
+      marketSocketIndex,
+      -1,
+    );
+
+    assert.notEqual(
+      publicSocketIndex,
+      -1,
+    );
+
+    const marketSocket =
+      sockets[
+        marketSocketIndex
+      ];
+
+    const publicSocket =
+      sockets[
+        publicSocketIndex
+      ];
+
+    assert.ok(
+      marketSocket,
+    );
+
+    assert.ok(
+      publicSocket,
+    );
+
+    marketSocket.emit(
+      'open',
+    );
+
+    publicSocket.emit(
+      'open',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    publicSocket.emit(
+      'message',
+      {
+        data:
+          JSON.stringify({
+            stream:
+              'btcusdt@bookTicker',
+            data: {
+              E:
+                eventTimeMs,
+              s:
+                'BTCUSDT',
+              b:
+                '64000.0',
+              B:
+                '1.2',
+              a:
+                '64001.0',
+              A:
+                '0.8',
+            },
+          }),
+      },
+    );
+
+    assert.equal(
+      publicSocket
+        .closeCalls.length,
+      1,
+    );
+
+    assert.equal(
+      publicSocket
+        .closeCalls[0]
+        ?.code,
+      1000,
+    );
+
+    assert.equal(
+      service.getSnapshots(
+        'BTCUSDT',
+      )[0]
+        ?.bookTicker,
+      null,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastMessageAt,
+      null,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'reconnecting',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .reconnectAttempts,
+      1,
+    );
+
+    assert.match(
+      service.getStatus()
+        .lastError
+        ?? '',
+      /stale exchange event/,
+    );
+
+    assert.equal(
+      scheduled.length,
+      1,
+    );
+
+    assert.equal(
+      scheduled[0]
+        ?.delayMs,
+      1_000,
+    );
+
+    scheduled[0]
+      ?.callback();
+
+    assert.equal(
+      sockets.length,
+      3,
+    );
+
+    assert.ok(
+      (
+        urls[2]
+        ?? ''
+      ).includes(
+        '/public/stream?streams=',
+      ),
     );
 
     service.stop();
