@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildApp,
@@ -332,7 +332,7 @@ function createRealtimeService(): {
       },
       now: () =>
         new Date(
-          '2026-07-26T12:10:00.000Z',
+          '2026-07-26T12:08:00.100Z',
         ),
     });
 

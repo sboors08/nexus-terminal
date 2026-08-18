@@ -112,6 +112,9 @@ interface MarketWideShardRuntime
 const SYMBOL_PATTERN =
   /^[A-Z0-9]{5,30}$/;
 
+const MARKET_WIDE_EVENT_STALE_AFTER_MS =
+  30_000;
+
 const defaultScheduler:
 ReconnectScheduler = {
   schedule: (
@@ -1394,7 +1397,9 @@ export class MarketWideRealtimeService {
 
     try {
       payload =
-        JSON.parse(text) as CombinedStreamPayload;
+        JSON.parse(
+          text,
+        ) as CombinedStreamPayload;
     } catch {
       this.lastError =
         `Binance market-wide shard ${shard.id} returned invalid JSON`;
@@ -1418,9 +1423,6 @@ export class MarketWideRealtimeService {
     const receivedAt =
       this.now().toISOString();
 
-    this.lastMessageAt =
-      receivedAt;
-
     try {
       if (
         stream.endsWith(
@@ -1431,6 +1433,29 @@ export class MarketWideRealtimeService {
           parseBinanceOneMinuteKlineEvent(
             payload.data,
           );
+
+        const lagMs =
+          this.getExchangeLagMs(
+            update.eventTime,
+            receivedAt,
+          );
+
+        if (
+          lagMs !== null
+          && lagMs
+            > MARKET_WIDE_EVENT_STALE_AFTER_MS
+        ) {
+          this.recoverStaleShard(
+            shard,
+            stream,
+            lagMs,
+          );
+
+          return;
+        }
+
+        this.lastMessageAt =
+          receivedAt;
 
         const applied =
           this.metricsStore.applyKline(
@@ -1465,12 +1490,38 @@ export class MarketWideRealtimeService {
           '@bookticker',
         )
       ) {
+        const ticker =
+          parseBinanceMarketWideBookTicker(
+            payload.data,
+            receivedAt,
+          );
+
+        const lagMs =
+          this.getExchangeLagMs(
+            ticker.updatedAt,
+            receivedAt,
+          );
+
+        if (
+          lagMs !== null
+          && lagMs
+            > MARKET_WIDE_EVENT_STALE_AFTER_MS
+        ) {
+          this.recoverStaleShard(
+            shard,
+            stream,
+            lagMs,
+          );
+
+          return;
+        }
+
+        this.lastMessageAt =
+          receivedAt;
+
         this.metricsStore
           .applyBookTicker(
-            parseBinanceMarketWideBookTicker(
-              payload.data,
-              receivedAt,
-            ),
+            ticker,
           );
       }
     } catch (error) {
@@ -1479,6 +1530,77 @@ export class MarketWideRealtimeService {
           ? error.message
           : `Unable to process market-wide shard ${shard.id} message`;
     }
+  }
+
+  private getExchangeLagMs(
+    exchangeTimestamp:
+      string,
+    receivedAt:
+      string,
+  ): number | null {
+    const exchangeMs =
+      Date.parse(
+        exchangeTimestamp,
+      );
+
+    const receivedMs =
+      Date.parse(
+        receivedAt,
+      );
+
+    if (
+      !Number.isFinite(
+        exchangeMs,
+      )
+      || !Number.isFinite(
+        receivedMs,
+      )
+    ) {
+      return null;
+    }
+
+    return (
+      receivedMs
+      - exchangeMs
+    );
+  }
+
+  private recoverStaleShard(
+    shard:
+      MarketWideShardRuntime,
+    stream: string,
+    lagMs: number,
+  ): void {
+    if (
+      this.manuallyStopped
+      || shard.reconnectHandle
+        !== null
+    ) {
+      return;
+    }
+
+    const socket =
+      shard.socket;
+
+    shard.socket =
+      null;
+
+    shard.connected =
+      false;
+
+    this.lastError =
+      `Binance market-wide shard ${shard.id} stale exchange event `
+      + `${stream}: lag ${Math.round(lagMs)}ms`;
+
+    this.scheduleReconnect(
+      shard,
+      this.generation,
+    );
+
+    socket?.close(
+      1000,
+      'NEXUS stale exchange event recovery',
+    );
   }
 
   private scheduleReconnect(

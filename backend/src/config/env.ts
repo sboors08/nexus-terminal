@@ -257,7 +257,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     ),
     binanceMarketWideMaxStreamsPerSocket: readInteger(
       source.BINANCE_MARKET_WIDE_MAX_STREAMS_PER_SOCKET,
-      800,
+      100,
       'BINANCE_MARKET_WIDE_MAX_STREAMS_PER_SOCKET',
       2,
       1_000,

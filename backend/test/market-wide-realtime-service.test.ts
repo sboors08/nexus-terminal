@@ -1097,3 +1097,209 @@ test(
     );
   },
 );
+
+test(
+  'reconnects only the stale market-wide shard when an exchange event arrives stale',
+  () => {
+    const scheduler =
+      new TestScheduler();
+
+    const sockets:
+      TestSocket[] = [];
+
+    const urls:
+      string[] = [];
+
+    const eventTimeMs =
+      1_721_577_841_999;
+
+    const service =
+      new MarketWideRealtimeService({
+        baseUrl:
+          'wss://fstream.binance.com',
+        symbols: [
+          'BTCUSDT',
+        ],
+        maxStreamsPerSocket:
+          100,
+        reconnectBaseDelayMs:
+          250,
+        reconnectMaxDelayMs:
+          2_000,
+        scheduler,
+        socketFactory: (url) => {
+          urls.push(
+            url,
+          );
+
+          const socket =
+            new TestSocket();
+
+          sockets.push(
+            socket,
+          );
+
+          return socket;
+        },
+        now: () =>
+          new Date(
+            eventTimeMs
+            + 60_001,
+          ),
+      });
+
+    service.start();
+
+    assert.equal(
+      sockets.length,
+      2,
+    );
+
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/market/stream?streams=',
+          ),
+      );
+
+    const publicSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/public/stream?streams=',
+          ),
+      );
+
+    assert.notEqual(
+      marketSocketIndex,
+      -1,
+    );
+
+    assert.notEqual(
+      publicSocketIndex,
+      -1,
+    );
+
+    const marketSocket =
+      sockets[
+        marketSocketIndex
+      ];
+
+    const publicSocket =
+      sockets[
+        publicSocketIndex
+      ];
+
+    assert.ok(
+      marketSocket,
+    );
+
+    assert.ok(
+      publicSocket,
+    );
+
+    marketSocket.emit(
+      'open',
+    );
+
+    publicSocket.emit(
+      'open',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    marketSocket.emit(
+      'message',
+      {
+        data:
+          klineMessage(
+            'BTCUSDT',
+          ),
+      },
+    );
+
+    assert.equal(
+      marketSocket.closed,
+      true,
+    );
+
+    assert.equal(
+      marketSocket.closeCode,
+      1000,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastMessageAt,
+      null,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'degraded',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .reconnectAttempts,
+      1,
+    );
+
+    assert.match(
+      service.getStatus()
+        .lastError
+        ?? '',
+      /stale exchange event/,
+    );
+
+    const metric =
+      service.getMetrics(
+        'BTCUSDT',
+      )[0];
+
+    assert.ok(
+      metric,
+    );
+
+    assert.equal(
+      metric.price,
+      null,
+    );
+
+    assert.equal(
+      scheduler.tasks.length,
+      1,
+    );
+
+    assert.equal(
+      scheduler.tasks[0]
+        ?.delayMs,
+      250,
+    );
+
+    scheduler.tasks[0]
+      ?.callback();
+
+    assert.equal(
+      sockets.length,
+      3,
+    );
+
+    assert.ok(
+      (
+        urls[2]
+        ?? ''
+      ).includes(
+        '/market/stream?streams=',
+      ),
+    );
+
+    service.stop();
+  },
+);
