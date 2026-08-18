@@ -1303,3 +1303,308 @@ test(
     service.stop();
   },
 );
+
+test(
+  'ignores late events from replaced stale market-wide socket',
+  () => {
+    const scheduler =
+      new TestScheduler();
+
+    const sockets:
+      TestSocket[] = [];
+
+    const urls:
+      string[] = [];
+
+    const eventTimeMs =
+      1_721_577_841_999;
+
+    const service =
+      new MarketWideRealtimeService({
+        baseUrl:
+          'wss://fstream.binance.com',
+        symbols: [
+          'BTCUSDT',
+        ],
+        maxStreamsPerSocket:
+          100,
+        reconnectBaseDelayMs:
+          250,
+        reconnectMaxDelayMs:
+          2_000,
+        scheduler,
+        socketFactory: (url) => {
+          urls.push(
+            url,
+          );
+
+          const socket =
+            new TestSocket();
+
+          sockets.push(
+            socket,
+          );
+
+          return socket;
+        },
+        now: () =>
+          new Date(
+            eventTimeMs
+            + 60_001,
+          ),
+      });
+
+    service.start();
+
+    assert.equal(
+      sockets.length,
+      2,
+    );
+
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/market/stream?streams=',
+          ),
+      );
+
+    const publicSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/public/stream?streams=',
+          ),
+      );
+
+    assert.notEqual(
+      marketSocketIndex,
+      -1,
+    );
+
+    assert.notEqual(
+      publicSocketIndex,
+      -1,
+    );
+
+    const oldMarketSocket =
+      sockets[
+        marketSocketIndex
+      ];
+
+    const publicSocket =
+      sockets[
+        publicSocketIndex
+      ];
+
+    assert.ok(
+      oldMarketSocket,
+    );
+
+    assert.ok(
+      publicSocket,
+    );
+
+    oldMarketSocket.emit(
+      'open',
+    );
+
+    publicSocket.emit(
+      'open',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    /*
+     * Force stale-event recovery for the market shard.
+     * The current market socket is retired and one
+     * reconnect is scheduled.
+     */
+    oldMarketSocket.emit(
+      'message',
+      {
+        data:
+          klineMessage(
+            'BTCUSDT',
+          ),
+      },
+    );
+
+    assert.equal(
+      oldMarketSocket.closed,
+      true,
+    );
+
+    assert.equal(
+      scheduler.tasks.length,
+      1,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'degraded',
+    );
+
+    const reconnectTask =
+      scheduler.tasks[0];
+
+    assert.ok(
+      reconnectTask,
+    );
+
+    reconnectTask.callback();
+
+    assert.equal(
+      sockets.length,
+      3,
+    );
+
+    const replacementMarketSocket =
+      sockets[2];
+
+    assert.ok(
+      replacementMarketSocket,
+    );
+
+    assert.ok(
+      (
+        urls[2]
+        ?? ''
+      ).includes(
+        '/market/stream?streams=',
+      ),
+    );
+
+    replacementMarketSocket.emit(
+      'open',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .connectedSockets,
+      2,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .reconnectAttempts,
+      0,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastError,
+      null,
+    );
+
+    /*
+     * A delayed market-data message from the retired socket
+     * must be ignored. Without socket identity protection it
+     * could retire the replacement socket again.
+     */
+    oldMarketSocket.emit(
+      'message',
+      {
+        data:
+          klineMessage(
+            'BTCUSDT',
+          ),
+      },
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .connectedSockets,
+      2,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .reconnectAttempts,
+      0,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastError,
+      null,
+    );
+
+    assert.equal(
+      replacementMarketSocket
+        .closed,
+      false,
+    );
+
+    assert.equal(
+      scheduler.tasks.length,
+      1,
+    );
+
+    /*
+     * Delayed error/close events from the retired socket
+     * must be ignored for the same reason.
+     */
+    oldMarketSocket.emit(
+      'error',
+    );
+
+    oldMarketSocket.emit(
+      'close',
+      {
+        code:
+          1006,
+        reason:
+          'late close from replaced socket',
+      },
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .connectedSockets,
+      2,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .reconnectAttempts,
+      0,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastError,
+      null,
+    );
+
+    assert.equal(
+      scheduler.tasks.length,
+      1,
+    );
+
+    service.stop();
+  },
+);
