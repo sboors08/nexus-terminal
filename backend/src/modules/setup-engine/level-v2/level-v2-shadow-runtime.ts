@@ -412,6 +412,13 @@ implements LevelV2ShadowRuntimeReader {
               return;
             }
 
+            if (
+              event.source
+              === 'history'
+            ) {
+              return;
+            }
+
             this.processSymbols(
               event.symbols,
               event.source,

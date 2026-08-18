@@ -464,12 +464,22 @@ test(
 );
 
 test(
-  'scans historical batches and returns defensive candidate copies',
+  'builds initial candidates from pre-hydrated history and returns defensive candidate copies',
   () => {
     const {
       service,
     } =
       createRealtimeService();
+
+    /*
+     * Historical storage remains fully supported.
+     *
+     * The difference is that hydration itself no longer
+     * synchronously triggers realtime analysis.
+     */
+    service.applyHistoricalKlines(
+      buildHistory(true),
+    );
 
     const runtime =
       new SetupDetectionRuntimeService(
@@ -478,10 +488,6 @@ test(
       );
 
     runtime.start();
-
-    service.applyHistoricalKlines(
-      buildHistory(true),
-    );
 
     const candidates =
       runtime.getCandidates(
@@ -496,7 +502,9 @@ test(
     const firstCandidate =
       candidates[0];
 
-    assert.ok(firstCandidate);
+    assert.ok(
+      firstCandidate,
+    );
 
     firstCandidate.level
       .centerPrice = 1;
@@ -506,7 +514,9 @@ test(
         firstCandidate.id,
       );
 
-    assert.ok(stored);
+    assert.ok(
+      stored,
+    );
 
     assert.notEqual(
       stored.level.centerPrice,
@@ -516,7 +526,7 @@ test(
     assert.equal(
       runtime.getStatus()
         .lastTriggerSource,
-      'history',
+      'initial',
     );
 
     runtime.stop();
