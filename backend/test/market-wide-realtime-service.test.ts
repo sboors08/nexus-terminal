@@ -1608,3 +1608,590 @@ test(
     service.stop();
   },
 );
+test(
+  'reconnects a market-wide shard that stays open but stops delivering messages',
+  () => {
+    const reconnectScheduler =
+      new TestScheduler();
+
+    const watchdogScheduler =
+      new TestScheduler();
+
+    const sockets:
+      TestSocket[] = [];
+
+    const urls:
+      string[] = [];
+
+    const serviceOptions = {
+      baseUrl:
+        'wss://fstream.binance.com',
+      symbols: [
+        'BTCUSDT',
+      ],
+      maxStreamsPerSocket:
+        100,
+      reconnectBaseDelayMs:
+        250,
+      reconnectMaxDelayMs:
+        2_000,
+      scheduler:
+        reconnectScheduler,
+
+      /*
+       * Separate schedulers keep reconnect and watchdog timing
+       * independently observable in this regression.
+       */
+      watchdogScheduler,
+      silentStreamTimeoutMs:
+        1_000,
+
+      socketFactory: (
+        url: string,
+      ) => {
+        urls.push(
+          url,
+        );
+
+        const socket =
+          new TestSocket();
+
+        sockets.push(
+          socket,
+        );
+
+        return socket;
+      },
+    };
+
+    const service =
+      new MarketWideRealtimeService(
+        serviceOptions,
+      );
+
+    service.start();
+
+    assert.equal(
+      sockets.length,
+      2,
+    );
+
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/market/stream?streams=',
+          ),
+      );
+
+    const publicSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/public/stream?streams=',
+          ),
+      );
+
+    assert.notEqual(
+      marketSocketIndex,
+      -1,
+    );
+
+    assert.notEqual(
+      publicSocketIndex,
+      -1,
+    );
+
+    const marketSocket =
+      sockets[
+        marketSocketIndex
+      ];
+
+    const publicSocket =
+      sockets[
+        publicSocketIndex
+      ];
+
+    assert.ok(
+      marketSocket,
+    );
+
+    assert.ok(
+      publicSocket,
+    );
+
+    /*
+     * Both sockets open normally.
+     */
+    marketSocket.emit(
+      'open',
+    );
+
+    publicSocket.emit(
+      'open',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .connectedSockets,
+      2,
+    );
+
+    /*
+     * Every opened shard must arm its own silence watchdog.
+     */
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      2,
+    );
+
+    const marketWatchdog =
+      watchdogScheduler
+        .tasks[0];
+
+    assert.ok(
+      marketWatchdog,
+    );
+
+    assert.equal(
+      marketWatchdog.delayMs,
+      1_000,
+    );
+
+    /*
+     * Simulate an open socket that becomes completely silent:
+     * no message, no error, no close.
+     */
+    marketWatchdog.callback();
+
+    /*
+     * Only the silent market shard should be retired.
+     */
+    assert.equal(
+      marketSocket.closed,
+      true,
+    );
+
+    assert.equal(
+      marketSocket.closeCode,
+      1000,
+    );
+
+    assert.match(
+      marketSocket.closeReason
+        ?? '',
+      /silent stream/i,
+    );
+
+    assert.equal(
+      publicSocket.closed,
+      false,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'degraded',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .connectedSockets,
+      1,
+    );
+
+    assert.match(
+      service.getStatus()
+        .lastError
+        ?? '',
+      /silent stream/i,
+    );
+
+    /*
+     * Recovery must use normal shard reconnect logic.
+     */
+    assert.equal(
+      reconnectScheduler
+        .tasks.length,
+      1,
+    );
+
+    assert.equal(
+      reconnectScheduler
+        .tasks[0]
+        ?.delayMs,
+      250,
+    );
+
+    reconnectScheduler
+      .tasks[0]
+      ?.callback();
+
+    assert.equal(
+      sockets.length,
+      3,
+    );
+
+    const replacementMarketSocket =
+      sockets[2];
+
+    assert.ok(
+      replacementMarketSocket,
+    );
+
+    assert.ok(
+      (
+        urls[2]
+        ?? ''
+      ).includes(
+        '/market/stream?streams=',
+      ),
+    );
+
+    replacementMarketSocket.emit(
+      'open',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .connectedSockets,
+      2,
+    );
+
+    assert.equal(
+      publicSocket.closed,
+      false,
+    );
+
+    service.stop();
+  },
+);
+test(
+  'refreshes market-wide silence watchdog and ignores cancelled watchdog callback',
+  () => {
+    const reconnectScheduler =
+      new TestScheduler();
+
+    const watchdogScheduler =
+      new TestScheduler();
+
+    const sockets:
+      TestSocket[] = [];
+
+    const urls:
+      string[] = [];
+
+    const eventTimeMs =
+      1_721_577_841_999;
+
+    const service =
+      new MarketWideRealtimeService({
+        baseUrl:
+          'wss://fstream.binance.com',
+        symbols: [
+          'BTCUSDT',
+        ],
+        maxStreamsPerSocket:
+          100,
+        reconnectBaseDelayMs:
+          250,
+        reconnectMaxDelayMs:
+          2_000,
+        scheduler:
+          reconnectScheduler,
+        watchdogScheduler,
+        silentStreamTimeoutMs:
+          1_000,
+        socketFactory: (
+          url,
+        ) => {
+          urls.push(
+            url,
+          );
+
+          const socket =
+            new TestSocket();
+
+          sockets.push(
+            socket,
+          );
+
+          return socket;
+        },
+        now: () =>
+          new Date(
+            eventTimeMs
+            + 500,
+          ),
+      });
+
+    service.start();
+
+    assert.equal(
+      sockets.length,
+      2,
+    );
+
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/market/stream?streams=',
+          ),
+      );
+
+    const publicSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/public/stream?streams=',
+          ),
+      );
+
+    assert.notEqual(
+      marketSocketIndex,
+      -1,
+    );
+
+    assert.notEqual(
+      publicSocketIndex,
+      -1,
+    );
+
+    const marketSocket =
+      sockets[
+        marketSocketIndex
+      ];
+
+    const publicSocket =
+      sockets[
+        publicSocketIndex
+      ];
+
+    assert.ok(
+      marketSocket,
+    );
+
+    assert.ok(
+      publicSocket,
+    );
+
+    /*
+     * Open market first, then public, so watchdog task
+     * ordering is deterministic for this regression.
+     */
+    marketSocket.emit(
+      'open',
+    );
+
+    publicSocket.emit(
+      'open',
+    );
+
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      2,
+    );
+
+    const firstMarketWatchdog =
+      watchdogScheduler
+        .tasks[0];
+
+    const publicWatchdog =
+      watchdogScheduler
+        .tasks[1];
+
+    assert.ok(
+      firstMarketWatchdog,
+    );
+
+    assert.ok(
+      publicWatchdog,
+    );
+
+    assert.equal(
+      firstMarketWatchdog.cancelled,
+      false,
+    );
+
+    assert.equal(
+      publicWatchdog.cancelled,
+      false,
+    );
+
+    /*
+     * A valid fresh market event must refresh only
+     * the market shard watchdog.
+     */
+    marketSocket.emit(
+      'message',
+      {
+        data:
+          klineMessage(
+            'BTCUSDT',
+          ),
+      },
+    );
+
+    assert.equal(
+      firstMarketWatchdog.cancelled,
+      true,
+    );
+
+    assert.equal(
+      publicWatchdog.cancelled,
+      false,
+    );
+
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      3,
+    );
+
+    const refreshedMarketWatchdog =
+      watchdogScheduler
+        .tasks[2];
+
+    assert.ok(
+      refreshedMarketWatchdog,
+    );
+
+    assert.equal(
+      refreshedMarketWatchdog.delayMs,
+      1_000,
+    );
+
+    assert.equal(
+      refreshedMarketWatchdog.cancelled,
+      false,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .connectedSockets,
+      2,
+    );
+
+    assert.equal(
+      reconnectScheduler
+        .tasks.length,
+      0,
+    );
+
+    /*
+     * Simulate a late callback from the already-cancelled
+     * first watchdog.
+     *
+     * It must be ignored and must not retire the live socket.
+     */
+    firstMarketWatchdog.callback();
+
+    assert.equal(
+      marketSocket.closed,
+      false,
+    );
+
+    assert.equal(
+      publicSocket.closed,
+      false,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .connectedSockets,
+      2,
+    );
+
+    assert.equal(
+      reconnectScheduler
+        .tasks.length,
+      0,
+    );
+
+    assert.equal(
+      refreshedMarketWatchdog.cancelled,
+      false,
+    );
+
+    /*
+     * The current watchdog is still authoritative.
+     * If it expires, the market shard must recover.
+     */
+    refreshedMarketWatchdog.callback();
+
+    assert.equal(
+      marketSocket.closed,
+      true,
+    );
+
+    assert.equal(
+      marketSocket.closeCode,
+      1000,
+    );
+
+    assert.match(
+      marketSocket.closeReason
+        ?? '',
+      /silent stream/i,
+    );
+
+    assert.equal(
+      publicSocket.closed,
+      false,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'degraded',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .connectedSockets,
+      1,
+    );
+
+    assert.equal(
+      reconnectScheduler
+        .tasks.length,
+      1,
+    );
+
+    assert.match(
+      service.getStatus()
+        .lastError
+        ?? '',
+      /silent stream/i,
+    );
+
+    service.stop();
+  },
+);
