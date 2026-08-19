@@ -833,6 +833,80 @@ test(
       0,
     );
 
+    /*
+     * Binance !bookTicker also carries contracts that are not
+     * part of the tracked NEXUS perpetual universe.
+     *
+     * This exact symbol shape was observed in the live soak.
+     * It must keep the shared public transport healthy without
+     * entering metrics and without polluting lastError.
+     */
+    publicSocket.emit(
+      'message',
+      {
+        data:
+          JSON.stringify({
+            stream:
+              '!bookTicker',
+
+            data: {
+              e:
+                'bookTicker',
+              u:
+                400900219,
+              E:
+                eventTimeMs,
+              T:
+                eventTimeMs,
+              s:
+                'ETHUSDT_260925',
+              b:
+                '100.00',
+              B:
+                '10',
+              a:
+                '101.00',
+              A:
+                '10',
+              ps:
+                'ETHUSDT',
+              st:
+                1,
+            },
+          }),
+      },
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastError,
+      null,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .reconnectAttempts,
+      0,
+    );
+
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      6,
+    );
+
+    assert.equal(
+      reconnectScheduler
+        .tasks.length,
+      0,
+    );
+
     service.stop();
   },
 );

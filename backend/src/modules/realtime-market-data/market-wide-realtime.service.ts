@@ -1596,7 +1596,6 @@ export class MarketWideRealtimeService {
 
         if (
           stream === '!bookticker'
-          && rawBookTicker.st === 2
         ) {
           const eventTime =
             readNumber(
@@ -1625,22 +1624,40 @@ export class MarketWideRealtimeService {
             return;
           }
 
-          /*
-           * The all-market public stream itself is healthy.
-           * The event belongs to COIN-M, so it must not enter
-           * the USD-M metrics store, but it may refresh the
-           * transport watchdog.
-           */
-          this.lastMessageAt =
-            receivedAt;
+          const rawSymbol =
+            typeof rawBookTicker.s
+              === 'string'
+              ? rawBookTicker.s
+                  .trim()
+                  .toUpperCase()
+              : '';
 
-          this.armShardWatchdog(
-            shard,
-            generation,
-            socket,
-          );
+          const trackedSymbol =
+            this.symbols.includes(
+              rawSymbol,
+            );
 
-          return;
+          if (!trackedSymbol) {
+            /*
+             * !bookTicker is exchange-wide and may contain
+             * delivery contracts, COIN-M contracts or other
+             * symbols outside the NEXUS USD-M universe.
+             *
+             * A fresh packet still proves transport health,
+             * but untracked data must never enter the NEXUS
+             * metrics store or become a runtime error.
+             */
+            this.lastMessageAt =
+              receivedAt;
+
+            this.armShardWatchdog(
+              shard,
+              generation,
+              socket,
+            );
+
+            return;
+          }
         }
 
         const ticker =
