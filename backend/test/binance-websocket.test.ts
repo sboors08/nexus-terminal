@@ -770,8 +770,51 @@ test(
   },
 );
 
+type GenericScheduledTask = {
+  callback: () => void;
+  delayMs: number;
+};
+
+function createGenericTestScheduler(
+  tasks: GenericScheduledTask[],
+): ReconnectScheduler {
+  return {
+    schedule(
+      callback,
+      delayMs,
+    ) {
+      const task = {
+        callback,
+        delayMs,
+      };
+
+      tasks.push(
+        task,
+      );
+
+      return task;
+    },
+
+    cancel(handle) {
+      const index =
+        tasks.indexOf(
+          handle as
+            GenericScheduledTask,
+        );
+
+      if (index >= 0) {
+        tasks.splice(
+          index,
+          1,
+        );
+      }
+    },
+  };
+}
+
+
 test(
-  'reconnects the generic Binance route when an exchange event arrives stale',
+  'drops stale generic Binance events without reconnecting healthy routes',
   () => {
     const sockets:
       FakeSocket[] = [];
@@ -779,47 +822,11 @@ test(
     const urls:
       string[] = [];
 
-    const scheduled:
-      Array<{
-        callback: () => void;
-        delayMs: number;
-      }> = [];
+    const reconnectTasks:
+      GenericScheduledTask[] = [];
 
-    const scheduler:
-      ReconnectScheduler = {
-        schedule(
-          callback,
-          delayMs,
-        ) {
-          const handle = {
-            callback,
-            delayMs,
-          };
-
-          scheduled.push(
-            handle,
-          );
-
-          return handle;
-        },
-
-        cancel(handle) {
-          const index =
-            scheduled.indexOf(
-              handle as {
-                callback: () => void;
-                delayMs: number;
-              },
-            );
-
-          if (index >= 0) {
-            scheduled.splice(
-              index,
-              1,
-            );
-          }
-        },
-      };
+    const watchdogTasks:
+      GenericScheduledTask[] = [];
 
     const eventTimeMs =
       1_784_390_400_000;
@@ -828,15 +835,21 @@ test(
       new BinanceWebSocketMarketDataService({
         baseUrl:
           'wss://fstream.binance.com',
+
         symbols: [
           'BTCUSDT',
+          'ETHUSDT',
         ],
+
         reconnectBaseDelayMs:
           1_000,
+
         reconnectMaxDelayMs:
           30_000,
+
         tradesBufferSize:
           100,
+
         socketFactory(url) {
           urls.push(
             url,
@@ -851,7 +864,20 @@ test(
 
           return socket;
         },
-        scheduler,
+
+        scheduler:
+          createGenericTestScheduler(
+            reconnectTasks,
+          ),
+
+        watchdogScheduler:
+          createGenericTestScheduler(
+            watchdogTasks,
+          ),
+
+        silentStreamTimeoutMs:
+          30_000,
+
         now: () =>
           new Date(
             eventTimeMs
@@ -876,16 +902,6 @@ test(
             '/public/stream?streams=',
           ),
       );
-
-    assert.notEqual(
-      marketSocketIndex,
-      -1,
-    );
-
-    assert.notEqual(
-      publicSocketIndex,
-      -1,
-    );
 
     const marketSocket =
       sockets[
@@ -919,26 +935,64 @@ test(
       'connected',
     );
 
+    assert.equal(
+      watchdogTasks.length,
+      2,
+    );
+
     publicSocket.emit(
       'message',
       {
         data:
           JSON.stringify({
             stream:
-              'btcusdt@bookTicker',
+              'ethusdt@bookTicker',
+
             data: {
               E:
                 eventTimeMs,
               s:
-                'BTCUSDT',
+                'ETHUSDT',
               b:
-                '64000.0',
+                '3200.0',
               B:
-                '1.2',
+                '5',
               a:
-                '64001.0',
+                '3201.0',
               A:
-                '0.8',
+                '4',
+            },
+          }),
+      },
+    );
+
+    marketSocket.emit(
+      'message',
+      {
+        data:
+          JSON.stringify({
+            stream:
+              'ethusdt@aggTrade',
+
+            data: {
+              E:
+                eventTimeMs,
+              s:
+                'ETHUSDT',
+              a:
+                101,
+              p:
+                '3200.0',
+              q:
+                '1',
+              f:
+                201,
+              l:
+                201,
+              T:
+                eventTimeMs,
+              m:
+                false,
             },
           }),
       },
@@ -947,21 +1001,44 @@ test(
     assert.equal(
       publicSocket
         .closeCalls.length,
-      1,
+      0,
     );
 
     assert.equal(
-      publicSocket
-        .closeCalls[0]
-        ?.code,
-      1000,
+      marketSocket
+        .closeCalls.length,
+      0,
     );
 
     assert.equal(
-      service.getSnapshots(
-        'BTCUSDT',
-      )[0]
-        ?.bookTicker,
+      reconnectTasks.length,
+      0,
+    );
+
+    /*
+     * A stale packet must not refresh the silence watchdog.
+     * Both original route watchdogs remain armed.
+     */
+    assert.equal(
+      watchdogTasks.length,
+      2,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .reconnectAttempts,
+      0,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastError,
       null,
     );
 
@@ -969,6 +1046,199 @@ test(
       service.getStatus()
         .lastMessageAt,
       null,
+    );
+
+    assert.equal(
+      service.getSnapshots(
+        'ETHUSDT',
+      )[0]
+        ?.lastTrade,
+      null,
+    );
+
+    assert.equal(
+      service.getSnapshots(
+        'ETHUSDT',
+      )[0]
+        ?.bookTicker,
+      null,
+    );
+
+    service.stop();
+
+    assert.equal(
+      watchdogTasks.length,
+      0,
+    );
+  },
+);
+
+
+test(
+  'recovers a generic Binance route only after the route becomes silent',
+  () => {
+    const sockets:
+      FakeSocket[] = [];
+
+    const urls:
+      string[] = [];
+
+    const reconnectTasks:
+      GenericScheduledTask[] = [];
+
+    const watchdogTasks:
+      GenericScheduledTask[] = [];
+
+    const currentTime =
+      new Date(
+        '2026-08-19T18:00:00.000Z',
+      );
+
+    const service =
+      new BinanceWebSocketMarketDataService({
+        baseUrl:
+          'wss://fstream.binance.com',
+
+        symbols: [
+          'BTCUSDT',
+          'ETHUSDT',
+        ],
+
+        reconnectBaseDelayMs:
+          1_000,
+
+        reconnectMaxDelayMs:
+          30_000,
+
+        tradesBufferSize:
+          100,
+
+        socketFactory(url) {
+          urls.push(
+            url,
+          );
+
+          const socket =
+            new FakeSocket();
+
+          sockets.push(
+            socket,
+          );
+
+          return socket;
+        },
+
+        scheduler:
+          createGenericTestScheduler(
+            reconnectTasks,
+          ),
+
+        watchdogScheduler:
+          createGenericTestScheduler(
+            watchdogTasks,
+          ),
+
+        silentStreamTimeoutMs:
+          30_000,
+
+        now: () =>
+          currentTime,
+      });
+
+    service.start();
+
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/market/stream?streams=',
+          ),
+      );
+
+    const publicSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/public/stream?streams=',
+          ),
+      );
+
+    const marketSocket =
+      sockets[
+        marketSocketIndex
+      ];
+
+    const publicSocket =
+      sockets[
+        publicSocketIndex
+      ];
+
+    assert.ok(
+      marketSocket,
+    );
+
+    assert.ok(
+      publicSocket,
+    );
+
+    /*
+     * Open market first so the first watchdog task belongs
+     * deterministically to the market route.
+     */
+    marketSocket.emit(
+      'open',
+    );
+
+    publicSocket.emit(
+      'open',
+    );
+
+    assert.equal(
+      watchdogTasks.length,
+      2,
+    );
+
+    const marketWatchdog =
+      watchdogTasks.shift();
+
+    assert.ok(
+      marketWatchdog,
+    );
+
+    assert.equal(
+      marketWatchdog.delayMs,
+      30_000,
+    );
+
+    /*
+     * Simulate 30 seconds with no fresh market-route event.
+     */
+    marketWatchdog.callback();
+
+    assert.equal(
+      marketSocket
+        .closeCalls.length,
+      1,
+    );
+
+    assert.equal(
+      marketSocket
+        .closeCalls[0]
+        ?.code,
+      1000,
+    );
+
+    assert.equal(
+      marketSocket
+        .closeCalls[0]
+        ?.reason,
+      'NEXUS silent stream recovery',
+    );
+
+    assert.equal(
+      publicSocket
+        .closeCalls.length,
+      0,
     );
 
     assert.equal(
@@ -987,26 +1257,38 @@ test(
       service.getStatus()
         .lastError
         ?? '',
-      /stale exchange event/,
+      /silent stream/,
     );
 
     assert.equal(
-      scheduled.length,
+      reconnectTasks.length,
       1,
     );
 
+    const reconnectTask =
+      reconnectTasks.shift();
+
+    assert.ok(
+      reconnectTask,
+    );
+
     assert.equal(
-      scheduled[0]
-        ?.delayMs,
+      reconnectTask.delayMs,
       1_000,
     );
 
-    scheduled[0]
-      ?.callback();
+    reconnectTask.callback();
 
     assert.equal(
       sockets.length,
       3,
+    );
+
+    const replacementMarketSocket =
+      sockets[2];
+
+    assert.ok(
+      replacementMarketSocket,
     );
 
     assert.ok(
@@ -1014,10 +1296,37 @@ test(
         urls[2]
         ?? ''
       ).includes(
-        '/public/stream?streams=',
+        '/market/stream?streams=',
       ),
     );
 
+    replacementMarketSocket.emit(
+      'open',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .reconnectAttempts,
+      0,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastError,
+      null,
+    );
+
     service.stop();
+
+    assert.equal(
+      watchdogTasks.length,
+      0,
+    );
   },
 );

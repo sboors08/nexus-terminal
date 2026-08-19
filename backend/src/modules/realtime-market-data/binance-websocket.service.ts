@@ -34,6 +34,8 @@ interface BinanceWebSocketServiceOptions {
   tradesBufferSize: number;
   socketFactory?: RealtimeWebSocketFactory;
   scheduler?: ReconnectScheduler;
+  watchdogScheduler?: ReconnectScheduler;
+  silentStreamTimeoutMs?: number;
   now?: () => Date;
 }
 
@@ -58,6 +60,9 @@ const BINANCE_WEBSOCKET_ROUTES:
   ];
 
 const BINANCE_WEBSOCKET_EVENT_STALE_AFTER_MS =
+  30_000;
+
+const BINANCE_WEBSOCKET_SILENT_STREAM_TIMEOUT_MS =
   30_000;
 
 interface BinanceAggregateTradeEvent {
@@ -112,6 +117,8 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
   private readonly dynamicSymbolReferences = new Map<string, number>();
   private readonly socketFactory: RealtimeWebSocketFactory;
   private readonly scheduler: ReconnectScheduler;
+  private readonly watchdogScheduler: ReconnectScheduler;
+  private readonly silentStreamTimeoutMs: number;
   private readonly now: () => Date;
   private readonly snapshots = new Map<string, RealtimeSymbolSnapshot>();
   private readonly scannerMetrics = new Map<string, MarketScannerMetricsSeries>();
@@ -123,6 +130,12 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     >();
 
   private readonly reconnectHandles =
+    new Map<
+      BinanceWebSocketRoute,
+      unknown
+    >();
+
+  private readonly routeWatchdogHandles =
     new Map<
       BinanceWebSocketRoute,
       unknown
@@ -153,8 +166,32 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     this.initialSymbols = new Set(options.symbols.map((symbol) => symbol.toUpperCase()));
     for (const symbol of this.initialSymbols) this.activeSymbols.add(symbol);
     this.socketFactory = options.socketFactory ?? ((url) => new WebSocket(url) as unknown as RealtimeWebSocket);
-    this.scheduler = options.scheduler ?? defaultScheduler;
-    this.now = options.now ?? (() => new Date());
+    this.scheduler =
+      options.scheduler
+      ?? defaultScheduler;
+
+    this.watchdogScheduler =
+      options.watchdogScheduler
+      ?? defaultScheduler;
+
+    this.silentStreamTimeoutMs =
+      options.silentStreamTimeoutMs
+      ?? BINANCE_WEBSOCKET_SILENT_STREAM_TIMEOUT_MS;
+
+    if (
+      !Number.isSafeInteger(
+        this.silentStreamTimeoutMs,
+      )
+      || this.silentStreamTimeoutMs < 1
+    ) {
+      throw new Error(
+        'silentStreamTimeoutMs must be a positive integer',
+      );
+    }
+
+    this.now =
+      options.now
+      ?? (() => new Date());
 
     for (const symbol of this.activeSymbols) {
       this.snapshots.set(symbol, {
@@ -222,6 +259,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     }
 
     this.reconnectHandles.clear();
+    this.cancelAllRouteWatchdogs();
 
     for (
       const socket
@@ -631,6 +669,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     }
 
     this.reconnectHandles.clear();
+    this.cancelAllRouteWatchdogs();
 
     for (
       const route
@@ -721,6 +760,19 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
           : this.status.lastError,
     };
 
+    const socket =
+      this.sockets.get(
+        route,
+      );
+
+    if (socket) {
+      this.armRouteWatchdog(
+        route,
+        generation,
+        socket,
+      );
+    }
+
     this.emitStatus();
   }
 
@@ -744,6 +796,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     if (typeof data === 'string') {
       this.processTextMessage(
         route,
+        generation,
         data,
       );
       return;
@@ -752,6 +805,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     if (data instanceof ArrayBuffer) {
       this.processTextMessage(
         route,
+        generation,
         new TextDecoder().decode(data),
       );
       return;
@@ -773,6 +827,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
 
       this.processTextMessage(
         route,
+        generation,
         new TextDecoder().decode(bytes),
       );
 
@@ -790,6 +845,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
         ) {
           this.processTextMessage(
             route,
+            generation,
             text,
           );
         }
@@ -799,6 +855,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
 
   private processTextMessage(
     route: BinanceWebSocketRoute,
+    generation: number,
     text: string,
   ): void {
     let payload: CombinedStreamPayload;
@@ -880,12 +937,14 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
         lagMs
         > BINANCE_WEBSOCKET_EVENT_STALE_AFTER_MS
       ) {
-        this.recoverStaleRoute(
-          route,
-          stream,
-          lagMs,
-        );
-
+        /*
+         * One delayed exchange event is a data-quality
+         * anomaly, not proof that the whole route is dead.
+         *
+         * Drop it without refreshing the route watchdog.
+         * If the route truly stops delivering fresh events,
+         * silent-stream recovery below will replace it.
+         */
         return;
       }
     }
@@ -895,6 +954,25 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       lastMessageAt:
         receivedAt,
     };
+
+    const socket =
+      this.sockets.get(
+        route,
+      );
+
+    if (
+      socket
+      && this.isCurrentRouteGeneration(
+        route,
+        generation,
+      )
+    ) {
+      this.armRouteWatchdog(
+        route,
+        generation,
+        socket,
+      );
+    }
 
     if (
       stream.endsWith(
@@ -917,58 +995,6 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
         receivedAt,
       );
     }
-  }
-
-  private recoverStaleRoute(
-    route: BinanceWebSocketRoute,
-    stream: string,
-    lagMs: number,
-  ): void {
-    if (this.manuallyStopped) {
-      return;
-    }
-
-    const socket =
-      this.sockets.get(
-        route,
-      );
-
-    this.incrementRouteGeneration(
-      route,
-    );
-
-    this.sockets.delete(
-      route,
-    );
-
-    this.openRoutes.delete(
-      route,
-    );
-
-    const reason =
-      `Binance Futures ${route} WebSocket stale exchange event `
-      + `${stream}: lag ${Math.round(lagMs)}ms`;
-
-    this.status = {
-      ...this.status,
-      state:
-        'reconnecting',
-      disconnectedAt:
-        this.now().toISOString(),
-      lastError:
-        reason,
-    };
-
-    this.emitStatus();
-
-    socket?.close(
-      1000,
-      'NEXUS stale exchange event recovery',
-    );
-
-    this.scheduleReconnect(
-      route,
-    );
   }
 
   private applyTrade(
@@ -1121,6 +1147,170 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     this.emitSnapshot(snapshot);
   }
 
+  private cancelRouteWatchdog(
+    route: BinanceWebSocketRoute,
+  ): void {
+    const handle =
+      this.routeWatchdogHandles.get(
+        route,
+      );
+
+    this.routeWatchdogHandles.delete(
+      route,
+    );
+
+    if (handle !== undefined) {
+      this.watchdogScheduler.cancel(
+        handle,
+      );
+    }
+  }
+
+  private cancelAllRouteWatchdogs(): void {
+    for (
+      const handle
+      of this.routeWatchdogHandles.values()
+    ) {
+      this.watchdogScheduler.cancel(
+        handle,
+      );
+    }
+
+    this.routeWatchdogHandles.clear();
+  }
+
+  private armRouteWatchdog(
+    route: BinanceWebSocketRoute,
+    generation: number,
+    socket: RealtimeWebSocket,
+  ): void {
+    if (
+      this.manuallyStopped
+      || !this.isCurrentRouteGeneration(
+        route,
+        generation,
+      )
+      || this.sockets.get(route)
+        !== socket
+      || !this.openRoutes.has(route)
+    ) {
+      return;
+    }
+
+    this.cancelRouteWatchdog(
+      route,
+    );
+
+    let handle:
+      unknown;
+
+    handle =
+      this.watchdogScheduler.schedule(
+        () => {
+          if (
+            this.routeWatchdogHandles.get(
+              route,
+            ) !== handle
+          ) {
+            return;
+          }
+
+          this.routeWatchdogHandles.delete(
+            route,
+          );
+
+          if (
+            this.manuallyStopped
+            || !this.isCurrentRouteGeneration(
+              route,
+              generation,
+            )
+            || this.sockets.get(route)
+              !== socket
+            || !this.openRoutes.has(route)
+          ) {
+            return;
+          }
+
+          this.recoverSilentRoute(
+            route,
+            generation,
+            socket,
+          );
+        },
+        this.silentStreamTimeoutMs,
+      );
+
+    this.routeWatchdogHandles.set(
+      route,
+      handle,
+    );
+  }
+
+  private recoverSilentRoute(
+    route: BinanceWebSocketRoute,
+    generation: number,
+    socket: RealtimeWebSocket,
+  ): void {
+    if (
+      this.manuallyStopped
+      || !this.isCurrentRouteGeneration(
+        route,
+        generation,
+      )
+      || this.sockets.get(route)
+        !== socket
+      || this.reconnectHandles.has(
+        route,
+      )
+    ) {
+      return;
+    }
+
+    this.cancelRouteWatchdog(
+      route,
+    );
+
+    /*
+     * Retire this exact socket generation before close().
+     * A delayed close callback from the retired socket must
+     * not schedule a second reconnect.
+     */
+    this.incrementRouteGeneration(
+      route,
+    );
+
+    this.sockets.delete(
+      route,
+    );
+
+    this.openRoutes.delete(
+      route,
+    );
+
+    this.status = {
+      ...this.status,
+      state:
+        'reconnecting',
+      disconnectedAt:
+        this.now().toISOString(),
+      lastError:
+        `Binance Futures ${route} WebSocket silent stream: `
+        + `no fresh messages for ${this.silentStreamTimeoutMs}ms`,
+    };
+
+    this.emitStatus();
+
+    this.scheduleReconnect(
+      route,
+    );
+
+    socket.close(
+      1000,
+      'NEXUS silent stream recovery',
+    );
+  }
+
   private handleError(
     route: BinanceWebSocketRoute,
     generation: number,
@@ -1158,6 +1348,10 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     ) {
       return;
     }
+
+    this.cancelRouteWatchdog(
+      route,
+    );
 
     this.sockets.delete(route);
     this.openRoutes.delete(route);
