@@ -166,7 +166,7 @@ function bookTickerMessage(
 
 
 test(
-  'splits Futures market and public streams into separate bounded shards',
+  'uses bounded kline shards and one all-book-ticker public shard',
   () => {
     const shards =
       buildMarketWideStreamShards(
@@ -183,18 +183,20 @@ test(
     const marketShards =
       shards.filter(
         (shard) =>
-          shard.route === 'market',
+          shard.route
+          === 'market',
       );
 
     const publicShards =
       shards.filter(
         (shard) =>
-          shard.route === 'public',
+          shard.route
+          === 'public',
       );
 
     assert.equal(
       shards.length,
-      4,
+      3,
     );
 
     assert.equal(
@@ -204,18 +206,20 @@ test(
 
     assert.equal(
       publicShards.length,
-      2,
+      1,
     );
 
     assert.ok(
-      shards.every(
+      marketShards.every(
         (shard) =>
-          shard.streams.length <= 4,
+          shard.streams.length
+          <= 4,
       ),
     );
 
     assert.deepEqual(
-      marketShards[0]?.streams,
+      marketShards[0]
+        ?.streams,
       [
         'adausdt@kline_1m',
         'btcusdt@kline_1m',
@@ -225,16 +229,35 @@ test(
     );
 
     assert.deepEqual(
-      publicShards[0]?.streams,
+      marketShards[1]
+        ?.streams,
       [
-        'adausdt@bookTicker',
-        'btcusdt@bookTicker',
-        'ethusdt@bookTicker',
-        'solusdt@bookTicker',
+        'xrpusdt@kline_1m',
+      ],
+    );
+
+    assert.deepEqual(
+      publicShards[0]
+        ?.streams,
+      [
+        '!bookTicker',
+      ],
+    );
+
+    assert.deepEqual(
+      publicShards[0]
+        ?.symbols,
+      [
+        'ADAUSDT',
+        'BTCUSDT',
+        'ETHUSDT',
+        'SOLUSDT',
+        'XRPUSDT',
       ],
     );
   },
 );
+
 
 test(
   'parses a Binance market-wide book ticker',
@@ -527,6 +550,287 @@ test(
             '/public/stream?streams=',
           ),
       ),
+    );
+
+    service.stop();
+  },
+);
+
+
+test(
+  'consumes USD-M all-book-ticker events and ignores COIN-M without losing public stream health',
+  () => {
+    const reconnectScheduler =
+      new TestScheduler();
+
+    const watchdogScheduler =
+      new TestScheduler();
+
+    const sockets:
+      TestSocket[] = [];
+
+    const urls:
+      string[] = [];
+
+    const eventTimeMs =
+      1_721_577_842_500;
+
+    const service =
+      new MarketWideRealtimeService({
+        baseUrl:
+          'wss://fstream.binance.com',
+
+        symbols: [
+          'BTCUSDT',
+          'SOLUSDT',
+          'ETHUSDT',
+          'ADAUSDT',
+          'XRPUSDT',
+        ],
+
+        maxStreamsPerSocket:
+          4,
+
+        reconnectBaseDelayMs:
+          250,
+
+        reconnectMaxDelayMs:
+          2_000,
+
+        scheduler:
+          reconnectScheduler,
+
+        watchdogScheduler,
+
+        silentStreamTimeoutMs:
+          30_000,
+
+        socketFactory: (url) => {
+          urls.push(
+            url,
+          );
+
+          const socket =
+            new TestSocket();
+
+          sockets.push(
+            socket,
+          );
+
+          return socket;
+        },
+
+        now: () =>
+          new Date(
+            eventTimeMs
+            + 500,
+          ),
+      });
+
+    service.start();
+
+    assert.equal(
+      sockets.length,
+      3,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .socketCount,
+      3,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .streamCount,
+      6,
+    );
+
+    const publicSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/public/stream?streams=!bookTicker',
+          ),
+      );
+
+    assert.notEqual(
+      publicSocketIndex,
+      -1,
+    );
+
+    for (const socket of sockets) {
+      socket.emit(
+        'open',
+      );
+    }
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      3,
+    );
+
+    const publicSocket =
+      sockets[
+        publicSocketIndex
+      ];
+
+    assert.ok(
+      publicSocket,
+    );
+
+    publicSocket.emit(
+      'message',
+      {
+        data:
+          JSON.stringify({
+            stream:
+              '!bookTicker',
+
+            data: {
+              e:
+                'bookTicker',
+              u:
+                400900217,
+              E:
+                eventTimeMs,
+              T:
+                eventTimeMs,
+              s:
+                'SOLUSDT',
+              b:
+                '100.99',
+              B:
+                '300',
+              a:
+                '101.01',
+              A:
+                '200',
+              ps:
+                'SOLUSDT',
+              st:
+                1,
+            },
+          }),
+      },
+    );
+
+    const solState =
+      service.getState(
+        'SOLUSDT',
+      );
+
+    assert.ok(
+      solState,
+    );
+
+    assert.equal(
+      solState.bookTicker
+        ?.bidPrice,
+      100.99,
+    );
+
+    assert.equal(
+      solState.bookTicker
+        ?.askPrice,
+      101.01,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastError,
+      null,
+    );
+
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      4,
+    );
+
+    /*
+     * Current Binance all-bookTicker also emits COIN-M.
+     * BTCUSD_PERP must not pass through the USD-M symbol
+     * parser/store, but the valid packet still proves that
+     * the shared public stream is alive.
+     */
+    publicSocket.emit(
+      'message',
+      {
+        data:
+          JSON.stringify({
+            stream:
+              '!bookTicker',
+
+            data: {
+              e:
+                'bookTicker',
+              u:
+                400900218,
+              E:
+                eventTimeMs,
+              T:
+                eventTimeMs,
+              s:
+                'BTCUSD_PERP',
+              b:
+                '100.00',
+              B:
+                '10',
+              a:
+                '101.00',
+              A:
+                '10',
+              ps:
+                'BTCUSD',
+              st:
+                2,
+            },
+          }),
+      },
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .connectedSockets,
+      3,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .reconnectAttempts,
+      0,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastError,
+      null,
+    );
+
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      5,
+    );
+
+    assert.equal(
+      reconnectScheduler
+        .tasks.length,
+      0,
     );
 
     service.stop();
@@ -1099,9 +1403,12 @@ test(
 );
 
 test(
-  'reconnects only the stale market-wide shard when an exchange event arrives stale',
+  'drops stale market-wide events without reconnecting healthy shards',
   () => {
-    const scheduler =
+    const reconnectScheduler =
+      new TestScheduler();
+
+    const watchdogScheduler =
       new TestScheduler();
 
     const sockets:
@@ -1117,16 +1424,28 @@ test(
       new MarketWideRealtimeService({
         baseUrl:
           'wss://fstream.binance.com',
+
         symbols: [
           'BTCUSDT',
         ],
+
         maxStreamsPerSocket:
           100,
+
         reconnectBaseDelayMs:
           250,
+
         reconnectMaxDelayMs:
           2_000,
-        scheduler,
+
+        scheduler:
+          reconnectScheduler,
+
+        watchdogScheduler,
+
+        silentStreamTimeoutMs:
+          30_000,
+
         socketFactory: (url) => {
           urls.push(
             url,
@@ -1141,6 +1460,7 @@ test(
 
           return socket;
         },
+
         now: () =>
           new Date(
             eventTimeMs
@@ -1149,11 +1469,6 @@ test(
       });
 
     service.start();
-
-    assert.equal(
-      sockets.length,
-      2,
-    );
 
     const marketSocketIndex =
       urls.findIndex(
@@ -1213,6 +1528,38 @@ test(
       'connected',
     );
 
+    assert.equal(
+      service.getStatus()
+        .connectedSockets,
+      2,
+    );
+
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      2,
+    );
+
+    const marketWatchdog =
+      watchdogScheduler
+        .tasks[0];
+
+    const publicWatchdog =
+      watchdogScheduler
+        .tasks[1];
+
+    assert.ok(
+      marketWatchdog,
+    );
+
+    assert.ok(
+      publicWatchdog,
+    );
+
+    /*
+     * Both messages are over 30 seconds old relative
+     * to service.now().
+     */
     marketSocket.emit(
       'message',
       {
@@ -1223,16 +1570,57 @@ test(
       },
     );
 
+    publicSocket.emit(
+      'message',
+      {
+        data:
+          bookTickerMessage(
+            'BTCUSDT',
+          ),
+      },
+    );
+
+    /*
+     * A stale packet must not destroy an otherwise
+     * healthy WebSocket shard.
+     */
     assert.equal(
       marketSocket.closed,
-      true,
+      false,
     );
 
     assert.equal(
-      marketSocket.closeCode,
-      1000,
+      publicSocket.closed,
+      false,
     );
 
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .connectedSockets,
+      2,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .reconnectAttempts,
+      0,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastError,
+      null,
+    );
+
+    /*
+     * Stale data must not be counted as fresh traffic.
+     */
     assert.equal(
       service.getStatus()
         .lastMessageAt,
@@ -1240,24 +1628,35 @@ test(
     );
 
     assert.equal(
-      service.getStatus()
-        .state,
-      'degraded',
+      reconnectScheduler
+        .tasks.length,
+      0,
+    );
+
+    /*
+     * Most importantly: stale packets must not refresh
+     * the watchdog. The original watchdogs stay armed.
+     */
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      2,
     );
 
     assert.equal(
-      service.getStatus()
-        .reconnectAttempts,
-      1,
+      marketWatchdog.cancelled,
+      false,
     );
 
-    assert.match(
-      service.getStatus()
-        .lastError
-        ?? '',
-      /stale exchange event/,
+    assert.equal(
+      publicWatchdog.cancelled,
+      false,
     );
 
+    /*
+     * Stale market data is discarded instead of entering
+     * retained metrics.
+     */
     const metric =
       service.getMetrics(
         'BTCUSDT',
@@ -1273,41 +1672,22 @@ test(
     );
 
     assert.equal(
-      scheduler.tasks.length,
-      1,
-    );
-
-    assert.equal(
-      scheduler.tasks[0]
-        ?.delayMs,
-      250,
-    );
-
-    scheduler.tasks[0]
-      ?.callback();
-
-    assert.equal(
-      sockets.length,
-      3,
-    );
-
-    assert.ok(
-      (
-        urls[2]
-        ?? ''
-      ).includes(
-        '/market/stream?streams=',
-      ),
+      metric.liquidityScore,
+      null,
     );
 
     service.stop();
   },
 );
 
+
 test(
-  'ignores late events from replaced stale market-wide socket',
+  'ignores late events from a shard replaced by silent-stream recovery',
   () => {
-    const scheduler =
+    const reconnectScheduler =
+      new TestScheduler();
+
+    const watchdogScheduler =
       new TestScheduler();
 
     const sockets:
@@ -1316,23 +1696,32 @@ test(
     const urls:
       string[] = [];
 
-    const eventTimeMs =
-      1_721_577_841_999;
-
     const service =
       new MarketWideRealtimeService({
         baseUrl:
           'wss://fstream.binance.com',
+
         symbols: [
           'BTCUSDT',
         ],
+
         maxStreamsPerSocket:
           100,
+
         reconnectBaseDelayMs:
           250,
+
         reconnectMaxDelayMs:
           2_000,
-        scheduler,
+
+        scheduler:
+          reconnectScheduler,
+
+        watchdogScheduler,
+
+        silentStreamTimeoutMs:
+          1_000,
+
         socketFactory: (url) => {
           urls.push(
             url,
@@ -1347,19 +1736,9 @@ test(
 
           return socket;
         },
-        now: () =>
-          new Date(
-            eventTimeMs
-            + 60_001,
-          ),
       });
 
     service.start();
-
-    assert.equal(
-      sockets.length,
-      2,
-    );
 
     const marketSocketIndex =
       urls.findIndex(
@@ -1414,50 +1793,45 @@ test(
     );
 
     assert.equal(
-      service.getStatus()
-        .state,
-      'connected',
+      watchdogScheduler
+        .tasks.length,
+      2,
+    );
+
+    const marketWatchdog =
+      watchdogScheduler
+        .tasks[0];
+
+    assert.ok(
+      marketWatchdog,
     );
 
     /*
-     * Force stale-event recovery for the market shard.
-     * The current market socket is retired and one
-     * reconnect is scheduled.
+     * The actual health mechanism replaces a shard only
+     * after it stops producing fresh traffic.
      */
-    oldMarketSocket.emit(
-      'message',
-      {
-        data:
-          klineMessage(
-            'BTCUSDT',
-          ),
-      },
-    );
+    marketWatchdog.callback();
 
     assert.equal(
       oldMarketSocket.closed,
       true,
     );
 
+    assert.match(
+      oldMarketSocket.closeReason
+        ?? '',
+      /silent stream/i,
+    );
+
     assert.equal(
-      scheduler.tasks.length,
+      reconnectScheduler
+        .tasks.length,
       1,
     );
 
-    assert.equal(
-      service.getStatus()
-        .state,
-      'degraded',
-    );
-
-    const reconnectTask =
-      scheduler.tasks[0];
-
-    assert.ok(
-      reconnectTask,
-    );
-
-    reconnectTask.callback();
+    reconnectScheduler
+      .tasks[0]
+      ?.callback();
 
     assert.equal(
       sockets.length,
@@ -1469,15 +1843,6 @@ test(
 
     assert.ok(
       replacementMarketSocket,
-    );
-
-    assert.ok(
-      (
-        urls[2]
-        ?? ''
-      ).includes(
-        '/market/stream?streams=',
-      ),
     );
 
     replacementMarketSocket.emit(
@@ -1496,22 +1861,9 @@ test(
       2,
     );
 
-    assert.equal(
-      service.getStatus()
-        .reconnectAttempts,
-      0,
-    );
-
-    assert.equal(
-      service.getStatus()
-        .lastError,
-      null,
-    );
-
     /*
-     * A delayed market-data message from the retired socket
-     * must be ignored. Without socket identity protection it
-     * could retire the replacement socket again.
+     * Delayed callbacks from the retired socket must
+     * never affect its replacement.
      */
     oldMarketSocket.emit(
       'message',
@@ -1520,6 +1872,21 @@ test(
           klineMessage(
             'BTCUSDT',
           ),
+      },
+    );
+
+    oldMarketSocket.emit(
+      'error',
+    );
+
+    oldMarketSocket.emit(
+      'close',
+      {
+        code:
+          1006,
+
+        reason:
+          'late close from retired socket',
       },
     );
 
@@ -1554,60 +1921,16 @@ test(
     );
 
     assert.equal(
-      scheduler.tasks.length,
-      1,
-    );
-
-    /*
-     * Delayed error/close events from the retired socket
-     * must be ignored for the same reason.
-     */
-    oldMarketSocket.emit(
-      'error',
-    );
-
-    oldMarketSocket.emit(
-      'close',
-      {
-        code:
-          1006,
-        reason:
-          'late close from replaced socket',
-      },
-    );
-
-    assert.equal(
-      service.getStatus()
-        .state,
-      'connected',
-    );
-
-    assert.equal(
-      service.getStatus()
-        .connectedSockets,
-      2,
-    );
-
-    assert.equal(
-      service.getStatus()
-        .reconnectAttempts,
-      0,
-    );
-
-    assert.equal(
-      service.getStatus()
-        .lastError,
-      null,
-    );
-
-    assert.equal(
-      scheduler.tasks.length,
+      reconnectScheduler
+        .tasks.length,
       1,
     );
 
     service.stop();
   },
 );
+
+
 test(
   'reconnects a market-wide shard that stays open but stops delivering messages',
   () => {
