@@ -217,22 +217,49 @@ export function resolveMarketCandlesFreshness(
   input:
     MarketCandlesFreshnessInput,
 ): DataFreshness {
-  return resolveDataFreshness({
-    hasData:
-      input.hasData,
-    sourceState:
-      input.isOnline
-        ? input.connectionState
-        : 'offline',
-    updatedAt:
-      input.updatedAt,
-    error:
-      input.error,
-    staleAfterMs:
-      MARKET_CANDLES_STALE_AFTER_MS,
-    now:
-      input.now,
-  });
+  const freshness =
+    resolveDataFreshness({
+      hasData:
+        input.hasData,
+      sourceState:
+        input.isOnline
+          ? input.connectionState
+          : 'offline',
+      updatedAt:
+        input.updatedAt,
+      error:
+        input.error,
+      staleAfterMs:
+        MARKET_CANDLES_STALE_AFTER_MS,
+      now:
+        input.now,
+    });
+
+  const realtimeStreamIsHealthy =
+    input.hasData
+    && input.isOnline
+    && input.connectionState
+      === 'open'
+    && (
+      input.error === null
+      || input.error === undefined
+    );
+
+  if (!realtimeStreamIsHealthy) {
+    return freshness;
+  }
+
+  return {
+    ...freshness,
+    state:
+      'live',
+    tone:
+      'live',
+    label:
+      'LIVE',
+    message:
+      'Realtime-соединение активно. Время обновления показывает последнее рыночное событие.',
+  };
 }
 
 export function useMarketCandles(

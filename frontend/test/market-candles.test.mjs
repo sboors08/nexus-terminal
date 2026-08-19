@@ -7,6 +7,10 @@ import {
   parseMarketCandle,
 } from '../node_modules/.tmp/realtime-test/charts/api/marketCandles.js';
 
+import {
+  resolveMarketCandlesFreshness,
+} from '../node_modules/.tmp/realtime-test/charts/hooks/useMarketCandles.js';
+
 function createCandle() {
   return {
     openTime:
@@ -316,6 +320,111 @@ test(
         '2026-07-25T12:00:00.000Z',
         '2026-07-25T12:05:00.000Z',
       ],
+    );
+  },
+);
+
+
+test(
+  'keeps an open Workspace candle stream LIVE during a quiet market period',
+  () => {
+    const freshness =
+      resolveMarketCandlesFreshness({
+        hasData:
+          true,
+        connectionState:
+          'open',
+        updatedAt:
+          '2026-08-19T16:00:00.000Z',
+        error:
+          null,
+        isOnline:
+          true,
+        now:
+          Date.parse(
+            '2026-08-19T16:00:32.000Z',
+          ),
+      });
+
+    /*
+     * 32 seconds is intentionally well beyond the existing
+     * 15-second market-event age threshold.
+     *
+     * The transport is still OPEN, so Workspace must remain
+     * LIVE while preserving the true event age separately.
+     */
+    assert.equal(
+      freshness.ageMs,
+      32_000,
+    );
+
+    assert.equal(
+      freshness.state,
+      'live',
+    );
+
+    assert.equal(
+      freshness.tone,
+      'live',
+    );
+
+    assert.equal(
+      freshness.label,
+      'LIVE',
+    );
+
+    assert.equal(
+      freshness.lastUpdatedLabel,
+      'обновлено 32 сек. назад',
+    );
+
+    assert.equal(
+      freshness.errorKind,
+      null,
+    );
+  },
+);
+
+
+test(
+  'keeps retained Workspace candle data STALE while the realtime stream reconnects',
+  () => {
+    const freshness =
+      resolveMarketCandlesFreshness({
+        hasData:
+          true,
+        connectionState:
+          'reconnecting',
+        updatedAt:
+          '2026-08-19T16:00:00.000Z',
+        error:
+          null,
+        isOnline:
+          true,
+        now:
+          Date.parse(
+            '2026-08-19T16:00:32.000Z',
+          ),
+      });
+
+    assert.equal(
+      freshness.ageMs,
+      32_000,
+    );
+
+    assert.equal(
+      freshness.state,
+      'stale',
+    );
+
+    assert.equal(
+      freshness.tone,
+      'warning',
+    );
+
+    assert.equal(
+      freshness.label,
+      'STALE',
     );
   },
 );
