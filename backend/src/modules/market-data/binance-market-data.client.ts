@@ -18,6 +18,45 @@ interface Ticker24h { symbol?: string; lastPrice?: string; priceChangePercent?: 
 type Kline = [number, string, string, string, string, string, number, string, number, ...unknown[]];
 interface ErrorPayload { code?: number; msg?: string; }
 
+interface CandleCacheEntry {
+  value: Candle[];
+  safeFallbackValue: Candle[];
+  freshUntilMs: number;
+  staleUntilMs: number;
+}
+
+const CANDLE_LIVE_CACHE_TTL_MS =
+  5_000;
+
+const CANDLE_CACHE_MAX_ENTRIES =
+  64;
+
+const CANDLE_TIMEFRAME_DURATION_MS:
+Readonly<Record<string, number>> = {
+  '1m': 60_000,
+  '3m': 3 * 60_000,
+  '5m': 5 * 60_000,
+  '15m': 15 * 60_000,
+  '30m': 30 * 60_000,
+  '1h': 60 * 60_000,
+  '2h': 2 * 60 * 60_000,
+  '4h': 4 * 60 * 60_000,
+  '6h': 6 * 60 * 60_000,
+  '8h': 8 * 60 * 60_000,
+  '12h': 12 * 60 * 60_000,
+  '1d': 24 * 60 * 60_000,
+};
+
+function cloneCandles(
+  candles: readonly Candle[],
+): Candle[] {
+  return candles.map(
+    (candle) => ({
+      ...candle,
+    }),
+  );
+}
+
 const MARKET_SYMBOL_PATTERN = /^[A-Z0-9]{5,20}$/;
 const MARKET_ASSET_PATTERN = /^[A-Z0-9]{1,20}$/;
 
@@ -31,6 +70,12 @@ export class BinanceMarketDataClient implements MarketDataProvider {
   private readonly fetchImpl: FetchLike;
   private readonly now: () => Date;
   private cache: { expiresAt: number; value: MarketSymbol[] } | null = null;
+
+  private readonly candleCache =
+    new Map<
+      string,
+      CandleCacheEntry
+    >();
 
   constructor(private readonly options: BinanceMarketDataClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
@@ -122,6 +167,42 @@ export class BinanceMarketDataClient implements MarketDataProvider {
       );
     }
 
+    const timeframeDurationMs =
+      CANDLE_TIMEFRAME_DURATION_MS[
+        timeframe
+      ]
+      ?? null;
+
+    const cacheKey =
+      options.endTime === undefined
+      && timeframeDurationMs !== null
+        ? [
+            symbol.toUpperCase(),
+            timeframe,
+            String(limit),
+          ].join('|')
+        : null;
+
+    const requestNowMs =
+      this.now().getTime();
+
+    const cached =
+      cacheKey === null
+        ? undefined
+        : this.candleCache.get(
+            cacheKey,
+          );
+
+    if (
+      cached
+      && cached.freshUntilMs
+        > requestNowMs
+    ) {
+      return cloneCandles(
+        cached.value,
+      );
+    }
+
     const query =
       new URLSearchParams({
         symbol,
@@ -141,13 +222,41 @@ export class BinanceMarketDataClient implements MarketDataProvider {
       );
     }
 
-    const payload = await this.requestJson<unknown>(
-      `/fapi/v1/klines?${query.toString()}`,
-      symbol,
-    );
+    let payload:
+      unknown;
+
+    try {
+      payload =
+        await this.requestJson<unknown>(
+          `/fapi/v1/klines?${query.toString()}`,
+          symbol,
+        );
+    } catch (error) {
+      const failureNowMs =
+        this.now().getTime();
+
+      if (
+        error
+          instanceof
+            MarketDataUnavailableError
+        && cached
+        && cached.safeFallbackValue.length
+          > 0
+        && cached.staleUntilMs
+          > failureNowMs
+      ) {
+        return cloneCandles(
+          cached.safeFallbackValue,
+        );
+      }
+
+      throw error;
+    }
+
     if (!Array.isArray(payload)) throw new MarketDataUnavailableError('Binance returned an unexpected candles response');
 
-    return payload.map((row) => {
+    const candles =
+      payload.map((row) => {
       if (!Array.isArray(row) || row.length < 9) throw new MarketDataUnavailableError('Binance returned an invalid candle');
       const kline = row as Kline;
       return {
@@ -157,6 +266,119 @@ export class BinanceMarketDataClient implements MarketDataProvider {
         volume: numberValue(kline[5]), tradesCount: Math.max(0, Math.trunc(numberValue(kline[8]))),
       };
     });
+
+    if (
+      cacheKey !== null
+      && timeframeDurationMs
+        !== null
+      && candles.length > 0
+    ) {
+      const fetchedAtMs =
+        this.now().getTime();
+
+      const safeFallbackValue =
+        candles.filter(
+          (candle) => {
+            const closeTimeMs =
+              Date.parse(
+                candle.closeTime,
+              );
+
+            return (
+              Number.isFinite(
+                closeTimeMs,
+              )
+              && closeTimeMs
+                <= fetchedAtMs
+            );
+          },
+        );
+
+      const latest =
+        candles[
+          candles.length - 1
+        ];
+
+      const latestCloseMs =
+        latest
+          ? Date.parse(
+              latest.closeTime,
+            )
+          : Number.NaN;
+
+      let freshUntilMs =
+        fetchedAtMs
+        + CANDLE_LIVE_CACHE_TTL_MS;
+
+      /*
+       * Never allow a cached unfinished candle to cross its
+       * own close boundary.
+       */
+      if (
+        Number.isFinite(
+          latestCloseMs,
+        )
+        && latestCloseMs
+          >= fetchedAtMs
+      ) {
+        freshUntilMs =
+          Math.min(
+            freshUntilMs,
+            latestCloseMs + 1,
+          );
+      }
+
+      const staleUntilMs =
+        Math.max(
+          freshUntilMs,
+          fetchedAtMs,
+        )
+        + timeframeDurationMs;
+
+      if (
+        !this.candleCache.has(
+          cacheKey,
+        )
+        && this.candleCache.size
+          >= CANDLE_CACHE_MAX_ENTRIES
+      ) {
+        const oldestKey =
+          this.candleCache
+            .keys()
+            .next()
+            .value;
+
+        if (
+          typeof oldestKey
+          === 'string'
+        ) {
+          this.candleCache.delete(
+            oldestKey,
+          );
+        }
+      }
+
+      this.candleCache.set(
+        cacheKey,
+        {
+          value:
+            cloneCandles(
+              candles,
+            ),
+
+          safeFallbackValue:
+            cloneCandles(
+              safeFallbackValue,
+            ),
+
+          freshUntilMs,
+
+          staleUntilMs,
+        },
+      );
+    }
+
+    return candles;
   }
 
   private async requestJson<T>(path: string, symbol?: string): Promise<T> {
