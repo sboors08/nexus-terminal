@@ -65,6 +65,9 @@ const BINANCE_WEBSOCKET_EVENT_STALE_AFTER_MS =
 const BINANCE_WEBSOCKET_SILENT_STREAM_TIMEOUT_MS =
   30_000;
 
+const BINANCE_MARKET_STREAM_SILENT_TIMEOUT_MS =
+  15_000;
+
 interface BinanceAggregateTradeEvent {
   E?: number;
   s?: string;
@@ -649,6 +652,34 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     };
   }
 
+  private getRouteSilentStreamTimeoutMs(
+    route: BinanceWebSocketRoute,
+  ): number {
+    /*
+     * An explicit option remains a deterministic global
+     * override for tests/custom callers.
+     */
+    if (
+      this.options.silentStreamTimeoutMs
+      !== undefined
+    ) {
+      return this.silentStreamTimeoutMs;
+    }
+
+    /*
+     * The generic market route always carries the baseline
+     * liquid symbols (BTC/ETH/SOL in production). A 15-second
+     * absence of every fresh aggTrade is therefore transport
+     * degradation, not normal inactivity.
+     *
+     * Recover it before Workspace Tape reaches its 20-second
+     * STALE boundary.
+     */
+    return route === 'market'
+      ? BINANCE_MARKET_STREAM_SILENT_TIMEOUT_MS
+      : this.silentStreamTimeoutMs;
+  }
+
   private restartForSubscriptionChange(): void {
     this.syncSubscriptionStatus();
     this.emitStatus();
@@ -1201,6 +1232,11 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       route,
     );
 
+    const routeSilentStreamTimeoutMs =
+      this.getRouteSilentStreamTimeoutMs(
+        route,
+      );
+
     let handle:
       unknown;
 
@@ -1238,7 +1274,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
             socket,
           );
         },
-        this.silentStreamTimeoutMs,
+        routeSilentStreamTimeoutMs,
       );
 
     this.routeWatchdogHandles.set(
@@ -1288,6 +1324,11 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       route,
     );
 
+    const routeSilentStreamTimeoutMs =
+      this.getRouteSilentStreamTimeoutMs(
+        route,
+      );
+
     this.status = {
       ...this.status,
       state:
@@ -1296,7 +1337,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
         this.now().toISOString(),
       lastError:
         `Binance Futures ${route} WebSocket silent stream: `
-        + `no fresh messages for ${this.silentStreamTimeoutMs}ms`,
+        + `no fresh messages for ${routeSilentStreamTimeoutMs}ms`,
     };
 
     this.emitStatus();

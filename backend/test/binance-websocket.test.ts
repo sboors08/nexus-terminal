@@ -814,6 +814,156 @@ function createGenericTestScheduler(
 
 
 test(
+  'uses a shorter default watchdog for the generic market route',
+  () => {
+    const sockets:
+      FakeSocket[] = [];
+
+    const urls:
+      string[] = [];
+
+    const reconnectTasks:
+      GenericScheduledTask[] = [];
+
+    const watchdogTasks:
+      GenericScheduledTask[] = [];
+
+    const service =
+      new BinanceWebSocketMarketDataService({
+        baseUrl:
+          'wss://fstream.binance.com',
+
+        symbols: [
+          'BTCUSDT',
+          'ETHUSDT',
+          'SOLUSDT',
+        ],
+
+        reconnectBaseDelayMs:
+          1_000,
+
+        reconnectMaxDelayMs:
+          30_000,
+
+        tradesBufferSize:
+          100,
+
+        socketFactory(url) {
+          urls.push(
+            url,
+          );
+
+          const socket =
+            new FakeSocket();
+
+          sockets.push(
+            socket,
+          );
+
+          return socket;
+        },
+
+        scheduler:
+          createGenericTestScheduler(
+            reconnectTasks,
+          ),
+
+        watchdogScheduler:
+          createGenericTestScheduler(
+            watchdogTasks,
+          ),
+      });
+
+    service.start();
+
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/market/stream?streams=',
+          ),
+      );
+
+    const publicSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/public/stream?streams=',
+          ),
+      );
+
+    const marketSocket =
+      sockets[
+        marketSocketIndex
+      ];
+
+    const publicSocket =
+      sockets[
+        publicSocketIndex
+      ];
+
+    assert.ok(
+      marketSocket,
+    );
+
+    assert.ok(
+      publicSocket,
+    );
+
+    marketSocket.emit(
+      'open',
+    );
+
+    publicSocket.emit(
+      'open',
+    );
+
+    assert.equal(
+      watchdogTasks.length,
+      2,
+    );
+
+    const marketWatchdog =
+      watchdogTasks[0];
+
+    const publicWatchdog =
+      watchdogTasks[1];
+
+    assert.ok(
+      marketWatchdog,
+    );
+
+    assert.ok(
+      publicWatchdog,
+    );
+
+    assert.equal(
+      marketWatchdog.delayMs,
+      15_000,
+    );
+
+    assert.equal(
+      publicWatchdog.delayMs,
+      30_000,
+    );
+
+    /*
+     * Explicit silentStreamTimeoutMs is intentionally not
+     * supplied here. Existing tests with a 30-second explicit
+     * override continue to verify override behavior.
+     */
+
+    service.stop();
+
+    assert.equal(
+      watchdogTasks.length,
+      0,
+    );
+  },
+);
+
+
+test(
   'drops stale generic Binance events without reconnecting healthy routes',
   () => {
     const sockets:
