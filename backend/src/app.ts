@@ -327,8 +327,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
               env.binanceSymbolUniverseRefreshIntervalMs
               ?? 60_000,
             requestTimeoutMs:
-              env.binanceRequestTimeoutMs
-              ?? 5_000,
+              env.binanceSymbolUniverseRequestTimeoutMs
+              ?? 20_000,
             collectingDurationMs:
               env.binanceSymbolUniverseCollectingDurationMs
               ?? 15 * 60 * 1000,
@@ -657,6 +657,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     logger: env.nodeEnv === 'test' ? false : { level: env.logLevel },
     trustProxy: true,
     requestIdHeader: 'x-request-id',
+    pluginTimeout: 30_000,
   });
 
   await app.register(cors, {

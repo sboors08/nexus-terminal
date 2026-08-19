@@ -34,6 +34,7 @@ export interface AppEnv {
   binanceOrderBookDepthEnabled?: boolean;
   binanceOrderBookDepthStaleAfterMs?: number;
   binanceSymbolUniverseEnabled?: boolean;
+  binanceSymbolUniverseRequestTimeoutMs?: number;
   binanceSymbolUniverseQuoteAsset?: string;
   binanceSymbolUniverseRefreshIntervalMs?: number;
   binanceSymbolUniverseCollectingDurationMs?: number;
@@ -227,6 +228,13 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       source.BINANCE_SYMBOL_UNIVERSE_ENABLED,
       source.NODE_ENV !== 'test',
       'BINANCE_SYMBOL_UNIVERSE_ENABLED',
+    ),
+    binanceSymbolUniverseRequestTimeoutMs: readInteger(
+      source.BINANCE_SYMBOL_UNIVERSE_REQUEST_TIMEOUT_MS,
+      20_000,
+      'BINANCE_SYMBOL_UNIVERSE_REQUEST_TIMEOUT_MS',
+      1_000,
+      60_000,
     ),
     binanceSymbolUniverseQuoteAsset: readQuoteAsset(
       source.BINANCE_SYMBOL_UNIVERSE_QUOTE_ASSET,

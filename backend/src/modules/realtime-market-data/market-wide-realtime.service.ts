@@ -101,6 +101,7 @@ interface BinanceBookTickerEvent {
   a?: string;
   A?: string;
   E?: number;
+  st?: number;
 }
 
 interface MarketWideShardRuntime
@@ -523,51 +524,60 @@ export function buildMarketWideStreamShards(
   const shards:
     MarketWideStreamShard[] = [];
 
-  const routes:
-    Array<{
-      route: MarketWideStreamRoute;
-      streamSuffix: string;
-    }> = [
-      {
-        route: 'market',
-        streamSuffix: '@kline_1m',
-      },
-      {
-        route: 'public',
-        streamSuffix: '@bookTicker',
-      },
-    ];
+  /*
+   * Klines remain symbol-scoped because Binance does not
+   * provide an equivalent all-symbol kline stream.
+   */
+  for (
+    let index = 0;
+    index < normalizedSymbols.length;
+    index += maxStreamsPerSocket
+  ) {
+    const shardSymbols =
+      normalizedSymbols.slice(
+        index,
+        index + maxStreamsPerSocket,
+      );
 
-  for (const definition of routes) {
-    for (
-      let index = 0;
-      index < normalizedSymbols.length;
-      index += maxStreamsPerSocket
-    ) {
-      const shardSymbols =
-        normalizedSymbols.slice(
-          index,
-          index + maxStreamsPerSocket,
-        );
-
-      const streams =
+    shards.push({
+      id:
+        shards.length,
+      route:
+        'market',
+      symbols:
+        shardSymbols,
+      streams:
         shardSymbols.map(
           (symbol) =>
             symbol.toLowerCase()
-            + definition.streamSuffix,
-        );
+            + '@kline_1m',
+        ),
+    });
+  }
 
-      shards.push({
-        id: shards.length,
-        route: definition.route,
-        symbols: shardSymbols,
-        streams,
-      });
-    }
+  /*
+   * Binance provides one official all-symbol best-bid/ask
+   * stream. Using it avoids dividing quiet bookTicker
+   * symbols across multiple sockets and then mistaking
+   * legitimate inactivity for a dead public shard.
+   */
+  if (normalizedSymbols.length > 0) {
+    shards.push({
+      id:
+        shards.length,
+      route:
+        'public',
+      symbols:
+        normalizedSymbols,
+      streams: [
+        '!bookTicker',
+      ],
+    });
   }
 
   return shards;
 }
+
 
 export function parseBinanceMarketWideBookTicker(
   payload: unknown,
@@ -1068,7 +1078,15 @@ export class MarketWideRealtimeService {
       symbolsCount:
         this.symbols.length,
       streamCount:
-        this.symbols.length * 2,
+        this.shards.reduce(
+          (
+            total,
+            shard,
+          ) =>
+            total
+            + shard.streams.length,
+          0,
+        ),
       socketCount:
         this.shards.length,
       connectedSockets,
@@ -1516,12 +1534,16 @@ export class MarketWideRealtimeService {
           && lagMs
             > MARKET_WIDE_EVENT_STALE_AFTER_MS
         ) {
-          this.recoverStaleShard(
-            shard,
-            stream,
-            lagMs,
-          );
-
+          /*
+           * A delayed exchange event is a data-quality
+           * anomaly, not proof that the WebSocket shard
+           * itself is broken.
+           *
+           * Drop the event without refreshing the silence
+           * watchdog. If the shard actually stops delivering
+           * fresh events, silent-stream recovery will replace
+           * it.
+           */
           return;
         }
 
@@ -1563,10 +1585,81 @@ export class MarketWideRealtimeService {
       }
 
       if (
-        stream.endsWith(
+        stream === '!bookticker'
+        || stream.endsWith(
           '@bookticker',
         )
       ) {
+        const rawBookTicker =
+          payload.data as
+            BinanceBookTickerEvent;
+
+        if (
+          stream === '!bookticker'
+        ) {
+          const eventTime =
+            readNumber(
+              rawBookTicker.E,
+            );
+
+          const receivedAtMs =
+            Date.parse(
+              receivedAt,
+            );
+
+          const lagMs =
+            eventTime === null
+            || !Number.isFinite(
+              receivedAtMs,
+            )
+              ? null
+              : receivedAtMs
+                - eventTime;
+
+          if (
+            lagMs !== null
+            && lagMs
+              > MARKET_WIDE_EVENT_STALE_AFTER_MS
+          ) {
+            return;
+          }
+
+          const rawSymbol =
+            typeof rawBookTicker.s
+              === 'string'
+              ? rawBookTicker.s
+                  .trim()
+                  .toUpperCase()
+              : '';
+
+          const trackedSymbol =
+            this.symbols.includes(
+              rawSymbol,
+            );
+
+          if (!trackedSymbol) {
+            /*
+             * !bookTicker is exchange-wide and may contain
+             * delivery contracts, COIN-M contracts or other
+             * symbols outside the NEXUS USD-M universe.
+             *
+             * A fresh packet still proves transport health,
+             * but untracked data must never enter the NEXUS
+             * metrics store or become a runtime error.
+             */
+            this.lastMessageAt =
+              receivedAt;
+
+            this.armShardWatchdog(
+              shard,
+              generation,
+              socket,
+            );
+
+            return;
+          }
+        }
+
         const ticker =
           parseBinanceMarketWideBookTicker(
             payload.data,
@@ -1584,12 +1677,16 @@ export class MarketWideRealtimeService {
           && lagMs
             > MARKET_WIDE_EVENT_STALE_AFTER_MS
         ) {
-          this.recoverStaleShard(
-            shard,
-            stream,
-            lagMs,
-          );
-
+          /*
+           * A delayed exchange event is a data-quality
+           * anomaly, not proof that the WebSocket shard
+           * itself is broken.
+           *
+           * Drop the event without refreshing the silence
+           * watchdog. If the shard actually stops delivering
+           * fresh events, silent-stream recovery will replace
+           * it.
+           */
           return;
         }
 
@@ -1774,48 +1871,6 @@ export class MarketWideRealtimeService {
     socket.close(
       1000,
       'NEXUS silent stream recovery',
-    );
-  }
-
-  private recoverStaleShard(
-    shard:
-      MarketWideShardRuntime,
-    stream: string,
-    lagMs: number,
-  ): void {
-    if (
-      this.manuallyStopped
-      || shard.reconnectHandle
-        !== null
-    ) {
-      return;
-    }
-
-    this.cancelShardWatchdog(
-      shard,
-    );
-
-    const socket =
-      shard.socket;
-
-    shard.socket =
-      null;
-
-    shard.connected =
-      false;
-
-    this.lastError =
-      `Binance market-wide shard ${shard.id} stale exchange event `
-      + `${stream}: lag ${Math.round(lagMs)}ms`;
-
-    this.scheduleReconnect(
-      shard,
-      this.generation,
-    );
-
-    socket?.close(
-      1000,
-      'NEXUS stale exchange event recovery',
     );
   }
 

@@ -155,9 +155,11 @@ function createBookTickerMessage():
 string {
   return JSON.stringify({
     stream:
-      'solusdt@bookTicker',
+      '!bookTicker',
     data: {
+      e: 'bookTicker',
       s: 'SOLUSDT',
+      st: 1,
       b: '100.99',
       B: '300',
       a: '101.01',
@@ -261,7 +263,7 @@ test(
       initialStatus
         .json()
         .streamCount,
-      4,
+      3,
     );
 
     assert.equal(
@@ -282,9 +284,8 @@ test(
     const publicSocketIndex =
       urls.findIndex(
         (url) =>
-          url.startsWith(
-            'wss://fstream.binance.com/public/stream?streams=',
-          ),
+          url
+            === 'wss://fstream.binance.com/public/stream?streams=!bookTicker',
       );
 
     assert.notEqual(
