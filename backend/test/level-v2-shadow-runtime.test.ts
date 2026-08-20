@@ -282,11 +282,245 @@ LevelV2ShadowRuntimeOptions = {
     maxRetestWaitCandles:
       50,
   },
+  schedule: (
+    task,
+  ) => {
+    task();
+  },
+
   now: () =>
     new Date(
       '2026-07-29T13:00:00.000Z',
     ),
 };
+
+test(
+  'queues live shadow scans cooperatively and coalesces repeated symbols',
+  () => {
+    const source =
+      new TestSource();
+
+    source.histories.set(
+      'SOLUSDT',
+      resistanceHistory(
+        'SOLUSDT',
+      ),
+    );
+
+    source.histories.set(
+      'ETHUSDT',
+      resistanceHistory(
+        'ETHUSDT',
+      ),
+    );
+
+    const scheduled:
+      Array<
+        () => void
+      > = [];
+
+    const runtime =
+      new LevelV2ShadowRuntimeService(
+        source,
+        {
+          ...options,
+
+          schedule: (
+            task,
+          ) => {
+            scheduled.push(
+              task,
+            );
+          },
+        },
+      );
+
+    /*
+     * Initial scans keep their historical synchronous
+     * semantics. Only realtime-triggered rescans are queued.
+     */
+    runtime.start();
+
+    const initialScans =
+      runtime.getStatus()
+        .scansCount;
+
+    assert.equal(
+      initialScans,
+      2,
+    );
+
+    source.emit({
+      source:
+        'live',
+
+      symbols: [
+        'SOLUSDT',
+        'ETHUSDT',
+      ],
+    });
+
+    /*
+     * Duplicate SOL arrives before the queue drains.
+     * It must replace/coalesce the pending SOL entry,
+     * not add another expensive scan.
+     */
+    source.emit({
+      source:
+        'live',
+
+      symbols: [
+        'SOLUSDT',
+      ],
+    });
+
+    assert.equal(
+      runtime.getStatus()
+        .scansCount,
+      initialScans,
+      'live callback synchronously executed a shadow scan',
+    );
+
+    assert.equal(
+      scheduled.length,
+      1,
+      'more than one drain was scheduled for the same burst',
+    );
+
+    const first =
+      scheduled.shift();
+
+    assert.ok(
+      first,
+    );
+
+    first();
+
+    assert.equal(
+      runtime.getStatus()
+        .scansCount,
+      initialScans + 1,
+      'one scheduled turn must scan exactly one symbol',
+    );
+
+    assert.equal(
+      scheduled.length,
+      1,
+      'remaining symbol must be scheduled for a later turn',
+    );
+
+    const second =
+      scheduled.shift();
+
+    assert.ok(
+      second,
+    );
+
+    second();
+
+    assert.equal(
+      runtime.getStatus()
+        .scansCount,
+      initialScans + 2,
+      'duplicate pending symbol was not coalesced',
+    );
+
+    assert.equal(
+      scheduled.length,
+      0,
+    );
+
+    assert.equal(
+      runtime.getSnapshot(
+        'SOLUSDT',
+      )?.triggerSource,
+      'live',
+    );
+
+    assert.equal(
+      runtime.getSnapshot(
+        'ETHUSDT',
+      )?.triggerSource,
+      'live',
+    );
+
+    runtime.stop();
+  },
+);
+
+
+test(
+  'drops queued live shadow work after stop',
+  () => {
+    const source =
+      new TestSource();
+
+    source.histories.set(
+      'SOLUSDT',
+      resistanceHistory(),
+    );
+
+    const scheduled:
+      Array<
+        () => void
+      > = [];
+
+    const runtime =
+      new LevelV2ShadowRuntimeService(
+        source,
+        {
+          ...options,
+
+          schedule: (
+            task,
+          ) => {
+            scheduled.push(
+              task,
+            );
+          },
+        },
+      );
+
+    runtime.start();
+
+    const before =
+      runtime.getStatus()
+        .scansCount;
+
+    source.emit({
+      source:
+        'live',
+
+      symbols: [
+        'SOLUSDT',
+      ],
+    });
+
+    assert.equal(
+      scheduled.length,
+      1,
+    );
+
+    runtime.stop();
+
+    const queued =
+      scheduled.shift();
+
+    assert.ok(
+      queued,
+    );
+
+    queued();
+
+    assert.equal(
+      runtime.getStatus()
+        .scansCount,
+      before,
+      'queued scan ran after runtime.stop()',
+    );
+  },
+);
+
 
 test(
   'builds a shadow snapshot from retained market candles',
