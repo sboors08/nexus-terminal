@@ -29,6 +29,8 @@ export interface ObservationPathProgress {
   readonly currentCandleIndex: number;
   readonly currentCandleOpenTime: string;
   readonly observedAt: string;
+  readonly episodeStartedAt:
+    string | null;
   readonly progress: number;
   readonly observationPathProgressThreshold:
     number;

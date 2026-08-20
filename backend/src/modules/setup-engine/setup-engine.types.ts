@@ -46,6 +46,8 @@ export interface SetupEngineState {
   createdAt: string;
   updatedAt: string;
   expiresAt: string;
+  episode?: import('./causal-setup-adapter.types.js')
+    .SetupCandidateEpisodeIdentity;
   causal?: import('./causal-setup-adapter.types.js')
     .SetupCausalContext;
 }

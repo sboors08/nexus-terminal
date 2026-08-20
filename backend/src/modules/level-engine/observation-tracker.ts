@@ -348,6 +348,8 @@ function pathProgress(
   extremum: DepartureExtremum,
   current:
     IndexedClosedCandle,
+  closed:
+    readonly IndexedClosedCandle[],
   threshold: number,
 ): ObservationPathProgress {
   if (
@@ -393,6 +395,35 @@ function pathProgress(
     );
   }
 
+  let episodeStartedAt:
+    string | null = null;
+
+  for (const item of closed) {
+    if (
+      Date.parse(
+        item.candle.closeTime,
+      ) < Date.parse(
+        extremum.observedAt,
+      )
+    ) {
+      continue;
+    }
+
+    const itemProgress =
+      Math.abs(
+        item.candle.close
+        - extremum.price,
+      )
+      / denominator;
+
+    if (itemProgress >= threshold) {
+      episodeStartedAt ??=
+        item.candle.closeTime;
+    } else {
+      episodeStartedAt = null;
+    }
+  }
+
   return Object.freeze({
     lineId:
       extremum.lineId,
@@ -416,6 +447,7 @@ function pathProgress(
       current.candle.openTime,
     observedAt:
       current.candle.closeTime,
+    episodeStartedAt,
     progress,
     observationPathProgressThreshold:
       threshold,
@@ -527,6 +559,7 @@ export function trackObservationProgress(
           pathProgress(
             extremum,
             current,
+            closed,
             options
               .observationPathProgressThreshold,
           ),
