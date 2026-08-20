@@ -248,14 +248,17 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
 
   const chartPriceSource =
     hasCandlePrice
-      ? [
-          candleFreshness.label,
-          candleFreshness
-            .lastUpdatedLabel,
-          chartUpdatedAtLabel,
-        ].join(
-          ' · ',
-        )
+      ? candleFreshness.state
+          === 'live'
+        ? candleFreshness.label
+        : [
+            candleFreshness.label,
+            candleFreshness
+              .lastUpdatedLabel,
+            chartUpdatedAtLabel,
+          ].join(
+            ' · ',
+          )
       : candleFreshness.state
           === 'collecting'
         ? 'COLLECTING · ожидаем свечи'
@@ -2093,10 +2096,18 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 >
                   <i />
                   {candleFreshness.label}
-                  {' · '}
                   {
-                    candleFreshness
-                      .lastUpdatedLabel
+                    candleFreshness.state
+                      !== 'live'
+                    && (
+                      <>
+                        {' · '}
+                        {
+                          candleFreshness
+                            .lastUpdatedLabel
+                        }
+                      </>
+                    )
                   }
                 </span>
                 <span
