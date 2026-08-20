@@ -108,6 +108,223 @@ test('Binance client supports candle pagination parameters', async () => {
 
 
 test(
+  'retries one transient cold candle timeout and succeeds',
+  async () => {
+    let requests =
+      0;
+
+    const client =
+      new BinanceMarketDataClient({
+        baseUrl:
+          'https://fapi.binance.com',
+
+        requestTimeoutMs:
+          1_000,
+
+        symbolsLimit:
+          100,
+
+        cacheTtlMs:
+          0,
+
+        fetchImpl:
+          async () => {
+            requests +=
+              1;
+
+            if (
+              requests === 1
+            ) {
+              const timeoutError =
+                new Error(
+                  'synthetic timeout',
+                );
+
+              timeoutError.name =
+                'AbortError';
+
+              throw timeoutError;
+            }
+
+            return json([
+              [
+                1721275200000,
+                '189.0',
+                '191.0',
+                '188.5',
+                '190.5',
+                '12345.6',
+                1721275499999,
+                '2345678.9',
+                845,
+                '6000',
+                '1100000',
+                '0',
+              ],
+            ]);
+          },
+      });
+
+    const candles =
+      await client.getCandles(
+        'SOLUSDT',
+        '15m',
+        {
+          limit:
+            1000,
+        },
+      );
+
+    assert.equal(
+      requests,
+      2,
+    );
+
+    assert.equal(
+      candles.length,
+      1,
+    );
+
+    assert.equal(
+      candles[0]?.close,
+      190.5,
+    );
+  },
+);
+
+
+test(
+  'bounds cold candle retry to two attempts',
+  async () => {
+    let requests =
+      0;
+
+    const client =
+      new BinanceMarketDataClient({
+        baseUrl:
+          'https://fapi.binance.com',
+
+        requestTimeoutMs:
+          1_000,
+
+        symbolsLimit:
+          100,
+
+        cacheTtlMs:
+          0,
+
+        fetchImpl:
+          async () => {
+            requests +=
+              1;
+
+            return json(
+              {
+                code:
+                  -1000,
+
+                msg:
+                  'temporary failure',
+              },
+              500,
+            );
+          },
+      });
+
+    await assert.rejects(
+      client.getCandles(
+        'SOLUSDT',
+        '15m',
+        {
+          limit:
+            1000,
+        },
+      ),
+      (
+        error:
+          unknown,
+      ) =>
+        error
+        instanceof
+          MarketDataUnavailableError,
+    );
+
+    assert.equal(
+      requests,
+      2,
+    );
+  },
+);
+
+
+test(
+  'does not retry paginated candle history',
+  async () => {
+    let requests =
+      0;
+
+    const client =
+      new BinanceMarketDataClient({
+        baseUrl:
+          'https://fapi.binance.com',
+
+        requestTimeoutMs:
+          1_000,
+
+        symbolsLimit:
+          100,
+
+        cacheTtlMs:
+          0,
+
+        fetchImpl:
+          async () => {
+            requests +=
+              1;
+
+            return json(
+              {
+                code:
+                  -1000,
+
+                msg:
+                  'temporary failure',
+              },
+              500,
+            );
+          },
+      });
+
+    await assert.rejects(
+      client.getCandles(
+        'SOLUSDT',
+        '15m',
+        {
+          limit:
+            500,
+
+          endTime:
+            1721275199999,
+        },
+      ),
+      (
+        error:
+          unknown,
+      ) =>
+        error
+        instanceof
+          MarketDataUnavailableError,
+    );
+
+    assert.equal(
+      requests,
+      1,
+    );
+  },
+);
+
+
+test(
   'reuses a short live candle cache defensively',
   async () => {
     let now =

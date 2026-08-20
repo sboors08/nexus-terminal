@@ -31,6 +31,12 @@ const CANDLE_LIVE_CACHE_TTL_MS =
 const CANDLE_CACHE_MAX_ENTRIES =
   64;
 
+const CANDLE_COLD_LOAD_MAX_ATTEMPTS =
+  2;
+
+const CANDLE_COLD_LOAD_RETRY_DELAY_MS =
+  200;
+
 const CANDLE_TIMEFRAME_DURATION_MS:
 Readonly<Record<string, number>> = {
   '1m': 60_000,
@@ -222,14 +228,19 @@ export class BinanceMarketDataClient implements MarketDataProvider {
       );
     }
 
+    const retryColdLoad =
+      cacheKey !== null
+      && cached === undefined;
+
     let payload:
       unknown;
 
     try {
       payload =
-        await this.requestJson<unknown>(
+        await this.requestCandlePayload(
           `/fapi/v1/klines?${query.toString()}`,
           symbol,
+          retryColdLoad,
         );
     } catch (error) {
       const failureNowMs =
@@ -379,6 +390,48 @@ export class BinanceMarketDataClient implements MarketDataProvider {
     }
 
     return candles;
+  }
+
+  private async requestCandlePayload(
+    path: string,
+    symbol: string,
+    retryColdLoad: boolean,
+  ): Promise<unknown> {
+    let attempt =
+      1;
+
+    while (true) {
+      try {
+        return await this.requestJson<unknown>(
+          path,
+          symbol,
+        );
+      } catch (error) {
+        const canRetry =
+          retryColdLoad
+          && error
+            instanceof
+              MarketDataUnavailableError
+          && attempt
+            < CANDLE_COLD_LOAD_MAX_ATTEMPTS;
+
+        if (!canRetry) {
+          throw error;
+        }
+
+        attempt +=
+          1;
+
+        await new Promise<void>(
+          (resolve) => {
+            setTimeout(
+              resolve,
+              CANDLE_COLD_LOAD_RETRY_DELAY_MS,
+            );
+          },
+        );
+      }
+    }
   }
 
   private async requestJson<T>(path: string, symbol?: string): Promise<T> {
