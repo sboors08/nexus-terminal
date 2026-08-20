@@ -56,6 +56,17 @@ export interface LevelV2ShadowRuntimeOptions {
   evaluationOptions?:
     LevelV2ShadowEvaluationOptions;
   now: () => Date;
+
+  /*
+   * Heavy shadow scans must never run directly in the
+   * realtime ingestion callback.
+   *
+   * Production uses setImmediate. Tests may inject a
+   * deterministic scheduler.
+   */
+  schedule?: (
+    task: () => void,
+  ) => void;
 }
 
 export interface LevelV2ShadowRejectionCounts {

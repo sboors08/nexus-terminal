@@ -312,7 +312,7 @@ test(
 
 test(
   'does not run Level v2 shadow scans for history hydration events but still scans live events',
-  () => {
+  async () => {
     const source =
       new TestHistoryRealtimeSource();
 
@@ -355,6 +355,16 @@ test(
      */
     source.emit(
       'live',
+    );
+
+    await new Promise<void>(
+      (
+        resolve,
+      ) => {
+        setImmediate(
+          resolve,
+        );
+      },
     );
 
     assert.equal(

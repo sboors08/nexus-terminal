@@ -819,7 +819,7 @@ implements SetupDetectionRuntimeSource {
 
 test(
   'shadow runtime records and deduplicates successful evaluation history',
-  () => {
+  async () => {
     const source =
       new EmptyRuntimeSource();
 
@@ -857,6 +857,21 @@ test(
         'SOLUSDT',
       ],
     });
+
+    /*
+     * Live V2 scans are intentionally cooperative.
+     * Wait for the scheduled shadow scan before asserting
+     * evaluation-history deduplication.
+     */
+    await new Promise<void>(
+      (
+        resolve,
+      ) => {
+        setImmediate(
+          resolve,
+        );
+      },
+    );
 
     assert.equal(
       runtime

@@ -78,6 +78,15 @@ import type {
 const SYMBOL_PATTERN =
   /^[A-Z0-9]{5,30}$/;
 
+const scheduleShadowWork =
+  (
+    task: () => void,
+  ): void => {
+    setImmediate(
+      task,
+    );
+  };
+
 export const DEFAULT_LEVEL_V2_SHADOW_RUNTIME_OPTIONS:
 LevelV2ShadowRuntimeOptions = {
   maxCandles: 1_000,
@@ -349,6 +358,26 @@ implements LevelV2ShadowRuntimeReader {
     (() => void)
     | null = null;
 
+  /*
+   * Closed 1m candles for hundreds of symbols may arrive
+   * in one burst.
+   *
+   * Do not synchronously run Level v2 from the WebSocket
+   * callback. Coalesce symbols here and process exactly one
+   * symbol per event-loop turn.
+   */
+  private readonly pendingLiveScans =
+    new Map<
+      string,
+      SetupDetectionTriggerSource
+    >();
+
+  private liveDrainScheduled =
+    false;
+
+  private liveDrainGeneration =
+    0;
+
   private scansCount = 0;
   private failedScans = 0;
 
@@ -399,6 +428,18 @@ implements LevelV2ShadowRuntimeReader {
     this.state =
       'running';
 
+    /*
+     * Invalidate any scheduled drain left from a previous
+     * start/stop lifecycle.
+     */
+    this.liveDrainGeneration +=
+      1;
+
+    this.pendingLiveScans.clear();
+
+    this.liveDrainScheduled =
+      false;
+
     this.lastError =
       null;
 
@@ -419,7 +460,7 @@ implements LevelV2ShadowRuntimeReader {
               return;
             }
 
-            this.processSymbols(
+            this.enqueueLiveScans(
               event.symbols,
               event.source,
             );
@@ -436,6 +477,18 @@ implements LevelV2ShadowRuntimeReader {
     this.unsubscribe?.();
     this.unsubscribe =
       null;
+
+    /*
+     * A previously scheduled setImmediate may still fire.
+     * Generation makes it a harmless no-op.
+     */
+    this.liveDrainGeneration +=
+      1;
+
+    this.pendingLiveScans.clear();
+
+    this.liveDrainScheduled =
+      false;
 
     this.state =
       'stopped';
@@ -563,6 +616,138 @@ implements LevelV2ShadowRuntimeReader {
   LevelV2ShadowMarketEvidenceHistoryStatus {
     return this.marketEvidenceHistoryStore
       .getStatus();
+  }
+
+  private enqueueLiveScans(
+    symbolValues:
+      readonly string[],
+
+    triggerSource:
+      SetupDetectionTriggerSource,
+  ): void {
+    /*
+     * Map preserves insertion order and naturally coalesces
+     * repeated updates for the same symbol while that symbol
+     * is still waiting to be scanned.
+     */
+    for (
+      const symbolValue
+      of symbolValues
+    ) {
+      const key =
+        symbolValue
+          .trim()
+          .toUpperCase();
+
+      this.pendingLiveScans.set(
+        key,
+        triggerSource,
+      );
+    }
+
+    this.scheduleLiveDrain();
+  }
+
+  private scheduleLiveDrain():
+  void {
+    if (
+      this.state !== 'running'
+      || this.liveDrainScheduled
+      || this.pendingLiveScans.size
+        === 0
+    ) {
+      return;
+    }
+
+    const generation =
+      this.liveDrainGeneration;
+
+    this.liveDrainScheduled =
+      true;
+
+    const schedule =
+      this.options.schedule
+      ?? scheduleShadowWork;
+
+    try {
+      schedule(
+        () => {
+          this.drainOneLiveScan(
+            generation,
+          );
+        },
+      );
+    } catch (error) {
+      this.liveDrainScheduled =
+        false;
+
+      this.failedScans +=
+        1;
+
+      this.lastError =
+        error instanceof Error
+          ? error.message
+          : String(error);
+    }
+  }
+
+  private drainOneLiveScan(
+    generation: number,
+  ): void {
+    /*
+     * Never allow an old scheduled callback to interfere
+     * with a newer start/stop lifecycle.
+     */
+    if (
+      generation
+      !== this.liveDrainGeneration
+    ) {
+      return;
+    }
+
+    this.liveDrainScheduled =
+      false;
+
+    if (
+      this.state !== 'running'
+    ) {
+      return;
+    }
+
+    const next =
+      this.pendingLiveScans
+        .entries()
+        .next()
+        .value;
+
+    if (!next) {
+      return;
+    }
+
+    const [
+      symbol,
+      triggerSource,
+    ] = next;
+
+    this.pendingLiveScans.delete(
+      symbol,
+    );
+
+    /*
+     * Existing detection behavior remains unchanged.
+     * The only change is where in the event loop it runs.
+     */
+    this.processSymbols(
+      [
+        symbol,
+      ],
+      triggerSource,
+    );
+
+    /*
+     * Exactly one symbol per scheduled turn.
+     */
+    this.scheduleLiveDrain();
   }
 
   private processSymbols(
