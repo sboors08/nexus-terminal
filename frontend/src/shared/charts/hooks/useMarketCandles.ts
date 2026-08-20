@@ -78,6 +78,9 @@ function asError(
 export const MARKET_CANDLES_REQUEST_TIMEOUT_MS =
   15_000;
 
+export const MARKET_CANDLES_INITIAL_RETRY_DELAY_MS =
+  500;
+
 export const MARKET_CANDLES_CACHE_MAX_ENTRIES =
   24;
 
@@ -300,6 +303,21 @@ export function useMarketCandles(
 
   const keyRef =
     useRef(key);
+
+  const automaticRetryKeyRef =
+    useRef<string | null>(
+      null,
+    );
+
+  const automaticRetryTimerRef =
+    useRef<
+      ReturnType<
+        typeof globalThis.setTimeout
+      >
+      | null
+    >(
+      null,
+    );
 
   const olderRequestRef =
     useRef<AbortController | null>(
@@ -671,6 +689,21 @@ export function useMarketCandles(
           ?? new Date()
             .toISOString();
 
+        automaticRetryKeyRef.current =
+          null;
+
+        if (
+          automaticRetryTimerRef.current
+          !== null
+        ) {
+          globalThis.clearTimeout(
+            automaticRetryTimerRef.current,
+          );
+
+          automaticRetryTimerRef.current =
+            null;
+        }
+
         writeMarketCandlesCache(
           key,
           data,
@@ -769,6 +802,38 @@ export function useMarketCandles(
           return;
         }
 
+        if (
+          automaticRetryKeyRef.current
+          !== key
+        ) {
+          automaticRetryKeyRef.current =
+            key;
+
+          automaticRetryTimerRef.current =
+            globalThis.setTimeout(
+              () => {
+                automaticRetryTimerRef.current =
+                  null;
+
+                if (
+                  !active
+                  || keyRef.current
+                    !== key
+                ) {
+                  return;
+                }
+
+                setRetryToken(
+                  (current) =>
+                    current + 1,
+                );
+              },
+              MARKET_CANDLES_INITIAL_RETRY_DELAY_MS,
+            );
+
+          return;
+        }
+
         commitState({
           status:
             'error',
@@ -806,6 +871,18 @@ export function useMarketCandles(
       globalThis.clearTimeout(
         timeout,
       );
+
+      if (
+        automaticRetryTimerRef.current
+        !== null
+      ) {
+        globalThis.clearTimeout(
+          automaticRetryTimerRef.current,
+        );
+
+        automaticRetryTimerRef.current =
+          null;
+      }
 
       controller.abort();
     };
@@ -968,6 +1045,21 @@ export function useMarketCandles(
 
   const retry =
     useCallback(() => {
+      automaticRetryKeyRef.current =
+        null;
+
+      if (
+        automaticRetryTimerRef.current
+        !== null
+      ) {
+        globalThis.clearTimeout(
+          automaticRetryTimerRef.current,
+        );
+
+        automaticRetryTimerRef.current =
+          null;
+      }
+
       olderRequestRef.current
         ?.abort();
 
