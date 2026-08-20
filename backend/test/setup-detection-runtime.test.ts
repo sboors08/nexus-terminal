@@ -505,9 +505,22 @@ test(
     assert.ok(
       firstCandidate,
     );
+    assert.ok(firstCandidate);
+    assert.ok(
+      firstCandidate.episode,
+    );
+
+    const storedEpisodeId =
+      firstCandidate.episode.id;
 
     firstCandidate.level
       .centerPrice = 1;
+    Object.assign(
+      firstCandidate.episode,
+      {
+        id: 'mutated-episode',
+      },
+    );
 
     const stored =
       runtime.getCandidate(
@@ -522,6 +535,10 @@ test(
       stored.level.centerPrice,
       1,
     );
+    assert.equal(
+      stored.episode?.id,
+      storedEpisodeId,
+    );
 
     assert.equal(
       runtime.getStatus()
@@ -530,6 +547,206 @@ test(
     );
 
     runtime.stop();
+  },
+);
+
+test(
+  'keeps expired history and creates a new candidate only for a new observation episode',
+  () => {
+    const {
+      service,
+      sockets,
+      urls,
+    } =
+      createRealtimeService();
+    let currentNow =
+      new Date(
+        '2026-07-26T12:08:30.000Z',
+      );
+    service.applyHistoricalKlines(
+      buildHistory(true),
+    );
+
+    const runtime =
+      new SetupDetectionRuntimeService(
+        service,
+        {
+          ...RUNTIME_OPTIONS,
+          pipelineOptions: {
+            ...RUNTIME_OPTIONS
+              .pipelineOptions,
+            candidateOptions: {
+              expiresAfterSec: 60,
+            },
+          },
+          now: () =>
+            new Date(
+              currentNow,
+            ),
+        },
+      );
+
+    runtime.start();
+    service.start();
+
+    const marketSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/market/stream?streams=',
+          ),
+      );
+    const marketSocket =
+      sockets[marketSocketIndex];
+
+    assert.ok(marketSocket);
+    const firstEpisode =
+      runtime.getCandidates();
+    const firstIds =
+      firstEpisode
+        .map((candidate) => candidate.id)
+        .sort();
+    const firstLineId =
+      firstEpisode[0]
+        ?.episode?.lineId;
+
+    assert.ok(firstLineId);
+
+    assert.equal(
+      firstEpisode.length,
+      2,
+    );
+    assert.equal(
+      firstEpisode.every(
+        (candidate) =>
+          candidate.stage
+          === 'APPROACHING_THIRD_TOUCH',
+      ),
+      true,
+    );
+    assert.equal(
+      firstEpisode.every(
+        (candidate) =>
+          candidate.episode?.id
+          === candidate.id,
+      ),
+      true,
+    );
+
+    currentNow =
+      new Date(
+        '2026-07-26T12:09:30.000Z',
+      );
+
+    const expired =
+      runtime.getCandidates();
+
+    assert.equal(
+      expired.length,
+      2,
+    );
+    assert.equal(
+      expired.every(
+        (candidate) =>
+          candidate.stage
+          === 'SETUP_EXPIRED',
+      ),
+      true,
+    );
+
+    service.applyHistoricalKlines([
+      buildKline(8, {
+        open: 99,
+        high: 99.2,
+        low: 95.5,
+        close: 96,
+      }),
+    ]);
+
+    assert.equal(
+      runtime.getCandidates()
+        .length,
+      2,
+    );
+
+    const reentry =
+      buildKline(9, {
+        open: 96,
+        high: 99.75,
+        low: 95.8,
+        close: 99.6,
+      });
+
+    currentNow =
+      new Date(
+        '2026-07-26T12:10:15.000Z',
+      );
+    marketSocket.emit(
+      'message',
+      {
+        data:
+          klineMessage(
+            reentry,
+          ),
+      },
+    );
+
+    const allCandidates =
+      runtime.getCandidates();
+    const lineCandidates =
+      allCandidates.filter(
+        (candidate) =>
+          candidate.episode?.lineId
+          === firstLineId,
+      );
+    const activeCandidates =
+      lineCandidates.filter(
+        (candidate) =>
+          candidate.stage
+          !== 'SETUP_EXPIRED',
+      );
+
+    assert.equal(
+      lineCandidates.length,
+      4,
+    );
+    assert.equal(
+      activeCandidates.length,
+      2,
+    );
+    assert.equal(
+      activeCandidates.every(
+        (candidate) =>
+          candidate.stage
+          === 'APPROACHING_THIRD_TOUCH',
+      ),
+      true,
+    );
+    assert.equal(
+      activeCandidates.every(
+        (candidate) =>
+          candidate.createdAt
+          === reentry.closeTime,
+      ),
+      true,
+    );
+    assert.equal(
+      activeCandidates.some(
+        (candidate) =>
+          firstIds.includes(
+            candidate.id,
+          ),
+      ),
+      false,
+    );
+    assert.equal(
+      runtime.getStatus()
+        .lastError,
+      null,
+    );
+
+    runtime.stop();
+    service.stop();
   },
 );
 

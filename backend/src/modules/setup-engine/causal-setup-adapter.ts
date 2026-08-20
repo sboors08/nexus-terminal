@@ -22,10 +22,12 @@ import type {
 } from './setup-engine.types.js';
 import {
   CAUSAL_SETUP_ADAPTER_CONTRACT_VERSION,
+  SETUP_CANDIDATE_EPISODE_CONTRACT_VERSION,
 } from './causal-setup-adapter.types.js';
 import type {
   AdaptCausalSetupCandidatesInput,
   AdaptCausalSetupCandidatesResult,
+  SetupCandidateEpisodeIdentity,
   SetupCausalContext,
   SetupCausalTransition,
   SetupCausalUpdate,
@@ -339,12 +341,76 @@ function transitionEvents(
   return Object.freeze(events);
 }
 
+function candidateEpisode(
+  line: LevelLine,
+  setupType: SetupEngineSetupType,
+  observation: ObservationPathProgress,
+): SetupCandidateEpisodeIdentity {
+  const startedAt =
+    observation.episodeStartedAt;
+
+  if (!startedAt) {
+    fail(
+      `line ${line.id} has no active observation episode`,
+    );
+  }
+
+  const startedAtMs =
+    timestamp(
+      startedAt,
+      'observation.episodeStartedAt',
+    );
+  const departureObservedAtMs =
+    timestamp(
+      observation
+        .departureExtremumObservedAt,
+      'observation.departureExtremumObservedAt',
+    );
+  const observedAtMs =
+    timestamp(
+      observation.observedAt,
+      'observation.observedAt',
+    );
+
+  if (
+    startedAtMs < departureObservedAtMs
+    || startedAtMs > observedAtMs
+  ) {
+    fail(
+      `line ${line.id} has an invalid observation episode boundary`,
+    );
+  }
+
+  return Object.freeze({
+    version:
+      SETUP_CANDIDATE_EPISODE_CONTRACT_VERSION,
+    id:
+      `setup-${line.id}-${setupType}-episode-${startedAtMs}`,
+    lineId:
+      line.id,
+    setupType,
+    startedAt:
+      new Date(startedAtMs)
+        .toISOString(),
+    departureExtremumObservedAt:
+      new Date(
+        departureObservedAtMs,
+      ).toISOString(),
+    boundary:
+      'observation_threshold_reentry',
+    restartDeterministic: true,
+    usesFutureCandles: false,
+  });
+}
+
 function baseCandidate(
   line: LevelLine,
   setupType: SetupEngineSetupType,
   currentPrice: number,
   expiresAfterSec: number,
   initialContext: SetupCausalContext,
+  episode:
+    SetupCandidateEpisodeIdentity,
 ): SetupEngineState {
   const confirmedAt =
     line.confirmedAt;
@@ -357,16 +423,15 @@ function baseCandidate(
 
   const createdAtMs =
     timestamp(
-      initialContext.observedAt,
-      'causal.observedAt',
+      episode.startedAt,
+      'episode.startedAt',
     );
   const expiresAtMs =
     createdAtMs
     + expiresAfterSec * 1_000;
 
   return Object.freeze({
-    id:
-      `setup-${line.id}-${setupType}`,
+    id: episode.id,
     symbol: line.symbol,
     timeframe: line.timeframe,
     setupType,
@@ -392,13 +457,14 @@ function baseCandidate(
         line.price,
       ),
     createdAt:
-      initialContext.observedAt,
+      episode.startedAt,
     updatedAt:
       initialContext.observedAt,
     expiresAt:
       new Date(
         expiresAtMs,
       ).toISOString(),
+    episode,
     causal: initialContext,
   });
 }
@@ -530,6 +596,12 @@ export function adaptCausalSetupCandidates(
       const setupType
       of input.setupTypes
     ) {
+      const episode =
+        candidateEpisode(
+          line,
+          setupType,
+          observation,
+        );
       const candidate =
         baseCandidate(
           line,
@@ -550,6 +622,7 @@ export function adaptCausalSetupCandidates(
                 realtimeConfirmationReasons:
                   Object.freeze([]),
               }),
+          episode,
         );
 
       candidates.push(
@@ -559,6 +632,8 @@ export function adaptCausalSetupCandidates(
         Object.freeze({
           candidateId:
             candidate.id,
+          episodeId:
+            episode.id,
           context,
           transitionEvents:
             events,

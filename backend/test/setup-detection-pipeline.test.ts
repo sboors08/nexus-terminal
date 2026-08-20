@@ -347,6 +347,42 @@ test(
     );
 
     assert.equal(
+      breakout.episode?.version,
+      'setup-candidate-episode-v0.1',
+    );
+
+    assert.equal(
+      breakout.episode?.id,
+      breakout.id,
+    );
+
+    assert.equal(
+      breakout.episode?.lineId,
+      resistanceLevel.id,
+    );
+
+    assert.equal(
+      breakout.episode?.setupType,
+      'level_breakout',
+    );
+
+    assert.equal(
+      breakout.episode?.startedAt,
+      buildKline(7, {
+        open: 99.2,
+        high: 99.8,
+        low: 99.1,
+        close: 99.7,
+      }).closeTime,
+    );
+
+    assert.equal(
+      breakout.episode
+        ?.restartDeterministic,
+      true,
+    );
+
+    assert.equal(
       breakout.causal
         ?.observationProgressThreshold,
       0.5,
@@ -375,6 +411,202 @@ test(
     assert.equal(
       breakoutUpdate.context.lineId,
       resistanceLevel.id,
+    );
+  },
+);
+
+test(
+  'rearms only after observation exits and enters a new deterministic episode',
+  () => {
+    const store =
+      createStore();
+    const pipeline =
+      new SetupDetectionPipeline(
+        store,
+        PIPELINE_OPTIONS,
+      );
+
+    const first =
+      pipeline.scanSymbol(
+        'SOLUSDT',
+      );
+    const firstIds =
+      first.candidates
+        .map((candidate) => candidate.id)
+        .sort();
+    const firstLineId =
+      first.candidates[0]
+        ?.episode?.lineId;
+
+    assert.ok(firstLineId);
+
+    store.applyHistoricalKlines([
+      buildKline(8, {
+        open: 99,
+        high: 99.2,
+        low: 95.5,
+        close: 96,
+      }),
+    ]);
+
+    const outsideObservation =
+      pipeline.scanSymbol(
+        'SOLUSDT',
+      );
+
+    assert.deepEqual(
+      outsideObservation.candidates,
+      [],
+    );
+    assert.deepEqual(
+      outsideObservation
+        .causalUpdates,
+      [],
+    );
+
+    const reentry =
+      buildKline(9, {
+        open: 96,
+        high: 99.75,
+        low: 95.8,
+        close: 99.6,
+      });
+
+    store.applyHistoricalKlines([
+      reentry,
+    ]);
+
+    const second =
+      pipeline.scanSymbol(
+        'SOLUSDT',
+      );
+    const rearmedCandidates =
+      second.candidates.filter(
+        (candidate) =>
+          candidate.episode?.lineId
+          === firstLineId,
+      );
+    const secondIds =
+      rearmedCandidates
+        .map((candidate) => candidate.id)
+        .sort();
+
+    assert.equal(
+      rearmedCandidates.length,
+      2,
+    );
+    assert.equal(
+      rearmedCandidates.every(
+        (candidate) =>
+          candidate.episode
+            ?.startedAt
+          === reentry.closeTime,
+      ),
+      true,
+    );
+    assert.equal(
+      rearmedCandidates.every(
+        (candidate) =>
+          candidate.createdAt
+          === reentry.closeTime,
+      ),
+      true,
+    );
+    assert.equal(
+      secondIds.some(
+        (candidateId) =>
+          firstIds.includes(
+            candidateId,
+          ),
+      ),
+      false,
+    );
+
+    const repeated =
+      pipeline.scanSymbol(
+        'SOLUSDT',
+      );
+
+    assert.equal(
+      repeated.candidates.length,
+      0,
+    );
+    assert.equal(
+      secondIds.every(
+        (candidateId) =>
+          repeated
+            .duplicateCandidateIds
+            .includes(candidateId),
+      ),
+      true,
+    );
+
+    store.applyHistoricalKlines([
+      buildKline(10, {
+        open: 99.6,
+        high: 99.7,
+        low: 99.2,
+        close: 99.4,
+      }),
+    ]);
+
+    const continuedEpisode =
+      pipeline.scanSymbol(
+        'SOLUSDT',
+      );
+
+    assert.equal(
+      continuedEpisode
+        .candidates.length,
+      0,
+    );
+    assert.equal(
+      secondIds.every(
+        (candidateId) =>
+          continuedEpisode
+            .duplicateCandidateIds
+            .includes(candidateId),
+      ),
+      true,
+    );
+
+    const replayedAfterRestart =
+      new SetupDetectionPipeline(
+        store,
+        PIPELINE_OPTIONS,
+      ).scanSymbol(
+        'SOLUSDT',
+      );
+
+    assert.deepEqual(
+      replayedAfterRestart
+        .candidates
+        .filter(
+          (candidate) =>
+            candidate.episode?.lineId
+            === firstLineId,
+        )
+        .map(
+          (candidate) =>
+            candidate.id,
+        )
+        .sort(),
+      secondIds,
+    );
+    assert.equal(
+      replayedAfterRestart
+        .candidates
+        .filter(
+          (candidate) =>
+            candidate.episode?.lineId
+            === firstLineId,
+        )
+        .every(
+          (candidate) =>
+            candidate.createdAt
+            === reentry.closeTime,
+        ),
+      true,
     );
   },
 );

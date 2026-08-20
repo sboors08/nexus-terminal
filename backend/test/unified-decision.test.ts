@@ -155,6 +155,10 @@ function levelSource(
     currentCandleOpenTime:
       '2026-08-13T11:59:00.000Z',
     observedAt: GENERATED_AT,
+    episodeStartedAt:
+      observation
+        ? GENERATED_AT
+        : null,
     progress: 0.95,
     observationPathProgressThreshold:
       0.5,

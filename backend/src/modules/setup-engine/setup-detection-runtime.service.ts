@@ -108,6 +108,13 @@ function cloneCandidate(
     level: {
       ...candidate.level,
     },
+    ...(candidate.episode
+      ? {
+          episode: {
+            ...candidate.episode,
+          },
+        }
+      : {}),
     ...(candidate.causal
       ? {
           causal: {
@@ -905,6 +912,16 @@ export class SetupDetectionRuntimeService {
       )
     ) {
       return;
+    }
+
+    if (
+      !candidate.episode
+      || candidate.episode.id
+        !== update.episodeId
+    ) {
+      throw new Error(
+        `Setup Detection Runtime episode identity changed for ${candidate.id}`,
+      );
     }
 
     if (

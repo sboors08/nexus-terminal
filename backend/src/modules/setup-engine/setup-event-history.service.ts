@@ -31,6 +31,13 @@ function cloneCandidate(
     level: {
       ...candidate.level,
     },
+    ...(candidate.episode
+      ? {
+          episode: {
+            ...candidate.episode,
+          },
+        }
+      : {}),
     ...(candidate.causal
       ? {
           causal: {

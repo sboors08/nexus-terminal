@@ -214,6 +214,8 @@ test(
             candleOpenTime(2),
           observedAt:
             candleCloseTime(2),
+          episodeStartedAt:
+            candleCloseTime(2),
           progress: 0.5,
           observationPathProgressThreshold:
             0.5,
@@ -437,6 +439,83 @@ test(
     assert.equal(
       progress.stage,
       'OBSERVATION',
+    );
+  },
+);
+
+test(
+  'derives a deterministic episode boundary after observation exits and re-enters',
+  () => {
+    const support =
+      line({
+        id: 'support-100',
+        kind: 'support',
+        price: 100,
+      });
+    const sourceCandles =
+      candles([
+        [101, 105, 100, 104],
+        [104, 120, 103, 118],
+        [118, 119, 109, 110],
+        [115, 118, 112, 115],
+        [115, 116, 107, 108],
+      ]);
+
+    const firstEpisode =
+      track(
+        sourceCandles.slice(0, 3),
+        [support],
+      ).activeProgress[0];
+    const outsideObservation =
+      track(
+        sourceCandles.slice(0, 4),
+        [support],
+      ).activeProgress[0];
+    const secondEpisode =
+      track(
+        sourceCandles,
+        [support],
+      ).activeProgress[0];
+    const replayedSecondEpisode =
+      track(
+        sourceCandles,
+        [support],
+      ).activeProgress[0];
+
+    assert.ok(firstEpisode);
+    assert.ok(outsideObservation);
+    assert.ok(secondEpisode);
+    assert.ok(replayedSecondEpisode);
+
+    assert.equal(
+      firstEpisode.episodeStartedAt,
+      candleCloseTime(2),
+    );
+    assert.equal(
+      outsideObservation.stage,
+      null,
+    );
+    assert.equal(
+      outsideObservation
+        .episodeStartedAt,
+      null,
+    );
+    assert.equal(
+      secondEpisode.stage,
+      'OBSERVATION',
+    );
+    assert.equal(
+      secondEpisode.episodeStartedAt,
+      candleCloseTime(4),
+    );
+    assert.notEqual(
+      secondEpisode.episodeStartedAt,
+      firstEpisode.episodeStartedAt,
+    );
+    assert.equal(
+      replayedSecondEpisode
+        .episodeStartedAt,
+      secondEpisode.episodeStartedAt,
     );
   },
 );

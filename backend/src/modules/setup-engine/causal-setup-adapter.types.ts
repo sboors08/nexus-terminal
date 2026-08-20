@@ -15,6 +15,25 @@ import type {
 export const CAUSAL_SETUP_ADAPTER_CONTRACT_VERSION =
   'causal-setup-adapter-v0.1' as const;
 
+export const SETUP_CANDIDATE_EPISODE_CONTRACT_VERSION =
+  'setup-candidate-episode-v0.1' as const;
+
+export interface SetupCandidateEpisodeIdentity {
+  readonly version:
+    typeof SETUP_CANDIDATE_EPISODE_CONTRACT_VERSION;
+  readonly id: string;
+  readonly lineId: string;
+  readonly setupType:
+    SetupEngineSetupType;
+  readonly startedAt: string;
+  readonly departureExtremumObservedAt:
+    string;
+  readonly boundary:
+    'observation_threshold_reentry';
+  readonly restartDeterministic: true;
+  readonly usesFutureCandles: false;
+}
+
 export type SetupCausalStage =
   | 'LEVEL_CONFIRMED'
   | 'OBSERVATION'
@@ -55,6 +74,7 @@ export interface SetupCausalContext {
 
 export interface SetupCausalUpdate {
   readonly candidateId: string;
+  readonly episodeId: string;
   readonly context: SetupCausalContext;
   readonly transitionEvents:
     readonly SetupCausalTransition[];

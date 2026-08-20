@@ -4,7 +4,7 @@
 **Репозиторий:** `sboors08/nexus-terminal`
 **Дата фиксации:** 2026-08-16
 **Язык работы:** русский
-**Базовое состояние:** `main` на merge-коммите `e40cb22`, PR #153
+**Базовое состояние:** `main` на merge-коммите `c63025e`, PR #156
 **Текущая ориентировочная готовность:** числовой процент не подтверждён; фактический статус 13 этапов зафиксирован в разделах 25–26
 
 ---
@@ -815,13 +815,13 @@ Replay обязателен для v1.0.
 
 Базовая точка:
 
-- `main` и `origin/main` на момент создания ветки: merge-коммит `5aebaac`;
-- последний объединённый PR: #155;
-- PR #155 добавил и фактически выполнил offline Coverage-Gap Reachability Diagnostics; GitHub Actions Backend и Frontend — `success`;
-- текущая ветка `backend-unified-decision-setup-lifecycle-reachability-diagnostics-v0-1` добавляет отдельный offline lifecycle diagnostic для уже сохранённых live observations и не меняет backend/frontend production behavior;
-- diagnostic восстановил per-`candidateId` lifetime, currentness, causal/runtime stage history и retention: `36` unique candidates дали `12 708` retained occurrences, все впервые видны после expiry; causal `APPROACH` достигнут у `28`, causal `CONFIRMATION` — у `0`;
-- дополнительная проверка production path локализовала episode-rearm ограничение: стабильный ID уже emitted candidate не может быть создан повторно после `SETUP_EXPIRED`, пока сохраняется тот же `line.id`;
-- focused Setup Lifecycle/Reachability/Live Observation/Unified Decision regression `37/37`, полный backend regression `575/575`, frontend realtime tests `272/272`, typecheck и production builds прошли локально; выбранная production-path characterisation `29/29` также прошла.
+- `main` и `origin/main` на момент создания ветки: merge-коммит `c63025e`;
+- последний объединённый PR: #156;
+- PR #156 добавил offline Setup Lifecycle Reachability Diagnostics и подтвердил episode-rearm ограничение production path; GitHub Actions Backend и Frontend — `success`;
+- текущая ветка `backend-setup-candidate-episode-rearm-contract-v0-1` вводит явную causal identity отдельного Setup episode без изменения Observation/Approach/Confirmation thresholds;
+- новый episode начинается только после causal перехода `progress < 0,50 → progress >= 0,50`; повторные scans и expiry внутри непрерывного episode новый candidate не создают;
+- candidate ID, `createdAt` и expiry детерминированно выводятся из `line.id + setupType + episode.startedAt`; после выхода ниже threshold и нового входа создаётся новый ID, а terminal history предыдущего episode сохраняется;
+- focused episode-rearm regression `46/46`, все backend test files `708/708`, все frontend test files `280/280`, typecheck и production builds прошли локально.
 
 Последний baseline подтверждает целостность реализации и сборки. Он не подтверждает прибыльность торговых правил.
 
@@ -868,7 +868,8 @@ Replay обязателен для v1.0.
 | #153 | NEXUS Unified Decision Coverage-Gap Observation v0.1 | отдельный persistent rare-case store подписан на готовые live observations и сохраняет single/double market-context conflict и terminal Setup outcome с transition, observed/not_observed coverage и contract violations без повторного расчёта sources и без изменения production rules |
 | #154 | NEXUS Unified Decision Coverage-Gap Live Collection v0.1 | 24-часовой wall-clock сбор дал `3 940` успешных controlled requests; после подтверждённых отключений интернета collector восстановился, recorder/observer остались ready, но все три gap kind сохранили `not_observed` |
 | #155 | NEXUS Unified Decision Coverage-Gap Reachability Diagnostics v0.1 | offline report по `5 000` observations локализовал market cutoff на отсутствии opposed context и Setup cutoff на отсутствии `APPROACHING_THIRD_TOUCH`; все три gaps `blocked_upstream`, violations `0`, production rules не изменены |
-| Текущая ветка | NEXUS Unified Decision Setup Lifecycle Reachability Diagnostics v0.1 | report по `5 000` observations отделил `36` unique candidates от `12 708` retained expired occurrences, подтвердил causal Approach у `28`, локализовал bounded-retention cutoff и episode-rearm ограничение без изменения thresholds/lifecycle |
+| #156 | NEXUS Unified Decision Setup Lifecycle Reachability Diagnostics v0.1 | report по `5 000` observations отделил `36` unique candidates от `12 708` retained expired occurrences, подтвердил causal Approach у `28`, локализовал bounded-retention cutoff и episode-rearm ограничение без изменения thresholds/lifecycle |
+| Текущая ветка | NEXUS Setup Candidate Episode Rearm Contract v0.1 | causal candidate получает restart-deterministic episode identity; новый candidate разрешён только после выхода ниже Observation threshold и нового causal re-entry, duplicate suppression и terminal history сохранены |
 
 ### Важные границы текущей реализации
 
@@ -888,6 +889,7 @@ Replay обязателен для v1.0.
 - Unified Decision Coverage-Gap Reachability Diagnostics v0.1 читает существующий persistence snapshot или versioned dataset offline и не вызывает Level Lines, Setup runtime, Binance readers или producers. Для market-context path он считает directional realtime precursors, source read state, computable BTC/impulse context, независимые derived alignments, opposing values и single/double combinations. Для Setup path он считает доступность source, candidate snapshots, `APPROACHING_THIRD_TOUCH`, `THIRD_TOUCH_CONFIRMED`, terminal outcome, current/expired terminal visibility и `setup_confirmed`. Каждый gap получает `observed/reachable_not_observed/blocked_upstream/contract_violation`, точный cutoff и безопасную следующую diagnostic action; thresholds, ranking, lifecycle и decision rules остаются неизменными;
 - фактический Reachability report проверил sequences `993–5992`, `5 000` observations за `2026-08-14T00:38:23.613Z` — `2026-08-15T15:45:42.879Z`. Из `243` directional realtime precursors BTC context был вычислим в `241`, impulse — в `160`, оба — в `160`, но `btcOpposed=0`, `impulseOpposed=0`; single/double market conflicts имеют `blocked_upstream` на `opposing_market_context_not_observed`. Setup source был available во всех `5 000` observations и содержал `12 708` occurrences / `36` unique candidates, но aggregate snapshots показывали только `SETUP_EXPIRED`: `APPROACHING_THIRD_TOUCH=0`, `THIRD_TOUCH_CONFIRMED=0`, terminal outcomes и `setup_confirmed=0`. Последующий lifecycle diagnostic уточнил, что causal Approach всё же был достигнут до expiry у `28/36`, а active runtime snapshots были вытеснены bounded retention. Violations `0`, report status `diagnosed_with_unreached_gaps`, next action `inspect_setup_lifecycle_reachability`;
 - Unified Decision Setup Lifecycle Reachability Diagnostics v0.1 прочитал тот же versioned dataset/persistence snapshot offline и построил путь source available → candidate captured → first-seen current → causal Observation/Approach/Confirmation → применённые runtime stages → terminal outcome. Фактический report: `5 000` observations, `1 059` observations с candidates, `12 708` occurrences / `36` unique candidates; все `36` созданы до начала sequence `993` и впервые видны после expiry, все occurrences — retained `SETUP_EXPIRED`, maximum retention `39 739` секунд. Causal `OBSERVATION` присутствует у `36`, causal `APPROACH` у `28`, causal `CONFIRMATION` у `0`; terminal outcomes и violations — `0`. Diagnosis `retention_currentness_mismatch`, cutoff `candidate_first_seen_after_expiry`, targeted live check не рекомендован. Проверка production path дополнительно подтвердила episode-rearm ограничение: candidate ID зависит только от `line.id + setupType`, process-lifetime duplicate set не освобождает ID, а terminal runtime игнорирует последующие updates. Исправление вынесено в отдельный episode-aware contract; текущая ветка thresholds, lifecycle и decision rules не меняет;
+- Setup Candidate Episode Rearm Contract v0.1 определяет episode boundary как новый causal threshold re-entry закрытой свечи после фактического выхода `progress < 0,50`. Внутри непрерывного episode ID стабилен и повторные scans подавляются; expiry сам по себе rearm не вызывает. После выхода и нового входа candidate получает новый restart-deterministic ID из `line.id + setupType + episode.startedAt`, прежний terminal record остаётся в history. `createdAt`/expiry восстанавливаются из той же causal границы, update несёт `episodeId`, а runtime отклоняет episode-mismatched update. Порог Observation, Approach/Confirmation, bounce/breakout, ranking, Unified Decision и market-context rules не изменены;
 - пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
@@ -1029,24 +1031,43 @@ Replay обязателен для v1.0.
 - focused regression `37/37`, полный backend `575/575`, frontend realtime `272/272`, typecheck и production builds прошли; выбранная production-path characterisation `29/29` прошла;
 - thresholds, lifecycle rules, Unified Decision, ranking и production behavior в diagnostic ветке не изменены; результат зафиксирован в `docs/NEXUS_UNIFIED_DECISION_SETUP_LIFECYCLE_REACHABILITY_DIAGNOSTICS_v0.1.md`.
 
-Следующая отдельная задача:
+Текущая задача:
 
 **NEXUS Setup Candidate Episode Rearm Contract v0.1**
 
-Цель:
+Реализованный contract:
 
-- ввести явную identity для отдельного Setup episode, не теряя стабильную связь с `line.id` и `setupType`;
-- разрешить новый candidate после terminal expiry только при новом causal episode, а не на каждом повторном scan;
-- сохранить duplicate suppression внутри одного episode и terminal history предыдущего candidate;
-- добавить совместный regression: create → causal Approach → expiry → новый episode → новый candidate с отдельным ID;
-- проверить, что старые causal updates не могут мутировать новый episode и что bounded runtime/history остаются детерминированными;
-- не менять `progress >= 0,50`, Approach/Confirmation thresholds, Unified Decision mapping или market-context rules.
+- Observation Tracker детерминированно восстанавливает начало текущего непрерывного episode из закрытых свечей;
+- causal candidate получает versioned identity `setup-candidate-episode-v0.1` и ID из `line.id + setupType + episode.startedAt`;
+- duplicate suppression сохраняется внутри episode; новый candidate разрешён только после выхода ниже Observation threshold и нового re-entry;
+- expiry внутри непрерывного episode не создаёт новый candidate, а terminal history предыдущих episodes не удаляется;
+- causal update содержит `episodeId`, runtime проверяет совпадение candidate/update episode;
+- restart/replay воспроизводит тот же ID, `createdAt` и expiry без будущих свечей;
+- совместный regression покрывает create → causal Approach → expiry → выход → новый episode → новый candidate;
+- focused regression `46/46`, все backend test files `708/708`, все frontend test files `280/280`, typecheck и production builds прошли локально;
+- production `progress >= 0,50`, Approach/Confirmation thresholds, bounce/breakout, ranking, Unified Decision и market-context rules не изменены.
 
-До реализации:
+Критерии завершения текущей ветки:
 
-- зафиксировать episode boundary и ID contract отдельно от торгового исхода;
-- определить restart semantics для duplicate/rearm state;
-- не запускать ещё одно blind live-collection окно: текущий cutoff подтверждён offline dataset и production-path tests;
+- `git diff --check`, audit и проверка точного file scope проходят;
+- contract и тесты опубликованы отдельным PR, GitHub Actions зелёные.
+
+Следующая отдельная задача:
+
+**NEXUS Setup Candidate Episode Real-Data Validation v0.1**
+
+Цель следующей задачи:
+
+- прогнать versioned real-data replay через production Observation → causal Setup path;
+- измерить episode boundaries, suppressions и фактические rearms без синтетических observations;
+- проверить restart equivalence для candidate ID, `createdAt`, expiry и causal updates;
+- убедиться, что новый contract устраняет старый permanent duplicate cutoff и не создаёт churn внутри одного episode;
+- принимать решение о дальнейшей live validation только по результату replay, без изменения thresholds.
+
+До следующей задачи:
+
+- завершить CI/merge текущего episode-rearm contract;
+- не запускать ещё одно blind live-collection окно до real-data replay;
 - market-context opposed-state variation оставить отдельной последующей задачей.
 
 ---

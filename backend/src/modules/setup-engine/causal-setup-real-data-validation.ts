@@ -197,6 +197,14 @@ function cloneCandidate(
       Object.freeze({
         ...value.level,
       }),
+    ...(value.episode
+      ? {
+          episode:
+            Object.freeze({
+              ...value.episode,
+            }),
+        }
+      : {}),
     ...(causal
       ? {
           causal:
