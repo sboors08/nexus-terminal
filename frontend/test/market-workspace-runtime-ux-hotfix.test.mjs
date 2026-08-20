@@ -233,3 +233,44 @@ test(
     );
   },
 );
+
+
+test(
+  'Workspace candle loader automatically retries one initial uncached failure',
+  async () => {
+    const source =
+      await readSource(
+        '../src/shared/charts/hooks/useMarketCandles.ts',
+      );
+
+    assert.match(
+      source,
+      /MARKET_CANDLES_INITIAL_RETRY_DELAY_MS/u,
+    );
+
+    assert.match(
+      source,
+      /automaticRetryKeyRef/u,
+    );
+
+    assert.match(
+      source,
+      /automaticRetryKeyRef\.current\s*\n\s*!== key/u,
+    );
+
+    assert.match(
+      source,
+      /automaticRetryKeyRef\.current\s*=\s*\n\s*key/u,
+    );
+
+    assert.match(
+      source,
+      /setRetryToken\(/u,
+    );
+
+    assert.match(
+      source,
+      /automaticRetryTimerRef/u,
+    );
+  },
+);
