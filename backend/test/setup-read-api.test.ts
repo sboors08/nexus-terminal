@@ -24,6 +24,9 @@ import type {
   SetupEngineSetupType,
   SetupEngineState,
 } from '../src/modules/setup-engine/setup-engine.types.js';
+import {
+  SETUP_CANDIDATE_EPISODE_CONTRACT_VERSION,
+} from '../src/modules/setup-engine/causal-setup-adapter.types.js';
 
 const testEnv:
 AppEnv = {
@@ -155,13 +158,63 @@ function cloneCandidate(
     level: {
       ...candidate.level,
     },
+    ...(candidate.episode
+      ? {
+          episode: {
+            ...candidate.episode,
+          },
+        }
+      : {}),
+  };
+}
+
+function withEpisode(
+  candidate: SetupEngineState,
+  input: {
+    lineId: string;
+    startedAt: string;
+  },
+): SetupEngineState {
+  return {
+    ...candidate,
+    id:
+      `${candidate.id}-episode-${Date.parse(input.startedAt)}`,
+    createdAt:
+      input.startedAt,
+    episode: {
+      version:
+        SETUP_CANDIDATE_EPISODE_CONTRACT_VERSION,
+      id:
+        `${candidate.id}-episode-${Date.parse(input.startedAt)}`,
+      lineId:
+        input.lineId,
+      setupType:
+        candidate.setupType,
+      startedAt:
+        input.startedAt,
+      departureExtremumObservedAt:
+        '2026-07-26T12:04:00.000Z',
+      boundary:
+        'observation_threshold_reentry',
+      restartDeterministic: true,
+      usesFutureCandles: false,
+    },
   };
 }
 
 class TestSetupRuntimeReader
 implements SetupDetectionRuntimeReader {
-  private readonly candidates =
-    buildCandidates();
+  private readonly candidates:
+    SetupEngineState[];
+
+  constructor(
+    candidates:
+      SetupEngineState[] =
+        buildCandidates(),
+  ) {
+    this.candidates =
+      candidates;
+  }
 
   getStatus():
   SetupDetectionRuntimeStatus {
@@ -357,6 +410,189 @@ test(
     assert.equal(
       payload[0].id,
       'setup-sol-resistance-level_breakout',
+    );
+
+    await app.close();
+  },
+);
+
+test(
+  'setup candidates route projects only the current episode of each exact pair',
+  async () => {
+    const base =
+      createCandidate({
+        id: 'setup-sol-resistance-breakout',
+        symbol: 'SOLUSDT',
+        setupType: 'level_breakout',
+        direction: 'long',
+        levelKind: 'resistance',
+        updatedAt:
+          '2026-07-26T12:10:00.000Z',
+      });
+    const oldEpisode =
+      withEpisode(
+        {
+          ...base,
+          direction: 'short',
+        },
+        {
+          lineId: 'line-sol-a',
+          startedAt:
+            '2026-07-26T12:05:00.000Z',
+        },
+      );
+    const currentEpisode =
+      withEpisode(
+        base,
+        {
+          lineId: 'line-sol-a',
+          startedAt:
+            '2026-07-26T12:15:00.000Z',
+        },
+      );
+    const matchingVisibleLevel =
+      withEpisode(
+        {
+          ...base,
+          id:
+            'setup-sol-independent-line',
+        },
+        {
+          lineId: 'line-sol-b',
+          startedAt:
+            '2026-07-26T12:12:00.000Z',
+        },
+      );
+    const bounceEpisode =
+      withEpisode(
+        {
+          ...base,
+          id:
+            'setup-sol-bounce',
+          setupType:
+            'level_bounce',
+          direction: 'short',
+        },
+        {
+          lineId: 'line-sol-a',
+          startedAt:
+            '2026-07-26T12:11:00.000Z',
+        },
+      );
+
+    const reader =
+      new TestSetupRuntimeReader([
+        oldEpisode,
+        currentEpisode,
+        matchingVisibleLevel,
+        bounceEpisode,
+      ]);
+    const app =
+      await createRouteApp(
+        reader,
+      );
+
+    const response =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/setups/candidates?symbol=SOLUSDT',
+      });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+    assert.deepEqual(
+      response.json()
+        .map(
+          (candidate: SetupEngineState) =>
+            candidate.id,
+        ),
+      [
+        currentEpisode.id,
+        matchingVisibleLevel.id,
+        bounceEpisode.id,
+      ],
+    );
+
+    const oldDetailResponse =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/setups/candidates/'
+          + oldEpisode.id,
+      });
+
+    assert.equal(
+      oldDetailResponse.statusCode,
+      200,
+    );
+    assert.equal(
+      oldDetailResponse.json().id,
+      oldEpisode.id,
+    );
+
+    await app.close();
+  },
+);
+
+test(
+  'setup candidate filters cannot reveal a superseded episode',
+  async () => {
+    const base =
+      createCandidate({
+        id: 'setup-sol-filter-order',
+        symbol: 'SOLUSDT',
+        setupType: 'level_breakout',
+        direction: 'long',
+        levelKind: 'resistance',
+        updatedAt:
+          '2026-07-26T12:10:00.000Z',
+      });
+    const oldEpisode =
+      withEpisode(
+        base,
+        {
+          lineId: 'line-sol-filter-order',
+          startedAt:
+            '2026-07-26T12:05:00.000Z',
+        },
+      );
+    const currentEpisode =
+      withEpisode(
+        {
+          ...base,
+          direction: 'short',
+        },
+        {
+          lineId: 'line-sol-filter-order',
+          startedAt:
+            '2026-07-26T12:15:00.000Z',
+        },
+      );
+    const app =
+      await createRouteApp(
+        new TestSetupRuntimeReader([
+          oldEpisode,
+          currentEpisode,
+        ]),
+      );
+
+    const response =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/setups/candidates?direction=long',
+      });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+    assert.deepEqual(
+      response.json(),
+      [],
     );
 
     await app.close();

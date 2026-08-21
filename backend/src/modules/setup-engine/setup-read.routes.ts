@@ -12,6 +12,9 @@ import type {
 import type {
   SetupDetectionRuntimeReader,
 } from './setup-detection-runtime.types.js';
+import {
+  projectCurrentSetupCandidateEpisodes,
+} from './setup-candidate-current-episode-projection.js';
 import type {
   SetupDirection,
   SetupEngineLevelKind,
@@ -379,12 +382,18 @@ FastifyPluginAsync<
         );
       }
 
+      const currentEpisodeProjection =
+        projectCurrentSetupCandidateEpisodes(
+          runtime
+            .getCandidates(
+              symbol
+              ?? undefined,
+            ),
+        );
+
       let candidates =
-        runtime
-          .getCandidates(
-            symbol
-            ?? undefined,
-          )
+        currentEpisodeProjection
+          .candidates
           .filter(
             (candidate) =>
               (
