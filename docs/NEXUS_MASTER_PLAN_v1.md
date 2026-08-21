@@ -911,7 +911,7 @@ Replay обязателен для v1.0.
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134; Workspace отображает backend Unified Decision без frontend-пересчёта направления |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
-| 7 | Setup Engine | Causal integration, episode rearm и current-episode read projection v0.1 реализованы и live-проверены; exact-price Level Line collisions требуют диагностики | На live snapshot из `352` episode-aware candidates повторов `symbol + lineId + setupType` нет. ARKMUSDT выявил отдельную upstream-границу: пять active support `lineId` одной точной zone и episode дают десять визуально одинаковых setup-гипотез |
+| 7 | Setup Engine | Causal integration, episode rearm и current-episode read projection v0.1 реализованы и live-проверены; exact-price Level Line collisions измерены, требуется классификация origin policy | На live snapshot из `352` episode-aware candidates повторов `symbol + lineId + setupType` нет. Real-data replay обнаружил `37` exact-price groups, `42` coactive origin pairs и `77` colliding lines; немедленное объединение по цене не рекомендовано |
 | 8 | Alerts | Backend, frontend, persistence и external delivery foundation v0.1 реализованы, развитие продолжается | Есть versioned persistent backend-domain, HTTP API, Setup lifecycle, Market Wide Volume Spike/trades adapters, BTC Market Mode producer, вычисленный impulse-source и restart-safe provider-neutral outbox; Alerts page использует реальные runtime contracts без mock fallback. Реальный delivery adapter, канал/credentials и multi-user ownership ещё впереди |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence, Alerts Persistence Foundation и runtime event history; Auth, приглашения, ownership, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
@@ -1020,65 +1020,76 @@ Replay обязателен для v1.0.
 
 Последняя завершённая задача:
 
-**NEXUS Setup Candidate Episode Real-Data Validation v0.1**
+**NEXUS Setup Candidate Current-Episode Projection v0.1**
 
 Фактический результат:
 
-- PR #172 merged в `main` на `f269890`;
-- сохранённые реальные `BTCUSDT/ETHUSDT/SOLUSDT/AVAXUSDT/DOGEUSDT` datasets воспроизведены через production episode path;
-- обработано `4 995` закрытых `1m` свечей;
-- те же `622` пары `lineId + setupType` сформировали `2 102` episode candidates и `1 480` causal rearms;
-- `10 002` повторных observations внутри episodes были подавлены;
-- restart mismatches, same-episode churn и invariant violations — `0`;
-- production thresholds, decision rules, signals и trade orders не изменены.
+- PR #173 merged в `main` на `99e0802`;
+- versioned projection `setup-candidate-current-episode-projection-v0.1` применяется до filters и limit;
+- public candidates list оставляет только последний episode по `symbol + lineId + setupType`;
+- старые episodes остаются доступны через candidate detail и History;
+- Docker live snapshot содержал `352` episode-aware candidates и `0` точных повторов current pair;
+- breakout и bounce остаются разными setup hypotheses;
+- независимые `lineId` не объединяются по цене или округлённой zone;
+- live ARKMUSDT выявил пять active support `lineId` на точной цене `0.106`, поэтому upstream Level Lines вынесен в отдельную диагностику;
+- History, thresholds, decision rules, signals и trade orders не изменены.
 
 Текущая задача:
 
-**NEXUS Setup Candidate Current-Episode Projection v0.1**
+**NEXUS Level Lines Exact-Price Origin Collision Diagnostics v0.1**
+
+Цель:
+
+- на каждом сохранённом causal prefix собрать active production Level Lines;
+- выделить только группы с точным совпадением `symbol + timeframe + kind + price` без UI-округления;
+- сравнить origin timestamps и индексы, active/confirmed/worked evidence, touch count и совместную активность;
+- измерить collision groups, episodes, pairs, distinct lines и maximum concurrency по реальным datasets;
+- проверить stable line ID, origin price и causal-time invariants;
+- определить, повторяется ли новый exact-price origin, пока предыдущая линия всё ещё активна;
+- до результата не менять production identity и не объединять линии по цене.
 
 Фактический локальный результат:
 
-- добавлен versioned contract `setup-candidate-current-episode-projection-v0.1`;
-- `GET /api/v1/setups/candidates` выбирает только последний episode по `symbol + lineId + setupType`;
-- projection применяется до filters и limit, поэтому superseded episode не возвращается через фильтрацию;
-- независимые `lineId` не объединяются по округлённой цене или zone;
-- breakout и bounce сохраняют отдельные projections;
-- legacy candidates без episode identity сохраняются;
-- `GET /api/v1/setups/candidates/:candidateId` продолжает возвращать старые episodes;
-- focused projection/API tests `22/22` и полный backend `607/607` прошли;
-- backend typecheck и production build прошли;
-- Docker live snapshot содержал `352` одинаковых через backend и frontend proxy candidates, все episode-aware;
-- duplicate current pairs по `symbol + lineId + setupType` — `0`;
-- ARKMUSDT выявил отдельные пять exact-price support `lineId` на zone `0.106–0.106`, каждый с bounce/breakout hypothesis; это upstream Level Lines collision, а не episode duplicate;
-- runtime storage, terminal History, lifecycle и production decision rules не изменены.
+- добавлен versioned contract `level-lines-exact-price-origin-collision-diagnostics-v0.1`;
+- CLI читает сохранённый `causal-setup-validation/latest.json` и повторно использует реальные `1m` свечи;
+- каждый закрытый prefix проходит через действующий `detectLevelLines` с production options;
+- отчёт сохраняет collision episodes, pair evidence, origin gaps и prior exact-origin inheritance;
+- синтетический exact-price origin collision воспроизводится детерминированно;
+- focused detector/diagnostic tests `24/24` прошли;
+- полный backend `611/611`, typecheck, production build и security audit прошли;
+- real-data replay от `2026-08-21T17:19:42.136Z` полностью воспроизвёл `4 995` закрытых свечей из пяти datasets;
+- во всех пяти datasets обнаружены collisions: `2 712` observations, `37` exact-price groups, `42` coactive origin pairs и `77` distinct colliding lines;
+- maximum concurrency равен `3`, у `58` новых линий зафиксировано inherited prior exact-origin evidence;
+- invariant violations — `0`, status — `diagnosed_with_collisions`;
+- немедленное объединение по цене не рекомендовано: отчёт ещё не разделяет независимый новый origin и ложный повтор;
+- production Level Lines, Setup mapping и decision rules не изменены;
+- report сохранён как `backend/.tmp/level-lines-exact-price-origin-collision-diagnostics/latest.json`.
 
 Критерии завершения текущей ветки:
 
-- versioned projection contract, focused tests и API regression зафиксированы;
+- versioned diagnostics contract, CLI и focused tests зафиксированы;
 - `git diff --check`, точный file scope, полный backend и production build проходят;
-- Docker Scanner/API показывает только текущий episode каждой точной пары;
-- оставшиеся визуальные совпадения классифицированы по полным `lineId` и не скрываются ценовым dedup;
+- сохранённые реальные datasets полностью воспроизведены;
+- exact-price collision prevalence и origin-pair evidence записаны в report;
+- causal и safety violations равны нулю;
+- результат не скрывает collisions и не меняет production identity;
 - изменения опубликованы отдельным draft PR, GitHub Actions зелёные.
 
-Следующая отдельная задача:
+Следующая отдельная задача после публикации текущей диагностики:
 
-**NEXUS Level Lines Exact-Price Origin Collision Diagnostics v0.1**
+**NEXUS Level Lines Exact-Price Origin Collision Classification v0.1**
 
-Цель следующей задачи:
-
-- собрать полные active Level Line snapshots для exact-price collision groups;
-- сравнить origin timestamps, touch episodes, confirmation/worked evidence, departure extrema, Observation и lifecycle;
-- определить, являются ли несколько `lineId` одной точной цены независимыми структурами или повторными origins одного causal уровня;
-- измерить распространённость collisions по live universe и сохранённым real-data datasets;
-- до результата не объединять линии по округлённой цене и не менять production identity;
-- не менять episode boundary, thresholds, setup mapping или decision rules.
-
-До следующей задачи:
-
-- завершить commit/PR/CI/merge текущей projection-ветки;
-- не удалять исторические episodes как способ уменьшить текущий список;
-- не объединять exact-price Level Lines без causal diagnostics;
+- классифицировать все `42` coactive origin pairs по origin gap, inherited evidence, touch history и продолжительности совместной активности;
+- отделить возможный независимый новый structural origin от повторного origin на уже активной точной цене;
+- не проектировать resolution contract до полученной классификации;
 - market-context opposed-state variation оставить отдельной последующей задачей.
+
+До завершения классификации:
+
+- не объединять exact-price Level Lines;
+- не менять formula `lineId`, pivot или touch rules;
+- не удалять исторические episodes;
+- не использовать UI-округление как критерий тождества уровня.
 
 ---
 
