@@ -34,19 +34,9 @@ const requiredMarkersByFile = {
   'src/pages/ScannerPage.tsx': [
     "const requestedPreset = searchParams.get('preset');",
     "const requestedScannerWindow = searchParams.get('scannerWindow');",
-    'TRADING_PRESET_IDS.map((value) => (',
-    'presetDefinition.scannerWindows.map((value) => (',
-    'aria-label="Торговый пресет Scanner"',
-    'aria-label="Период анализа Scanner"',
-    "nextParams.set('scannerWindow', TRADING_PRESETS[value].defaultScannerWindow);",
     'to={buildWorkspaceUrl(',
     'preset,',
     'scannerWindow,',
-  ],
-  'src/pages/ScannerPage.module.css': [
-    '.presetFilter {',
-    '.presetControl {',
-    '.scannerWindowControl {',
   ],
   'src/pages/WorkspacePage.tsx': [
     "const requestedPreset = searchParams.get('preset');",
@@ -67,8 +57,23 @@ const requiredMarkersByFile = {
   ],
 };
 
+const forbiddenMarkersByFile = {
+  'src/pages/ScannerPage.tsx': [
+    'TRADING_PRESET_IDS.map((value) => (',
+    'presetDefinition.scannerWindows.map((value) => (',
+    'aria-label="Торговый пресет Scanner"',
+    'aria-label="Период анализа Scanner"',
+  ],
+  'src/pages/ScannerPage.module.css': [
+    '.presetFilter {',
+    '.presetControl {',
+    '.scannerWindowControl {',
+  ],
+};
+
 const missingFiles = [];
 const missingMarkers = [];
+const forbiddenMarkers = [];
 
 for (const [file, markers] of Object.entries(requiredMarkersByFile)) {
   const absolutePath = resolve(root, file);
@@ -89,7 +94,30 @@ for (const [file, markers] of Object.entries(requiredMarkersByFile)) {
   }
 }
 
-if (missingFiles.length > 0 || missingMarkers.length > 0) {
+for (const [file, markers] of Object.entries(forbiddenMarkersByFile)) {
+  const absolutePath = resolve(root, file);
+
+  try {
+    await access(absolutePath);
+  } catch {
+    missingFiles.push(file);
+    continue;
+  }
+
+  const source = await readFile(absolutePath, 'utf8');
+
+  for (const marker of markers) {
+    if (source.includes(marker)) {
+      forbiddenMarkers.push(`${file}: ${marker}`);
+    }
+  }
+}
+
+if (
+  missingFiles.length > 0
+  || missingMarkers.length > 0
+  || forbiddenMarkers.length > 0
+) {
   if (missingFiles.length > 0) {
     console.error(
       'Missing trading preset files: '
@@ -104,9 +132,16 @@ if (missingFiles.length > 0 || missingMarkers.length > 0) {
     );
   }
 
+  if (forbiddenMarkers.length > 0) {
+    console.error(
+      'Disconnected Scanner preset markers are still present:\n'
+      + forbiddenMarkers.map((marker) => `- ${marker}`).join('\n'),
+    );
+  }
+
   process.exit(1);
 }
 
 console.log(
-  'NEXUS frontend verified: Trading Presets, Scanner Windows and route context v0.1 are present.',
+  'NEXUS frontend verified: Trading Presets remain in route context while disconnected Scanner controls are absent.',
 );
