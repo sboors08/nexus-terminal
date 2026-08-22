@@ -472,12 +472,6 @@ function baseCandidate(
 export function adaptCausalSetupCandidates(
   input: AdaptCausalSetupCandidatesInput,
 ): AdaptCausalSetupCandidatesResult {
-  if (input.detection.timeframe !== '1m') {
-    fail(
-      `unsupported runtime timeframe: ${input.detection.timeframe}`,
-    );
-  }
-
   if (
     input.realtimeConfirmation.symbol
       !== input.detection.symbol
@@ -524,7 +518,8 @@ export function adaptCausalSetupCandidates(
       version:
         CAUSAL_SETUP_ADAPTER_CONTRACT_VERSION,
       symbol: input.detection.symbol,
-      timeframe: '1m',
+      timeframe:
+        input.detection.timeframe,
       candidates: Object.freeze([]),
       updates: Object.freeze([]),
       observationalSourceCreatesSetup:
@@ -646,7 +641,8 @@ export function adaptCausalSetupCandidates(
     version:
       CAUSAL_SETUP_ADAPTER_CONTRACT_VERSION,
     symbol: input.detection.symbol,
-    timeframe: '1m',
+    timeframe:
+      input.detection.timeframe,
     candidates:
       Object.freeze(candidates),
     updates:

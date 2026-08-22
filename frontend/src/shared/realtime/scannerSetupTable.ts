@@ -95,6 +95,26 @@ export function isScannerSetupBelowKnownQuoteVolume(
   );
 }
 
+export function parseScannerMinQuoteVolumeMillions(
+  value: string,
+): number {
+  const millions =
+    Number(
+      value
+        .trim()
+        .replace(',', '.'),
+    );
+
+  if (
+    !Number.isFinite(millions)
+    || millions <= 0
+  ) {
+    return 0;
+  }
+
+  return millions * 1_000_000;
+}
+
 export type ScannerSetupMetricsIndex =
   Readonly<
     Record<

@@ -3,6 +3,9 @@
   SetupDetectionMarketStore,
 } from './setup-detection-pipeline.types.js';
 import type {
+  LevelEngineTimeframe,
+} from '../level-engine/level-engine.types.js';
+import type {
   SetupEngineState,
 } from './setup-engine.types.js';
 import type {
@@ -54,6 +57,9 @@ export interface SetupDetectionRuntimeOptions {
     SetupStageEvaluatorOptions;
 
   now: () => Date;
+
+  timeframes?:
+    readonly LevelEngineTimeframe[];
 }
 
 export interface SetupDetectionRuntimeStatus {
@@ -78,6 +84,9 @@ export interface SetupDetectionRuntimeStatus {
     | null;
 
   lastError: string | null;
+
+  timeframes:
+    readonly LevelEngineTimeframe[];
 }
 
 export interface SetupDetectionRuntimeLifecycle {

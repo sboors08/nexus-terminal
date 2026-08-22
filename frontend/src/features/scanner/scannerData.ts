@@ -22,7 +22,12 @@ export type ScannerShadowLifecycleStatus =
   | 'flipped'
   | 'expired';
 
-export type ScannerTimeframe = '1m' | '5m' | '15m';
+export type ScannerTimeframe =
+  | '1m'
+  | '5m'
+  | '15m'
+  | '1h'
+  | '4h';
 
 export type ScannerSetup = {
   id: string;

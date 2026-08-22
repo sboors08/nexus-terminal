@@ -8,6 +8,7 @@ import {
   buildScannerSetupMetricKey,
   indexScannerSetupMetrics,
   isScannerSetupBelowKnownQuoteVolume,
+  parseScannerMinQuoteVolumeMillions,
   nextScannerSetupSortState,
   sortScannerSetupRows,
 } from '../node_modules/.tmp/realtime-test/realtime/scannerSetupTable.js';
@@ -116,7 +117,7 @@ test(
 
     assert.match(
       scannerPageSource,
-      /Таймфрейм сетапа/u,
+      /Таймфрейм графика/u,
     );
   },
 );
@@ -178,26 +179,112 @@ test(
 );
 
 test(
-  'loads Scanner candidates independently from the optional volume filter',
+  'converts the visible millions filter to the backend quote-volume contract',
   () => {
-    assert.match(
-      scannerPageSource,
-      /nexusApi\.getScannerSetups\(\)/u,
+    assert.equal(
+      parseScannerMinQuoteVolumeMillions(
+        '1',
+      ),
+      1_000_000,
     );
 
-    assert.doesNotMatch(
+    assert.equal(
+      parseScannerMinQuoteVolumeMillions(
+        '2,5',
+      ),
+      2_500_000,
+    );
+
+    assert.equal(
+      parseScannerMinQuoteVolumeMillions(
+        'not-a-number',
+      ),
+      0,
+    );
+
+    assert.match(
       scannerPageSource,
-      /nexusApi\.getScannerSetups\(\{[\s\S]*?minQuoteVolume24h/u,
+      /nexusApi\.getScannerSetups\([\s\S]*?minQuoteVolume24h/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /setupQueryKey =\s*`scanner-setups:\$\{minQuoteVolume24h\}`/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /preserveData:\s*false/u,
     );
   },
 );
 
 test(
-  'offers only timeframes present in current production candidates',
+  'does not carry saved Scanner cards into a different server volume query',
   () => {
     assert.match(
       scannerPageSource,
-      /const availableTimeframes =[\s\S]*?runtimeTimeframes\.has/u,
+      /async \(\) => \(\{[\s\S]*?key:\s*setupQueryKey,[\s\S]*?setups:\s*await nexusApi\.getScannerSetups/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /queryDataForCurrentKey =\s*query\.data\?\.key\s*=== setupQueryKey\s*\? query\.data\s*:\s*null/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /const displayedSetups =\s*resultsMode === 'setups'\s*\? anchorSetups\s*:\s*\[\]/u,
+    );
+  },
+);
+
+test(
+  'keeps Scanner filters available when the server volume query is empty',
+  () => {
+    assert.match(
+      scannerPageSource,
+      /lastNonEmptySetups/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /filteredSetups\.length === 0[\s\S]*?aria-label="Пустой результат Scanner"/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /resultsMode !== 'loading'[\s\S]*?onClick=\{resetFilters\}/u,
+    );
+  },
+);
+
+test(
+  'uses 100M USDT as the initial and reset Scanner volume threshold',
+  () => {
+    assert.match(
+      scannerPageSource,
+      /DEFAULT_SCANNER_MIN_QUOTE_VOLUME_MILLIONS =\s*'100'/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /useState\(\s*DEFAULT_SCANNER_MIN_QUOTE_VOLUME_MILLIONS,?\s*\)/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /setMinQuoteVolumeMillions\(\s*DEFAULT_SCANNER_MIN_QUOTE_VOLUME_MILLIONS,?\s*\)/u,
+    );
+  },
+);
+
+test(
+  'offers every production Setup Engine timeframe',
+  () => {
+    assert.match(
+      scannerPageSource,
+      /const SETUP_RUNTIME_TIMEFRAMES:[\s\S]*?'1m',[\s\S]*?'5m',[\s\S]*?'15m',[\s\S]*?'1h',[\s\S]*?'4h'/u,
     );
 
     assert.match(
@@ -205,9 +292,44 @@ test(
       /availableTimeframes\.map/u,
     );
 
+    assert.match(
+      scannerPageSource,
+      /const availableTimeframes =\s*SETUP_RUNTIME_TIMEFRAMES/u,
+    );
+  },
+);
+
+test(
+  'switches the open chart timeframe without filtering candidates or replacing the selected setup',
+  () => {
+    assert.match(
+      scannerPageSource,
+      /const \[\s*chartTimeframe,[\s\S]*?setChartTimeframe,[\s\S]*?\] = useState<ScannerTimeframe>/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /filteredSetups\.find\(\(setup\) => setup\.id === requestedSetupId\)[\s\S]*?\?\? displayedSetups\.find\(\(setup\) => setup\.id === requestedSetupId\)[\s\S]*?\?\? filteredSetups\[0\]/u,
+    );
+
     assert.doesNotMatch(
       scannerPageSource,
-      /<option value="5m">5m<\/option>/u,
+      /setup\.timeframe !== chartTimeframe/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /useMarketCandles\(\{[\s\S]*?symbol: selectedSymbol,[\s\S]*?timeframe: chartTimeframe/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /useCausalLevelLines\(\{[\s\S]*?symbol: selectedSymbol,[\s\S]*?timeframe: chartTimeframe/u,
+    );
+
+    assert.doesNotMatch(
+      scannerPageSource,
+      /На выбранном таймфрейме активных сетапов нет/u,
     );
   },
 );

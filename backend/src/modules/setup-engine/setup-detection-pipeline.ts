@@ -3,6 +3,9 @@ import {
   detectLevelLines,
 } from '../level-engine/level-lines-detector.js';
 import type {
+  LevelEngineTimeframe,
+} from '../level-engine/level-engine.types.js';
+import type {
   LevelEngineCandle,
 } from '../level-engine/level-engine-touch-detector.types.js';
 import {
@@ -26,9 +29,6 @@ import type {
   SetupDetectionPipelineOptions,
   SetupDetectionPipelineResult,
 } from './setup-detection-pipeline.types.js';
-
-const TIMEFRAME =
-  '1m' as const;
 
 const SYMBOL_PATTERN =
   /^[A-Z0-9]{5,30}$/;
@@ -156,6 +156,9 @@ export class SetupDetectionPipeline {
   private readonly options:
     SetupDetectionPipelineOptions;
 
+  private readonly timeframe:
+    LevelEngineTimeframe;
+
   constructor(
     private readonly store:
       SetupDetectionMarketStore,
@@ -167,6 +170,10 @@ export class SetupDetectionPipeline {
   ) {
     this.options =
       normalizeOptions(options);
+
+    this.timeframe =
+      dependencies.timeframe
+      ?? '1m';
   }
 
   scanSymbol(
@@ -175,10 +182,17 @@ export class SetupDetectionPipeline {
     const symbol =
       normalizeSymbol(symbolValue);
     const retainedKlines =
-      this.store.getKlines(
-        symbol,
-        this.options.maxCandles,
-      );
+      this.timeframe === '1m'
+        ? this.store.getKlines(
+            symbol,
+            this.options.maxCandles,
+          )
+        : this.store.getSetupCandles?.(
+            symbol,
+            this.timeframe,
+            this.options.maxCandles,
+          )
+          ?? [];
     const candles =
       retainedKlines.map(
         mapKlineToLevelEngineCandle,
@@ -187,7 +201,7 @@ export class SetupDetectionPipeline {
       detectLevelLines(
         {
           symbol,
-          timeframe: TIMEFRAME,
+          timeframe: this.timeframe,
           candles,
         },
         this.options
@@ -228,7 +242,7 @@ export class SetupDetectionPipeline {
     const realtimeConfirmation =
       evaluateRealtimeConfirmations({
         symbol,
-        timeframe: TIMEFRAME,
+        timeframe: this.timeframe,
         approachEvaluation:
           detection.approachEvaluation,
         currentClosedCandle,
@@ -272,7 +286,7 @@ export class SetupDetectionPipeline {
 
     return {
       symbol,
-      timeframe: TIMEFRAME,
+      timeframe: this.timeframe,
       scannedCandlesCount:
         candles.length,
       currentPrice:

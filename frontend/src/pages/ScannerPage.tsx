@@ -21,8 +21,8 @@ import {
   formatScannerTradeTime,
   getScannerRealtimeConnectionLabel,
   indexScannerSetupMetrics,
-  isScannerSetupBelowKnownQuoteVolume,
   nextScannerSetupSortState,
+  parseScannerMinQuoteVolumeMillions,
   sortScannerSetupRows,
   useMarketVolumeSpikes,
   useMarketWideScannerMetrics,
@@ -58,12 +58,14 @@ import styles from './ScannerPage.module.css';
 
 type DirectionFilter = 'all' | TradeDirection;
 type StageFilter = 'all' | SetupStage;
-type TimeframeFilter = 'all' | ScannerTimeframe;
 type KindFilter = 'all' | ScannerSetupKind;
 type DistanceFilter = 'all' | '0.5' | '1' | '2';
 type TouchesFilter = 'all' | '2' | '3';
 type BtcStrengthFilter = 'all' | 'positive' | 'negative';
 type ScannerViewMode = 'list' | 'grid';
+
+const DEFAULT_SCANNER_MIN_QUOTE_VOLUME_MILLIONS =
+  '100';
 
 const STAGE_OPTIONS: Array<{ value: StageFilter; label: string }> = [
   { value: 'all', label: 'Все стадии' },
@@ -102,6 +104,15 @@ readonly MarketVolumeSpikeStatus[] = [
   'growing',
   'stable',
   'fading',
+];
+
+const SETUP_RUNTIME_TIMEFRAMES:
+readonly ScannerTimeframe[] = [
+  '1m',
+  '5m',
+  '15m',
+  '1h',
+  '4h',
 ];
 
 const DEFAULT_VOLUME_SPIKE_FILTERS = {
@@ -243,6 +254,8 @@ function ScannerPageContent({
 
   setupsDataState,
 
+  resultsMode,
+
   minQuoteVolumeMillions,
 
   setMinQuoteVolumeMillions,
@@ -254,6 +267,12 @@ function ScannerPageContent({
     | 'live'
     | 'retained-loading'
     | 'retained-error';
+
+  resultsMode:
+    | 'setups'
+    | 'loading'
+    | 'empty'
+    | 'error';
 
   minQuoteVolumeMillions:
     string;
@@ -439,7 +458,25 @@ function ScannerPageContent({
   const [direction, setDirection] = useState<DirectionFilter>('all');
   const [kind, setKind] = useState<KindFilter>('all');
   const [stage, setStage] = useState<StageFilter>('all');
-  const [timeframe, setTimeframe] = useState<TimeframeFilter>('all');
+  const [
+    chartTimeframe,
+    setChartTimeframe,
+  ] = useState<ScannerTimeframe>(
+    () => {
+      const requestedTimeframe =
+        searchParams.get(
+          'timeframe',
+        );
+
+      return SETUP_RUNTIME_TIMEFRAMES.includes(
+        requestedTimeframe as
+          ScannerTimeframe,
+      )
+        ? requestedTimeframe as
+            ScannerTimeframe
+        : '1m';
+    },
+  );
   const [distance, setDistance] = useState<DistanceFilter>('all');
   const [touches, setTouches] = useState<TouchesFilter>('all');
   const [btcStrength, setBtcStrength] = useState<BtcStrengthFilter>('all');
@@ -530,39 +567,7 @@ function ScannerPageContent({
     );
 
   const availableTimeframes =
-    useMemo(
-      () =>
-        (
-          [
-            '1m',
-            '5m',
-            '15m',
-          ] as const
-        ).filter(
-          (value) =>
-            runtimeTimeframes.has(
-              value,
-            ),
-        ),
-      [runtimeTimeframes],
-    );
-
-  useEffect(
-    () => {
-      if (
-        timeframe !== 'all'
-        && !runtimeTimeframes.has(
-          timeframe,
-        )
-      ) {
-        setTimeframe('all');
-      }
-    },
-    [
-      runtimeTimeframes,
-      timeframe,
-    ],
-  );
+    SETUP_RUNTIME_TIMEFRAMES;
 
   const oneMinuteMetrics =
     useMarketWideScannerMetrics({
@@ -657,7 +662,7 @@ function ScannerPageContent({
       ],
     );
 
-  const displayedSetups =
+  const anchorSetups =
     useMemo(
       () =>
         applyScannerSetupLiveMetrics(
@@ -672,37 +677,20 @@ function ScannerPageContent({
       ],
     );
 
+  const displayedSetups =
+    resultsMode === 'setups'
+      ? anchorSetups
+      : [];
+
   const filteredSetups = useMemo(() => {
     const normalizedSearch = search.trim().toUpperCase();
     const maxDistance = distance === 'all' ? null : Number(distance);
     const minTouches = touches === 'all' ? null : Number(touches);
-    const parsedMinQuoteVolumeMillions =
-      Number(
-        minQuoteVolumeMillions
-          .replace(',', '.'),
-      );
-
-    const minQuoteVolume =
-      Number.isFinite(
-        parsedMinQuoteVolumeMillions,
-      )
-      && parsedMinQuoteVolumeMillions > 0
-        ? parsedMinQuoteVolumeMillions
-            * 1_000_000
-        : 0;
-
     const result = displayedSetups.filter((setup) => {
       if (normalizedSearch && !setup.symbol.includes(normalizedSearch)) return false;
       if (direction !== 'all' && setup.direction !== direction) return false;
       if (kind !== 'all' && setup.kind !== kind) return false;
       if (stage !== 'all' && setup.stage !== stage) return false;
-      if (timeframe !== 'all' && setup.timeframe !== timeframe) return false;
-      if (
-        isScannerSetupBelowKnownQuoteVolume(
-          setup,
-          minQuoteVolume,
-        )
-      ) return false;
       if (maxDistance !== null && setup.distancePercent > maxDistance) return false;
       if (minTouches !== null && setup.touches < minTouches) return false;
       if (
@@ -732,11 +720,9 @@ function ScannerPageContent({
     direction,
     distance,
     kind,
-    minQuoteVolumeMillions,
     search,
     sortState,
     stage,
-    timeframe,
     touches,
     displayedSetups,
   ]);
@@ -785,9 +771,12 @@ function ScannerPageContent({
   const selectedSetup = useMemo(() => {
     return filteredSetups.find((setup) => setup.id === requestedSetupId)
       ?? displayedSetups.find((setup) => setup.id === requestedSetupId)
+      ?? anchorSetups.find((setup) => setup.id === requestedSetupId)
       ?? filteredSetups[0]
-      ?? displayedSetups[0];
+      ?? displayedSetups[0]
+      ?? anchorSetups[0];
   }, [
+    anchorSetups,
     displayedSetups,
     filteredSetups,
     requestedSetupId,
@@ -817,11 +806,11 @@ function ScannerPageContent({
 
   const candlesQuery = useMarketCandles({
     symbol: selectedSymbol,
-    timeframe: selectedSetup.timeframe,
+    timeframe: chartTimeframe,
   });
   const causalLevelLines = useCausalLevelLines({
     symbol: selectedSymbol,
-    timeframe: selectedSetup.timeframe,
+    timeframe: chartTimeframe,
     candles: candlesQuery.data ?? [],
   });
 
@@ -888,6 +877,10 @@ function ScannerPageContent({
       : `${marketPreviewPriceChange >= 0 ? '+' : ''}${marketPreviewPriceChange.toFixed(2)}%`
     : selectedSetup.priceChange;
   useEffect(() => {
+    if (resultsMode !== 'setups') {
+      return;
+    }
+
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set('setupId', selectedSetup.id);
     nextParams.set('preset', preset);
@@ -896,9 +889,21 @@ function ScannerPageContent({
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
     }
-  }, [preset, scannerWindow, searchParams, selectedSetup.id, setSearchParams]);
+  }, [preset, resultsMode, scannerWindow, searchParams, selectedSetup.id, setSearchParams]);
 
   const selectSetup = (setupId: string) => {
+    const nextSetup =
+      displayedSetups.find(
+        (setup) =>
+          setup.id === setupId,
+      );
+
+    if (nextSetup) {
+      setChartTimeframe(
+        nextSetup.timeframe,
+      );
+    }
+
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set('setupId', setupId);
     nextParams.delete('symbol');
@@ -968,7 +973,7 @@ function ScannerPageContent({
   useFeedbackPageContext({
     screen: 'Scanner',
     symbol: selectedSymbol,
-    timeframe: selectedSetup.timeframe,
+    timeframe: chartTimeframe,
     setupId: workspaceSetupId,
   });
 
@@ -990,11 +995,12 @@ function ScannerPageContent({
     setDirection('all');
     setKind('all');
     setStage('all');
-    setTimeframe('all');
     setDistance('all');
     setTouches('all');
     setBtcStrength('all');
-    setMinQuoteVolumeMillions('0');
+    setMinQuoteVolumeMillions(
+      DEFAULT_SCANNER_MIN_QUOTE_VOLUME_MILLIONS,
+    );
     setSortState({
       ...DEFAULT_SCANNER_SETUP_TABLE_SORT_STATE,
     });
@@ -1084,7 +1090,15 @@ function ScannerPageContent({
               className={`${styles.liveDot} ${realtimeDotClass}`}
               aria-hidden="true"
             />
-            {realtimeLabel} ? {selectedSymbol}
+            {
+              resultsMode === 'setups'
+                ? `${realtimeLabel} · ${selectedSymbol}`
+                : resultsMode === 'loading'
+                  ? 'Обновляем кандидатов'
+                  : resultsMode === 'error'
+                    ? 'Ошибка обновления'
+                    : '0 кандидатов'
+            }
           </div>
         </div>
       </header>
@@ -1150,11 +1164,18 @@ function ScannerPageContent({
           </label>
 
           <label className={styles.selectField}>
-            <span title="Показаны только таймфреймы, на которых production Setup Engine вернул текущие кандидаты.">
-              Таймфрейм сетапа
+            <span title="Меняет свечи и уровни открытого графика, сохраняя выбранный инструмент и сетап.">
+              Таймфрейм графика
             </span>
-            <select value={timeframe} onChange={(event) => setTimeframe(event.target.value as TimeframeFilter)}>
-              <option value="all">Все TF</option>
+            <select
+              value={chartTimeframe}
+              onChange={(event) =>
+                setChartTimeframe(
+                  event.target.value as
+                    ScannerTimeframe,
+                )
+              }
+            >
               {availableTimeframes.map(
                 (value) => (
                   <option
@@ -1221,7 +1242,47 @@ function ScannerPageContent({
       </section>
 
       {
-        viewMode === 'grid'
+        filteredSetups.length === 0
+          ? (
+              <section
+                className={styles.chartGridPanel}
+                aria-label="Пустой результат Scanner"
+              >
+                <div className={styles.chartGridEmpty}>
+                  <strong>
+                    {
+                      resultsMode === 'loading'
+                        ? 'Обновляем кандидатов'
+                        : resultsMode === 'error'
+                          ? 'Кандидаты не загрузились'
+                          : 'Сетапы не найдены'
+                    }
+                  </strong>
+                  <span>
+                    {
+                      resultsMode === 'loading'
+                        ? 'Ждём ответ Setup Engine для нового порога объёма.'
+                        : resultsMode === 'error'
+                          ? 'Измени фильтры или повтори запрос после восстановления backend.'
+                          : 'Измени фильтры или сбрось их, чтобы вернуть кандидатов.'
+                    }
+                  </span>
+                  {
+                    resultsMode !== 'loading'
+                      ? (
+                          <button
+                            type="button"
+                            onClick={resetFilters}
+                          >
+                            Сбросить фильтры
+                          </button>
+                        )
+                      : null
+                  }
+                </div>
+              </section>
+            )
+          : viewMode === 'grid'
           ? (
               <section
                 className={styles.chartGridPanel}
@@ -1650,7 +1711,7 @@ function ScannerPageContent({
                   <h2>{selectedSymbol}</h2>
                   <DirectionBadge direction={displayDirection} />
                   <span className={styles.timeframeBadge}>
-                    {selectedSetup.timeframe}
+                    {chartTimeframe}
                   </span>
                   <span
                     className={
@@ -1786,7 +1847,7 @@ function ScannerPageContent({
                     horizontalSegments={causalLevelLines.horizontalSegments}
                     fillContainer
                     enableDrawingTools
-                    drawingScope={`scanner:${selectedSymbol}:${selectedSetup.timeframe}`}
+                    drawingScope={`scanner:${selectedSymbol}:${chartTimeframe}`}
                     onLoadOlder={candlesQuery.loadOlder}
                     isLoadingOlder={candlesQuery.isLoadingOlder}
                     hasMore={candlesQuery.hasMore}
@@ -2005,7 +2066,7 @@ function ScannerPageContent({
                             preset,
                             scannerWindow,
                             timeframe:
-                              selectedSetup.timeframe,
+                              chartTimeframe,
                           },
                         )}
                       >
@@ -2330,37 +2391,85 @@ export function ScannerPage() {
   const [
     minQuoteVolumeMillions,
     setMinQuoteVolumeMillions,
-  ] = useState('0');
+  ] = useState(
+    DEFAULT_SCANNER_MIN_QUOTE_VOLUME_MILLIONS,
+  );
+
+  const minQuoteVolume24h =
+    parseScannerMinQuoteVolumeMillions(
+      minQuoteVolumeMillions,
+    );
+
+  const setupQueryKey =
+    `scanner-setups:${minQuoteVolume24h}`;
 
   const query =
     useApiQuery(
-      'scanner-setups',
-      () =>
-        nexusApi.getScannerSetups(),
+      setupQueryKey,
+      async () => ({
+        key:
+          setupQueryKey,
+
+        setups:
+          await nexusApi.getScannerSetups(
+            minQuoteVolume24h > 0
+              ? {
+                  minQuoteVolume24h,
+                }
+              : {},
+          ),
+      }),
       {
         preserveData:
-          true,
+          false,
       },
     );
 
+  const queryDataForCurrentKey =
+    query.data?.key
+    === setupQueryKey
+      ? query.data
+      : null;
+
   const [
-    retainedSetups,
-    setRetainedSetups,
+    retainedSetupSnapshot,
+    setRetainedSetupSnapshot,
+  ] = useState<{
+    key: string;
+    setups: ScannerSetup[];
+  } | null>(null);
+
+  const [
+    lastNonEmptySetups,
+    setLastNonEmptySetups,
   ] = useState<ScannerSetup[]>([]);
 
   useEffect(
     () => {
-      if (
-        query.data
-        && query.data.length > 0
-      ) {
-        setRetainedSetups(
-          query.data,
-        );
+      if (queryDataForCurrentKey !== null) {
+        setRetainedSetupSnapshot({
+          key:
+            setupQueryKey,
+
+          setups:
+            queryDataForCurrentKey
+              .setups,
+        });
+
+        if (
+          queryDataForCurrentKey
+            .setups.length > 0
+        ) {
+          setLastNonEmptySetups(
+            queryDataForCurrentKey
+              .setups,
+          );
+        }
       }
     },
     [
-      query.data,
+      queryDataForCurrentKey,
+      setupQueryKey,
     ],
   );
 
@@ -2370,8 +2479,15 @@ export function ScannerPage() {
   });
 
   const currentSetups =
-    query.data
+    queryDataForCurrentKey
+      ?.setups
     ?? [];
+
+  const retainedSetups =
+    retainedSetupSnapshot?.key
+    === setupQueryKey
+      ? retainedSetupSnapshot.setups
+      : [];
 
   const hasDisplayableSetups =
     currentSetups.length > 0
@@ -2393,8 +2509,26 @@ export function ScannerPage() {
     currentSetups.length > 0
       ? currentSetups
       : setupsDataState !== 'live'
+        && retainedSetups.length > 0
         ? retainedSetups
-        : [];
+        : lastNonEmptySetups;
+
+  const resultsMode:
+    | 'setups'
+    | 'loading'
+    | 'empty'
+    | 'error' =
+      currentSetups.length > 0
+      || (
+        setupsDataState !== 'live'
+        && retainedSetups.length > 0
+      )
+        ? 'setups'
+        : queryDataForCurrentKey !== null
+          ? 'empty'
+          : query.status === 'error'
+            ? 'error'
+            : 'loading';
 
   if (
     query.status === 'loading'
@@ -2447,6 +2581,9 @@ export function ScannerPage() {
       }
       setupsDataState={
         setupsDataState
+      }
+      resultsMode={
+        resultsMode
       }
       minQuoteVolumeMillions={
         minQuoteVolumeMillions
