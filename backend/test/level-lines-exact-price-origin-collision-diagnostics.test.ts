@@ -179,7 +179,7 @@ function source(
 }
 
 test(
-  'reports distinct active origins that share one exact price',
+  'observes no coactive collision after production exact-price resolution',
   () => {
     const progress: number[] = [];
     const report =
@@ -208,47 +208,32 @@ test(
     );
     assert.equal(
       report.status,
-      'diagnosed_with_collisions',
+      'diagnosed_without_collisions',
     );
     assert.equal(
       report.exactPriceCollisionsObserved,
-      true,
+      false,
     );
     assert.equal(
       report.totals.collisionGroupCount,
-      1,
+      0,
     );
     assert.equal(
       report.totals.uniqueCollidingLineCount,
-      2,
+      0,
     );
     assert.equal(
       report.totals.maximumConcurrentLineCount,
-      2,
+      0,
     );
     assert.equal(
       report.totals.violationCount,
       0,
     );
 
-    const group =
-      report.datasets[0]?.groups[0];
-    const pair = group?.pairs[0];
-
-    assert.ok(group);
-    assert.equal(group.symbol, 'ARKMUSDT');
-    assert.equal(group.kind, 'resistance');
-    assert.equal(group.price, 100);
-    assert.equal(group.distinctLineCount, 2);
     assert.deepEqual(
-      group.originCandleIndices,
-      [1, 6],
-    );
-    assert.ok(pair);
-    assert.equal(pair.originGapBars, 5);
-    assert.equal(
-      pair.newerInheritedPriorExactOriginEvidence,
-      true,
+      report.datasets[0]?.groups,
+      [],
     );
     assert.equal(
       progress.at(-1),

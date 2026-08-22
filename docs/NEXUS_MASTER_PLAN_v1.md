@@ -892,6 +892,7 @@ Replay обязателен для v1.0.
 - Unified Decision Setup Lifecycle Reachability Diagnostics v0.1 прочитал тот же versioned dataset/persistence snapshot offline и построил путь source available → candidate captured → first-seen current → causal Observation/Approach/Confirmation → применённые runtime stages → terminal outcome. Фактический report: `5 000` observations, `1 059` observations с candidates, `12 708` occurrences / `36` unique candidates; все `36` созданы до начала sequence `993` и впервые видны после expiry, все occurrences — retained `SETUP_EXPIRED`, maximum retention `39 739` секунд. Causal `OBSERVATION` присутствует у `36`, causal `APPROACH` у `28`, causal `CONFIRMATION` у `0`; terminal outcomes и violations — `0`. Diagnosis `retention_currentness_mismatch`, cutoff `candidate_first_seen_after_expiry`, targeted live check не рекомендован. Проверка production path дополнительно подтвердила episode-rearm ограничение: candidate ID зависит только от `line.id + setupType`, process-lifetime duplicate set не освобождает ID, а terminal runtime игнорирует последующие updates. Исправление вынесено в отдельный episode-aware contract; текущая ветка thresholds, lifecycle и decision rules не меняет;
 - Setup Candidate Episode Rearm Contract v0.1 определяет episode boundary как новый causal threshold re-entry закрытой свечи после фактического выхода `progress < 0,50`. Внутри непрерывного episode ID стабилен и повторные scans подавляются; expiry сам по себе rearm не вызывает. После выхода и нового входа candidate получает новый restart-deterministic ID из `line.id + setupType + episode.startedAt`, прежний terminal record остаётся в history. `createdAt`/expiry восстанавливаются из той же causal границы, update несёт `episodeId`, а runtime отклоняет episode-mismatched update. Порог Observation, Approach/Confirmation, bounce/breakout, ranking, Unified Decision и market-context rules не изменены;
 - Setup Candidate Episode Real-Data Validation v0.1 дважды воспроизвёл сохранённые реальные `1m` datasets через production Observation → causal Setup path. На `4 995` закрытых свечах прежние `622` пары `lineId + setupType` дали `2 102` episode candidates: точная разница `1 480` соответствует измеренным rearms, `430` пар были rearmed. Внутри episodes подавлено `10 002` повторных observations; restart mismatches, same-episode churn и violations — `0`. Contract устранил permanent duplicate cutoff, но выявил отдельную пользовательскую границу: Scanner/read API должен показывать current episode пары, оставляя предыдущие episodes в History;
+- Level Lines Exact-Price Origin Resolution Contract v0.1 применяет split lifecycle policy до Departure/Observation/Approach/Setup. Если прежняя exact-price identity ещё не была `worked` на момент активации нового origin, current projection переиспользует прежний `lineId`; если `workedAt <= newer.activeFrom`, старая запись остаётся в полном `lines` History, а новый origin становится current episode. Группа определяется только `symbol + timeframe + kind + exact price`: близкие цены и разные kinds не объединяются. Полный исторический реестр не удаляется, формула `lineId`, pivot/touch/threshold/decision rules не меняются;
 - пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
@@ -911,7 +912,7 @@ Replay обязателен для v1.0.
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134; Workspace отображает backend Unified Decision без frontend-пересчёта направления |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
-| 7 | Setup Engine | Causal integration, episode rearm и current-episode read projection v0.1 реализованы и live-проверены; exact-price collisions измерены и классифицированы, требуется split resolution contract | На live snapshot из `352` episode-aware candidates повторов `symbol + lineId + setupType` нет. Из `42` exact-price origin pairs классифицированы `32` active reconfirmations и `10` worked retention rearms; global price merge отклонён |
+| 7 | Setup Engine | Causal integration, episode rearm, current-episode read projection и exact-price split resolution contract v0.1 реализованы; требуется real-data validation нового resolution path | Для `32` active reconfirmations переиспользуется current identity; для `10` worked retention cases сохраняется History и открывается новый episode. Global price merge отклонён; близкие независимые уровни не объединяются |
 | 8 | Alerts | Backend, frontend, persistence и external delivery foundation v0.1 реализованы, развитие продолжается | Есть versioned persistent backend-domain, HTTP API, Setup lifecycle, Market Wide Volume Spike/trades adapters, BTC Market Mode producer, вычисленный impulse-source и restart-safe provider-neutral outbox; Alerts page использует реальные runtime contracts без mock fallback. Реальный delivery adapter, канал/credentials и multi-user ownership ещё впереди |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence, Alerts Persistence Foundation и runtime event history; Auth, приглашения, ownership, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
@@ -1020,52 +1021,52 @@ Replay обязателен для v1.0.
 
 Последняя завершённая задача:
 
-**NEXUS Level Lines Exact-Price Origin Collision Diagnostics v0.1**
+**NEXUS Level Lines Exact-Price Origin Collision Classification v0.1**
 
 Фактический результат:
 
-- PR #174 merged в `main` на `c6b561c`;
-- replay `4 995` реальных закрытых свечей обнаружил `37` exact-price groups, `42` coactive origin pairs и `77` colliding lines;
-- все `42` пары содержат inherited prior exact-origin evidence, maximum concurrency — `3`, violations — `0`;
-- production Level identity и trading rules не изменены, global merge по цене не рекомендован.
+- PR #175 merged в `main` на `eb4c33b`;
+- все `42` пары классифицированы: `32` active reconfirmations и `10` worked retention rearms;
+- independent и unresolved pairs — `0`, violations — `0`;
+- доказана необходимость split resolution вместо global merge по цене.
 
 Текущая задача:
 
-**NEXUS Level Lines Exact-Price Origin Collision Classification v0.1**
+**NEXUS Level Lines Exact-Price Origin Resolution Contract v0.1**
 
 Фактический локальный результат:
 
-- добавлен versioned classifier `level-lines-exact-price-origin-collision-classification-v0.1` и отдельный CLI;
-- исходный report SHA256 `bc55be6fd9cdc65bbcb519efa71da4278bcaf90863a6b09b322a6265a8116f3e` прочитан без изменения;
-- все `42` пары классифицированы без unresolved случаев: `32` `active_origin_reconfirmation` и `10` `worked_origin_retention_rearm`;
-- independent-origin candidates — `0`, classification violations — `0`;
-- origin gap составляет `4–198` свечей, медиана `18,5`; искусственный gap-threshold не выбран;
-- required policy split: active exact-price identity reuse отдельно от worked identity retirement/rearm;
-- focused tests `28/28`, полный backend `615/615`, typecheck, production build и security audit прошли;
-- статус `classified_with_split_resolution`;
-- production identity, History, Setup mapping, decision rules, signals и trade orders не изменены.
+- добавлен versioned production contract `level-lines-exact-price-origin-resolution-v0.1`;
+- resolution встроен между полным `lines` registry и current `activeLevels` projection;
+- active reconfirmation сохраняет старую current identity и оставляет новый origin только в History;
+- worked-before-new-origin выводит прежнюю identity из current projection, сохраняет её History и активирует новый episode;
+- causal chain из нескольких origins обрабатывается последовательно;
+- близкие цены и противоположные kinds остаются независимыми;
+- downstream Departure, Observation, Approach и Setup получают только resolved current lines;
+- production thresholds, mapping, signals и trade orders не изменены.
 
 Критерии завершения текущей ветки:
 
-- versioned classification contract, CLI, tests и документация зафиксированы;
-- источник проверяется по version/status/violations и сохраняется по SHA256;
-- каждая pair classification содержит rationale, confidence и только diagnostic resolution direction;
-- все `42` пары классифицированы, unresolved и violations равны нулю;
+- полный history registry сохраняется без удаления origin records;
+- на каждую exact-price группу остаётся не более одной current line;
+- active reuse и worked rearm проверяются отдельными causal тестами;
+- близкие цены и разные kinds не объединяются;
+- downstream tracking не содержит suppressed identity;
 - полный backend, typecheck, production build и audit проходят;
 - изменения опубликованы отдельным draft PR, GitHub Actions зелёные.
 
-Следующая отдельная задача после публикации классификации:
+Следующая отдельная задача после публикации resolution contract:
 
-**NEXUS Level Lines Exact-Price Origin Resolution Contract v0.1**
+**NEXUS Level Lines Exact-Price Origin Resolution Real-Data Validation v0.1**
 
-- для `active_origin_reconfirmation` переиспользовать current exact-price identity вместо создания второй current line;
-- для `worked_origin_retention_rearm` сохранить прежний worked record в History, вывести его из current projection и создать новый episode;
-- проверить replay-equivalence, отсутствие визуальных повторов и сохранность History до production wiring;
-- не использовать один global merge по цене для обеих lifecycle-ветвей.
+- повторить сохранённые `4 995` реальных свечей через новый production path;
+- измерить active reuse, worked rearm и остаточные current collisions;
+- доказать сохранность полного `lines` History;
+- проверить restart/replay equivalence и отсутствие violations.
 
-До завершения resolution contract:
+До завершения real-data validation:
 
-- не объединять exact-price Level Lines;
+- не считать unit/integration fixture достаточным real-market доказательством;
 - не менять formula `lineId`, pivot или touch rules;
 - не удалять исторические episodes;
 - не использовать UI-округление как критерий тождества уровня.

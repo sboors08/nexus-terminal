@@ -14,6 +14,9 @@ import {
   evaluateApproaches,
 } from './approach-engine.js';
 import {
+  resolveLevelLinesExactPriceOrigins,
+} from './level-lines-exact-price-origin-resolution.js';
+import {
   isLevelEngineTimeframe,
   normalizeLevelEngineSymbol,
 } from './level-engine.contract.js';
@@ -1341,6 +1344,8 @@ export function detectLevelLines(
   const lines: LevelLine[] = [];
   const activeLineIds =
     new Set<string>();
+  const currentLevelVisibleFrom =
+    new Map<string, string>();
   const firstIndex =
     Math.max(
       options.pivotLeftBars,
@@ -1468,6 +1473,35 @@ export function detectLevelLines(
         activeLineIds.add(
           line.id,
         );
+        const visibilityBoundaries = [
+          lifecycle
+            .candidateQualifiedAt,
+          isPersistentCandidate
+            ? lifecycle
+                .persistentCandidateQualifiedAt
+            : null,
+          line.confirmedAt,
+        ].filter(
+          (value): value is string =>
+            value !== null,
+        );
+        const visibleFrom =
+          visibilityBoundaries.sort(
+            (left, right) =>
+              Date.parse(left)
+              - Date.parse(right),
+          )[0];
+
+        if (!visibleFrom) {
+          fail(
+            `active line ${line.id} has no current visibility boundary`,
+          );
+        }
+
+        currentLevelVisibleFrom.set(
+          line.id,
+          visibleFrom,
+        );
       }
     }
   }
@@ -1488,7 +1522,7 @@ export function detectLevelLines(
     Object.freeze([
       ...lines,
     ]);
-  const activeLevels =
+  const unresolvedActiveLevels =
     Object.freeze(
       frozenLines.filter(
         (line) =>
@@ -1497,6 +1531,24 @@ export function detectLevelLines(
           ),
       ),
     );
+  const exactPriceOriginResolution =
+    resolveLevelLinesExactPriceOrigins({
+      symbol,
+      timeframe:
+        input.timeframe,
+      lines: frozenLines,
+      currentLevels:
+        unresolvedActiveLevels,
+      currentLevelVisibleFrom:
+        Object.freeze(
+          Object.fromEntries(
+            currentLevelVisibleFrom,
+          ),
+        ),
+    });
+  const activeLevels =
+    exactPriceOriginResolution
+      .currentLevels;
   const departureExtremumTracking =
     trackDepartureExtrema({
       symbol,
@@ -1537,6 +1589,7 @@ export function detectLevelLines(
       frozenLines,
     activeLevels:
       activeLevels,
+    exactPriceOriginResolution,
     departureExtremumTracking,
     observationTracking,
     approachEvaluation,
