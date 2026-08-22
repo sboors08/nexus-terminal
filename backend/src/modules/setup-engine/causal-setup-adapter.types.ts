@@ -1,4 +1,7 @@
 import type {
+  LevelEngineTimeframe,
+} from '../level-engine/level-engine.types.js';
+import type {
   LevelLineStatus,
   LevelLinesDetectionResult,
 } from '../level-engine/level-lines.types.js';
@@ -99,7 +102,8 @@ export interface AdaptCausalSetupCandidatesResult {
   readonly version:
     typeof CAUSAL_SETUP_ADAPTER_CONTRACT_VERSION;
   readonly symbol: string;
-  readonly timeframe: '1m';
+  readonly timeframe:
+    LevelEngineTimeframe;
   readonly candidates:
     readonly SetupEngineState[];
   readonly updates:

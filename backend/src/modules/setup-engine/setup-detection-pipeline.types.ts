@@ -1,4 +1,7 @@
 import type {
+  LevelEngineTimeframe,
+} from '../level-engine/level-engine.types.js';
+import type {
   LevelLine,
   LevelLinesDetectionOptions,
 } from '../level-engine/level-lines.types.js';
@@ -28,6 +31,12 @@ export interface SetupDetectionMarketStore {
     limit?: number,
   ): BinanceOneMinuteKlineUpdate[];
 
+  getSetupCandles?(
+    symbol: string,
+    timeframe: LevelEngineTimeframe,
+    limit?: number,
+  ): SetupDetectionCandle[];
+
   getState(
     symbol: string,
   ): {
@@ -38,6 +47,18 @@ export interface SetupDetectionMarketStore {
       RealtimeBookTicker
       | null;
   } | null;
+}
+
+export interface SetupDetectionCandle {
+  symbol: string;
+  eventTime: string;
+  openTime: string;
+  closeTime: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  isClosed: boolean;
 }
 
 export interface SetupDetectionPipelineOptions {
@@ -54,11 +75,13 @@ export interface SetupDetectionPipelineDependencies {
   readonly realtimeEvidenceReaders?:
     RealtimeConfirmationEvidenceReaderOptions;
   readonly now?: () => Date;
+  readonly timeframe?:
+    LevelEngineTimeframe;
 }
 
 export interface SetupDetectionPipelineResult {
   symbol: string;
-  timeframe: '1m';
+  timeframe: LevelEngineTimeframe;
   scannedCandlesCount: number;
   currentPrice: number | null;
   levels: LevelLine[];

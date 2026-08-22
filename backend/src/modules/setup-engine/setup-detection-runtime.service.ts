@@ -3,6 +3,9 @@
   SetupDetectionPipeline,
 } from './setup-detection-pipeline.js';
 import type {
+  LevelEngineTimeframe,
+} from '../level-engine/level-engine.types.js';
+import type {
   RealtimeConfirmationEvidenceReaderOptions,
 } from '../level-engine/realtime-confirmation-evidence.js';
 import type {
@@ -36,6 +39,9 @@ import type {
   SetupDetectionRuntimeStatus,
   SetupDetectionTriggerSource,
 } from './setup-detection-runtime.types.js';
+import {
+  SETUP_ENGINE_RUNTIME_TIMEFRAMES,
+} from './setup-engine-multi-timeframe-runtime.js';
 
 const SYMBOL_PATTERN =
   /^[A-Z0-9]{5,30}$/;
@@ -78,6 +84,10 @@ SetupDetectionRuntimeOptions = {
 
   now: () =>
     new Date(),
+
+  timeframes: [
+    ...SETUP_ENGINE_RUNTIME_TIMEFRAMES,
+  ],
 };
 
 function normalizeSymbol(
@@ -239,8 +249,14 @@ function lifecycleEventTypeForStage(
 }
 
 export class SetupDetectionRuntimeService {
-  private readonly pipeline:
-    SetupDetectionPipeline;
+  private readonly pipelines:
+    ReadonlyMap<
+      LevelEngineTimeframe,
+      SetupDetectionPipeline
+    >;
+
+  private readonly timeframes:
+    readonly LevelEngineTimeframe[];
 
   private readonly stageEvaluatorOptions:
     SetupStageEvaluatorOptions;
@@ -250,6 +266,9 @@ export class SetupDetectionRuntimeService {
       string,
       SetupEngineState
     >();
+
+  private readonly lastScannedClosedCandle =
+    new Map<string, string | null>();
 
   private readonly lifecycleListeners =
     new Set<
@@ -318,14 +337,58 @@ export class SetupDetectionRuntimeService {
       ),
     };
 
-    this.pipeline =
-      new SetupDetectionPipeline(
-        source,
-        options.pipelineOptions,
-        {
-          realtimeEvidenceReaders,
-          now: options.now,
-        },
+    const requestedTimeframes:
+      readonly LevelEngineTimeframe[] =
+        options
+          === DEFAULT_SETUP_DETECTION_RUNTIME_OPTIONS
+        && !source.getSetupCandles
+          ? ['1m']
+          : options.timeframes
+            ?? ['1m'];
+
+    this.timeframes =
+      Object.freeze([
+        ...new Set<
+          LevelEngineTimeframe
+        >(
+          requestedTimeframes,
+        ),
+      ]);
+
+    if (this.timeframes.length === 0) {
+      throw new Error(
+        'Setup Detection Runtime requires at least one timeframe',
+      );
+    }
+
+    if (
+      this.timeframes.some(
+        (timeframe) =>
+          timeframe !== '1m',
+      )
+      && !source.getSetupCandles
+    ) {
+      throw new Error(
+        'Setup Detection Runtime multi-timeframe source must provide getSetupCandles',
+      );
+    }
+
+    this.pipelines =
+      new Map(
+        this.timeframes.map(
+          (timeframe) => [
+            timeframe,
+            new SetupDetectionPipeline(
+              source,
+              options.pipelineOptions,
+              {
+                realtimeEvidenceReaders,
+                now: options.now,
+                timeframe,
+              },
+            ),
+          ],
+        ),
       );
 
     this.readNow();
@@ -442,6 +505,9 @@ export class SetupDetectionRuntimeService {
 
       lastError:
         this.lastError,
+
+      timeframes:
+        [...this.timeframes],
     };
   }
 
@@ -606,30 +672,12 @@ export class SetupDetectionRuntimeService {
       this.readNow()
         .toISOString();
 
-    let observation:
-      SetupStageMarketObservation
-      | null;
-
-    try {
-      observation =
-        this.buildObservation(
-          symbol,
-          evaluatedAt,
-        );
-    } catch (error) {
-      this.recordEvaluationBatchFailure(
-        candidateIds.length,
-        symbol,
-        error,
-        evaluatedAt,
-      );
-
-      return;
-    }
-
-    if (!observation) {
-      return;
-    }
+    const observations =
+      new Map<
+        string,
+        SetupStageMarketObservation
+        | null
+      >();
 
     for (
       const candidateId
@@ -646,6 +694,50 @@ export class SetupDetectionRuntimeService {
           candidate.stage,
         )
       ) {
+        continue;
+      }
+
+      let observation =
+        observations.get(
+          candidate.timeframe,
+        );
+
+      if (
+        !observations.has(
+          candidate.timeframe,
+        )
+      ) {
+        try {
+          observation =
+            this.buildObservation(
+              symbol,
+              candidate.timeframe as
+                LevelEngineTimeframe,
+              evaluatedAt,
+            );
+
+          observations.set(
+            candidate.timeframe,
+            observation,
+          );
+        } catch (error) {
+          this.recordEvaluationBatchFailure(
+            1,
+            `${symbol}/${candidate.timeframe}`,
+            error,
+            evaluatedAt,
+          );
+
+          observations.set(
+            candidate.timeframe,
+            null,
+          );
+
+          continue;
+        }
+      }
+
+      if (!observation) {
         continue;
       }
 
@@ -707,15 +799,24 @@ export class SetupDetectionRuntimeService {
 
   private buildObservation(
     symbol: string,
+    timeframe:
+      LevelEngineTimeframe,
     evaluatedAt: string,
   ):
     SetupStageMarketObservation
     | null {
     const klines =
-      this.source.getKlines(
-        symbol,
-        10,
-      );
+      timeframe === '1m'
+        ? this.source.getKlines(
+            symbol,
+            10,
+          )
+        : this.source.getSetupCandles?.(
+            symbol,
+            timeframe,
+            10,
+          )
+          ?? [];
 
     const closedKline = [
       ...klines,
@@ -828,73 +929,139 @@ export class SetupDetectionRuntimeService {
   private scanSymbol(
     symbol: string,
   ): void {
-    this.scansCount += 1;
+    for (
+      const [
+        timeframe,
+        pipeline,
+      ] of this.pipelines
+    ) {
+      this.scansCount += 1;
 
-    this.lastScanAt =
-      this.readNow()
-        .toISOString();
-
-    try {
-      const result =
-        this.pipeline.scanSymbol(
-          symbol,
-        );
-
-      const nowMs =
+      this.lastScanAt =
         this.readNow()
-          .getTime();
+          .toISOString();
 
-      for (
-        const candidate
-        of result.candidates
-      ) {
+      try {
+        const scanKey =
+          `${symbol}:${timeframe}`;
+        const latestClosedAt =
+          this.latestClosedCandleAt(
+            symbol,
+            timeframe,
+          );
+
         if (
-          timestampValue(
-            candidate.expiresAt,
-          ) <= nowMs
+          this.lastScannedClosedCandle.has(
+            scanKey,
+          )
+          && this.lastScannedClosedCandle.get(
+            scanKey,
+          ) === latestClosedAt
         ) {
+          this.scansCount -= 1;
           continue;
         }
 
-        if (
-          !this.candidates.has(
-            candidate.id,
-          )
+        const result =
+          pipeline.scanSymbol(
+            symbol,
+          );
+
+        this.lastScannedClosedCandle.set(
+          scanKey,
+          latestClosedAt,
+        );
+
+        const nowMs =
+          this.readNow()
+            .getTime();
+
+        for (
+          const candidate
+          of result.candidates
         ) {
-          const storedCandidate =
-            cloneCandidate(
-              candidate,
+          if (
+            timestampValue(
+              candidate.expiresAt,
+            ) <= nowMs
+          ) {
+            continue;
+          }
+
+          if (
+            !this.candidates.has(
+              candidate.id,
+            )
+          ) {
+            const storedCandidate =
+              cloneCandidate(
+                candidate,
+              );
+
+            this.candidates.set(
+              candidate.id,
+              storedCandidate,
             );
 
-          this.candidates.set(
-            candidate.id,
-            storedCandidate,
-          );
+            this.emitCandidateCreated(
+              storedCandidate,
+            );
+          }
+        }
 
-          this.emitCandidateCreated(
-            storedCandidate,
+        for (
+          const update
+          of result.causalUpdates
+        ) {
+          this.applyCausalUpdate(
+            update,
           );
         }
+
+        this.enforceCandidateLimit();
+      } catch (error) {
+        this.failedScans += 1;
+
+        this.lastError =
+          error instanceof Error
+            ? timeframe === '1m'
+              ? `${symbol}: ${error.message}`
+              : `${symbol}/${timeframe}: ${error.message}`
+            : timeframe === '1m'
+              ? `${symbol}: Setup Detection Runtime scan failed`
+              : `${symbol}/${timeframe}: Setup Detection Runtime scan failed`;
       }
-
-      for (
-        const update
-        of result.causalUpdates
-      ) {
-        this.applyCausalUpdate(
-          update,
-        );
-      }
-
-      this.enforceCandidateLimit();
-    } catch (error) {
-      this.failedScans += 1;
-
-      this.lastError =
-        error instanceof Error
-          ? `${symbol}: ${error.message}`
-          : `${symbol}: Setup Detection Runtime scan failed`;
     }
+  }
+
+  private latestClosedCandleAt(
+    symbol: string,
+    timeframe:
+      LevelEngineTimeframe,
+  ): string | null {
+    const candles =
+      timeframe === '1m'
+        ? this.source.getKlines(
+            symbol,
+            2,
+          )
+        : this.source.getSetupCandles?.(
+            symbol,
+            timeframe,
+            2,
+          )
+          ?? [];
+
+    return [
+      ...candles,
+    ]
+      .reverse()
+      .find(
+        (candle) =>
+          candle.isClosed,
+      )
+      ?.closeTime
+      ?? null;
   }
 
   private applyCausalUpdate(

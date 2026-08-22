@@ -427,6 +427,23 @@ function aggregateRealtimeCandle(
       last.closeTime,
     );
 
+  const expectedKlinesCount =
+    getRealtimeCandleWindowSize(
+      timeframe,
+    );
+
+  const hasCompleteClosedSequence =
+    bucketKlines.length
+      === expectedKlinesCount
+    && bucketKlines.every(
+      (kline, index) =>
+        kline.isClosed
+        && Date.parse(
+          kline.openTime,
+        ) === bucketOpenTimeMs
+          + index * 60_000,
+    );
+
   return {
     symbol:
       last.symbol,
@@ -449,7 +466,7 @@ function aggregateRealtimeCandle(
     quoteVolume,
     tradesCount,
     isClosed:
-      last.isClosed
+      hasCompleteClosedSequence
       && Number.isFinite(
         lastCloseTimeMs,
       )
@@ -458,6 +475,110 @@ function aggregateRealtimeCandle(
     updatedAt:
       last.eventTime,
   };
+}
+
+export function aggregateRealtimeCandles(
+  klines:
+    readonly BinanceOneMinuteKlineUpdate[],
+  timeframe:
+    RealtimeCandleTimeframe,
+  limit?: number,
+): RealtimeCandle[] {
+  if (klines.length === 0) {
+    return [];
+  }
+
+  const durationMs =
+    REALTIME_CANDLE_DURATION_MS[
+      timeframe
+    ];
+
+  const buckets =
+    new Map<
+      number,
+      BinanceOneMinuteKlineUpdate[]
+    >();
+
+  for (const kline of klines) {
+    const openTimeMs =
+      Date.parse(kline.openTime);
+
+    if (!Number.isFinite(openTimeMs)) {
+      throw new Error(
+        `Invalid realtime candle open time: ${kline.symbol}`,
+      );
+    }
+
+    const bucketOpenTimeMs =
+      Math.floor(
+        openTimeMs / durationMs,
+      ) * durationMs;
+
+    const bucket =
+      buckets.get(bucketOpenTimeMs)
+      ?? [];
+
+    bucket.push(kline);
+    buckets.set(
+      bucketOpenTimeMs,
+      bucket,
+    );
+  }
+
+  const bucketEntries = [
+    ...buckets.entries(),
+  ]
+    .sort(
+      ([left], [right]) =>
+        left - right,
+    );
+
+  const latestBucketOpenTime =
+    bucketEntries[
+      bucketEntries.length - 1
+    ]?.[0]
+    ?? null;
+
+  const candles =
+    bucketEntries
+    .map(
+      ([bucketOpenTime, bucket]) => ({
+        bucketOpenTime,
+        candle:
+          aggregateRealtimeCandle(
+            bucket,
+            timeframe,
+          ),
+      }),
+    )
+    .filter(
+      (
+        entry,
+      ): entry is {
+        bucketOpenTime: number;
+        candle: RealtimeCandle;
+      } =>
+        entry.candle !== null,
+    )
+    .filter(
+      (entry) =>
+        entry.candle.isClosed
+        || entry.bucketOpenTime
+          === latestBucketOpenTime,
+    )
+    .map(
+      (entry) =>
+        entry.candle,
+    );
+
+  if (
+    limit === undefined
+    || candles.length <= limit
+  ) {
+    return candles;
+  }
+
+  return candles.slice(-limit);
 }
 
 function cloneRealtimeCandle(
@@ -851,6 +972,49 @@ export class MarketWideRealtimeService {
     return this.metricsStore.getKlines(
       symbol,
       limit,
+    );
+  }
+
+  getSetupCandles(
+    symbol: string,
+    timeframe:
+      RealtimeCandleTimeframe,
+    limit?: number,
+  ): Array<
+    BinanceOneMinuteKlineUpdate
+    | (
+      RealtimeCandle
+      & { eventTime: string }
+    )
+  > {
+    if (timeframe === '1m') {
+      return this.getKlines(
+        symbol,
+        limit,
+      );
+    }
+
+    const oneMinuteLimit =
+      limit === undefined
+        ? undefined
+        : limit
+          * getRealtimeCandleWindowSize(
+              timeframe,
+            );
+
+    return aggregateRealtimeCandles(
+      this.getKlines(
+        symbol,
+        oneMinuteLimit,
+      ),
+      timeframe,
+      limit,
+    ).map(
+      (candle) => ({
+        ...candle,
+        eventTime:
+          candle.updatedAt,
+      }),
     );
   }
 
