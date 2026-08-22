@@ -33,3 +33,5 @@ export * from './level-lines-detector.js';
 export * from './level-lines.types.js';
 export * from './level-lines-exact-price-origin-resolution.js';
 export * from './level-lines-exact-price-origin-resolution.types.js';
+export * from './level-lines-exact-price-origin-resolution-real-data-validation.js';
+export * from './level-lines-exact-price-origin-resolution-real-data-validation.types.js';
