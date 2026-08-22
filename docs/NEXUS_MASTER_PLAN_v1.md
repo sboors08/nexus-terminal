@@ -911,7 +911,7 @@ Replay обязателен для v1.0.
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134; Workspace отображает backend Unified Decision без frontend-пересчёта направления |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены, валидация продолжается | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы; полный manual review dataset не завершён |
-| 7 | Setup Engine | Causal integration, episode rearm и current-episode read projection v0.1 реализованы и live-проверены; exact-price Level Line collisions измерены, требуется классификация origin policy | На live snapshot из `352` episode-aware candidates повторов `symbol + lineId + setupType` нет. Real-data replay обнаружил `37` exact-price groups, `42` coactive origin pairs и `77` colliding lines; немедленное объединение по цене не рекомендовано |
+| 7 | Setup Engine | Causal integration, episode rearm и current-episode read projection v0.1 реализованы и live-проверены; exact-price collisions измерены и классифицированы, требуется split resolution contract | На live snapshot из `352` episode-aware candidates повторов `symbol + lineId + setupType` нет. Из `42` exact-price origin pairs классифицированы `32` active reconfirmations и `10` worked retention rearms; global price merge отклонён |
 | 8 | Alerts | Backend, frontend, persistence и external delivery foundation v0.1 реализованы, развитие продолжается | Есть versioned persistent backend-domain, HTTP API, Setup lifecycle, Market Wide Volume Spike/trades adapters, BTC Market Mode producer, вычисленный impulse-source и restart-safe provider-neutral outbox; Alerts page использует реальные runtime contracts без mock fallback. Реальный delivery adapter, канал/credentials и multi-user ownership ещё впереди |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence, Alerts Persistence Foundation и runtime event history; Auth, приглашения, ownership, Watchlist persistence и постоянная история сетапов не завершены |
 | 10 | Production и сервер | Начат | Есть локальный Docker runtime; домен, HTTPS, production DB, monitoring, backup и restore не завершены |
@@ -1020,71 +1020,50 @@ Replay обязателен для v1.0.
 
 Последняя завершённая задача:
 
-**NEXUS Setup Candidate Current-Episode Projection v0.1**
+**NEXUS Level Lines Exact-Price Origin Collision Diagnostics v0.1**
 
 Фактический результат:
 
-- PR #173 merged в `main` на `99e0802`;
-- versioned projection `setup-candidate-current-episode-projection-v0.1` применяется до filters и limit;
-- public candidates list оставляет только последний episode по `symbol + lineId + setupType`;
-- старые episodes остаются доступны через candidate detail и History;
-- Docker live snapshot содержал `352` episode-aware candidates и `0` точных повторов current pair;
-- breakout и bounce остаются разными setup hypotheses;
-- независимые `lineId` не объединяются по цене или округлённой zone;
-- live ARKMUSDT выявил пять active support `lineId` на точной цене `0.106`, поэтому upstream Level Lines вынесен в отдельную диагностику;
-- History, thresholds, decision rules, signals и trade orders не изменены.
+- PR #174 merged в `main` на `c6b561c`;
+- replay `4 995` реальных закрытых свечей обнаружил `37` exact-price groups, `42` coactive origin pairs и `77` colliding lines;
+- все `42` пары содержат inherited prior exact-origin evidence, maximum concurrency — `3`, violations — `0`;
+- production Level identity и trading rules не изменены, global merge по цене не рекомендован.
 
 Текущая задача:
 
-**NEXUS Level Lines Exact-Price Origin Collision Diagnostics v0.1**
-
-Цель:
-
-- на каждом сохранённом causal prefix собрать active production Level Lines;
-- выделить только группы с точным совпадением `symbol + timeframe + kind + price` без UI-округления;
-- сравнить origin timestamps и индексы, active/confirmed/worked evidence, touch count и совместную активность;
-- измерить collision groups, episodes, pairs, distinct lines и maximum concurrency по реальным datasets;
-- проверить stable line ID, origin price и causal-time invariants;
-- определить, повторяется ли новый exact-price origin, пока предыдущая линия всё ещё активна;
-- до результата не менять production identity и не объединять линии по цене.
+**NEXUS Level Lines Exact-Price Origin Collision Classification v0.1**
 
 Фактический локальный результат:
 
-- добавлен versioned contract `level-lines-exact-price-origin-collision-diagnostics-v0.1`;
-- CLI читает сохранённый `causal-setup-validation/latest.json` и повторно использует реальные `1m` свечи;
-- каждый закрытый prefix проходит через действующий `detectLevelLines` с production options;
-- отчёт сохраняет collision episodes, pair evidence, origin gaps и prior exact-origin inheritance;
-- синтетический exact-price origin collision воспроизводится детерминированно;
-- focused detector/diagnostic tests `24/24` прошли;
-- полный backend `611/611`, typecheck, production build и security audit прошли;
-- real-data replay от `2026-08-21T17:19:42.136Z` полностью воспроизвёл `4 995` закрытых свечей из пяти datasets;
-- во всех пяти datasets обнаружены collisions: `2 712` observations, `37` exact-price groups, `42` coactive origin pairs и `77` distinct colliding lines;
-- maximum concurrency равен `3`, у `58` новых линий зафиксировано inherited prior exact-origin evidence;
-- invariant violations — `0`, status — `diagnosed_with_collisions`;
-- немедленное объединение по цене не рекомендовано: отчёт ещё не разделяет независимый новый origin и ложный повтор;
-- production Level Lines, Setup mapping и decision rules не изменены;
-- report сохранён как `backend/.tmp/level-lines-exact-price-origin-collision-diagnostics/latest.json`.
+- добавлен versioned classifier `level-lines-exact-price-origin-collision-classification-v0.1` и отдельный CLI;
+- исходный report SHA256 `bc55be6fd9cdc65bbcb519efa71da4278bcaf90863a6b09b322a6265a8116f3e` прочитан без изменения;
+- все `42` пары классифицированы без unresolved случаев: `32` `active_origin_reconfirmation` и `10` `worked_origin_retention_rearm`;
+- independent-origin candidates — `0`, classification violations — `0`;
+- origin gap составляет `4–198` свечей, медиана `18,5`; искусственный gap-threshold не выбран;
+- required policy split: active exact-price identity reuse отдельно от worked identity retirement/rearm;
+- focused tests `28/28`, полный backend `615/615`, typecheck, production build и security audit прошли;
+- статус `classified_with_split_resolution`;
+- production identity, History, Setup mapping, decision rules, signals и trade orders не изменены.
 
 Критерии завершения текущей ветки:
 
-- versioned diagnostics contract, CLI и focused tests зафиксированы;
-- `git diff --check`, точный file scope, полный backend и production build проходят;
-- сохранённые реальные datasets полностью воспроизведены;
-- exact-price collision prevalence и origin-pair evidence записаны в report;
-- causal и safety violations равны нулю;
-- результат не скрывает collisions и не меняет production identity;
+- versioned classification contract, CLI, tests и документация зафиксированы;
+- источник проверяется по version/status/violations и сохраняется по SHA256;
+- каждая pair classification содержит rationale, confidence и только diagnostic resolution direction;
+- все `42` пары классифицированы, unresolved и violations равны нулю;
+- полный backend, typecheck, production build и audit проходят;
 - изменения опубликованы отдельным draft PR, GitHub Actions зелёные.
 
-Следующая отдельная задача после публикации текущей диагностики:
+Следующая отдельная задача после публикации классификации:
 
-**NEXUS Level Lines Exact-Price Origin Collision Classification v0.1**
+**NEXUS Level Lines Exact-Price Origin Resolution Contract v0.1**
 
-- классифицировать все `42` coactive origin pairs по origin gap, inherited evidence, touch history и продолжительности совместной активности;
-- отделить возможный независимый новый structural origin от повторного origin на уже активной точной цене;
-- не проектировать resolution contract до полученной классификации;
-- market-context opposed-state variation оставить отдельной последующей задачей.
+- для `active_origin_reconfirmation` переиспользовать current exact-price identity вместо создания второй current line;
+- для `worked_origin_retention_rearm` сохранить прежний worked record в History, вывести его из current projection и создать новый episode;
+- проверить replay-equivalence, отсутствие визуальных повторов и сохранность History до production wiring;
+- не использовать один global merge по цене для обеих lifecycle-ветвей.
 
-До завершения классификации:
+До завершения resolution contract:
 
 - не объединять exact-price Level Lines;
 - не менять formula `lineId`, pivot или touch rules;
