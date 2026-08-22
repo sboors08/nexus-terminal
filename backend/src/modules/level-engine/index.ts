@@ -31,3 +31,5 @@ export * from './realtime-confirmation-engine.js';
 export * from './realtime-confirmation-engine.types.js';
 export * from './level-lines-detector.js';
 export * from './level-lines.types.js';
+export * from './level-lines-exact-price-origin-resolution.js';
+export * from './level-lines-exact-price-origin-resolution.types.js';

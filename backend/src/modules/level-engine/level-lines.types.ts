@@ -26,6 +26,9 @@ import type {
 import type {
   UnifiedDecision,
 } from '../decision-engine/unified-decision.types.js';
+import type {
+  LevelLinesExactPriceOriginResolutionResult,
+} from './level-lines-exact-price-origin-resolution.types.js';
 
 export const LEVEL_LINES_CONTRACT_VERSION =
   'level-lines-v0.1' as const;
@@ -106,6 +109,8 @@ export interface LevelLinesDetectionResult {
   readonly ignoredOpenCandlesCount: number;
   readonly lines: readonly LevelLine[];
   readonly activeLevels: readonly LevelLine[];
+  readonly exactPriceOriginResolution:
+    LevelLinesExactPriceOriginResolutionResult;
   readonly departureExtremumTracking:
     DepartureExtremumTrackingResult;
   readonly observationTracking:
