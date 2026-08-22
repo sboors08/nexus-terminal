@@ -76,6 +76,25 @@ export interface ScannerSetupTableRow {
   shadowStatus?: string;
 }
 
+export function isScannerSetupBelowKnownQuoteVolume(
+  setup: Pick<
+    ScannerSetupTableRow,
+    'quoteVolume24h'
+  >,
+  minQuoteVolume24h: number,
+): boolean {
+  const quoteVolume24h =
+    setup.quoteVolume24h;
+
+  return (
+    minQuoteVolume24h > 0
+    && quoteVolume24h !== null
+    && quoteVolume24h !== undefined
+    && quoteVolume24h
+      < minQuoteVolume24h
+  );
+}
+
 export type ScannerSetupMetricsIndex =
   Readonly<
     Record<

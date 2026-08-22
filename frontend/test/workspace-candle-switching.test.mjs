@@ -301,6 +301,49 @@ test(
 );
 
 test(
+  'starts live candle streaming only after historical candles are ready',
+  () => {
+    const source =
+      fs
+        .readFileSync(
+          new URL(
+            '../src/shared/charts/hooks/useMarketCandles.ts',
+            import.meta.url,
+          ),
+          'utf8',
+        )
+        .replace(
+          /\r\n/g,
+          '\n',
+        );
+
+    const liveEffectStart =
+      source.indexOf(
+        '    if (\n      liveSubscriptionKey\n      !== key',
+      );
+
+    const historicalFetchStart =
+      source.indexOf(
+        '    fetchMarketCandles({',
+      );
+
+    assert.ok(
+      liveEffectStart >= 0,
+    );
+
+    assert.ok(
+      historicalFetchStart
+      > liveEffectStart,
+    );
+
+    assert.match(
+      source,
+      /setLiveSubscriptionKey\(\s*key,\s*\);/u,
+    );
+  },
+);
+
+test(
   'preserves the request error while cached candles remain visible',
   () => {
     const source =

@@ -354,6 +354,13 @@ export function useMarketCandles(
   });
 
   const [
+    liveSubscriptionKey,
+    setLiveSubscriptionKey,
+  ] = useState<string | null>(
+    null,
+  );
+
+  const [
     browserOnline,
     setBrowserOnline,
   ] = useState(
@@ -455,6 +462,13 @@ export function useMarketCandles(
   ]);
 
   useEffect(() => {
+    if (
+      liveSubscriptionKey
+      !== key
+    ) {
+      return;
+    }
+
     liveCandleRef.current =
       null;
 
@@ -558,6 +572,7 @@ export function useMarketCandles(
     return unsubscribe;
   }, [
     key,
+    liveSubscriptionKey,
     options.baseUrl,
     options.symbol,
     options.timeframe,
@@ -586,6 +601,12 @@ export function useMarketCandles(
       readMarketCandlesCache(
         key,
       );
+
+    setLiveSubscriptionKey(
+      cached
+        ? key
+        : null,
+    );
 
     commitState(
       cached
@@ -711,6 +732,10 @@ export function useMarketCandles(
           updatedAt,
         );
 
+        setLiveSubscriptionKey(
+          key,
+        );
+
         commitState({
           status:
             'success',
@@ -768,6 +793,10 @@ export function useMarketCandles(
             fallbackData,
             cached.hasMore,
             fallbackUpdatedAt,
+          );
+
+          setLiveSubscriptionKey(
+            key,
           );
 
           commitState({
@@ -862,6 +891,10 @@ export function useMarketCandles(
           olderError:
             null,
         });
+
+        setLiveSubscriptionKey(
+          null,
+        );
       });
 
     return () => {
