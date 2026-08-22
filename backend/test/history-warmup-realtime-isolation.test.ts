@@ -223,6 +223,52 @@ implements SetupDetectionRuntimeSource {
     source:
       SetupDetectionKlineChange['source'],
   ): void {
+    if (source === 'live') {
+      const latest =
+        this.klines.at(-1);
+
+      if (!latest) {
+        throw new Error(
+          'live fixture requires one retained kline',
+        );
+      }
+
+      const openTimeMs =
+        Date.parse(latest.openTime)
+        + 60_000;
+      const closeTimeMs =
+        openTimeMs + 59_999;
+      const open = latest.close;
+      const close = open + 0.25;
+
+      this.klines.push({
+        ...latest,
+        eventTime:
+          new Date(
+            closeTimeMs,
+          ).toISOString(),
+        openTime:
+          new Date(
+            openTimeMs,
+          ).toISOString(),
+        closeTime:
+          new Date(
+            closeTimeMs,
+          ).toISOString(),
+        open,
+        high: close + 1,
+        low: open - 1,
+        close,
+        volume: latest.volume + 1,
+        quoteVolume:
+          latest.quoteVolume + 1_000,
+        tradesCount:
+          latest.tradesCount + 1,
+        takerBuyQuoteVolume:
+          latest.takerBuyQuoteVolume + 100,
+      });
+    }
+
     const event:
       SetupDetectionKlineChange = {
         source,
