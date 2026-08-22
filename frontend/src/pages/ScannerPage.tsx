@@ -21,6 +21,7 @@ import {
   formatScannerTradeTime,
   getScannerRealtimeConnectionLabel,
   indexScannerSetupMetrics,
+  isScannerSetupBelowKnownQuoteVolume,
   nextScannerSetupSortState,
   sortScannerSetupRows,
   useMarketVolumeSpikes,
@@ -46,7 +47,6 @@ import { DirectionBadge, type TradeDirection } from '@/shared/ui/DirectionBadge'
 import { SetupStageBadge, type SetupStage } from '@/shared/ui/SetupStageBadge';
 import { LevelV2ShadowInspectionPanel } from '@/shared/ui/LevelV2ShadowInspectionPanel';
 import {
-  TRADING_PRESET_IDS,
   TRADING_PRESETS,
   isScannerWindow,
   isTradingPreset,
@@ -529,6 +529,41 @@ function ScannerPageContent({
       [setups],
     );
 
+  const availableTimeframes =
+    useMemo(
+      () =>
+        (
+          [
+            '1m',
+            '5m',
+            '15m',
+          ] as const
+        ).filter(
+          (value) =>
+            runtimeTimeframes.has(
+              value,
+            ),
+        ),
+      [runtimeTimeframes],
+    );
+
+  useEffect(
+    () => {
+      if (
+        timeframe !== 'all'
+        && !runtimeTimeframes.has(
+          timeframe,
+        )
+      ) {
+        setTimeframe('all');
+      }
+    },
+    [
+      runtimeTimeframes,
+      timeframe,
+    ],
+  );
+
   const oneMinuteMetrics =
     useMarketWideScannerMetrics({
       enabled:
@@ -663,11 +698,9 @@ function ScannerPageContent({
       if (stage !== 'all' && setup.stage !== stage) return false;
       if (timeframe !== 'all' && setup.timeframe !== timeframe) return false;
       if (
-        minQuoteVolume > 0
-        && (
-          setup.quoteVolume24h === null
-          || setup.quoteVolume24h === undefined
-          || setup.quoteVolume24h < minQuoteVolume
+        isScannerSetupBelowKnownQuoteVolume(
+          setup,
+          minQuoteVolume,
         )
       ) return false;
       if (maxDistance !== null && setup.distancePercent > maxDistance) return false;
@@ -792,7 +825,13 @@ function ScannerPageContent({
     candles: candlesQuery.data ?? [],
   });
 
-  const realtime = useRealtimeMarketData({ symbol: selectedSymbol });
+  const realtime = useRealtimeMarketData({
+    symbol:
+      selectedSymbol,
+    enabled:
+      candlesQuery.status
+      === 'success',
+  });
   const realtimeSnapshot = realtime.snapshots[selectedSymbol];
   const realtimeMarket = useMemo(
     () => buildScannerRealtimeMarketView(
@@ -863,22 +902,6 @@ function ScannerPageContent({
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set('setupId', setupId);
     nextParams.delete('symbol');
-    setSearchParams(nextParams);
-  };
-
-  const selectPreset = (value: TradingPreset) => {
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set('setupId', selectedSetup.id);
-    nextParams.set('preset', value);
-    nextParams.set('scannerWindow', TRADING_PRESETS[value].defaultScannerWindow);
-    setSearchParams(nextParams);
-  };
-
-  const selectScannerWindow = (value: ScannerWindow) => {
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set('setupId', selectedSetup.id);
-    nextParams.set('preset', preset);
-    nextParams.set('scannerWindow', value);
     setSearchParams(nextParams);
   };
 
@@ -1067,43 +1090,6 @@ function ScannerPageContent({
       </header>
 
       <section className={styles.filtersPanel} aria-label="Фильтры Scanner">
-        <div className={styles.presetFilter}>
-          <span className={styles.controlLabel}>Торговый пресет</span>
-          <div
-            className={`${styles.segmentedControl} ${styles.presetControl}`}
-            aria-label="Торговый пресет Scanner"
-          >
-            {TRADING_PRESET_IDS.map((value) => (
-              <button
-                key={value}
-                type="button"
-                className={preset === value ? styles.segmentActive : ''}
-                onClick={() => selectPreset(value)}
-                aria-pressed={preset === value}
-              >
-                {TRADING_PRESETS[value].label}
-              </button>
-            ))}
-          </div>
-          <span className={styles.controlLabel}>Период анализа</span>
-          <div
-            className={`${styles.segmentedControl} ${styles.scannerWindowControl}`}
-            aria-label="Период анализа Scanner"
-          >
-            {presetDefinition.scannerWindows.map((value) => (
-              <button
-                key={value}
-                type="button"
-                className={scannerWindow === value ? styles.segmentActive : ''}
-                onClick={() => selectScannerWindow(value)}
-                aria-pressed={scannerWindow === value}
-              >
-                {value}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className={styles.filterTopRow}>
           <label className={styles.searchField}>
             <span>Поиск инструмента</span>
@@ -1164,12 +1150,21 @@ function ScannerPageContent({
           </label>
 
           <label className={styles.selectField}>
-            <span>Таймфрейм</span>
+            <span title="Показаны только таймфреймы, на которых production Setup Engine вернул текущие кандидаты.">
+              Таймфрейм сетапа
+            </span>
             <select value={timeframe} onChange={(event) => setTimeframe(event.target.value as TimeframeFilter)}>
               <option value="all">Все TF</option>
-              <option value="1m">1m</option>
-              <option value="5m">5m</option>
-              <option value="15m">15m</option>
+              {availableTimeframes.map(
+                (value) => (
+                  <option
+                    key={value}
+                    value={value}
+                  >
+                    {value}
+                  </option>
+                ),
+              )}
             </select>
           </label>
         </div>
@@ -2337,62 +2332,11 @@ export function ScannerPage() {
     setMinQuoteVolumeMillions,
   ] = useState('0');
 
-  const [
-    debouncedMinQuoteVolumeMillions,
-    setDebouncedMinQuoteVolumeMillions,
-  ] = useState('0');
-
-  useEffect(
-    () => {
-      const timeoutId =
-        window.setTimeout(
-          () => {
-            setDebouncedMinQuoteVolumeMillions(
-              minQuoteVolumeMillions,
-            );
-          },
-          350,
-        );
-
-      return () => {
-        window.clearTimeout(
-          timeoutId,
-        );
-      };
-    },
-    [
-      minQuoteVolumeMillions,
-    ],
-  );
-
-  const parsedMinQuoteVolumeMillions =
-    Number(
-      debouncedMinQuoteVolumeMillions
-        .replace(',', '.'),
-    );
-
-  const minQuoteVolume24h =
-    Number.isFinite(
-      parsedMinQuoteVolumeMillions,
-    )
-    && parsedMinQuoteVolumeMillions > 0
-      ? parsedMinQuoteVolumeMillions
-          * 1_000_000
-      : 0;
-
   const query =
     useApiQuery(
-      `scanner-setups:${minQuoteVolume24h}`,
+      'scanner-setups',
       () =>
-        nexusApi.getScannerSetups({
-          ...(
-            minQuoteVolume24h > 0
-              ? {
-                  minQuoteVolume24h,
-                }
-              : {}
-          ),
-        }),
+        nexusApi.getScannerSetups(),
       {
         preserveData:
           true,

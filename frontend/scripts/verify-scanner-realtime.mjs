@@ -25,7 +25,10 @@ const [pageSource, cssSource, helperSource, indexSource, packageSource] = await 
 ]);
 
 const requiredMarkers = [
-  'useRealtimeMarketData({ symbol: selectedSymbol })',
+  'const realtime = useRealtimeMarketData({',
+  'enabled:',
+  'candlesQuery.status',
+  "=== 'success',",
   'realtime.snapshots[selectedSymbol]',
   'buildScannerRealtimeMarketView',
   'SAVED SETUPS · UPDATE ERROR',

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   DEFAULT_SCANNER_SETUP_TABLE_SORT_STATE,
@@ -6,9 +7,19 @@ import {
   applyScannerSetupLiveMetrics,
   buildScannerSetupMetricKey,
   indexScannerSetupMetrics,
+  isScannerSetupBelowKnownQuoteVolume,
   nextScannerSetupSortState,
   sortScannerSetupRows,
 } from '../node_modules/.tmp/realtime-test/realtime/scannerSetupTable.js';
+
+const scannerPageSource =
+  await readFile(
+    new URL(
+      '../src/pages/ScannerPage.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
 
 function createMetric(
   symbol,
@@ -74,6 +85,132 @@ function createRow(
     ...overrides,
   };
 }
+
+test(
+  'does not render disconnected Scanner trading-preset controls',
+  () => {
+    assert.doesNotMatch(
+      scannerPageSource,
+      /Торговый пресет/u,
+    );
+
+    assert.doesNotMatch(
+      scannerPageSource,
+      /selectPreset/u,
+    );
+  },
+);
+
+test(
+  'does not render a disconnected Scanner analysis-period control',
+  () => {
+    assert.doesNotMatch(
+      scannerPageSource,
+      /Период анализа/u,
+    );
+
+    assert.doesNotMatch(
+      scannerPageSource,
+      /selectScannerWindow/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /Таймфрейм сетапа/u,
+    );
+  },
+);
+
+test(
+  'waits for historical candles before subscribing the selected Scanner symbol',
+  () => {
+    assert.match(
+      scannerPageSource,
+      /useRealtimeMarketData\(\{[\s\S]*?symbol:\s*selectedSymbol,[\s\S]*?enabled:\s*candlesQuery\.status\s*===\s*'success',[\s\S]*?\}\);/u,
+    );
+  },
+);
+
+test(
+  'keeps server-filtered setups while local 24h volume is loading',
+  () => {
+    assert.equal(
+      isScannerSetupBelowKnownQuoteVolume(
+        createRow({
+          quoteVolume24h:
+            null,
+        }),
+        1_000_000,
+      ),
+      false,
+    );
+
+    assert.equal(
+      isScannerSetupBelowKnownQuoteVolume(
+        createRow({}),
+        1_000_000,
+      ),
+      false,
+    );
+
+    assert.equal(
+      isScannerSetupBelowKnownQuoteVolume(
+        createRow({
+          quoteVolume24h:
+            900_000,
+        }),
+        1_000_000,
+      ),
+      true,
+    );
+
+    assert.equal(
+      isScannerSetupBelowKnownQuoteVolume(
+        createRow({
+          quoteVolume24h:
+            1_100_000,
+        }),
+        1_000_000,
+      ),
+      false,
+    );
+  },
+);
+
+test(
+  'loads Scanner candidates independently from the optional volume filter',
+  () => {
+    assert.match(
+      scannerPageSource,
+      /nexusApi\.getScannerSetups\(\)/u,
+    );
+
+    assert.doesNotMatch(
+      scannerPageSource,
+      /nexusApi\.getScannerSetups\(\{[\s\S]*?minQuoteVolume24h/u,
+    );
+  },
+);
+
+test(
+  'offers only timeframes present in current production candidates',
+  () => {
+    assert.match(
+      scannerPageSource,
+      /const availableTimeframes =[\s\S]*?runtimeTimeframes\.has/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /availableTimeframes\.map/u,
+    );
+
+    assert.doesNotMatch(
+      scannerPageSource,
+      /<option value="5m">5m<\/option>/u,
+    );
+  },
+);
 
 test(
   'indexes live Scanner metrics by symbol and timeframe',
