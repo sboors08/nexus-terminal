@@ -912,7 +912,7 @@ Replay обязателен для v1.0.
 | 3 | Futures Market Metrics | Частично | Реализованы realtime и multi-window цена/объём/сделки/волатильность/BTC-метрики; Funding Rate, Open Interest и ликвидации ещё впереди |
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134; Workspace отображает backend Unified Decision без frontend-пересчёта направления |
-| 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены; exact-price resolution path проверен на real data | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы. На `4 995` закрытых свечах подтверждены `40` exact-price decisions без residual collisions/violations; полный manual review dataset не завершён |
+| 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены; exact-price resolution path проверен на real data | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы. На `4 995` свечах подтверждены `40` exact-price decisions без residual collisions/violations; frozen Manual Review sample ранее завершён `100/100` и повторно не запускается |
 | 7 | Setup Engine | Causal integration, episode rearm, current-episode read projection, exact-price split resolution и multi-timeframe runtime v0.1 реализованы | Production Setup Engine рассчитывает независимые `1m / 5m / 15m / 1h / 4h` сетапы. Production causal replay фактически подтвердил `31` active identity reuse и `9` worked identity rearm decisions с сохранением History. Global price merge отклонён |
 | 8 | Alerts | Backend, frontend, persistence и external delivery foundation v0.1 реализованы, развитие продолжается | Есть versioned persistent backend-domain, HTTP API, Setup lifecycle, Market Wide Volume Spike/trades adapters, BTC Market Mode producer, вычисленный impulse-source и restart-safe provider-neutral outbox; Alerts page использует реальные runtime contracts без mock fallback. Реальный delivery adapter, канал/credentials и multi-user ownership ещё впереди |
 | 9 | Пользователи и сохранение данных | Частично | Есть feedback persistence, Alerts Persistence Foundation и runtime event history; Auth, приглашения, ownership, Watchlist persistence и постоянная история сетапов не завершены |
@@ -940,7 +940,7 @@ Replay обязателен для v1.0.
 - Auth нужен подпискам и персональным настройкам.
 - Admin нужен контролю качества и откату моделей.
 - Data Contract обязателен для всех frontend/backend-интеграций.
-- Полный manual review нужен для оценки качества уровней; автоматические тесты не заменяют эту проверку.
+- Frozen Manual Review causal Level Lines уже выполнен на выборке `100/100`; повторная разметка той же sample не требуется. Новые изменения качества требуют отдельного versioned evidence.
 
 ---
 
@@ -1073,11 +1073,13 @@ Replay обязателен для v1.0.
 - не удалять исторические episodes;
 - не использовать UI-округление как критерий тождества уровня.
 
+Manual Review уже завершён ранее на frozen sample `100/100` и повторно не выполняется.
+
 Следующая отдельная задача после merge и зелёного CI:
 
-**NEXUS Level Lines Manual Review Dataset Completion v0.1**
+**NEXUS Persistent Setup Event History Foundation v0.1**
 
-Её граница — расширить и завершить ручную оценку качества уже существующих causal Level Lines на зафиксированной реальной выборке. Она не должна менять production thresholds, lifecycle, ranking или торговые правила по одному наблюдению; любые изменения допускаются только отдельным последующим решением на основании versioned review evidence.
+Её граница — только backend persistence для реальных Setup lifecycle events: versioned snapshot, atomic JSON storage, hydration до live subscription, restart-safe History identity/dedupe, bounded retention, terminal outcomes и degraded mode. Frontend Market History, полный Replay, outcome dataset и Self-Learning остаются отдельными последующими этапами.
 
 ---
 
