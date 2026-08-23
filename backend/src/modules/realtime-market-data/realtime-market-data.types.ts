@@ -42,6 +42,15 @@ export interface RealtimeBookTicker {
   updatedAt: string;
 }
 
+export interface RealtimeMarkPrice {
+  symbol: string;
+  price: number;
+  indexPrice: number;
+  fundingRatePct: number;
+  nextFundingAt: string;
+  updatedAt: string;
+}
+
 export const REALTIME_CANDLE_TIMEFRAMES = [
   '1m',
   '3m',
@@ -80,6 +89,7 @@ export interface RealtimeSymbolSnapshot {
   symbol: string;
   lastTrade: RealtimeTrade | null;
   bookTicker: RealtimeBookTicker | null;
+  markPrice?: RealtimeMarkPrice | null;
   recentTrades: RealtimeTrade[];
   updatedAt: string | null;
 }

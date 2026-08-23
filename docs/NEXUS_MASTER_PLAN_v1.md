@@ -908,7 +908,7 @@ Replay обязателен для v1.0.
 | --- | --- | --- | --- |
 | 1 | Публичная страница | Частично | Есть публичный frontend-фундамент и SEO/i18n-заготовки; финальные лендинг, тексты, локализация и заявка в beta не завершены |
 | 2 | Binance USDⓈ-M Futures Migration | Завершён | PR #27; целевой рынок переведён на активные USDT perpetual contracts |
-| 3 | Futures Market Metrics | Частично | Реализованы realtime и multi-window цена/объём/сделки/волатильность/BTC-метрики; Funding Rate, Open Interest и ликвидации ещё впереди |
+| 3 | Futures Market Metrics | Частично | Реализованы realtime и multi-window цена/объём/сделки/волатильность/BTC-метрики, а также Mark Price + Funding Rate Runtime Foundation v0.1; Open Interest и ликвидации ещё впереди |
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134; Workspace отображает backend Unified Decision без frontend-пересчёта направления |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены; exact-price resolution path проверен на real data | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы. На `4 995` свечах подтверждены `40` exact-price decisions без residual collisions/violations; frozen Manual Review sample ранее завершён `100/100` и повторно не запускается |
@@ -1225,3 +1225,60 @@ Factual `missing_third_touch_anchor` сам по себе не является 
 Подробный контракт:
 
 `NEXUS_SETUP_OUTCOME_SAMPLE_SUFFICIENCY_v0.1.md`.
+
+---
+
+## 39. Futures Mark Price + Funding Rate Runtime Foundation v0.1
+
+Статус: `IMPLEMENTED_AND_LOCALLY_VALIDATED`.
+
+Раздел официальной дорожной карты:
+
+`Stage 3 — Futures Market Metrics`.
+
+Реализовано:
+
+- factual Binance USDⓈ-M Futures `<symbol>@markPrice@1s`;
+- Mark Price;
+- Index Price;
+- Funding Rate в процентах через `fundingRatePct`;
+- Next Funding Time;
+- `RealtimeMarkPrice` внутри существующего `RealtimeSymbolSnapshot`;
+- существующие snapshot HTTP/SSE contracts переиспользованы;
+- новый endpoint не создавался;
+- generic realtime runtime теперь использует `3` streams на symbol вместо `2`;
+- dynamic subscriptions включают Mark Price stream.
+
+Локальная validation:
+
+- focused WebSocket tests: `9/9 PASSED`;
+- backend typecheck: `PASSED`;
+- полный backend check: `PASSED`;
+- production backend build: `PASSED`;
+- `git diff --check`: `PASSED`.
+
+Границы v0.1:
+
+- Open Interest не реализуется;
+- ликвидации не реализуются;
+- Setup Engine не изменён;
+- trading rules не изменены;
+- ranking не изменён;
+- profitability labels не применяются;
+- training не запускается;
+- Self-Learning не запускается.
+
+Factual Setup Outcome collection продолжает работать независимо и не была перезапущена ради этой feature.
+
+Stage 3 остаётся частично завершённым.
+
+Следующие отдельные derivatives-metrics задачи:
+
+1. Open Interest;
+2. ликвидации.
+
+Подробный контракт:
+
+`NEXUS_FUTURES_MARK_PRICE_FUNDING_RATE_RUNTIME_v0.1.md`.
+
+Commit, PR, merge и CI должны подтверждаться отдельно после их фактического выполнения.

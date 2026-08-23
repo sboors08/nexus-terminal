@@ -109,6 +109,12 @@ test('Binance WebSocket service adds and removes dynamic symbols with reference 
     ),
   );
 
+  assert.ok(
+    (urls[3] ?? '').includes(
+      'injusdt@markPrice@1s',
+    ),
+  );
+
   assert.equal(
     sockets[0]?.closeCalls[0]?.reason,
     'NEXUS subscriptions changed',
@@ -119,7 +125,7 @@ test('Binance WebSocket service adds and removes dynamic symbols with reference 
     'NEXUS subscriptions changed',
   );
   assert.deepEqual(service.getStatus().subscribedSymbols, ['BTCUSDT', 'INJUSDT']);
-  assert.equal(service.getStatus().streamCount, 4);
+  assert.equal(service.getStatus().streamCount, 6);
   assert.equal(service.getSnapshots('INJUSDT')[0]?.symbol, 'INJUSDT');
 
   const releaseSecond = service.acquireSymbol('INJUSDT');
@@ -358,17 +364,45 @@ test('Binance WebSocket service batches multiple dynamic subscriptions into one 
       'solusdt@bookTicker',
     ),
   );
+
+  assert.ok(
+    (urls[3] ?? '').includes(
+      'ethusdt@markPrice@1s',
+    ),
+  );
+
+  assert.ok(
+    (urls[3] ?? '').includes(
+      'solusdt@markPrice@1s',
+    ),
+  );
+
   assert.deepEqual(
     service.getStatus().subscribedSymbols,
     ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
   );
-  assert.equal(service.getStatus().streamCount, 6);
+
+  assert.equal(
+    service.getStatus().streamCount,
+    9,
+  );
 
   release();
 
-  assert.equal(sockets.length, 6);
-  assert.deepEqual(service.getStatus().subscribedSymbols, ['BTCUSDT']);
-  assert.equal(service.getStatus().streamCount, 2);
+  assert.equal(
+    sockets.length,
+    6,
+  );
+
+  assert.deepEqual(
+    service.getStatus().subscribedSymbols,
+    ['BTCUSDT'],
+  );
+
+  assert.equal(
+    service.getStatus().streamCount,
+    3,
+  );
 
   service.stop();
 });
