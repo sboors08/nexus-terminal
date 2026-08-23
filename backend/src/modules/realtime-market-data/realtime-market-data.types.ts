@@ -51,6 +51,12 @@ export interface RealtimeMarkPrice {
   updatedAt: string;
 }
 
+export interface RealtimeOpenInterest {
+  symbol: string;
+  openInterest: number;
+  updatedAt: string;
+}
+
 export const REALTIME_CANDLE_TIMEFRAMES = [
   '1m',
   '3m',

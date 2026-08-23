@@ -21,6 +21,7 @@ import {
 } from './scanner-windows.js';
 import type {
   RealtimeBookTicker,
+  RealtimeOpenInterest,
 } from './realtime-market-data.types.js';
 
 export interface BinanceOneMinuteKlineUpdate {
@@ -49,6 +50,9 @@ interface MarketWideSymbolState {
     BinanceOneMinuteKlineUpdate[];
   bookTicker:
     RealtimeBookTicker
+    | null;
+  openInterest:
+    RealtimeOpenInterest
     | null;
 }
 
@@ -218,11 +222,24 @@ function cloneBookTicker(
     : null;
 }
 
+function cloneOpenInterest(
+  value:
+    RealtimeOpenInterest
+    | null,
+):
+  RealtimeOpenInterest
+  | null {
+  return value
+    ? { ...value }
+    : null;
+}
+
 function createEmptyState():
 MarketWideSymbolState {
   return {
     klines: [],
     bookTicker: null,
+    openInterest: null,
   };
 }
 
@@ -1136,6 +1153,68 @@ export class MarketWideOneMinuteMetricsStore {
     return true;
   }
 
+
+  applyOpenInterest(
+    value:
+      RealtimeOpenInterest,
+  ): boolean {
+    const symbol =
+      normalizeSymbol(
+        value.symbol,
+      );
+
+    const state =
+      this.states.get(
+        symbol,
+      );
+
+    if (!state) {
+      return false;
+    }
+
+    const updatedAtMs =
+      Date.parse(
+        value.updatedAt,
+      );
+
+    if (
+      !Number.isFinite(
+        updatedAtMs,
+      )
+      || !Number.isFinite(
+        value.openInterest,
+      )
+      || value.openInterest < 0
+    ) {
+      throw new Error(
+        `Invalid market-wide open interest: ${symbol}`,
+      );
+    }
+
+    const currentUpdatedAtMs =
+      state.openInterest
+        ? Date.parse(
+            state.openInterest
+              .updatedAt,
+          )
+        : Number
+            .NEGATIVE_INFINITY;
+
+    if (
+      updatedAtMs
+      < currentUpdatedAtMs
+    ) {
+      return false;
+    }
+
+    state.openInterest = {
+      ...value,
+      symbol,
+    };
+
+    return true;
+  }
+
   getMetrics(
     symbol?: string,
     scannerWindow:
@@ -1326,6 +1405,9 @@ export class MarketWideOneMinuteMetricsStore {
     bookTicker:
       RealtimeBookTicker
       | null;
+    openInterest:
+      RealtimeOpenInterest
+      | null;
   } | null {
     const normalizedSymbol =
       normalizeSymbol(symbol);
@@ -1350,6 +1432,10 @@ export class MarketWideOneMinuteMetricsStore {
           bookTicker:
             cloneBookTicker(
               state.bookTicker,
+            ),
+          openInterest:
+            cloneOpenInterest(
+              state.openInterest,
             ),
         }
       : null;
@@ -1606,6 +1692,14 @@ export class MarketWideOneMinuteMetricsStore {
       windowMs,
       price,
       priceChangePct,
+      openInterest:
+        state.openInterest
+          ?.openInterest
+        ?? null,
+      openInterestUpdatedAt:
+        state.openInterest
+          ?.updatedAt
+        ?? null,
       btcCorrelation: null,
       relativeStrengthPct: null,
       volumeAnomaly:
@@ -1638,6 +1732,8 @@ export class MarketWideOneMinuteMetricsStore {
         latestTimestamp([
           latestKline?.eventTime,
           bookTicker?.updatedAt,
+          state.openInterest
+            ?.updatedAt,
         ]),
     };
   }

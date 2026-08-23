@@ -20,6 +20,7 @@ import {
 import type {
   RealtimeBookTicker,
   RealtimeCandle,
+  RealtimeOpenInterest,
   RealtimeCandleTimeframe,
   RealtimeSocketEvent,
   RealtimeWebSocket,
@@ -1086,6 +1087,17 @@ export class MarketWideRealtimeService {
     };
   }
 
+
+  applyOpenInterest(
+    value:
+      RealtimeOpenInterest,
+  ): boolean {
+    return this.metricsStore
+      .applyOpenInterest(
+        value,
+      );
+  }
+
   getState(
     symbol: string,
   ): {
@@ -1094,6 +1106,9 @@ export class MarketWideRealtimeService {
       | null;
     bookTicker:
       RealtimeBookTicker
+      | null;
+    openInterest:
+      RealtimeOpenInterest
       | null;
   } | null {
     return this.metricsStore.getState(
