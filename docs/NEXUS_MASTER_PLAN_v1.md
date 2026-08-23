@@ -1022,52 +1022,59 @@ Replay обязателен для v1.0.
 
 Последняя полностью закрытая задача:
 
-**NEXUS Market History Runtime Integration v0.1**
+**NEXUS Real Setup Replay Foundation v0.1**
 
 Фактический результат:
 
-- PR #181 merged в `main`;
-- merge commit: `eca66a8e4f78819c4c5b8fefeca591537805fb94`;
-- Market History использует production read-model поверх Persistent Setup Event History;
-- production route больше не читает fixture archive;
-- lifecycle result остаётся factual: `active`, `breakout_confirmed`, `rejection_confirmed`, `expired`;
-- partial retained history явно маркируется при bounded retention;
-- profitability, PnL и synthetic Replay не добавлены;
-- Backend и Frontend PR CI — success;
+- PR #182 merged в `main`;
+- merge commit: `95836392ff64bd724337bb6b7f1f099e3e41b6a8`;
+- production `/app/replay` использует persistent Setup lifecycle History;
+- один Replay frame соответствует одному сохранённому factual lifecycle event;
+- complete/partial retained history различаются явно;
+- final terminal result не раскрывается раньше соответствующего Replay frame;
+- historical candles, aggTrade, order book и PnL не синтезируются;
+- PR Backend и Frontend CI — success;
 - post-merge Backend и Frontend CI — success.
-
-Manual Review уже завершён ранее на frozen sample `100/100` и повторно не выполняется.
 
 Текущая отдельная задача:
 
-**NEXUS Real Setup Replay Foundation v0.1**
+**NEXUS Setup Outcome Dataset / Validation v0.1**
 
 Цель:
 
-- построить Replay поверх уже сохранённых persistent Setup lifecycle events;
-- один Replay frame = один factual lifecycle event + сохранённый candidate snapshot;
-- воспроизводить stage/outcome/current price/distance/level/episode/line identity event-by-event;
-- поддержать complete и partial retained history;
-- перевести production `/app/replay` с frontend fixture scenario на runtime endpoint;
-- открыть переход `Market History → Replay`;
-- использовать lifecycle SSE только как trigger повторного чтения;
-- явно зафиксировать недоступность historical candles/aggTrade/order book/PnL вместо их синтеза.
+- использовать Persistent Setup Event History как источник identity/lifecycle;
+- использовать factual `THIRD_TOUCH_CONFIRMED` как causal outcome anchor;
+- измерять post-anchor market path только по реальным закрытым Binance USD-M Futures `1m` candles;
+- исключать anchor minute из excursion metrics;
+- считать direction-aware favorable/adverse excursion;
+- фиксировать signed returns на 5m / 15m / 30m / 60m;
+- сохранять terminal lifecycle отдельно от market outcome measurement;
+- при отсутствии measured real sample возвращать `insufficient_sample`.
+
+Текущее фактическое состояние источника на старте задачи:
+
+- Setup Event History state: `running`;
+- persistence: `ready`, hydrated, writable;
+- persistence errors: `0`;
+- retained events: `0`;
+- реальная outcome sample: недостаточна.
 
 В этот этап не входят:
 
-- historical OHLC reconstruction;
-- historical tape/order-book reconstruction;
-- liquidity replay;
-- `maxMovePct`, adverse move, time-to-target и PnL;
-- profitability / success-rate;
-- outcome dataset;
-- Self-Learning;
-- изменение Observation/Approach/Confirmation thresholds;
-- изменение breakout/rejection/expiry/ranking/lineId/touch rules.
+- `successful` / `failed` labels;
+- profitability / PnL;
+- stop / take-profit / execution assumptions;
+- изменение Setup Engine;
+- изменение Level Lines;
+- изменение Observation / Approach / Confirmation;
+- изменение breakout / rejection / expiry;
+- изменение ranking;
+- model training;
+- Self-Learning.
 
-Следующая отдельная задача после merge и зелёного post-merge CI:
+Подробный контракт:
 
-**NEXUS Setup Outcome Dataset / Validation**
+`NEXUS_SETUP_OUTCOME_DATASET_VALIDATION_v0.1.md`.
 
 ---
 
@@ -1105,3 +1112,9 @@ PR #180 объединил restart-safe persistent Setup lifecycle History. Vers
 ## 36. Market History Runtime Integration v0.1
 
 Текущая задача переводит пользовательский Market History route на production read-model поверх persistent Setup lifecycle events. UI показывает только factual candidate/episode lifecycle, level и identity data. Profitability metrics, `maxMovePct`, adverse move, time-to-target и Replay не синтезируются и остаются последующими отдельными этапами. Подробный контракт: `NEXUS_MARKET_HISTORY_RUNTIME_INTEGRATION_v0.1.md`.
+
+---
+
+## 37. Setup Outcome Dataset / Validation v0.1
+
+Отдельный offline validation layer измеряет фактическое направление и величину движения рынка после production Setup Engine `THIRD_TOUCH_CONFIRMED` anchor. Источник identity/lifecycle — Persistent Setup Event History; источник post-event цен — реальные закрытые Binance USD-M Futures `1m` candles. Anchor minute исключается для предотвращения pre-anchor high/low contamination. v0.1 записывает MFE, MAE и signed returns на 5/15/30/60 минут, но не создаёт `successful`/`failed`, profitability, PnL или Self-Learning labels. При отсутствии полного real sample статус остаётся `insufficient_sample`. Подробный контракт: `NEXUS_SETUP_OUTCOME_DATASET_VALIDATION_v0.1.md`.
