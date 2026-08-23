@@ -47,6 +47,9 @@ import {
   setupEventHistoryRoutes,
 } from './setup-engine/setup-event-history.routes.js';
 import {
+  marketHistoryRuntimeRoutes,
+} from './setup-engine/market-history-runtime.routes.js';
+import {
   setupLifecycleSseRoutes,
 } from './setup-engine/setup-lifecycle-sse.routes.js';
 import {
@@ -464,6 +467,22 @@ FastifyPluginAsync<
 
   await app.register(
     setupEventHistoryRoutes,
+    {
+      ...(
+        options
+          .setupEventHistoryReader
+          ? {
+              setupEventHistoryReader:
+                options
+                  .setupEventHistoryReader,
+            }
+          : {}
+      ),
+    },
+  );
+
+  await app.register(
+    marketHistoryRuntimeRoutes,
     {
       ...(
         options

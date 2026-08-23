@@ -37,6 +37,7 @@
     "src/shared/api/runtime/feedbackApi.ts",
     "src/shared/api/runtime/alertsRuntimeApi.ts",
     "src/shared/api/runtime/setupRuntimeApi.ts",
+    "src/shared/api/runtime/marketHistoryRuntimeApi.ts",
     "src/shared/api/runtime/levelV2ShadowApi.ts",
     "src/shared/api/runtime/levelV2ShadowInspectionApi.ts",
     "src/shared/api/runtime/levelEngineFrozenSampleApi.ts",
