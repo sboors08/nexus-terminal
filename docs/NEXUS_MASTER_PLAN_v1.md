@@ -1118,3 +1118,39 @@ PR #180 объединил restart-safe persistent Setup lifecycle History. Vers
 ## 37. Setup Outcome Dataset / Validation v0.1
 
 Отдельный offline validation layer измеряет фактическое направление и величину движения рынка после production Setup Engine `THIRD_TOUCH_CONFIRMED` anchor. Источник identity/lifecycle — Persistent Setup Event History; источник post-event цен — реальные закрытые Binance USD-M Futures `1m` candles. Anchor minute исключается для предотвращения pre-anchor high/low contamination. v0.1 записывает MFE, MAE и signed returns на 5/15/30/60 минут, но не создаёт `successful`/`failed`, profitability, PnL или Self-Learning labels. При отсутствии полного real sample статус остаётся `insufficient_sample`. Подробный контракт: `NEXUS_SETUP_OUTCOME_DATASET_VALIDATION_v0.1.md`.
+
+## 27. Setup Outcome Sample Sufficiency v0.1
+
+Статус: `IN PROGRESS`.
+
+После появления первого factual measured Setup Outcome следующий
+offline gate фиксируется до исследования success/failure labels.
+
+Минимальная выборка v0.1:
+
+- не менее 100 eligible measured candidates всего;
+- не менее 25 `level_breakout:long`;
+- не менее 25 `level_breakout:short`;
+- не менее 25 `level_bounce:long`;
+- не менее 25 `level_bounce:short`.
+
+Это governance threshold для допуска к следующему исследовательскому
+этапу, а не утверждение статистической мощности или прибыльности.
+
+Sufficiency блокируется при unresolved data-integrity problems:
+dropped history, multiple terminal anomalies, candle coverage errors,
+market-history errors, inconsistent measured counts, incomplete
+measured histories или нарушении safety contract.
+
+`pending_window` и factual `missing_third_touch_anchor` сами по себе
+не являются trading-quality failures.
+
+Даже после достижения sufficiency:
+
+- profitability labels не применяются автоматически;
+- торговые правила не меняются;
+- training не запускается;
+- Self-Learning не запускается.
+
+Следующий этап после достижения gate — отдельное исследование возможных
+success/failure labeling rules с явным решением пользователя.
