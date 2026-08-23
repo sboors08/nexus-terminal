@@ -12,7 +12,7 @@ import {
 } from '@/app/routing/routes';
 import { AlertsPage } from '@/pages/AlertsPage';
 import { DashboardPage } from '@/pages/DashboardPage';
-import { MarketHistoryPage } from '@/pages/MarketHistoryPage';
+import { MarketHistoryPage } from '@/pages/MarketHistoryRuntimePage';
 import { MarketPage } from '@/pages/MarketPage';
 import { LevelPreviewPage } from '@/pages/LevelPreviewPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';

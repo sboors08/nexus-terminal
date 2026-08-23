@@ -1020,66 +1020,56 @@ Replay обязателен для v1.0.
 
 ## 31. Следующий шаг
 
-Последняя объединённая задача:
-
-**NEXUS Setup Engine Multi-Timeframe Runtime v0.1**
-
-Фактический результат:
-
-- PR #176 объединил Exact-Price Origin Resolution Contract v0.1;
-- PR #177 исправил Scanner filters и market loading;
-- PR #178 merged в `main` на `9e8c6ef`;
-- production Setup Engine рассчитывает независимые `1m`, `5m`, `15m`, `1h` и `4h` сетапы;
-- PR CI и post-merge `main` CI прошли для Backend и Frontend.
-
-Текущая задача (фактическая локальная validation завершена, до закрытия остаются commit, PR и CI):
-
-**NEXUS Level Lines Exact-Price Origin Resolution Real-Data Validation v0.1**
-
-Цель:
-
-- повторить сохранённые `4 995` реальных закрытых `1m` свечей через новый production path;
-- измерить фактические active identity reuse и worked identity rearm decisions;
-- доказать отсутствие residual current exact-price collisions;
-- доказать сохранность полного `lines` History;
-- дважды выполнить causal replay и проверить restart/replay equivalence.
-
-Фактический результат:
-
-- source SHA-256: `a405e18a19b18e905c230bec2efec1433d1d54b14499a84b61547073b775fcbf`;
-- `5` datasets, `4 995` реальных закрытых свечей;
-- `4 905` primary и `4 905` restart causal replay steps;
-- `40` unique resolution decisions: `31` active reuse и `9` worked rearm;
-- residual collisions, restart mismatches и invariant violations — `0`;
-- `fullHistoryPreserved = true`, `restartReplayEquivalent = true`;
-- `tradingRulesChanged = false`, `futureCandlesUsed = false`;
-- status: `validated_with_observed_resolution`.
-
-Критерии окончательного закрытия:
-
-- versioned validator и CLI покрыты тестами;
-- фактический full-cohort report записан и имеет ожидаемую source hash;
-- `residualCurrentCollisionGroupCount = 0`;
-- `restartReplayMismatchCount = 0`;
-- `violationCount = 0`;
-- `fullHistoryPreserved = true`;
-- production thresholds, lifecycle и trading rules не изменены;
-- backend check/build/audit и GitHub Actions зелёные.
-
-До merge текущей ветки:
-
-- не считать unit/integration fixture достаточным real-market доказательством;
-- не менять formula `lineId`, pivot или touch rules;
-- не удалять исторические episodes;
-- не использовать UI-округление как критерий тождества уровня.
-
-Manual Review уже завершён ранее на frozen sample `100/100` и повторно не выполняется.
-
-Следующая отдельная задача после merge и зелёного CI:
+Последняя полностью закрытая задача:
 
 **NEXUS Persistent Setup Event History Foundation v0.1**
 
-Её граница — только backend persistence для реальных Setup lifecycle events: versioned snapshot, atomic JSON storage, hydration до live subscription, restart-safe History identity/dedupe, bounded retention, terminal outcomes и degraded mode. Frontend Market History, полный Replay, outcome dataset и Self-Learning остаются отдельными последующими этапами.
+Фактический результат:
+
+- PR #180 merged в `main`;
+- merge commit: `35293714d5bb42356d9a8a266465d37f438e52ff`;
+- Setup lifecycle History сохраняется в versioned atomic JSON snapshot;
+- hydration выполняется до live subscription;
+- History event ID продолжает monotonic sequence после restart;
+- restart/replay dedupe использует semantic lifecycle identity, а не process-local eventId;
+- bounded retention, terminal outcomes и candidate/episode identity переживают restart;
+- corrupt/unsupported storage не перезаписывается;
+- persistence failure не останавливает Setup runtime;
+- focused persistence/restart tests: `15/15`;
+- полный backend suite: `634/634`;
+- PR CI и post-merge Backend/Frontend CI — success.
+
+Manual Review уже завершён ранее на frozen sample `100/100` и повторно не выполняется.
+
+Текущая отдельная задача:
+
+**NEXUS Market History Runtime Integration v0.1**
+
+Цель:
+
+- построить backend read-model поверх persistent Setup lifecycle events;
+- сгруппировать события по restart-deterministic candidate / episode identity;
+- отдать factual lifecycle result без выдуманного `successful/failed`;
+- подключить пользовательский Market History route к runtime endpoint вместо fixture archive;
+- показать real symbol/timeframe/setup type/direction/level/lifecycle/episode facts;
+- поддержать `1m`, `5m`, `15m`, `1h`, `4h`;
+- явно показать partial history при bounded retention;
+- сохранить Workspace navigation;
+- не подделывать outcome analytics и Replay.
+
+В этот этап не входят:
+
+- `maxMovePct`, adverse move, time-to-target и PnL;
+- profitability / success-rate;
+- полный Replay;
+- historical tape/order-book reconstruction;
+- Self-Learning;
+- изменение Observation/Approach/Confirmation thresholds;
+- изменение breakout/rejection/expiry/ranking/lineId/touch rules.
+
+Следующая отдельная задача после merge и зелёного post-merge CI:
+
+**NEXUS Real Setup Replay Foundation v0.1**
 
 ---
 
@@ -1105,3 +1095,15 @@ Production Setup Engine рассчитывает независимые сета
 ## 34. Level Lines Exact-Price Origin Resolution Real-Data Validation v0.1
 
 Отдельный offline validator повторно использовал сохранённые реальные `1m` candles из `causal-setup-real-data-validation-v0.1` и дважды проиграл каждый causal prefix через production Level Lines. На `4 995` свечах и `4 905 + 4 905` replay steps получено `40` уникальных decisions (`31` active reuse, `9` worked rearm), `0` residual collisions, `0` restart mismatches и `0` violations. Полная History сохранена, restart/replay equivalence подтверждена; trading rules не изменены и future candles не использованы. Статус — `validated_with_observed_resolution`. Подробный контракт: `NEXUS_LEVEL_LINES_EXACT_PRICE_ORIGIN_RESOLUTION_REAL_DATA_VALIDATION_v0.1.md`.
+
+---
+
+## 35. Persistent Setup Event History Foundation v0.1
+
+PR #180 объединил restart-safe persistent Setup lifecycle History. Versioned atomic JSON snapshot сохраняет bounded ordered events, candidate/episode identity и terminal outcomes; hydration выполняется до live subscription. Process-local runtime `eventId` не является restart identity: History назначает собственный monotonic id и semantic dedupe. Corrupt/unsupported storage не перезаписывается, persistence failure переводит storage diagnostics в degraded mode без остановки Setup runtime. Подробный контракт: `NEXUS_PERSISTENT_SETUP_EVENT_HISTORY_FOUNDATION_v0.1.md`.
+
+---
+
+## 36. Market History Runtime Integration v0.1
+
+Текущая задача переводит пользовательский Market History route на production read-model поверх persistent Setup lifecycle events. UI показывает только factual candidate/episode lifecycle, level и identity data. Profitability metrics, `maxMovePct`, adverse move, time-to-target и Replay не синтезируются и остаются последующими отдельными этапами. Подробный контракт: `NEXUS_MARKET_HISTORY_RUNTIME_INTEGRATION_v0.1.md`.

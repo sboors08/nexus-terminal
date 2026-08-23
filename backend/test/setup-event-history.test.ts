@@ -1160,3 +1160,425 @@ test(
     );
   },
 );
+
+test(
+  'projects persistent Setup lifecycle events into factual Market History items',
+  async () => {
+    const {
+      buildMarketHistoryRuntimeResponse,
+    } = await import(
+      '../src/modules/setup-engine/market-history-runtime.js'
+    );
+
+    const source =
+      new TestEventSource();
+
+    const history =
+      new SetupEventHistoryService(
+        source,
+        {
+          maxEvents:
+            10,
+        },
+      );
+
+    history.start();
+
+    source.emit(
+      createEvent({
+        eventId:
+          1,
+
+        candidateId:
+          'setup-sol-history',
+
+        symbol:
+          'SOLUSDT',
+      }),
+    );
+
+    source.emit(
+      createEvent({
+        eventId:
+          2,
+
+        candidateId:
+          'setup-sol-history',
+
+        symbol:
+          'SOLUSDT',
+
+        type:
+          'breakout_confirmed',
+
+        previousStage:
+          'THIRD_TOUCH_CONFIRMED',
+
+        currentStage:
+          'BREAKOUT_CONFIRMED',
+
+        outcome:
+          'breakout',
+      }),
+    );
+
+    const response =
+      buildMarketHistoryRuntimeResponse(
+        history,
+      );
+
+    assert.equal(
+      response.version,
+      'market-history-runtime-v0.1',
+    );
+
+    assert.equal(
+      response.items.length,
+      1,
+    );
+
+    const item =
+      response.items[0];
+
+    assert.ok(
+      item,
+    );
+
+    assert.equal(
+      item.setupId,
+      'setup-sol-history',
+    );
+
+    assert.equal(
+      item.result,
+      'breakout_confirmed',
+    );
+
+    assert.equal(
+      item.lifecycleEventCount,
+      2,
+    );
+
+    assert.equal(
+      item.historyComplete,
+      true,
+    );
+
+    assert.equal(
+      'maxMovePct'
+      in item,
+      false,
+    );
+
+    assert.equal(
+      'replayAvailable'
+      in item,
+      false,
+    );
+
+    history.stop();
+  },
+);
+
+test(
+  'marks Market History partial when bounded retention drops candidate_created',
+  async () => {
+    const {
+      buildMarketHistoryRuntimeResponse,
+    } = await import(
+      '../src/modules/setup-engine/market-history-runtime.js'
+    );
+
+    const source =
+      new TestEventSource();
+
+    const history =
+      new SetupEventHistoryService(
+        source,
+        {
+          maxEvents:
+            1,
+        },
+      );
+
+    history.start();
+
+    source.emit(
+      createEvent({
+        eventId:
+          1,
+
+        candidateId:
+          'setup-partial-history',
+      }),
+    );
+
+    source.emit(
+      createEvent({
+        eventId:
+          2,
+
+        candidateId:
+          'setup-partial-history',
+
+        type:
+          'stage_transition',
+
+        previousStage:
+          'LEVEL_CONFIRMED',
+
+        currentStage:
+          'APPROACHING_THIRD_TOUCH',
+      }),
+    );
+
+    const response =
+      buildMarketHistoryRuntimeResponse(
+        history,
+      );
+
+    assert.equal(
+      response.items[0]
+        ?.historyComplete,
+      false,
+    );
+
+    assert.equal(
+      response.source
+        .droppedEventsCount,
+      1,
+    );
+
+    history.stop();
+  },
+);
+
+test(
+  'Market History runtime route validates filters and returns factual histories',
+  async () => {
+    const {
+      marketHistoryRuntimeRoutes,
+    } = await import(
+      '../src/modules/setup-engine/market-history-runtime.routes.js'
+    );
+
+    const source =
+      new TestEventSource();
+
+    const history =
+      new SetupEventHistoryService(
+        source,
+        {
+          maxEvents:
+            10,
+        },
+      );
+
+    history.start();
+
+    source.emit(
+      createEvent({
+        eventId:
+          1,
+
+        candidateId:
+          'setup-route-history',
+
+        symbol:
+          'SOLUSDT',
+      }),
+    );
+
+    source.emit(
+      createEvent({
+        eventId:
+          2,
+
+        candidateId:
+          'setup-route-history',
+
+        symbol:
+          'SOLUSDT',
+
+        type:
+          'breakout_confirmed',
+
+        previousStage:
+          'THIRD_TOUCH_CONFIRMED',
+
+        currentStage:
+          'BREAKOUT_CONFIRMED',
+
+        outcome:
+          'breakout',
+      }),
+    );
+
+    const app =
+      Fastify({
+        logger:
+          false,
+      });
+
+    await app.register(
+      marketHistoryRuntimeRoutes,
+      {
+        prefix:
+          '/api/v1',
+
+        setupEventHistoryReader:
+          history,
+      },
+    );
+
+    const response =
+      await app.inject({
+        method:
+          'GET',
+
+        url:
+          '/api/v1/setups/history'
+          + '?symbol=solusdt'
+          + '&timeframe=1m'
+          + '&setupType=level_breakout'
+          + '&direction=long'
+          + '&result=breakout_confirmed'
+          + '&limit=10',
+      });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+
+    assert.equal(
+      response
+        .json()
+        .items
+        .length,
+      1,
+    );
+
+    const invalid =
+      await app.inject({
+        method:
+          'GET',
+
+        url:
+          '/api/v1/setups/history?result=successful',
+      });
+
+    assert.equal(
+      invalid.statusCode,
+      400,
+    );
+
+    await app.close();
+    history.stop();
+  },
+);
+
+test(
+  'buildApp exposes Market History runtime from the persistent History reader',
+  async () => {
+    const source =
+      new TestEventSource();
+
+    const history =
+      new SetupEventHistoryService(
+        source,
+        {
+          maxEvents:
+            10,
+        },
+      );
+
+    history.start();
+
+    source.emit(
+      createEvent({
+        eventId:
+          1,
+
+        candidateId:
+          'setup-build-app-history',
+      }),
+    );
+
+    const app =
+      await buildApp({
+        env:
+          testEnv,
+
+        realtimeMarketDataService:
+          null,
+
+        orderBookDepthService:
+          null,
+
+        binanceSymbolUniverseService:
+          null,
+
+        marketWideRealtimeService:
+          null,
+
+        marketWideHistoryWarmupService:
+          null,
+
+        setupDetectionRuntimeService:
+          null,
+
+        setupEventHistoryService:
+          null,
+
+        setupEventHistoryReader:
+          history,
+
+        levelV2ShadowRuntimeService:
+          null,
+
+        levelV2ShadowRuntimeReader:
+          null,
+
+        alertsRuntimeService:
+          null,
+
+        levelEngineFrozenSampleReader:
+          null,
+      });
+
+    await app.ready();
+
+    const response =
+      await app.inject({
+        method:
+          'GET',
+
+        url:
+          '/api/v1/setups/history?limit=5',
+      });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+
+    assert.equal(
+      response
+        .json()
+        .version,
+      'market-history-runtime-v0.1',
+    );
+
+    assert.equal(
+      response
+        .json()
+        .items[0]
+        .setupId,
+      'setup-build-app-history',
+    );
+
+    await app.close();
+    history.stop();
+  },
+);
