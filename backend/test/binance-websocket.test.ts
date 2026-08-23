@@ -48,7 +48,7 @@ const fixtureProvider: MarketDataProvider = {
 };
 
 test(
-  'Binance Futures WebSocket service joins aggTrade and bookTicker and reconnects one route',
+  'Binance Futures WebSocket service joins aggTrade, bookTicker and markPrice and reconnects one route',
   () => {
     const sockets: FakeSocket[] = [];
     const urls: string[] = [];
@@ -140,6 +140,11 @@ test(
       2,
     );
 
+    assert.equal(
+      service.getStatus().streamCount,
+      6,
+    );
+
     const marketSocketIndex =
       urls.findIndex(
         (url) =>
@@ -171,9 +176,32 @@ test(
       /btcusdt@aggTrade\/ethusdt@aggTrade/,
     );
 
-    assert.match(
-      urls[publicSocketIndex] ?? '',
-      /btcusdt@bookTicker\/ethusdt@bookTicker/,
+    assert.ok(
+      (urls[publicSocketIndex] ?? '')
+        .includes(
+          'btcusdt@bookTicker',
+        ),
+    );
+
+    assert.ok(
+      (urls[publicSocketIndex] ?? '')
+        .includes(
+          'ethusdt@bookTicker',
+        ),
+    );
+
+    assert.ok(
+      (urls[publicSocketIndex] ?? '')
+        .includes(
+          'btcusdt@markPrice@1s',
+        ),
+    );
+
+    assert.ok(
+      (urls[publicSocketIndex] ?? '')
+        .includes(
+          'ethusdt@markPrice@1s',
+        ),
     );
 
     const marketSocket =
@@ -232,6 +260,23 @@ test(
       }),
     });
 
+    publicSocket.emit('message', {
+      data: JSON.stringify({
+        stream:
+          'btcusdt@markPrice@1s',
+        data: {
+          e: 'markPriceUpdate',
+          E: 1_784_390_400_000,
+          s: 'BTCUSDT',
+          p: '63998.5',
+          i: '64002.0',
+          P: '64001.0',
+          r: '0.00012345',
+          T: 1_784_419_200_000,
+        },
+      }),
+    });
+
     const snapshot =
       service.getSnapshots(
         'BTCUSDT',
@@ -255,6 +300,37 @@ test(
     assert.equal(
       snapshot?.bookTicker?.spread,
       1,
+    );
+
+    assert.equal(
+      snapshot?.markPrice?.price,
+      63_998.5,
+    );
+
+    assert.equal(
+      snapshot?.markPrice?.indexPrice,
+      64_002,
+    );
+
+    assert.ok(
+      Math.abs(
+        (
+          snapshot
+            ?.markPrice
+            ?.fundingRatePct
+          ?? 0
+        )
+        - 0.012345,
+      ) < 1e-12,
+    );
+
+    assert.equal(
+      snapshot
+        ?.markPrice
+        ?.nextFundingAt,
+      new Date(
+        1_784_419_200_000,
+      ).toISOString(),
     );
 
     assert.equal(
@@ -337,7 +413,7 @@ test(
         (event) =>
           event.type === 'snapshot',
       ).length,
-      2,
+      3,
     );
 
     marketSocket.emit(
@@ -431,6 +507,18 @@ test('Realtime market endpoints expose connection state and snapshots', async ()
     symbol: 'BTCUSDT',
     lastTrade: null,
     bookTicker: null,
+    markPrice: {
+      symbol: 'BTCUSDT',
+      price: 63_998.5,
+      indexPrice: 64_002,
+      fundingRatePct: 0.012345,
+      nextFundingAt:
+        new Date(
+          1_784_419_200_000,
+        ).toISOString(),
+      updatedAt:
+        '2026-07-18T16:00:00.000Z',
+    },
     recentTrades: [],
     updatedAt: null,
   }];
@@ -500,6 +588,20 @@ test('Realtime market endpoints expose connection state and snapshots', async ()
   });
   assert.equal(snapshot.statusCode, 200);
   assert.equal(snapshot.json()[0].symbol, 'BTCUSDT');
+
+  assert.equal(
+    snapshot.json()[0]
+      .markPrice
+      .price,
+    63_998.5,
+  );
+
+  assert.equal(
+    snapshot.json()[0]
+      .markPrice
+      .fundingRatePct,
+    0.012345,
+  );
 
   const scannerMetrics = await app.inject({
     method: 'GET',

@@ -15,6 +15,7 @@ import {
 import type {
   RealtimeBookTicker,
   RealtimeConnectionStatus,
+  RealtimeMarkPrice,
   RealtimeMarketDataEvent,
   RealtimeMarketDataListener,
   RealtimeMarketDataService,
@@ -86,6 +87,17 @@ interface BinanceBookTickerEvent {
   E?: number;
 }
 
+interface BinanceMarkPriceEvent {
+  e?: string;
+  E?: number;
+  s?: string;
+  p?: string;
+  i?: string;
+  P?: string;
+  r?: string;
+  T?: number;
+}
+
 const defaultScheduler: ReconnectScheduler = {
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
   cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
@@ -105,6 +117,7 @@ function cloneSnapshot(snapshot: RealtimeSymbolSnapshot): RealtimeSymbolSnapshot
     symbol: snapshot.symbol,
     lastTrade: cloneTrade(snapshot.lastTrade),
     bookTicker: snapshot.bookTicker ? { ...snapshot.bookTicker } : null,
+    markPrice: snapshot.markPrice ? { ...snapshot.markPrice } : null,
     recentTrades: snapshot.recentTrades.map((trade) => ({ ...trade })),
     updatedAt: snapshot.updatedAt,
   };
@@ -198,6 +211,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
         symbol,
         lastTrade: null,
         bookTicker: null,
+        markPrice: null,
         recentTrades: [],
         updatedAt: null,
       });
@@ -215,7 +229,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       lastMessageAt: null,
       reconnectAttempts: 0,
       subscribedSymbols: this.getActiveSymbols(),
-      streamCount: this.activeSymbols.size * 2,
+      streamCount: this.activeSymbols.size * 3,
       lastError: null,
     };
   }
@@ -418,6 +432,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
           symbol: normalizedSymbol,
           lastTrade: null,
           bookTicker: null,
+          markPrice: null,
           recentTrades: [],
           updatedAt: null,
         });
@@ -576,16 +591,24 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
   private buildUrl(
     route: BinanceWebSocketRoute,
   ): string {
-    const streamSuffix =
+    const streamSuffixes =
       route === 'market'
-        ? '@aggTrade'
-        : '@bookTicker';
+        ? [
+            '@aggTrade',
+          ]
+        : [
+            '@bookTicker',
+            '@markPrice@1s',
+          ];
 
     const streams =
       this.getActiveSymbols()
-        .map(
+        .flatMap(
           (symbol) =>
-            `${symbol.toLowerCase()}${streamSuffix}`,
+            streamSuffixes.map(
+              (streamSuffix) =>
+                `${symbol.toLowerCase()}${streamSuffix}`,
+            ),
         );
 
     return (
@@ -645,7 +668,7 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     this.status = {
       ...this.status,
       subscribedSymbols: this.getActiveSymbols(),
-      streamCount: this.activeSymbols.size * 2,
+      streamCount: this.activeSymbols.size * 3,
     };
   }
 
@@ -924,7 +947,16 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
                   BinanceBookTickerEvent
               ).E,
             )
-          : null;
+          : stream.includes(
+              '@markprice',
+            )
+            ? numberValue(
+                (
+                  payload.data as
+                    BinanceMarkPriceEvent
+                ).E,
+              )
+            : null;
 
     if (
       exchangeEventTimeMs !== null
@@ -992,6 +1024,16 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       this.applyBookTicker(
         payload.data as
           BinanceBookTickerEvent,
+        receivedAt,
+      );
+    } else if (
+      stream.includes(
+        '@markprice',
+      )
+    ) {
+      this.applyMarkPrice(
+        payload.data as
+          BinanceMarkPriceEvent,
         receivedAt,
       );
     }
@@ -1145,6 +1187,130 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
     snapshot.bookTicker = bookTicker;
     snapshot.updatedAt = receivedAt;
     this.emitSnapshot(snapshot);
+  }
+
+  private applyMarkPrice(
+    event: BinanceMarkPriceEvent,
+    receivedAt: string,
+  ): void {
+    const symbol =
+      event.s?.toUpperCase();
+
+    const price =
+      numberValue(
+        event.p,
+      );
+
+    const indexPrice =
+      numberValue(
+        event.i,
+      );
+
+    const fundingRate =
+      event.r === undefined
+      || event.r.trim().length === 0
+        ? null
+        : numberValue(
+            event.r,
+          );
+
+    const nextFundingTime =
+      numberValue(
+        event.T,
+      );
+
+    if (
+      !symbol
+      || price === null
+      || price <= 0
+      || indexPrice === null
+      || indexPrice <= 0
+      || fundingRate === null
+      || nextFundingTime === null
+    ) {
+      return;
+    }
+
+    const snapshot =
+      this.snapshots.get(
+        symbol,
+      );
+
+    if (!snapshot) {
+      return;
+    }
+
+    const normalizedNextFundingTime =
+      Math.trunc(
+        nextFundingTime,
+      );
+
+    if (
+      !Number.isSafeInteger(
+        normalizedNextFundingTime,
+      )
+      || normalizedNextFundingTime <= 0
+    ) {
+      return;
+    }
+
+    const nextFundingAt =
+      new Date(
+        normalizedNextFundingTime,
+      );
+
+    if (
+      Number.isNaN(
+        nextFundingAt.getTime(),
+      )
+    ) {
+      return;
+    }
+
+    const exchangeEventTime =
+      numberValue(
+        event.E,
+      );
+
+    const normalizedEventTime =
+      exchangeEventTime === null
+        ? null
+        : Math.trunc(
+            exchangeEventTime,
+          );
+
+    const updatedAt =
+      normalizedEventTime !== null
+      && Number.isSafeInteger(
+        normalizedEventTime,
+      )
+      && normalizedEventTime > 0
+        ? new Date(
+            normalizedEventTime,
+          ).toISOString()
+        : receivedAt;
+
+    const markPrice:
+      RealtimeMarkPrice = {
+        symbol,
+        price,
+        indexPrice,
+        fundingRatePct:
+          fundingRate * 100,
+        nextFundingAt:
+          nextFundingAt.toISOString(),
+        updatedAt,
+      };
+
+    snapshot.markPrice =
+      markPrice;
+
+    snapshot.updatedAt =
+      receivedAt;
+
+    this.emitSnapshot(
+      snapshot,
+    );
   }
 
   private cancelRouteWatchdog(
