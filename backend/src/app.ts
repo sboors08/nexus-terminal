@@ -33,6 +33,10 @@ import type {
 import {
   SetupEventHistoryService,
 } from './modules/setup-engine/setup-event-history.service.js';
+import {
+  JsonFileSetupEventHistoryPersistence,
+  type SetupEventHistoryPersistenceContract,
+} from './modules/setup-engine/setup-event-history.persistence.js';
 import type {
   SetupEventHistoryLifecycle,
   SetupEventHistoryReader,
@@ -118,6 +122,8 @@ export interface BuildAppOptions {
   levelV2ShadowRuntimeReader?: LevelV2ShadowRuntimeReader | null;
   setupEventHistoryService?: SetupEventHistoryLifecycle | null;
   setupEventHistoryReader?: SetupEventHistoryReader | null;
+  setupEventHistoryPersistence?:
+    SetupEventHistoryPersistenceContract | null;
   alertsRuntimeService?: AlertsRuntimeContract | null;
   alertsPersistence?: AlertsPersistenceContract | null;
   alertsDeliveryAdapters?:
@@ -468,12 +474,30 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         : null
       : options.setupDetectionRuntimeEventSource;
 
+  const setupEventHistoryPersistenceEnabled =
+    env.setupEventHistoryPersistenceEnabled
+    ?? env.nodeEnv !== 'test';
+
+  const setupEventHistoryPersistence =
+    options.setupEventHistoryPersistence
+    === undefined
+      ? setupEventHistoryPersistenceEnabled
+        ? new JsonFileSetupEventHistoryPersistence({
+            filePath:
+              env.setupEventHistoryPersistencePath
+              ?? './data/setup-event-history-v1.json',
+          })
+        : null
+      : options.setupEventHistoryPersistence;
+
   const setupEventHistoryService =
     options.setupEventHistoryService
     === undefined
       ? setupDetectionRuntimeEventSource
         ? new SetupEventHistoryService(
             setupDetectionRuntimeEventSource,
+            undefined,
+            setupEventHistoryPersistence,
           )
         : null
       : options.setupEventHistoryService;
@@ -672,14 +696,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     app.addHook(
       'onReady',
       async () => {
-        setupEventHistoryService.start();
+        await setupEventHistoryService.start();
       },
     );
 
     app.addHook(
       'onClose',
       async () => {
-        setupEventHistoryService.stop();
+        await setupEventHistoryService.stop();
       },
     );
   }

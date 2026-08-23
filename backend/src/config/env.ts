@@ -13,6 +13,8 @@ export interface AppEnv {
   logLevel: LogLevel;
   levelEngineFrozenSamplePath?: string;
   feedbackStorePath?: string;
+  setupEventHistoryPersistenceEnabled?: boolean;
+  setupEventHistoryPersistencePath?: string;
   alertsPersistenceEnabled?: boolean;
   alertsPersistencePath?: string;
   unifiedDecisionLiveObservationEnabled?: boolean;
@@ -154,6 +156,15 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       source.LEVEL_ENGINE_FROZEN_SAMPLE_PATH?.trim()
       || './.tmp/level-engine-validation/latest-frozen-sample.json',
     feedbackStorePath: source.FEEDBACK_STORE_PATH?.trim() || './data/feedback.jsonl',
+    setupEventHistoryPersistenceEnabled:
+      readBoolean(
+        source.SETUP_EVENT_HISTORY_PERSISTENCE_ENABLED,
+        source.NODE_ENV !== 'test',
+        'SETUP_EVENT_HISTORY_PERSISTENCE_ENABLED',
+      ),
+    setupEventHistoryPersistencePath:
+      source.SETUP_EVENT_HISTORY_PERSISTENCE_PATH?.trim()
+      || './data/setup-event-history-v1.json',
     alertsPersistenceEnabled: readBoolean(
       source.ALERTS_PERSISTENCE_ENABLED,
       source.NODE_ENV !== 'test',
