@@ -2,9 +2,9 @@
 
 **Статус:** основной источник правды по продукту и разработке
 **Репозиторий:** `sboors08/nexus-terminal`
-**Дата фиксации:** 2026-08-21
+**Дата фиксации:** 2026-08-23
 **Язык работы:** русский
-**Базовое состояние:** `main` на merge-коммите `0bd52c3`, PR #171
+**Базовое состояние:** `main` / `origin/main` на merge-коммите `d4aa844895aeadc95c975a053b0a82930186d34f`, PR #184
 **Текущая ориентировочная готовность:** числовой процент не подтверждён; фактический статус 13 этапов зафиксирован в разделах 25–26
 
 ---
@@ -231,7 +231,7 @@ Frontend и backend обязаны работать через `NEXUS Data Contr
 
 ## 9. Market
 
-Текущее состояние на 2026-08-10: раздел существует в frontend, но фактически не работает end-to-end и не считается готовым. Наличие общего causal Level Lines contract после PR #128 не подтверждает работоспособность страницы `Market`, получение актуальных данных, выбор монеты или согласованность таблицы и графика.
+Текущее состояние после PR #133–#134: базовая end-to-end работоспособность `Market` и канонический переход `Market → Workspace` восстановлены. Раздел считается реализованным v0.1 и продолжает развиваться. Наличие causal Level Lines contract само по себе не означает завершение всех расширенных Market-фильтров и визуализаций.
 
 Компоновка:
 
@@ -256,21 +256,20 @@ Frontend и backend обязаны работать через `NEXUS Data Contr
 
 Market дополняет Scanner и не должен его дублировать.
 
-Ближайшая обязательная задача — `Market Recovery v0.1`:
+`Market Recovery v0.1` больше не является ближайшей обязательной задачей. В объединённых работах PR #133–#134 уже зафиксированы Market Recovery и восстановление канонического `Market → Workspace` path.
 
-- воспроизвести текущую неисправность и зафиксировать её причину;
-- восстановить получение и отображение реальных market-wide данных без зависимости от mock как штатного источника;
-- восстановить список монет, выбор символа, выбранный таймфрейм и график одной и той же монеты;
-- корректно обработать loading, error, empty и degraded состояния;
-- восстановить переход `Market → Workspace` с сохранением символа и таймфрейма;
-- после восстановления базовой работоспособности показать внутри `Market` ближайшие поддержку/сопротивление, расстояние до уровня, независимые касания и causal-стадию;
-- добавить фильтры «около поддержки», «около сопротивления» и «2+ касания» без создания отдельной вкладки `Levels`;
-- подтвердить результат автоматическими тестами и визуальной проверкой на реальных данных.
+Дальнейшее развитие Market сохраняет требования:
 
-В `Market Recovery v0.1` не входят изменение торговых порогов, создание сетапов из Level Lines, probability, profitability, обучение и новый Setup Score.
+- реальные market-wide данные без штатной зависимости от mock;
+- согласованность списка монет, выбранного symbol, timeframe и графика;
+- корректные loading, error, empty и degraded состояния;
+- сохранение symbol/timeframe при переходе `Market → Workspace`;
+- ближайшие поддержку/сопротивление, расстояние до уровня, независимые касания и causal-стадию;
+- фильтры «около поддержки», «около сопротивления» и «2+ касания» без отдельной пользовательской вкладки `Levels`.
+
+Развитие Market не должно незаметно менять торговые пороги, создавать новые Setup rules, вводить probability/profitability labels, обучение или новый Setup Score.
 
 ---
-
 ## 10. Scanner
 
 Scanner ищет аномалии и торговые сетапы.
@@ -1022,62 +1021,48 @@ Replay обязателен для v1.0.
 
 Последняя полностью закрытая задача:
 
-**NEXUS Real Setup Replay Foundation v0.1**
+**NEXUS Setup Outcome Sample Sufficiency v0.1**
 
 Фактический результат:
 
-- PR #182 merged в `main`;
-- merge commit: `95836392ff64bd724337bb6b7f1f099e3e41b6a8`;
-- production `/app/replay` использует persistent Setup lifecycle History;
-- один Replay frame соответствует одному сохранённому factual lifecycle event;
-- complete/partial retained history различаются явно;
-- final terminal result не раскрывается раньше соответствующего Replay frame;
-- historical candles, aggTrade, order book и PnL не синтезируются;
-- PR Backend и Frontend CI — success;
-- post-merge Backend и Frontend CI — success.
+- PR #184 merged в `main`;
+- feature commit: `d72f2125a796db31d35712cfec290ea4bc5eeeac`;
+- merge commit: `d4aa844895aeadc95c975a053b0a82930186d34f`;
+- PR Backend и Frontend CI — `success`;
+- post-merge Backend и Frontend CI — `success`;
+- readiness policy зафиксирована до исследования labels:
+  - минимум `100` eligible measured candidates всего;
+  - минимум `25` для каждого canonical `setupType × direction` cohort;
+- на factual validation sample было `1 / 100` eligible measured candidate;
+- cohort coverage:
+  - `level_breakout:long` — `0 / 25`;
+  - `level_breakout:short` — `0 / 25`;
+  - `level_bounce:long` — `0 / 25`;
+  - `level_bounce:short` — `1 / 25`;
+- unresolved data-integrity blockers на проверенной factual sample отсутствовали;
+- `labelRuleResearchEligible = false`;
+- profitability labels не применялись;
+- production Setup rules не менялись;
+- training и Self-Learning не запускались.
 
-Текущая отдельная задача:
+Текущий обязательный data-track:
 
-**NEXUS Setup Outcome Dataset / Validation v0.1**
+**NEXUS factual Setup Outcome accumulation under Sufficiency Gate**
 
-Цель:
+Правила:
 
-- использовать Persistent Setup Event History как источник identity/lifecycle;
-- использовать factual `THIRD_TOUCH_CONFIRMED` как causal outcome anchor;
-- измерять post-anchor market path только по реальным закрытым Binance USD-M Futures `1m` candles;
-- исключать anchor minute из excursion metrics;
-- считать direction-aware favorable/adverse excursion;
-- фиксировать signed returns на 5m / 15m / 30m / 60m;
-- сохранять terminal lifecycle отдельно от market outcome measurement;
-- при отсутствии measured real sample возвращать `insufficient_sample`.
+- Persistent Setup Event History продолжает накапливать factual lifecycle events;
+- Setup Outcome Dataset измеряется только по factual `THIRD_TOUCH_CONFIRMED` anchors и реальным закрытым Binance USD-M Futures `1m` candles;
+- Sufficiency analyzer периодически пересчитывает eligible measured sample и canonical cohort coverage;
+- `pending_window` не считается failure;
+- factual `missing_third_touch_anchor` сам по себе не считается trading-quality failure;
+- success/failure labeling research заблокирован до `sufficient_for_next_research_stage`;
+- достижение sufficiency gate само по себе не применяет label и не меняет trading rules;
+- Self-Learning остаётся заблокированным до отдельного явного решения.
 
-Текущее фактическое состояние источника на старте задачи:
-
-- Setup Event History state: `running`;
-- persistence: `ready`, hydrated, writable;
-- persistence errors: `0`;
-- retained events: `0`;
-- реальная outcome sample: недостаточна.
-
-В этот этап не входят:
-
-- `successful` / `failed` labels;
-- profitability / PnL;
-- stop / take-profit / execution assumptions;
-- изменение Setup Engine;
-- изменение Level Lines;
-- изменение Observation / Approach / Confirmation;
-- изменение breakout / rejection / expiry;
-- изменение ranking;
-- model training;
-- Self-Learning.
-
-Подробный контракт:
-
-`NEXUS_SETUP_OUTCOME_DATASET_VALIDATION_v0.1.md`.
+Пока factual sample накапливается, разрешена отдельная независимая разработка других задач официальной дорожной карты в отдельном worktree от актуального `origin/main`, если она не прерывает collector и не подменяет sufficiency gate.
 
 ---
-
 ## 32. Приоритет источников правды
 
 При конфликте действует порядок:
@@ -1111,46 +1096,132 @@ PR #180 объединил restart-safe persistent Setup lifecycle History. Vers
 
 ## 36. Market History Runtime Integration v0.1
 
-Текущая задача переводит пользовательский Market History route на production read-model поверх persistent Setup lifecycle events. UI показывает только factual candidate/episode lifecycle, level и identity data. Profitability metrics, `maxMovePct`, adverse move, time-to-target и Replay не синтезируются и остаются последующими отдельными этапами. Подробный контракт: `NEXUS_MARKET_HISTORY_RUNTIME_INTEGRATION_v0.1.md`.
+PR #181 завершил Market History Runtime Integration v0.1.
+
+Production `/app/market-history` использует persistent Setup lifecycle History и показывает factual candidate/episode lifecycle, level, identity и event timeline data. Factual terminal lifecycle сохраняется отдельно от profitability semantics.
+
+Market History не синтезирует:
+
+- PnL;
+- success/failure;
+- profitability;
+- `maxMovePct`;
+- adverse move;
+- time-to-target;
+- historical candles, tape или order book, которых не было сохранено.
+
+Replay реализован отдельным последующим этапом в PR #182.
+
+---
+## 37. Setup Outcome Dataset / Validation v0.1
+
+PR #183 завершил Setup Outcome Dataset / Validation v0.1.
+
+Отдельный offline validation layer измеряет фактическое направление и величину движения рынка после production Setup Engine `THIRD_TOUCH_CONFIRMED` anchor.
+
+Контракт:
+
+- источник identity/lifecycle — Persistent Setup Event History;
+- источник post-event цен — реальные закрытые Binance USD-M Futures `1m` candles;
+- anchor minute исключается для предотвращения pre-anchor high/low contamination;
+- считаются direction-aware MFE и MAE;
+- фиксируются signed returns на 5m / 15m / 30m / 60m;
+- terminal lifecycle сохраняется как отдельный factual факт и не преобразуется автоматически в trading-quality label.
+
+Первый factual fully measured case появился для `SOLUSDT`, `1m`, `level_bounce`, `short`.
+
+После появления первой measured sample Outcome Dataset перешёл в factual `sample_available`; это не означает достаточность выборки.
+
+v0.1 не создаёт:
+
+- `successful` / `failed`;
+- win/loss;
+- profitability;
+- PnL;
+- execution assumptions;
+- stop/take-profit;
+- ranking changes;
+- training;
+- Self-Learning.
+
+Подробный контракт:
+
+`NEXUS_SETUP_OUTCOME_DATASET_VALIDATION_v0.1.md`.
 
 ---
 
-## 37. Setup Outcome Dataset / Validation v0.1
+## 38. Setup Outcome Sample Sufficiency v0.1
 
-Отдельный offline validation layer измеряет фактическое направление и величину движения рынка после production Setup Engine `THIRD_TOUCH_CONFIRMED` anchor. Источник identity/lifecycle — Persistent Setup Event History; источник post-event цен — реальные закрытые Binance USD-M Futures `1m` candles. Anchor minute исключается для предотвращения pre-anchor high/low contamination. v0.1 записывает MFE, MAE и signed returns на 5/15/30/60 минут, но не создаёт `successful`/`failed`, profitability, PnL или Self-Learning labels. При отсутствии полного real sample статус остаётся `insufficient_sample`. Подробный контракт: `NEXUS_SETUP_OUTCOME_DATASET_VALIDATION_v0.1.md`.
+Статус: `COMPLETED`.
 
-## 27. Setup Outcome Sample Sufficiency v0.1
+PR #184 merged в `main`.
 
-Статус: `IN PROGRESS`.
+Факты:
 
-После появления первого factual measured Setup Outcome следующий
-offline gate фиксируется до исследования success/failure labels.
+- feature commit: `d72f2125a796db31d35712cfec290ea4bc5eeeac`;
+- merge commit: `d4aa844895aeadc95c975a053b0a82930186d34f`;
+- Backend/Frontend PR CI — `success`;
+- Backend/Frontend post-merge `main` CI — `success`;
+- validated backup patch SHA-256:
+  `4dbcfd1856b4291e985ac6766aea846f4fefe7922d8af1e98e872f0d858e377a`.
 
-Минимальная выборка v0.1:
+Минимальная factual readiness sample v0.1:
 
-- не менее 100 eligible measured candidates всего;
-- не менее 25 `level_breakout:long`;
-- не менее 25 `level_breakout:short`;
-- не менее 25 `level_bounce:long`;
-- не менее 25 `level_bounce:short`.
+- не менее `100` eligible measured candidates всего;
+- не менее `25` `level_breakout:long`;
+- не менее `25` `level_breakout:short`;
+- не менее `25` `level_bounce:long`;
+- не менее `25` `level_bounce:short`.
 
-Это governance threshold для допуска к следующему исследовательскому
-этапу, а не утверждение статистической мощности или прибыльности.
+Eligibility:
+
+- `measurementStatus = measured`;
+- complete retained lifecycle history;
+- outcome metrics присутствуют.
+
+Это governance/data-readiness threshold для допуска к отдельному исследованию возможных label rules. Он не является утверждением statistical power, profitability или production trading quality.
 
 Sufficiency блокируется при unresolved data-integrity problems:
-dropped history, multiple terminal anomalies, candle coverage errors,
-market-history errors, inconsistent measured counts, incomplete
-measured histories или нарушении safety contract.
 
-`pending_window` и factual `missing_third_touch_anchor` сами по себе
-не являются trading-quality failures.
+- history snapshot inconsistency;
+- dropped history events;
+- multiple terminal events;
+- insufficient candle coverage;
+- market-history errors;
+- measured-count mismatch;
+- incomplete measured history;
+- measured candidate without metrics;
+- source safety-contract violation.
 
-Даже после достижения sufficiency:
+`pending_window` не блокирует уже завершённую measured sample.
+
+Factual `missing_third_touch_anchor` сам по себе не является trading-quality failure и может быть корректным результатом expiry до factual third touch.
+
+Фактическое состояние на validation sample:
+
+- source Outcome status: `sample_available`;
+- eligible measured candidates: `1 / 100`;
+- `level_breakout:long`: `0 / 25`;
+- `level_breakout:short`: `0 / 25`;
+- `level_bounce:long`: `0 / 25`;
+- `level_bounce:short`: `1 / 25`;
+- data-integrity blockers: `0`;
+- `labelRuleResearchEligible = false`.
+
+Даже после достижения gate:
 
 - profitability labels не применяются автоматически;
-- торговые правила не меняются;
-- training не запускается;
-- Self-Learning не запускается.
+- trading rules не меняются автоматически;
+- ranking не меняется автоматически;
+- training не запускается автоматически;
+- Self-Learning не запускается автоматически.
 
-Следующий этап после достижения gate — отдельное исследование возможных
-success/failure labeling rules с явным решением пользователя.
+Следующий этап label-rule research разрешён только после factual статуса:
+
+`sufficient_for_next_research_stage`
+
+и остаётся отдельной задачей с явным решением пользователя.
+
+Подробный контракт:
+
+`NEXUS_SETUP_OUTCOME_SAMPLE_SUFFICIENCY_v0.1.md`.
