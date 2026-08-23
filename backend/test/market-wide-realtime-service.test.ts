@@ -164,9 +164,56 @@ function bookTickerMessage(
   });
 }
 
+function liquidationMessage(
+  symbol: string,
+  eventTimeMs:
+    number,
+  symbolType = 1,
+  pairSymbol = symbol,
+): string {
+  return JSON.stringify({
+    stream:
+      '!forceOrder@arr',
+    data: {
+      e:
+        'forceOrder',
+      E:
+        eventTimeMs,
+      o: {
+        s:
+          symbol,
+        S:
+          'SELL',
+        o:
+          'LIMIT',
+        f:
+          'IOC',
+        q:
+          '0.014',
+        p:
+          '9910',
+        ap:
+          '9909.5',
+        X:
+          'FILLED',
+        l:
+          '0.014',
+        z:
+          '0.014',
+        T:
+          eventTimeMs,
+        ps:
+          pairSymbol,
+        st:
+          symbolType,
+      },
+    },
+  });
+}
+
 
 test(
-  'uses bounded kline shards and one all-book-ticker public shard',
+  'uses bounded kline shards with one shared all-liquidation stream and one all-book-ticker public shard',
   () => {
     const shards =
       buildMarketWideStreamShards(
@@ -224,7 +271,7 @@ test(
         'adausdt@kline_1m',
         'btcusdt@kline_1m',
         'ethusdt@kline_1m',
-        'solusdt@kline_1m',
+        '!forceOrder@arr',
       ],
     );
 
@@ -232,8 +279,36 @@ test(
       marketShards[1]
         ?.streams,
       [
+        'solusdt@kline_1m',
         'xrpusdt@kline_1m',
       ],
+    );
+
+    assert.equal(
+      marketShards
+        .flatMap(
+          (shard) =>
+            shard.streams,
+        )
+        .filter(
+          (stream) =>
+            stream
+            === '!forceOrder@arr',
+        )
+        .length,
+      1,
+    );
+
+    assert.ok(
+      marketShards.every(
+        (shard) =>
+          shard.streams.some(
+            (stream) =>
+              stream.endsWith(
+                '@kline_1m',
+              ),
+          ),
+      ),
     );
 
     assert.deepEqual(
@@ -643,7 +718,7 @@ test(
     assert.equal(
       service.getStatus()
         .streamCount,
-      6,
+      7,
     );
 
     const publicSocketIndex =
@@ -893,6 +968,323 @@ test(
       service.getStatus()
         .reconnectAttempts,
       0,
+    );
+
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      6,
+    );
+
+    assert.equal(
+      reconnectScheduler
+        .tasks.length,
+      0,
+    );
+
+    service.stop();
+  },
+);
+
+
+test(
+  'consumes USD-M liquidation snapshots, ignores CM and untracked contracts, and keeps the shared market shard healthy',
+  () => {
+    const reconnectScheduler =
+      new TestScheduler();
+
+    const watchdogScheduler =
+      new TestScheduler();
+
+    const sockets:
+      TestSocket[] = [];
+
+    const urls:
+      string[] = [];
+
+    const eventTimeMs =
+      1_721_577_842_500;
+
+    const service =
+      new MarketWideRealtimeService({
+        baseUrl:
+          'wss://fstream.binance.com',
+
+        symbols: [
+          'BTCUSDT',
+          'SOLUSDT',
+          'ETHUSDT',
+          'ADAUSDT',
+          'XRPUSDT',
+        ],
+
+        maxStreamsPerSocket:
+          4,
+
+        reconnectBaseDelayMs:
+          250,
+
+        reconnectMaxDelayMs:
+          2_000,
+
+        scheduler:
+          reconnectScheduler,
+
+        watchdogScheduler,
+
+        silentStreamTimeoutMs:
+          30_000,
+
+        socketFactory: (url) => {
+          urls.push(
+            url,
+          );
+
+          const socket =
+            new TestSocket();
+
+          sockets.push(
+            socket,
+          );
+
+          return socket;
+        },
+
+        now: () =>
+          new Date(
+            eventTimeMs
+            + 500,
+          ),
+      });
+
+    service.start();
+
+    assert.equal(
+      sockets.length,
+      3,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .streamCount,
+      7,
+    );
+
+    const liquidationSocketIndex =
+      urls.findIndex(
+        (url) =>
+          url.includes(
+            '/market/stream?streams=',
+          )
+          && url.includes(
+            '!forceOrder@arr',
+          ),
+      );
+
+    assert.notEqual(
+      liquidationSocketIndex,
+      -1,
+    );
+
+    assert.equal(
+      urls.filter(
+        (url) =>
+          url.includes(
+            '!forceOrder@arr',
+          ),
+      ).length,
+      1,
+    );
+
+    assert.equal(
+      urls.some(
+        (url) =>
+          url.includes(
+            '/public/stream?streams='
+          )
+          && url.includes(
+            '!forceOrder@arr',
+          ),
+      ),
+      false,
+    );
+
+    for (
+      const socket
+      of sockets
+    ) {
+      socket.emit(
+        'open',
+      );
+    }
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      3,
+    );
+
+    const liquidationSocket =
+      sockets[
+        liquidationSocketIndex
+      ];
+
+    assert.ok(
+      liquidationSocket,
+    );
+
+    liquidationSocket.emit(
+      'message',
+      {
+        data:
+          liquidationMessage(
+            'SOLUSDT',
+            eventTimeMs,
+            1,
+            'SOLUSDT',
+          ),
+      },
+    );
+
+    const latest =
+      service
+        .getLatestLiquidation(
+          'SOLUSDT',
+        );
+
+    assert.ok(
+      latest,
+    );
+
+    assert.equal(
+      latest.symbol,
+      'SOLUSDT',
+    );
+
+    assert.equal(
+      latest.side,
+      'sell',
+    );
+
+    assert.equal(
+      latest.originalQuantity,
+      0.014,
+    );
+
+    assert.equal(
+      latest.averagePrice,
+      9909.5,
+    );
+
+    assert.equal(
+      service
+        .getRecentLiquidations()
+        .length,
+      1,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastError,
+      null,
+    );
+
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      4,
+    );
+
+    assert.equal(
+      reconnectScheduler
+        .tasks.length,
+      0,
+    );
+
+    /*
+     * Binance all-market forceOrder now carries a merged
+     * UM + CM universe. st=2 must prove transport health
+     * without entering the USD-M liquidation store.
+     */
+    liquidationSocket.emit(
+      'message',
+      {
+        data:
+          liquidationMessage(
+            'BTCUSD_PERP',
+            eventTimeMs,
+            2,
+            'BTCUSD',
+          ),
+      },
+    );
+
+    assert.equal(
+      service
+        .getRecentLiquidations()
+        .length,
+      1,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .state,
+      'connected',
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastError,
+      null,
+    );
+
+    assert.equal(
+      watchdogScheduler
+        .tasks.length,
+      5,
+    );
+
+    assert.equal(
+      reconnectScheduler
+        .tasks.length,
+      0,
+    );
+
+    /*
+     * UM delivery contracts can also appear on an
+     * exchange-wide stream. They are valid transport data
+     * but are outside the tracked NEXUS perpetual universe.
+     */
+    liquidationSocket.emit(
+      'message',
+      {
+        data:
+          liquidationMessage(
+            'ETHUSDT_260925',
+            eventTimeMs,
+            1,
+            'ETHUSDT',
+          ),
+      },
+    );
+
+    assert.equal(
+      service
+        .getRecentLiquidations()
+        .length,
+      1,
+    );
+
+    assert.equal(
+      service.getStatus()
+        .lastError,
+      null,
     );
 
     assert.equal(

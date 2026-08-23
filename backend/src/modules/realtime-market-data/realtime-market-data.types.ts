@@ -57,6 +57,24 @@ export interface RealtimeOpenInterest {
   updatedAt: string;
 }
 
+export interface RealtimeLiquidation {
+  symbol: string;
+  pairSymbol: string;
+  side:
+    | 'buy'
+    | 'sell';
+  orderType: string;
+  timeInForce: string;
+  originalQuantity: number;
+  price: number;
+  averagePrice: number;
+  orderStatus: string;
+  lastFilledQuantity: number;
+  filledQuantity: number;
+  tradeAt: string;
+  updatedAt: string;
+}
+
 export const REALTIME_CANDLE_TIMEFRAMES = [
   '1m',
   '3m',

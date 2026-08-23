@@ -9,6 +9,9 @@ import type {
 import type {
   MarketScannerMetrics,
 } from './market-scanner-metrics.js';
+import type {
+  RealtimeLiquidation,
+} from './realtime-market-data.types.js';
 import {
   DEFAULT_MARKET_VOLUME_SPIKE_OPTIONS,
   type MarketVolumeSpike,
@@ -44,6 +47,11 @@ export interface MarketWideRealtimeRouteService {
     symbol?: string,
     options?: MarketVolumeSpikeOptions,
   ): MarketVolumeSpike[];
+
+  getRecentLiquidations(
+    symbol?: string,
+    limit?: number,
+  ): RealtimeLiquidation[];
 }
 
 interface MarketWideRealtimeRoutesOptions {
@@ -529,4 +537,83 @@ FastifyPluginAsync<
         );
     },
   );
+
+  app.get<{
+    Querystring: {
+      symbol?: string;
+      limit?: string;
+    };
+  }>(
+    '/market/realtime/market-wide/liquidations',
+    async (
+      request,
+      reply,
+    ) => {
+      const symbol =
+        normalizeSymbol(
+          request.query.symbol,
+        );
+
+      if (symbol === '') {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_symbol',
+          'Invalid symbol format',
+        );
+      }
+
+      const requestedLimit =
+        parseIntegerQueryNumber(
+          request.query.limit,
+        );
+
+      if (
+        requestedLimit === null
+        || (
+          requestedLimit !== undefined
+          && (
+            requestedLimit < 1
+            || requestedLimit > 1_000
+          )
+        )
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_liquidation_limit',
+          'Liquidation limit must be an integer from 1 to 1000',
+        );
+      }
+
+      if (
+        symbol
+        && options
+          .marketWideRealtimeService
+          .getMetrics(
+            symbol,
+          )
+          .length === 0
+      ) {
+        return sendError(
+          request,
+          reply,
+          404,
+          'market_wide_symbol_not_found',
+          `Symbol ${symbol} is not present in the market-wide universe`,
+        );
+      }
+
+      return options
+        .marketWideRealtimeService
+        .getRecentLiquidations(
+          symbol ?? undefined,
+          requestedLimit
+          ?? 100,
+        );
+    },
+  );
+
 };

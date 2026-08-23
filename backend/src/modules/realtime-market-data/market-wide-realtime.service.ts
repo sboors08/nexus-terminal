@@ -15,11 +15,16 @@ import {
   type MarketWideSymbolChange,
 } from './market-wide-one-minute-metrics.js';
 import {
+  MarketWideLiquidationStore,
+  parseBinanceMarketWideLiquidation,
+} from './market-wide-liquidations.js';
+import {
   REALTIME_CANDLE_TIMEFRAMES,
 } from './realtime-market-data.types.js';
 import type {
   RealtimeBookTicker,
   RealtimeCandle,
+  RealtimeLiquidation,
   RealtimeOpenInterest,
   RealtimeCandleTimeframe,
   RealtimeSocketEvent,
@@ -649,17 +654,47 @@ export function buildMarketWideStreamShards(
   /*
    * Klines remain symbol-scoped because Binance does not
    * provide an equivalent all-symbol kline stream.
+   *
+   * Binance !forceOrder@arr belongs to /market/stream.
+   * Reserve one slot in the first kline shard so the
+   * liquidation stream shares an actively updating socket.
+   *
+   * A dedicated forceOrder-only shard would be legitimately
+   * silent whenever the market has no liquidations and could
+   * therefore trigger the existing silence watchdog even
+   * though the transport itself is healthy.
    */
-  for (
-    let index = 0;
-    index < normalizedSymbols.length;
-    index += maxStreamsPerSocket
+  let symbolIndex = 0;
+  let firstMarketShard = true;
+
+  while (
+    symbolIndex
+    < normalizedSymbols.length
   ) {
+    const klineCapacity =
+      firstMarketShard
+        ? maxStreamsPerSocket - 1
+        : maxStreamsPerSocket;
+
     const shardSymbols =
       normalizedSymbols.slice(
-        index,
-        index + maxStreamsPerSocket,
+        symbolIndex,
+        symbolIndex
+          + klineCapacity,
       );
+
+    const streams =
+      shardSymbols.map(
+        (symbol) =>
+          symbol.toLowerCase()
+          + '@kline_1m',
+      );
+
+    if (firstMarketShard) {
+      streams.push(
+        '!forceOrder@arr',
+      );
+    }
 
     shards.push({
       id:
@@ -668,13 +703,14 @@ export function buildMarketWideStreamShards(
         'market',
       symbols:
         shardSymbols,
-      streams:
-        shardSymbols.map(
-          (symbol) =>
-            symbol.toLowerCase()
-            + '@kline_1m',
-        ),
+      streams,
     });
+
+    symbolIndex +=
+      shardSymbols.length;
+
+    firstMarketShard =
+      false;
   }
 
   /*
@@ -807,6 +843,9 @@ export class MarketWideRealtimeService {
   private readonly metricsStore:
     MarketWideOneMinuteMetricsStore;
 
+  private readonly liquidationStore:
+    MarketWideLiquidationStore;
+
   private readonly klineChangeListeners =
     new Set<
       MarketWideKlineChangeListener
@@ -908,6 +947,12 @@ export class MarketWideRealtimeService {
       new MarketWideOneMinuteMetricsStore(
         this.symbols,
       );
+
+    this.liquidationStore =
+      new MarketWideLiquidationStore({
+        symbols:
+          this.symbols,
+      });
   }
 
   start(): void {
@@ -943,6 +988,11 @@ export class MarketWideRealtimeService {
 
     const changes =
       this.metricsStore.replaceSymbols(
+        normalizedSymbols,
+      );
+
+    this.liquidationStore
+      .replaceSymbols(
         normalizedSymbols,
       );
 
@@ -1096,6 +1146,31 @@ export class MarketWideRealtimeService {
       .applyOpenInterest(
         value,
       );
+  }
+
+  getLatestLiquidation(
+    symbol: string,
+  ): RealtimeLiquidation | null {
+    return this.liquidationStore
+      .getLatest(
+        symbol,
+      );
+  }
+
+  getRecentLiquidations(
+    symbol?: string,
+    limit?: number,
+  ): RealtimeLiquidation[] {
+    return limit === undefined
+      ? this.liquidationStore
+          .getRecent(
+            symbol,
+          )
+      : this.liquidationStore
+          .getRecent(
+            symbol,
+            limit,
+          );
   }
 
   getState(
@@ -1692,6 +1767,91 @@ export class MarketWideRealtimeService {
       this.now().toISOString();
 
     try {
+      if (
+        stream
+        === '!forceorder@arr'
+      ) {
+        const rawLiquidation =
+          payload.data as {
+            E?: unknown;
+          };
+
+        const eventTime =
+          readNumber(
+            rawLiquidation.E,
+          );
+
+        if (
+          eventTime === null
+          || !Number.isInteger(
+            eventTime,
+          )
+          || eventTime < 0
+        ) {
+          throw new Error(
+            'Invalid Binance market-wide liquidation event time',
+          );
+        }
+
+        const receivedAtMs =
+          Date.parse(
+            receivedAt,
+          );
+
+        const lagMs =
+          !Number.isFinite(
+            receivedAtMs,
+          )
+            ? null
+            : receivedAtMs
+              - eventTime;
+
+        if (
+          lagMs !== null
+          && lagMs
+            > MARKET_WIDE_EVENT_STALE_AFTER_MS
+        ) {
+          /*
+           * Drop delayed liquidation snapshots without
+           * refreshing transport health. The shared kline
+           * traffic on this market shard remains responsible
+           * for silence detection.
+           */
+          return;
+        }
+
+        const liquidation =
+          parseBinanceMarketWideLiquidation(
+            payload.data,
+          );
+
+        /*
+         * A valid st=2 COIN-M packet is intentionally not
+         * stored, but still proves that the shared Binance
+         * transport is alive.
+         *
+         * The same applies to a valid UM delivery contract
+         * outside the tracked NEXUS perpetual universe.
+         */
+        this.lastMessageAt =
+          receivedAt;
+
+        this.armShardWatchdog(
+          shard,
+          generation,
+          socket,
+        );
+
+        if (liquidation) {
+          this.liquidationStore
+            .apply(
+              liquidation,
+            );
+        }
+
+        return;
+      }
+
       if (
         stream.endsWith(
           '@kline_1m',

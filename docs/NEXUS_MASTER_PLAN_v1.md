@@ -1,10 +1,10 @@
-# NEXUS Master Plan v1
+ NEXUS Master Plan v1
 
 **Статус:** основной источник правды по продукту и разработке
 **Репозиторий:** `sboors08/nexus-terminal`
 **Дата фиксации:** 2026-08-23
 **Язык работы:** русский
-**Базовое состояние:** `main` / `origin/main` на merge-коммите `d4aa844895aeadc95c975a053b0a82930186d34f`, PR #184
+**Базовое состояние:** `main` / `origin/main` на merge-коммите `3422b99febf070ece198da4fbcb410577bf477bf`, PR #187
 **Текущая ориентировочная готовность:** числовой процент не подтверждён; фактический статус 13 этапов зафиксирован в разделах 25–26
 
 ---
@@ -150,7 +150,8 @@ NEXUS — веб-терминал для криптовалютных скаль
 - стакан;
 - лента принтов;
 - ликвидность;
-- позднее — ликвидации и расширенные фьючерсные данные;
+- ликвидации;
+- позднее — расширенные фьючерсные данные;
 - BTC-контекст;
 - несколько временных окон;
 - данные для Scanner, Dashboard, Market, Workspace, History и Replay.
@@ -895,7 +896,10 @@ Replay обязателен для v1.0.
 - Level Lines Exact-Price Origin Resolution Real-Data Validation v0.1 дважды проиграла `4 905` causal prefixes по `4 995` сохранённым реальным закрытым `1m` свечам. Production path выдал `40` уникальных resolution decisions: `31` active identity reuse и `9` worked identity rearm. Residual current collision groups, restart mismatches и invariant violations — `0`; полная History сохранена, restart/replay equivalence подтверждена, future candles и изменения trading rules отсутствуют;
 - пользовательский путь `Market → Workspace` восстановлен в PR #133–#134 и защищён актуальным CI verifier после PR #135;
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
-- Funding Rate, Open Interest и ликвидации ещё не подключены к рабочим market metrics;
+- Mark Price + Funding Rate Runtime Foundation v0.1 merged в PR #186;
+- Open Interest Runtime Foundation v0.1 merged в PR #187;
+- Liquidations Runtime Foundation v0.1 реализован и locally/live validated в текущей feature-ветке; commit, PR, merge и CI ещё не подтверждены;
+- пользовательское отображение полного Futures Metrics context в терминале ещё не завершено;
 - Alerts имеют единый backend runtime и provider-neutral External Delivery Foundation. Persistence snapshot v2 сохраняет rules, enabled state, bounded trigger history, source-event dedupe, активные cooldown scopes и delivery outbox; snapshot v1 мигрирует детерминированно с пустым outbox. Каждый trigger ставится в outbox по immutable trigger id и стабильному idempotency key, а `pending/sending/delivered/failed`, bounded attempts, retry/backoff и interrupted-send recovery переживают restart. Отказ enqueue или delivery не отменяет trigger и не останавливает event sources; наружу выводятся только безопасные error codes и агрегированные diagnostics. Production delivery adapters и vendor credentials по умолчанию отсутствуют, поэтому реальная внешняя отправка ещё не включена. Multi-user ownership, Auth, постоянная History/Replay data layer, production DB/backup и закрытая beta не завершены.
 
 ---
@@ -908,7 +912,7 @@ Replay обязателен для v1.0.
 | --- | --- | --- | --- |
 | 1 | Публичная страница | Частично | Есть публичный frontend-фундамент и SEO/i18n-заготовки; финальные лендинг, тексты, локализация и заявка в beta не завершены |
 | 2 | Binance USDⓈ-M Futures Migration | Завершён | PR #27; целевой рынок переведён на активные USDT perpetual contracts |
-| 3 | Futures Market Metrics | Частично | Реализованы realtime и multi-window цена/объём/сделки/волатильность/BTC-метрики, а также Mark Price + Funding Rate Runtime Foundation v0.1; Open Interest и ликвидации ещё впереди |
+| 3 | Futures Market Metrics | Частично | Реализованы realtime и multi-window цена/объём/сделки/волатильность/BTC-метрики; Mark Price + Funding Rate merged в PR #186; Open Interest merged в PR #187; Liquidations Runtime Foundation v0.1 реализован и locally/live validated в текущей feature-ветке. Backend factual foundations практически закрыты, но commit/PR/merge Liquidations и пользовательское отображение Futures Metrics в терминале ещё не завершены |
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134; Workspace отображает backend Unified Decision без frontend-пересчёта направления |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены; exact-price resolution path проверен на real data | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы. На `4 995` свечах подтверждены `40` exact-price decisions без residual collisions/violations; frozen Manual Review sample ранее завершён `100/100` и повторно не запускается |
@@ -1347,3 +1351,93 @@ Stage 3 остаётся частично завершённым.
 `NEXUS_FUTURES_OPEN_INTEREST_RUNTIME_v0.1.md`.
 
 Commit, PR, merge и CI должны подтверждаться отдельно после их фактического выполнения.
+---
+
+## 41. Futures Liquidations Runtime Foundation v0.1
+
+Статус: `IMPLEMENTED_AND_LOCALLY_VALIDATED`.
+
+Раздел официальной дорожной карты:
+
+`Stage 3 — Futures Market Metrics`.
+
+Реализовано:
+
+- factual Binance Futures liquidation snapshot stream `!forceOrder@arr`;
+- transport через существующий `/market/stream`;
+- `RealtimeLiquidation`;
+- bounded per-symbol history `100`;
+- bounded market-wide recent history `1000`;
+- stale protection;
+- dynamic universe pruning;
+- `st = 1` USDⓈ-M acceptance;
+- `st = 2` COIN-M filtering;
+- read-only endpoint `GET /api/v1/market/realtime/market-wide/liquidations`;
+- symbol filter;
+- bounded `limit` от `1` до `1000`;
+- WebSocket → Store → HTTP integration.
+
+### Фактически наблюдённая wire schema
+
+Real Binance `!forceOrder@arr` event содержал:
+
+- top-level `e`, `E`, `o`;
+- `o.ps`;
+- `o.st`.
+
+Live example:
+
+- symbol `ZROUSDT`;
+- `o.st = 1`.
+
+Parser поддерживает как observed nested `o.ps/o.st`, так и documented top-level `ps/st`.
+
+Если metadata присутствует в двух местах одновременно, значения обязаны совпадать.
+
+Symbol-name inference для UM/CM не используется.
+
+### Snapshot boundary
+
+Stream не трактуется как полный liquidation tape.
+
+Historical backfill и permanent persistence в v0.1 отсутствуют.
+
+### Real validation
+
+Подтверждено:
+
+- socket opened;
+- live BTCUSDT kline получен;
+- live forceOrder получен;
+- `2` USD-M liquidation events успешно распарсены;
+- nested `o.ps/o.st` фактически наблюдались.
+
+### Scope boundary
+
+Не изменялись:
+
+- Level Lines;
+- Setup Engine;
+- Unified Decision;
+- trading thresholds;
+- Setup Score;
+- ranking;
+- profitability labels;
+- PnL;
+- position sizing;
+- training;
+- Self-Learning.
+
+### Collector isolation
+
+Исходный factual collector не перезапускался, collecting `main` не обновлялся и collecting source не изменялся.
+
+### Следующий Stage 3 шаг
+
+После merge Liquidations:
+
+`Futures Metrics Terminal Exposure v0.1`.
+
+Цель — вывести factual Mark Price / Funding Rate / Open Interest / Liquidations в пользовательский терминал без изменения trading rules.
+
+Commit, PR, merge и CI Liquidations подтверждаются отдельно после фактического выполнения.
