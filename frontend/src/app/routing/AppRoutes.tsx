@@ -17,7 +17,7 @@ import { MarketPage } from '@/pages/MarketPage';
 import { LevelPreviewPage } from '@/pages/LevelPreviewPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { PublicHomePage } from '@/pages/PublicHomePage';
-import { ReplayPage } from '@/pages/ReplayPage';
+import { ReplayPage } from '@/pages/ReplayRuntimePage';
 import { ScannerPage } from '@/pages/ScannerPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { WatchlistPage } from '@/pages/WatchlistPage';

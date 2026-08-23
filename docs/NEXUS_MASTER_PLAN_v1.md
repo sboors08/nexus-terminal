@@ -1022,54 +1022,52 @@ Replay обязателен для v1.0.
 
 Последняя полностью закрытая задача:
 
-**NEXUS Persistent Setup Event History Foundation v0.1**
+**NEXUS Market History Runtime Integration v0.1**
 
 Фактический результат:
 
-- PR #180 merged в `main`;
-- merge commit: `35293714d5bb42356d9a8a266465d37f438e52ff`;
-- Setup lifecycle History сохраняется в versioned atomic JSON snapshot;
-- hydration выполняется до live subscription;
-- History event ID продолжает monotonic sequence после restart;
-- restart/replay dedupe использует semantic lifecycle identity, а не process-local eventId;
-- bounded retention, terminal outcomes и candidate/episode identity переживают restart;
-- corrupt/unsupported storage не перезаписывается;
-- persistence failure не останавливает Setup runtime;
-- focused persistence/restart tests: `15/15`;
-- полный backend suite: `634/634`;
-- PR CI и post-merge Backend/Frontend CI — success.
+- PR #181 merged в `main`;
+- merge commit: `eca66a8e4f78819c4c5b8fefeca591537805fb94`;
+- Market History использует production read-model поверх Persistent Setup Event History;
+- production route больше не читает fixture archive;
+- lifecycle result остаётся factual: `active`, `breakout_confirmed`, `rejection_confirmed`, `expired`;
+- partial retained history явно маркируется при bounded retention;
+- profitability, PnL и synthetic Replay не добавлены;
+- Backend и Frontend PR CI — success;
+- post-merge Backend и Frontend CI — success.
 
 Manual Review уже завершён ранее на frozen sample `100/100` и повторно не выполняется.
 
 Текущая отдельная задача:
 
-**NEXUS Market History Runtime Integration v0.1**
+**NEXUS Real Setup Replay Foundation v0.1**
 
 Цель:
 
-- построить backend read-model поверх persistent Setup lifecycle events;
-- сгруппировать события по restart-deterministic candidate / episode identity;
-- отдать factual lifecycle result без выдуманного `successful/failed`;
-- подключить пользовательский Market History route к runtime endpoint вместо fixture archive;
-- показать real symbol/timeframe/setup type/direction/level/lifecycle/episode facts;
-- поддержать `1m`, `5m`, `15m`, `1h`, `4h`;
-- явно показать partial history при bounded retention;
-- сохранить Workspace navigation;
-- не подделывать outcome analytics и Replay.
+- построить Replay поверх уже сохранённых persistent Setup lifecycle events;
+- один Replay frame = один factual lifecycle event + сохранённый candidate snapshot;
+- воспроизводить stage/outcome/current price/distance/level/episode/line identity event-by-event;
+- поддержать complete и partial retained history;
+- перевести production `/app/replay` с frontend fixture scenario на runtime endpoint;
+- открыть переход `Market History → Replay`;
+- использовать lifecycle SSE только как trigger повторного чтения;
+- явно зафиксировать недоступность historical candles/aggTrade/order book/PnL вместо их синтеза.
 
 В этот этап не входят:
 
+- historical OHLC reconstruction;
+- historical tape/order-book reconstruction;
+- liquidity replay;
 - `maxMovePct`, adverse move, time-to-target и PnL;
 - profitability / success-rate;
-- полный Replay;
-- historical tape/order-book reconstruction;
+- outcome dataset;
 - Self-Learning;
 - изменение Observation/Approach/Confirmation thresholds;
 - изменение breakout/rejection/expiry/ranking/lineId/touch rules.
 
 Следующая отдельная задача после merge и зелёного post-merge CI:
 
-**NEXUS Real Setup Replay Foundation v0.1**
+**NEXUS Setup Outcome Dataset / Validation**
 
 ---
 

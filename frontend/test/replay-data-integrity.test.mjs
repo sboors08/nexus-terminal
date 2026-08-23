@@ -319,3 +319,411 @@ test(
     );
   },
 );
+
+test(
+  'routes production Replay to factual persistent lifecycle runtime data',
+  () => {
+    const routesSource =
+      readSource(
+        '../src/app/routing/AppRoutes.tsx',
+      );
+
+    const runtimePageSource =
+      readSource(
+        '../src/pages/ReplayRuntimePage.tsx',
+      );
+
+    assert.match(
+      routesSource,
+      /ReplayPage \} from '@\/pages\/ReplayRuntimePage'/u,
+    );
+
+    assert.doesNotMatch(
+      routesSource,
+      /ReplayPage \} from '@\/pages\/ReplayPage'/u,
+    );
+
+    assert.match(
+      runtimePageSource,
+      /fetchSetupReplayRuntimeView/u,
+    );
+
+    assert.match(
+      runtimePageSource,
+      /REAL RUNTIME DATA: persisted Setup lifecycle frames/u,
+    );
+
+    assert.match(
+      runtimePageSource,
+      /Свечи, aggTrade, исторический стакан и PnL/u,
+    );
+
+    for (
+      const forbidden
+      of [
+        'REPLAY_SESSIONS',
+        'createCandles',
+        'maxMovePct',
+        'adverseMovePct',
+        'session.candles',
+        'session.result',
+        'Fixture-график',
+        'Fixture-лента',
+        'Fixture-карта',
+      ]
+    ) {
+      assert.equal(
+        runtimePageSource.includes(
+          forbidden,
+        ),
+        false,
+        `Runtime Replay page must not use ${forbidden}`,
+      );
+    }
+  },
+);
+
+test(
+  'parses and fetches the versioned factual Setup Replay runtime contract',
+  async () => {
+    const {
+      buildSetupReplayRuntimeUrl,
+      fetchSetupReplayRuntimeView,
+      getSetupReplayRuntimeSetupLabel,
+      parseSetupReplayRuntimeResponse,
+    } = await import(
+      '../node_modules/.tmp/realtime-test/api/runtime/setupReplayRuntimeApi.js'
+    );
+
+    const payload = {
+      version:
+        'real-setup-replay-v0.1',
+
+      source: {
+        state:
+          'running',
+
+        eventsCount:
+          3,
+
+        droppedEventsCount:
+          0,
+
+        persistence: {
+          state:
+            'ready',
+
+          version:
+            1,
+
+          hydrated:
+            true,
+
+          writable:
+            true,
+
+          lastPersistedAt:
+            '2026-08-23T09:30:00.000Z',
+
+          lastErrorCode:
+            null,
+        },
+      },
+
+      capabilities: {
+        lifecycleFrames:
+          true,
+
+        eventSnapshotPrices:
+          true,
+
+        candles:
+          false,
+
+        aggTrades:
+          false,
+
+        orderBook:
+          false,
+
+        pnl:
+          false,
+      },
+
+      session: {
+        id:
+          'setup-replay:setup-sol-runtime-replay',
+
+        setupId:
+          'setup-sol-runtime-replay',
+
+        candidateId:
+          'setup-sol-runtime-replay',
+
+        symbol:
+          'SOLUSDT',
+
+        timeframe:
+          '1m',
+
+        setupType:
+          'level_breakout',
+
+        direction:
+          'long',
+
+        detectedAt:
+          '2026-08-23T09:20:00.000Z',
+
+        firstRetainedAt:
+          '2026-08-23T09:20:00.000Z',
+
+        latestEventAt:
+          '2026-08-23T09:25:00.000Z',
+
+        completedAt:
+          '2026-08-23T09:25:00.000Z',
+
+        result:
+          'breakout_confirmed',
+
+        historyComplete:
+          true,
+
+        firstEventId:
+          1,
+
+        lastEventId:
+          2,
+
+        frameCount:
+          2,
+
+        episodeId:
+          'setup-sol-runtime-replay',
+
+        lineId:
+          'line-sol-runtime-replay',
+
+        frames: [
+          {
+            index:
+              0,
+
+            eventId:
+              1,
+
+            type:
+              'candidate_created',
+
+            occurredAt:
+              '2026-08-23T09:20:00.000Z',
+
+            previousStage:
+              null,
+
+            currentStage:
+              'LEVEL_CONFIRMED',
+
+            outcome:
+              null,
+
+            currentPrice:
+              99.4,
+
+            distanceToLevelPct:
+              0.6,
+
+            snapshotUpdatedAt:
+              '2026-08-23T09:20:00.000Z',
+
+            expiresAt:
+              '2026-08-23T10:20:00.000Z',
+
+            level: {
+              kind:
+                'resistance',
+
+              centerPrice:
+                100,
+
+              zoneLow:
+                99.8,
+
+              zoneHigh:
+                100.2,
+
+              touches:
+                2,
+
+              confirmedAt:
+                '2026-08-23T09:15:00.000Z',
+            },
+
+            episodeId:
+              'setup-sol-runtime-replay',
+
+            lineId:
+              'line-sol-runtime-replay',
+          },
+          {
+            index:
+              1,
+
+            eventId:
+              2,
+
+            type:
+              'breakout_confirmed',
+
+            occurredAt:
+              '2026-08-23T09:25:00.000Z',
+
+            previousStage:
+              'THIRD_TOUCH_CONFIRMED',
+
+            currentStage:
+              'BREAKOUT_CONFIRMED',
+
+            outcome:
+              'breakout',
+
+            currentPrice:
+              100.4,
+
+            distanceToLevelPct:
+              0.4,
+
+            snapshotUpdatedAt:
+              '2026-08-23T09:25:00.000Z',
+
+            expiresAt:
+              '2026-08-23T10:20:00.000Z',
+
+            level: {
+              kind:
+                'resistance',
+
+              centerPrice:
+                100,
+
+              zoneLow:
+                99.8,
+
+              zoneHigh:
+                100.2,
+
+              touches:
+                3,
+
+              confirmedAt:
+                '2026-08-23T09:15:00.000Z',
+            },
+
+            episodeId:
+              'setup-sol-runtime-replay',
+
+            lineId:
+              'line-sol-runtime-replay',
+          },
+        ],
+      },
+    };
+
+    const parsed =
+      parseSetupReplayRuntimeResponse(
+        payload,
+      );
+
+    assert.equal(
+      parsed.session.frameCount,
+      2,
+    );
+
+    assert.equal(
+      parsed.session.frames[1].currentPrice,
+      100.4,
+    );
+
+    assert.equal(
+      parsed.capabilities.candles,
+      false,
+    );
+
+    assert.equal(
+      getSetupReplayRuntimeSetupLabel(
+        parsed.session,
+        parsed.session.frames[0],
+      ),
+      'Пробой сопротивления',
+    );
+
+    assert.equal(
+      buildSetupReplayRuntimeUrl(
+        'setup-sol-runtime-replay',
+        {
+          baseUrl:
+            'http://localhost:4100/',
+        },
+      ),
+      'http://localhost:4100/api/v1/setups/candidates/setup-sol-runtime-replay/replay',
+    );
+
+    let requestedUrl =
+      '';
+
+    const fetched =
+      await fetchSetupReplayRuntimeView(
+        'setup-sol-runtime-replay',
+        {
+          baseUrl:
+            'http://localhost:4100',
+
+          fetcher:
+            async (
+              url,
+            ) => {
+              requestedUrl =
+                String(
+                  url,
+                );
+
+              return new Response(
+                JSON.stringify(
+                  payload,
+                ),
+                {
+                  status:
+                    200,
+
+                  headers: {
+                    'content-type':
+                      'application/json',
+                  },
+                },
+              );
+            },
+        },
+      );
+
+    assert.equal(
+      requestedUrl,
+      'http://localhost:4100/api/v1/setups/candidates/setup-sol-runtime-replay/replay',
+    );
+
+    assert.equal(
+      fetched.session.result,
+      'breakout_confirmed',
+    );
+
+    assert.throws(
+      () =>
+        parseSetupReplayRuntimeResponse({
+          ...payload,
+          version:
+            'real-setup-replay-v9',
+        }),
+      /Unsupported Setup Replay runtime contract version/u,
+    );
+  },
+);

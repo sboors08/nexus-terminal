@@ -278,14 +278,18 @@ test(
 
     assert.match(
       runtimePageSource,
-      /Replay — следующий этап/u,
+      /buildReplayUrl/u,
+    );
+
+    assert.match(
+      runtimePageSource,
+      />\s*Replay\s*<\/Link>/u,
     );
 
     for (
       const forbidden
       of [
         'MARKET_HISTORY_ITEMS',
-        'buildReplayUrl',
         'maxMovePct',
         'adverseMovePct',
         'timeToTargetSec',

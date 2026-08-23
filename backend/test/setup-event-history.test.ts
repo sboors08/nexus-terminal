@@ -1582,3 +1582,531 @@ test(
     history.stop();
   },
 );
+test(
+  'projects factual persistent lifecycle snapshots into real Setup Replay frames',
+  async () => {
+    const {
+      buildSetupReplayRuntimeResponse,
+    } = await import(
+      '../src/modules/setup-engine/setup-replay-runtime.js'
+    );
+
+    const source =
+      new TestEventSource();
+
+    const history =
+      new SetupEventHistoryService(
+        source,
+        {
+          maxEvents:
+            10,
+        },
+      );
+
+    history.start();
+
+    const created =
+      createEvent({
+        eventId:
+          1,
+
+        candidateId:
+          'setup-sol-real-replay',
+
+        symbol:
+          'SOLUSDT',
+      });
+
+    created.candidate.currentPrice =
+      99.4;
+
+    created.candidate.distanceToLevelPct =
+      0.6;
+
+    source.emit(
+      created,
+    );
+
+    const confirmation =
+      createEvent({
+        eventId:
+          2,
+
+        candidateId:
+          'setup-sol-real-replay',
+
+        symbol:
+          'SOLUSDT',
+
+        type:
+          'stage_transition',
+
+        previousStage:
+          'APPROACHING_THIRD_TOUCH',
+
+        currentStage:
+          'THIRD_TOUCH_CONFIRMED',
+      });
+
+    confirmation.candidate.currentPrice =
+      100;
+
+    confirmation.candidate.distanceToLevelPct =
+      0;
+
+    source.emit(
+      confirmation,
+    );
+
+    const breakout =
+      createEvent({
+        eventId:
+          3,
+
+        candidateId:
+          'setup-sol-real-replay',
+
+        symbol:
+          'SOLUSDT',
+
+        type:
+          'breakout_confirmed',
+
+        previousStage:
+          'THIRD_TOUCH_CONFIRMED',
+
+        currentStage:
+          'BREAKOUT_CONFIRMED',
+
+        outcome:
+          'breakout',
+      });
+
+    breakout.candidate.currentPrice =
+      100.4;
+
+    breakout.candidate.distanceToLevelPct =
+      0.4;
+
+    source.emit(
+      breakout,
+    );
+
+    const response =
+      buildSetupReplayRuntimeResponse(
+        history,
+        'setup-sol-real-replay',
+      );
+
+    assert.ok(
+      response,
+    );
+
+    assert.equal(
+      response.version,
+      'real-setup-replay-v0.1',
+    );
+
+    assert.equal(
+      response.session.frameCount,
+      3,
+    );
+
+    assert.equal(
+      response.session.result,
+      'breakout_confirmed',
+    );
+
+    assert.equal(
+      response.session.historyComplete,
+      true,
+    );
+
+    assert.deepEqual(
+      response.session.frames
+        .map(
+          (frame) =>
+            frame.currentPrice,
+        ),
+      [
+        99.4,
+        100,
+        100.4,
+      ],
+    );
+
+    assert.equal(
+      response.capabilities
+        .lifecycleFrames,
+      true,
+    );
+
+    assert.equal(
+      response.capabilities
+        .candles,
+      false,
+    );
+
+    assert.equal(
+      response.capabilities
+        .aggTrades,
+      false,
+    );
+
+    assert.equal(
+      response.capabilities
+        .orderBook,
+      false,
+    );
+
+    assert.equal(
+      response.capabilities
+        .pnl,
+      false,
+    );
+
+    assert.equal(
+      'maxMovePct'
+      in response.session,
+      false,
+    );
+
+    assert.equal(
+      'candles'
+      in response.session,
+      false,
+    );
+
+    history.stop();
+  },
+);
+
+test(
+  'marks real Setup Replay partial when bounded retention drops candidate_created',
+  async () => {
+    const {
+      buildSetupReplayRuntimeResponse,
+    } = await import(
+      '../src/modules/setup-engine/setup-replay-runtime.js'
+    );
+
+    const source =
+      new TestEventSource();
+
+    const history =
+      new SetupEventHistoryService(
+        source,
+        {
+          maxEvents:
+            1,
+        },
+      );
+
+    history.start();
+
+    source.emit(
+      createEvent({
+        eventId:
+          1,
+
+        candidateId:
+          'setup-partial-real-replay',
+      }),
+    );
+
+    source.emit(
+      createEvent({
+        eventId:
+          2,
+
+        candidateId:
+          'setup-partial-real-replay',
+
+        type:
+          'stage_transition',
+
+        previousStage:
+          'LEVEL_CONFIRMED',
+
+        currentStage:
+          'APPROACHING_THIRD_TOUCH',
+      }),
+    );
+
+    const response =
+      buildSetupReplayRuntimeResponse(
+        history,
+        'setup-partial-real-replay',
+      );
+
+    assert.ok(
+      response,
+    );
+
+    assert.equal(
+      response.session.historyComplete,
+      false,
+    );
+
+    assert.equal(
+      response.session.frameCount,
+      1,
+    );
+
+    assert.equal(
+      response.session.firstEventId,
+      2,
+    );
+
+    assert.equal(
+      response.source.droppedEventsCount,
+      1,
+    );
+
+    history.stop();
+  },
+);
+
+test(
+  'real Setup Replay route validates candidate id and returns factual retained frames',
+  async () => {
+    const {
+      setupReplayRuntimeRoutes,
+    } = await import(
+      '../src/modules/setup-engine/setup-replay-runtime.routes.js'
+    );
+
+    const source =
+      new TestEventSource();
+
+    const history =
+      new SetupEventHistoryService(
+        source,
+        {
+          maxEvents:
+            10,
+        },
+      );
+
+    history.start();
+
+    source.emit(
+      createEvent({
+        eventId:
+          1,
+
+        candidateId:
+          'setup-route-real-replay',
+      }),
+    );
+
+    const app =
+      Fastify({
+        logger:
+          false,
+      });
+
+    await app.register(
+      setupReplayRuntimeRoutes,
+      {
+        prefix:
+          '/api/v1',
+
+        setupEventHistoryReader:
+          history,
+      },
+    );
+
+    await app.ready();
+
+    const response =
+      await app.inject({
+        method:
+          'GET',
+
+        url:
+          '/api/v1/setups/candidates/setup-route-real-replay/replay',
+      });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+
+    assert.equal(
+      response
+        .json()
+        .version,
+      'real-setup-replay-v0.1',
+    );
+
+    assert.equal(
+      response
+        .json()
+        .session
+        .setupId,
+      'setup-route-real-replay',
+    );
+
+    const missing =
+      await app.inject({
+        method:
+          'GET',
+
+        url:
+          '/api/v1/setups/candidates/setup-missing-real-replay/replay',
+      });
+
+    assert.equal(
+      missing.statusCode,
+      404,
+    );
+
+    const invalid =
+      await app.inject({
+        method:
+          'GET',
+
+        url:
+          '/api/v1/setups/candidates/%20/replay',
+      });
+
+    assert.equal(
+      invalid.statusCode,
+      400,
+    );
+
+    await app.close();
+
+    const unavailableApp =
+      Fastify({
+        logger:
+          false,
+      });
+
+    await unavailableApp.register(
+      setupReplayRuntimeRoutes,
+      {
+        prefix:
+          '/api/v1',
+      },
+    );
+
+    await unavailableApp.ready();
+
+    const unavailable =
+      await unavailableApp.inject({
+        method:
+          'GET',
+
+        url:
+          '/api/v1/setups/candidates/setup-route-real-replay/replay',
+      });
+
+    assert.equal(
+      unavailable.statusCode,
+      503,
+    );
+
+    await unavailableApp.close();
+    history.stop();
+  },
+);
+
+test(
+  'buildApp exposes real Setup Replay from the persistent History reader',
+  async () => {
+    const source =
+      new TestEventSource();
+
+    const history =
+      new SetupEventHistoryService(
+        source,
+        {
+          maxEvents:
+            10,
+        },
+      );
+
+    history.start();
+
+    source.emit(
+      createEvent({
+        eventId:
+          1,
+
+        candidateId:
+          'setup-build-app-real-replay',
+      }),
+    );
+
+    const app =
+      await buildApp({
+        env:
+          testEnv,
+
+        realtimeMarketDataService:
+          null,
+
+        orderBookDepthService:
+          null,
+
+        binanceSymbolUniverseService:
+          null,
+
+        marketWideRealtimeService:
+          null,
+
+        marketWideHistoryWarmupService:
+          null,
+
+        setupDetectionRuntimeService:
+          null,
+
+        setupEventHistoryService:
+          null,
+
+        setupEventHistoryReader:
+          history,
+
+        levelV2ShadowRuntimeService:
+          null,
+
+        levelV2ShadowRuntimeReader:
+          null,
+
+        alertsRuntimeService:
+          null,
+
+        levelEngineFrozenSampleReader:
+          null,
+      });
+
+    await app.ready();
+
+    const response =
+      await app.inject({
+        method:
+          'GET',
+
+        url:
+          '/api/v1/setups/candidates/setup-build-app-real-replay/replay',
+      });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+
+    assert.equal(
+      response
+        .json()
+        .session
+        .frameCount,
+      1,
+    );
+
+    await app.close();
+    history.stop();
+  },
+);

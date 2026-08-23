@@ -29,6 +29,7 @@ import {
   useFeedbackPageContext,
 } from '@/shared/feedback/FeedbackProvider';
 import {
+  buildReplayUrl,
   buildWorkspaceUrl,
 } from '@/shared/routing/setupContext';
 import {
@@ -971,14 +972,18 @@ function MarketHistoryRuntimeContent({
             <p className={styles.sectionLabel}>Границы текущих данных</p>
             <p>
               Profit/loss, max move, adverse move и time-to-target здесь намеренно отсутствуют.
-              Они требуют отдельного outcome dataset. Replay также остаётся отдельным следующим этапом.
+              Replay воспроизводит только сохранённые lifecycle events и candidate snapshots без synthetic candles, tape или стакана.
             </p>
           </section>
 
           <div className={styles.detailActions}>
-            <button className={styles.primaryButton} type="button" disabled>
-              Replay — следующий этап
-            </button>
+            <Link className={styles.primaryButton} to={buildReplayUrl(ROUTES.replay, {
+              setupId: selectedItem.setupId,
+              symbol: selectedItem.symbol,
+              timeframe: selectedItem.timeframe,
+            })}>
+              Replay
+            </Link>
             <Link className={styles.secondaryButton} to={buildWorkspaceUrl(ROUTES.workspace, {
               setupId: selectedItem.setupId,
               symbol: selectedItem.symbol,
