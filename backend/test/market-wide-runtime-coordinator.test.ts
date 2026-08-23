@@ -10,6 +10,7 @@ import type {
 import {
   MarketWideRuntimeCoordinator,
   type MarketWideHistoryWarmupTarget,
+  type MarketWideOpenInterestRuntimeTarget,
   type MarketWideRealtimeTarget,
   type MarketWideSymbolUniverseSource,
 } from '../src/modules/realtime-market-data/market-wide-runtime-coordinator.js';
@@ -233,6 +234,33 @@ implements MarketWideHistoryWarmupTarget {
     this.resolveStart = null;
   }
 }
+
+class TestOpenInterestRuntime
+implements MarketWideOpenInterestRuntimeTarget {
+  startCount = 0;
+  stopCount = 0;
+
+  readonly symbolsAtStart:
+    string[][] = [];
+
+  constructor(
+    private readonly getSymbols:
+      () => string[],
+  ) {}
+
+  start(): void {
+    this.startCount += 1;
+
+    this.symbolsAtStart.push(
+      this.getSymbols(),
+    );
+  }
+
+  stop(): void {
+    this.stopCount += 1;
+  }
+}
+
 test(
   'starts market-wide realtime with active and collecting universe symbols',
   async () => {
@@ -568,5 +596,80 @@ test(
 
     coordinator.stop();
     warmup.complete();
+  },
+);
+
+test(
+  'starts and stops Open Interest runtime after market-wide universe synchronization',
+  async () => {
+    const universe =
+      new TestSymbolUniverse(
+        createSnapshot([
+          {
+            symbol:
+              'BTCUSDT',
+            status:
+              'active',
+          },
+          {
+            symbol:
+              'ETHUSDT',
+            status:
+              'collecting',
+          },
+        ]),
+      );
+
+    const realtime =
+      new TestMarketWideRealtime();
+
+    const openInterest =
+      new TestOpenInterestRuntime(
+        () =>
+          realtime
+            .getSymbols(),
+      );
+
+    const coordinator =
+      new MarketWideRuntimeCoordinator(
+        universe,
+        realtime,
+        undefined,
+        openInterest,
+      );
+
+    await coordinator.start();
+
+    assert.equal(
+      openInterest.startCount,
+      1,
+    );
+
+    assert.deepEqual(
+      openInterest.symbolsAtStart,
+      [
+        [
+          'BTCUSDT',
+          'ETHUSDT',
+        ],
+      ],
+    );
+
+    coordinator.stop();
+
+    assert.equal(
+      openInterest.stopCount,
+      1,
+    );
+
+    assert.equal(
+      realtime.stopCount,
+      1,
+    );
+
+    assert.equal(
+      universe.stopCount,
+      1,
+    );
   },
 );

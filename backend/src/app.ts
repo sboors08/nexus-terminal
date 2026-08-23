@@ -12,10 +12,15 @@ import type { MarketDataProvider } from './modules/market-data/market-data.provi
 import { BinanceWebSocketMarketDataService } from './modules/realtime-market-data/binance-websocket.service.js';
 import { BinanceOrderBookDepthService } from './modules/realtime-market-data/binance-order-book-depth.service.js';
 import { BinanceMarketHistoryClient } from './modules/realtime-market-data/binance-market-history.client.js';
+import { BinanceOpenInterestClient } from './modules/realtime-market-data/binance-open-interest.client.js';
 import { BinanceSymbolUniverseService } from './modules/realtime-market-data/binance-symbol-universe.service.js';
 import { MarketWideHistoryWarmupService } from './modules/realtime-market-data/market-wide-history-warmup.service.js';
+import { MarketWideOpenInterestPoller } from './modules/realtime-market-data/market-wide-open-interest-poller.js';
 import { MarketWideRealtimeService } from './modules/realtime-market-data/market-wide-realtime.service.js';
-import { MarketWideRuntimeCoordinator } from './modules/realtime-market-data/market-wide-runtime-coordinator.js';
+import {
+  MarketWideRuntimeCoordinator,
+  type MarketWideOpenInterestRuntimeTarget,
+} from './modules/realtime-market-data/market-wide-runtime-coordinator.js';
 import { SetupDetectionRuntimeService } from './modules/setup-engine/setup-detection-runtime.service.js';
 import {
   LevelV2ShadowMarketEvidenceAdapter,
@@ -115,6 +120,8 @@ export interface BuildAppOptions {
   binanceSymbolUniverseService?: BinanceSymbolUniverseService | null;
   marketWideRealtimeService?: MarketWideRealtimeService | null;
   marketWideHistoryWarmupService?: MarketWideHistoryWarmupService | null;
+  marketWideOpenInterestPoller?:
+    MarketWideOpenInterestRuntimeTarget | null;
   setupDetectionRuntimeService?: SetupDetectionRuntimeLifecycle | null;
   setupDetectionRuntimeReader?: SetupDetectionRuntimeReader | null;
   setupDetectionRuntimeEventSource?: SetupDetectionRuntimeEventSource | null;
@@ -367,6 +374,40 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           })
         : null
       : options.marketWideRealtimeService;
+
+  const marketWideOpenInterestEnabled =
+    env.binanceMarketWideOpenInterestEnabled
+    ?? env.nodeEnv !== 'test';
+
+  const marketWideOpenInterestPoller =
+    options.marketWideOpenInterestPoller
+    === undefined
+      ? marketWideOpenInterestEnabled
+        && marketWideRealtimeService
+        && binanceSymbolUniverseService
+          ? new MarketWideOpenInterestPoller({
+              reader:
+                new BinanceOpenInterestClient({
+                  baseUrl:
+                    env.binanceBaseUrl
+                    ?? 'https://fapi.binance.com',
+                  requestTimeoutMs:
+                    env.binanceRequestTimeoutMs
+                    ?? 5_000,
+                }),
+              symbolSource:
+                marketWideRealtimeService,
+              target:
+                marketWideRealtimeService,
+              intervalMs:
+                env.binanceMarketWideOpenInterestIntervalMs
+                ?? 60_000,
+              maxConcurrency:
+                env.binanceMarketWideOpenInterestMaxConcurrency
+                ?? 4,
+            })
+          : null
+      : options.marketWideOpenInterestPoller;
 
   const marketWideHistoryWarmupEnabled =
     env.binanceMarketWideHistoryWarmupEnabled
@@ -673,6 +714,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           binanceSymbolUniverseService,
           marketWideRealtimeService,
           marketWideHistoryWarmupService
+          ?? undefined,
+          marketWideOpenInterestPoller
           ?? undefined,
         )
       : null;

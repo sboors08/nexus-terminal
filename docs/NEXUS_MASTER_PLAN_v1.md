@@ -1234,7 +1234,7 @@ Factual `missing_third_touch_anchor` сам по себе не является 
 
 Раздел официальной дорожной карты:
 
-`Stage 3 — Futures Market Metrics`.
+`Stage 3 — Futures Market Metrics`. Open Interest Runtime Foundation v0.1 локально реализован и валидирован; ликвидации остаются впереди.
 
 Реализовано:
 
@@ -1280,5 +1280,70 @@ Stage 3 остаётся частично завершённым.
 Подробный контракт:
 
 `NEXUS_FUTURES_MARK_PRICE_FUNDING_RATE_RUNTIME_v0.1.md`.
+
+Commit, PR, merge и CI должны подтверждаться отдельно после их фактического выполнения.
+---
+
+## 40. Futures Open Interest Runtime Foundation v0.1
+
+Статус: `IMPLEMENTED_AND_LOCALLY_VALIDATED`.
+
+Раздел официальной дорожной карты:
+
+`Stage 3 — Futures Market Metrics`.
+
+Реализовано:
+
+- factual current Binance USDⓈ-M Futures Open Interest;
+- официальный REST source `GET /fapi/v1/openInterest`;
+- отдельный `RealtimeOpenInterest`;
+- current OI хранится в существующем market-wide symbol state;
+- OI доступен через `MarketScannerMetrics`;
+- stale OI не заменяет более свежий observation;
+- symbol universe переиспользуется из существующего `MarketWideRuntimeCoordinator`;
+- отдельный OI universe не создаётся;
+- bounded concurrency;
+- overlapping OI sweeps запрещены;
+- следующий sweep запускается только после завершения предыдущего;
+- production interval по умолчанию `60_000 ms`;
+- max concurrency по умолчанию `4`;
+- OI lifecycle управляется существующим Market Wide coordinator;
+- Open Interest не добавляет WebSocket stream.
+
+Локальная validation:
+
+- focused OI tests: `PASSED`;
+- Market Wide Runtime Coordinator tests: `PASSED`;
+- Market Wide regression: `PASSED`;
+- backend typecheck: `PASSED`;
+- полный backend check: `PASSED`;
+- production backend build: `PASSED`;
+- backend audit high+: `PASSED`;
+- real Binance OI smoke: `PASSED`;
+- `git diff --check`: `PASSED`.
+
+Границы v0.1:
+
+- historical Open Interest Statistics не реализуются;
+- OI delta/change analytics не реализуются;
+- ликвидации не реализуются;
+- Setup Engine не изменён;
+- trading rules не изменены;
+- ranking не изменён;
+- profitability labels не применяются;
+- training не запускается;
+- Self-Learning не запускается.
+
+Factual Setup Outcome collection продолжает работать независимо и не была перезапущена ради этой feature.
+
+Stage 3 остаётся частично завершённым.
+
+Следующая отдельная derivatives-metrics задача:
+
+`Liquidations Runtime Foundation v0.1`.
+
+Подробный контракт:
+
+`NEXUS_FUTURES_OPEN_INTEREST_RUNTIME_v0.1.md`.
 
 Commit, PR, merge и CI должны подтверждаться отдельно после их фактического выполнения.

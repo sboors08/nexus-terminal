@@ -45,6 +45,9 @@ export interface AppEnv {
   binanceMarketWideMaxStreamsPerSocket?: number;
   binanceMarketWideReconnectBaseDelayMs?: number;
   binanceMarketWideReconnectMaxDelayMs?: number;
+  binanceMarketWideOpenInterestEnabled?: boolean;
+  binanceMarketWideOpenInterestIntervalMs?: number;
+  binanceMarketWideOpenInterestMaxConcurrency?: number;
   binanceMarketWideHistoryWarmupEnabled?: boolean;
   binanceMarketWideHistoryWarmupMinutesPerSymbol?: number;
   binanceMarketWideHistoryWarmupRequestTimeoutMs?: number;
@@ -294,6 +297,25 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       'BINANCE_MARKET_WIDE_RECONNECT_MAX_DELAY_MS',
       1_000,
       300_000,
+    ),
+    binanceMarketWideOpenInterestEnabled: readBoolean(
+      source.BINANCE_MARKET_WIDE_OPEN_INTEREST_ENABLED,
+      source.NODE_ENV !== 'test',
+      'BINANCE_MARKET_WIDE_OPEN_INTEREST_ENABLED',
+    ),
+    binanceMarketWideOpenInterestIntervalMs: readInteger(
+      source.BINANCE_MARKET_WIDE_OPEN_INTEREST_INTERVAL_MS,
+      60_000,
+      'BINANCE_MARKET_WIDE_OPEN_INTEREST_INTERVAL_MS',
+      5_000,
+      3_600_000,
+    ),
+    binanceMarketWideOpenInterestMaxConcurrency: readInteger(
+      source.BINANCE_MARKET_WIDE_OPEN_INTEREST_MAX_CONCURRENCY,
+      4,
+      'BINANCE_MARKET_WIDE_OPEN_INTEREST_MAX_CONCURRENCY',
+      1,
+      20,
     ),
     binanceMarketWideHistoryWarmupEnabled: readBoolean(
       source.BINANCE_MARKET_WIDE_HISTORY_WARMUP_ENABLED,

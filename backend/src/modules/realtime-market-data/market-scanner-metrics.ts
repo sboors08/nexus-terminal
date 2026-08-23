@@ -14,6 +14,8 @@ export interface MarketScannerMetrics {
   windowMs: number;
   price: number | null;
   priceChangePct: number | null;
+  openInterest?: number | null;
+  openInterestUpdatedAt?: string | null;
   btcCorrelation: number | null;
   relativeStrengthPct: number | null;
   volumeAnomaly: number | null;
