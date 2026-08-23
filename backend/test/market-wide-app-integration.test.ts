@@ -169,6 +169,33 @@ string {
   });
 }
 
+function createLiquidationMessage():
+string {
+  return JSON.stringify({
+    stream:
+      '!forceOrder@arr',
+    data: {
+      e: 'forceOrder',
+      E: 1_721_577_842_600,
+      o: {
+        s: 'SOLUSDT',
+        S: 'SELL',
+        o: 'LIMIT',
+        f: 'IOC',
+        q: '2',
+        p: '100',
+        ap: '100.5',
+        X: 'FILLED',
+        l: '2',
+        z: '2',
+        T: 1_721_577_842_600,
+        ps: 'SOLUSDT',
+        st: 1,
+      },
+    },
+  });
+}
+
 test(
   'app starts market-wide runtime from Binance symbol universe and exposes metrics',
   async () => {
@@ -263,7 +290,7 @@ test(
       initialStatus
         .json()
         .streamCount,
-      3,
+      4,
     );
 
     assert.equal(
@@ -327,6 +354,14 @@ test(
       },
     );
 
+    marketSocket.emit(
+      'message',
+      {
+        data:
+          createLiquidationMessage(),
+      },
+    );
+
     const statusResponse =
       await app.inject({
         method: 'GET',
@@ -384,6 +419,41 @@ test(
     assert.ok(
       metrics[0].liquidityScore
       !== null,
+    );
+
+    const liquidationResponse =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/liquidations?symbol=SOLUSDT&limit=10',
+      });
+
+    assert.equal(
+      liquidationResponse.statusCode,
+      200,
+    );
+
+    const liquidations =
+      liquidationResponse.json();
+
+    assert.equal(
+      liquidations.length,
+      1,
+    );
+
+    assert.equal(
+      liquidations[0].symbol,
+      'SOLUSDT',
+    );
+
+    assert.equal(
+      liquidations[0].side,
+      'sell',
+    );
+
+    assert.equal(
+      liquidations[0].averagePrice,
+      100.5,
     );
 
     await app.close();

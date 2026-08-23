@@ -4,6 +4,9 @@ import Fastify from 'fastify';
 import type {
   MarketScannerMetrics,
 } from '../src/modules/realtime-market-data/market-scanner-metrics.js';
+import type {
+  RealtimeLiquidation,
+} from '../src/modules/realtime-market-data/realtime-market-data.types.js';
 import {
   getMarketScannerWindowMs,
   type MarketScannerWindowId,
@@ -59,6 +62,45 @@ implements MarketWideRealtimeRouteService {
     ),
   ];
 
+
+  private readonly liquidations:
+    RealtimeLiquidation[] = [
+      {
+        symbol: 'BTCUSDT',
+        pairSymbol: 'BTCUSDT',
+        side: 'sell',
+        orderType: 'LIMIT',
+        timeInForce: 'IOC',
+        originalQuantity: 0.01,
+        price: 100_000,
+        averagePrice: 99_950,
+        orderStatus: 'FILLED',
+        lastFilledQuantity: 0.01,
+        filledQuantity: 0.01,
+        tradeAt:
+          '2026-07-21T12:00:20.000Z',
+        updatedAt:
+          '2026-07-21T12:00:20.100Z',
+      },
+      {
+        symbol: 'SOLUSDT',
+        pairSymbol: 'SOLUSDT',
+        side: 'buy',
+        orderType: 'LIMIT',
+        timeInForce: 'IOC',
+        originalQuantity: 10,
+        price: 200,
+        averagePrice: 200.5,
+        orderStatus: 'FILLED',
+        lastFilledQuantity: 10,
+        filledQuantity: 10,
+        tradeAt:
+          '2026-07-21T12:00:25.000Z',
+        updatedAt:
+          '2026-07-21T12:00:25.100Z',
+      },
+    ];
+
   getStatus() {
     return {
       state:
@@ -99,6 +141,29 @@ implements MarketWideRealtimeRouteService {
       }),
     );
   }
+
+  getRecentLiquidations(
+    symbol?: string,
+    limit = 100,
+  ): RealtimeLiquidation[] {
+    const values =
+      symbol
+        ? this.liquidations.filter(
+            (item) =>
+              item.symbol
+              === symbol,
+          )
+        : this.liquidations;
+
+    return values
+      .slice(-limit)
+      .map(
+        (item) => ({
+          ...item,
+        }),
+      );
+  }
+
 }
 
 
@@ -355,6 +420,189 @@ test(
         .error,
       'invalid_market_wide_scanner_window',
     );
+
+    await app.close();
+  },
+);
+
+test(
+  'market-wide liquidations route returns factual bounded history',
+  async () => {
+    const app =
+      await createApp();
+
+    const response =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/liquidations',
+      });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+
+    const payload =
+      response.json();
+
+    assert.equal(
+      payload.length,
+      2,
+    );
+
+    assert.equal(
+      payload[0].symbol,
+      'BTCUSDT',
+    );
+
+    assert.equal(
+      payload[1].symbol,
+      'SOLUSDT',
+    );
+
+    assert.equal(
+      payload[1].side,
+      'buy',
+    );
+
+    await app.close();
+  },
+);
+
+test(
+  'market-wide liquidations route filters symbol and limit',
+  async () => {
+    const app =
+      await createApp();
+
+    const symbolResponse =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/liquidations?symbol=solusdt',
+      });
+
+    assert.equal(
+      symbolResponse.statusCode,
+      200,
+    );
+
+    assert.deepEqual(
+      symbolResponse
+        .json()
+        .map(
+          (item) =>
+            item.symbol,
+        ),
+      [
+        'SOLUSDT',
+      ],
+    );
+
+    const limitResponse =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/liquidations?limit=1',
+      });
+
+    assert.equal(
+      limitResponse.statusCode,
+      200,
+    );
+
+    assert.equal(
+      limitResponse
+        .json()
+        .length,
+      1,
+    );
+
+    assert.equal(
+      limitResponse
+        .json()[0]
+        .symbol,
+      'SOLUSDT',
+    );
+
+    await app.close();
+  },
+);
+
+test(
+  'market-wide liquidations route validates symbol and limit',
+  async () => {
+    const app =
+      await createApp();
+
+    const invalidSymbol =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/liquidations?symbol=bad!',
+      });
+
+    assert.equal(
+      invalidSymbol.statusCode,
+      400,
+    );
+
+    assert.equal(
+      invalidSymbol
+        .json()
+        .error,
+      'invalid_symbol',
+    );
+
+    const missingSymbol =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/liquidations?symbol=ADAUSDT',
+      });
+
+    assert.equal(
+      missingSymbol.statusCode,
+      404,
+    );
+
+    assert.equal(
+      missingSymbol
+        .json()
+        .error,
+      'market_wide_symbol_not_found',
+    );
+
+    for (
+      const limit
+      of [
+        '0',
+        '1001',
+        '1.5',
+        'bad',
+      ]
+    ) {
+      const invalidLimit =
+        await app.inject({
+          method: 'GET',
+          url:
+            '/api/v1/market/realtime/market-wide/liquidations?limit='
+            + limit,
+        });
+
+      assert.equal(
+        invalidLimit.statusCode,
+        400,
+      );
+
+      assert.equal(
+        invalidLimit
+          .json()
+          .error,
+        'invalid_liquidation_limit',
+      );
+    }
 
     await app.close();
   },
