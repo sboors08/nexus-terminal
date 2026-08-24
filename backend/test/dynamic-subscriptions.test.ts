@@ -110,9 +110,16 @@ test('Binance WebSocket service adds and removes dynamic symbols with reference 
   );
 
   assert.ok(
-    (urls[3] ?? '').includes(
+    (urls[2] ?? '').includes(
       'injusdt@markPrice@1s',
     ),
+  );
+
+  assert.equal(
+    (urls[3] ?? '').includes(
+      '@markPrice@1s',
+    ),
+    false,
   );
 
   assert.equal(
@@ -366,15 +373,22 @@ test('Binance WebSocket service batches multiple dynamic subscriptions into one 
   );
 
   assert.ok(
-    (urls[3] ?? '').includes(
+    (urls[2] ?? '').includes(
       'ethusdt@markPrice@1s',
     ),
   );
 
   assert.ok(
-    (urls[3] ?? '').includes(
+    (urls[2] ?? '').includes(
       'solusdt@markPrice@1s',
     ),
+  );
+
+  assert.equal(
+    (urls[3] ?? '').includes(
+      '@markPrice@1s',
+    ),
+    false,
   );
 
   assert.deepEqual(

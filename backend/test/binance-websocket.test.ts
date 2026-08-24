@@ -171,9 +171,18 @@ test(
       -1,
     );
 
-    assert.match(
-      urls[marketSocketIndex] ?? '',
-      /btcusdt@aggTrade\/ethusdt@aggTrade/,
+    assert.ok(
+      (urls[marketSocketIndex] ?? '')
+        .includes(
+          'btcusdt@aggTrade',
+        ),
+    );
+
+    assert.ok(
+      (urls[marketSocketIndex] ?? '')
+        .includes(
+          'ethusdt@aggTrade',
+        ),
     );
 
     assert.ok(
@@ -191,17 +200,25 @@ test(
     );
 
     assert.ok(
-      (urls[publicSocketIndex] ?? '')
+      (urls[marketSocketIndex] ?? '')
         .includes(
           'btcusdt@markPrice@1s',
         ),
     );
 
     assert.ok(
-      (urls[publicSocketIndex] ?? '')
+      (urls[marketSocketIndex] ?? '')
         .includes(
           'ethusdt@markPrice@1s',
         ),
+    );
+
+    assert.equal(
+      (urls[publicSocketIndex] ?? '')
+        .includes(
+          '@markPrice@1s',
+        ),
+      false,
     );
 
     const marketSocket =

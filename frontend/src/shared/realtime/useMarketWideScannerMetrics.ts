@@ -25,6 +25,7 @@ export interface UseMarketWideScannerMetricsOptions {
   enabled?: boolean;
   intervalMs?: number;
   scannerWindow?: ScannerWindow;
+  symbol?: string;
 }
 
 export interface UseMarketWideScannerMetricsResult {
@@ -50,6 +51,7 @@ export function useMarketWideScannerMetrics(
     enabled = true,
     intervalMs = 2_000,
     scannerWindow = '1m',
+    symbol,
   } = options;
 
   const [metrics, setMetrics] =
@@ -126,6 +128,7 @@ export function useMarketWideScannerMetrics(
           await fetchMarketWideScannerMetrics({
             baseUrl,
             scannerWindow,
+            symbol,
           });
 
         if (cancelled) {
@@ -194,6 +197,7 @@ export function useMarketWideScannerMetrics(
     intervalMs,
     retryToken,
     scannerWindow,
+    symbol,
   ]);
 
   return {

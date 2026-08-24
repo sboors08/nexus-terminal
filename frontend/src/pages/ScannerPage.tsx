@@ -25,6 +25,7 @@ import {
   parseScannerMinQuoteVolumeMillions,
   sortScannerSetupRows,
   useMarketVolumeSpikes,
+  useMarketWideLiquidations,
   useMarketWideScannerMetrics,
   useRealtimeMarketData,
   type MarketVolumeSpike,
@@ -152,6 +153,145 @@ function formatVolumeSpikeUpdatedAt(value: string | null): string {
     minute: '2-digit',
     second: '2-digit',
   }).format(timestamp);
+}
+
+function formatOpenInterest(
+  value:
+    number
+    | null
+    | undefined,
+): string {
+  if (
+    value === null
+    || value === undefined
+    || !Number.isFinite(value)
+  ) {
+    return '—';
+  }
+
+  return new Intl.NumberFormat(
+    'ru-RU',
+    {
+      notation: 'compact',
+      maximumFractionDigits: 2,
+    },
+  ).format(value);
+}
+
+function formatFundingRate(
+  value:
+    number
+    | null
+    | undefined,
+): string {
+  if (
+    value === null
+    || value === undefined
+    || !Number.isFinite(value)
+  ) {
+    return '—';
+  }
+
+  return (
+    `${value > 0 ? '+' : ''}`
+    + `${value.toFixed(4)}%`
+  );
+}
+
+function createMarketPreviewAnchor(
+  symbol:
+    string,
+): ScannerSetup {
+  return {
+    id:
+      `market-preview:${symbol.toLowerCase()}`,
+
+    symbol,
+
+    exchange:
+      'BINANCE',
+
+    direction:
+      'long',
+
+    kind:
+      'Уровень поддержки',
+
+    stage:
+      'observation',
+
+    timeframe:
+      '1m',
+
+    price:
+      '—',
+
+    priceChange:
+      '—',
+
+    level:
+      '—',
+
+    distancePercent:
+      Number.POSITIVE_INFINITY,
+
+    distanceLabel:
+      '—',
+
+    touches:
+      0,
+
+    formationMinutes:
+      0,
+
+    formationLabel:
+      '—',
+
+    pullbackDepth:
+      '—',
+
+    quoteVolume24h:
+      null,
+
+    volumeAnomaly:
+      null,
+
+    tradesAnomaly:
+      null,
+
+    tradeSpeed:
+      'Данные собираются',
+
+    btcCorrelation:
+      '—',
+
+    btcStrength:
+      null,
+
+    btcStrengthLabel:
+      '—',
+
+    activity:
+      'Средняя',
+
+    reasons:
+      [],
+
+    chartPath:
+      '',
+
+    areaPath:
+      '',
+
+    levelY:
+      0,
+
+    touchPoints:
+      [],
+
+    runtimeData:
+      false,
+  };
 }
 
 function InfoHint({ label }: { label: string }) {
@@ -799,7 +939,11 @@ function ScannerPageContent({
   }, [selectedSetup.id]);
 
   const selectedSymbol = requestedSymbol ?? selectedSetup.symbol;
-  const isMarketPreview = selectedSymbol !== selectedSetup.symbol;
+  const isMarketPreview =
+    selectedSetup.id.startsWith(
+      'market-preview:',
+    )
+    || selectedSymbol !== selectedSetup.symbol;
   const workspaceSetupId = isMarketPreview
     ? `market-${selectedSymbol.toLowerCase()}`
     : selectedSetup.id;
@@ -828,6 +972,50 @@ function ScannerPageContent({
     ),
     [realtimeSnapshot],
   );
+
+  const selectedFuturesMetrics =
+    useMarketWideScannerMetrics({
+      enabled:
+        resultsMode === 'setups'
+        || isMarketPreview,
+      intervalMs:
+        5_000,
+      scannerWindow:
+        '1m',
+      symbol:
+        selectedSymbol,
+    });
+
+  const selectedFuturesMetric =
+    selectedFuturesMetrics
+      .metrics[
+        selectedSymbol
+      ]
+    ?? null;
+
+  const liquidationHistory =
+    useMarketWideLiquidations({
+      enabled:
+        resultsMode === 'setups'
+        || isMarketPreview,
+      intervalMs:
+        2_000,
+      limit:
+        6,
+      symbol:
+        selectedSymbol,
+    });
+
+  const latestLiquidation =
+    liquidationHistory
+      .liquidations[0]
+    ?? null;
+
+  const markPrice =
+    realtimeSnapshot
+      ?.markPrice
+    ?? null;
+
   const realtimeLabel = getScannerRealtimeConnectionLabel(
     realtime.lifecycleState,
     realtime.status?.state ?? null,
@@ -1243,6 +1431,7 @@ function ScannerPageContent({
 
       {
         filteredSetups.length === 0
+        && !isMarketPreview
           ? (
               <section
                 className={styles.chartGridPanel}
@@ -1721,9 +1910,11 @@ function ScannerPageContent({
                     }
                   >
                     {
-                      selectedSetup.source === 'v2-shadow'
-                        ? 'V2 SHADOW'
-                        : 'V1'
+                      isMarketPreview
+                        ? 'MARKET'
+                        : selectedSetup.source === 'v2-shadow'
+                          ? 'V2 SHADOW'
+                          : 'V1'
                     }
                   </span>
                 </div>
@@ -1812,6 +2003,103 @@ function ScannerPageContent({
                 {realtime.error && (
                   <button type="button" onClick={realtime.reconnect}>Переподключить</button>
                 )}
+              </footer>
+            </section>
+
+            <section
+              className={styles.realtimeStrip}
+              aria-label={`Futures метрики ${selectedSymbol}`}
+            >
+              <div>
+                <span>Mark Price</span>
+                <strong>
+                  {
+                    markPrice
+                      ? formatScannerPrice(
+                          markPrice.price,
+                        )
+                      : '—'
+                  }
+                </strong>
+              </div>
+
+              <div>
+                <span>Funding</span>
+                <strong
+                  className={
+                    markPrice
+                    && markPrice
+                      .fundingRatePct < 0
+                      ? styles.negativeValue
+                      : styles.positiveValue
+                  }
+                >
+                  {
+                    formatFundingRate(
+                      markPrice
+                        ?.fundingRatePct,
+                    )
+                  }
+                </strong>
+              </div>
+
+              <div>
+                <span>Open Interest</span>
+                <strong>
+                  {
+                    formatOpenInterest(
+                      selectedFuturesMetric
+                        ?.openInterest,
+                    )
+                  }
+                </strong>
+              </div>
+
+              <footer
+                className={
+                  styles
+                    .realtimeStripFooter
+                }
+              >
+                <span>
+                  {
+                    latestLiquidation
+                      ? (
+                          `Последняя ликвидация: `
+                          + `${latestLiquidation.side.toUpperCase()} order · `
+                          + `${formatScannerQuantity(latestLiquidation.filledQuantity)} @ `
+                          + `${formatScannerPrice(latestLiquidation.averagePrice || latestLiquidation.price)} · `
+                          + formatScannerTradeTime(
+                              latestLiquidation.tradeAt,
+                            )
+                        )
+                      : liquidationHistory.status
+                          === 'error'
+                        ? 'Liquidation feed недоступен'
+                        : 'За сохранённое realtime-окно ликвидаций нет'
+                  }
+                </span>
+
+                {
+                  (
+                    liquidationHistory.error
+                    || selectedFuturesMetrics.error
+                  )
+                    ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            liquidationHistory
+                              .retry();
+                            selectedFuturesMetrics
+                              .retry();
+                          }}
+                        >
+                          Обновить futures
+                        </button>
+                      )
+                    : null
+                }
               </footer>
             </section>
 
@@ -2389,6 +2677,19 @@ function ScannerPageContent({
 
 export function ScannerPage() {
   const [
+    searchParams,
+  ] = useSearchParams();
+
+  const requestedSymbol =
+    searchParams
+      .get(
+        'symbol',
+      )
+      ?.trim()
+      .toUpperCase()
+    ?? null;
+
+  const [
     minQuoteVolumeMillions,
     setMinQuoteVolumeMillions,
   ] = useState(
@@ -2530,9 +2831,25 @@ export function ScannerPage() {
             ? 'error'
             : 'loading';
 
+  const marketPreviewAnchor =
+    requestedSymbol
+      ? createMarketPreviewAnchor(
+          requestedSymbol,
+        )
+      : null;
+
+  const contentSetups =
+    setupsForDisplay.length > 0
+      ? setupsForDisplay
+      : marketPreviewAnchor
+        ? [
+            marketPreviewAnchor,
+          ]
+        : [];
+
   if (
     query.status === 'loading'
-    && setupsForDisplay.length === 0
+    && contentSetups.length === 0
   ) {
     return (
       <AsyncDataState
@@ -2545,7 +2862,7 @@ export function ScannerPage() {
 
   if (
     query.status === 'error'
-    && setupsForDisplay.length === 0
+    && contentSetups.length === 0
   ) {
     return (
       <AsyncDataState
@@ -2563,7 +2880,7 @@ export function ScannerPage() {
   }
 
   if (
-    setupsForDisplay.length === 0
+    contentSetups.length === 0
   ) {
     return (
       <AsyncDataState
@@ -2577,7 +2894,7 @@ export function ScannerPage() {
   return (
     <ScannerPageContent
       setups={
-        setupsForDisplay
+        contentSetups
       }
       setupsDataState={
         setupsDataState

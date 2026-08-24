@@ -39,10 +39,20 @@ export interface RealtimeBookTicker {
   updatedAt: string;
 }
 
+export interface RealtimeMarkPrice {
+  symbol: string;
+  price: number;
+  indexPrice: number;
+  fundingRatePct: number;
+  nextFundingAt: string;
+  updatedAt: string;
+}
+
 export interface RealtimeSymbolSnapshot {
   symbol: string;
   lastTrade: RealtimeTrade | null;
   bookTicker: RealtimeBookTicker | null;
+  markPrice?: RealtimeMarkPrice | null;
   recentTrades: RealtimeTrade[];
   updatedAt: string | null;
 }
