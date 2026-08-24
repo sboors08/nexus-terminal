@@ -595,10 +595,10 @@ export class BinanceWebSocketMarketDataService implements RealtimeMarketDataServ
       route === 'market'
         ? [
             '@aggTrade',
+            '@markPrice@1s',
           ]
         : [
             '@bookTicker',
-            '@markPrice@1s',
           ];
 
     const streams =

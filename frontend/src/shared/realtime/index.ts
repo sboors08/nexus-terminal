@@ -20,6 +20,8 @@ export * from './useBinanceSymbolUniverse';
 export * from './dashboardScannerUniverse';
 export * from './marketWideScannerMetrics';
 export * from './useMarketWideScannerMetrics';
+export * from './marketWideLiquidations';
+export * from './useMarketWideLiquidations';
 export * from './marketVolumeSpikes';
 export * from './useMarketVolumeSpikes';
 export * from './dataFreshness';

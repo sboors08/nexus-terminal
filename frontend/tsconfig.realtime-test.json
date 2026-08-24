@@ -27,6 +27,8 @@
     "src/shared/realtime/dashboardScannerUniverse.ts",
     "src/shared/realtime/marketWideScannerMetrics.ts",
     "src/shared/realtime/useMarketWideScannerMetrics.ts",
+    "src/shared/realtime/marketWideLiquidations.ts",
+    "src/shared/realtime/useMarketWideLiquidations.ts",
     "src/shared/realtime/marketVolumeSpikes.ts",
     "src/shared/realtime/useMarketVolumeSpikes.ts",
     "src/shared/charts/api/marketCandles.ts",

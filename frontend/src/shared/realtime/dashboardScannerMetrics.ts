@@ -31,6 +31,8 @@ export interface MarketScannerMetrics {
   windowMs: number;
   price: number | null;
   priceChangePct: number | null;
+  openInterest: number | null;
+  openInterestUpdatedAt: string | null;
   btcCorrelation: number | null;
   relativeStrengthPct: number | null;
   volumeAnomaly: number | null;
@@ -252,6 +254,20 @@ function readNullableString(
   return value;
 }
 
+function readOptionalNullableString(
+  record: Record<string, unknown>,
+  key: string,
+): string | null {
+  if (!(key in record)) {
+    return null;
+  }
+
+  return readNullableString(
+    record,
+    key,
+  );
+}
+
 export function normalizeMarketScannerSymbol(
   symbol: string,
 ): string {
@@ -369,6 +385,16 @@ export function parseMarketScannerMetric(
       value,
       'priceChangePct',
     ),
+    openInterest:
+      readOptionalNullableNumber(
+        value,
+        'openInterest',
+      ),
+    openInterestUpdatedAt:
+      readOptionalNullableString(
+        value,
+        'openInterestUpdatedAt',
+      ),
     btcCorrelation: readNullableNumber(
       value,
       'btcCorrelation',
