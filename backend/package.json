@@ -37,6 +37,7 @@
     "test:level-lines-exact-price-origin-resolution-real-data-validation": "node --import tsx --test test/level-lines-exact-price-origin-resolution-real-data-validation.test.ts test/level-lines-exact-price-origin-resolution.test.ts",
     "validate:level-lines-exact-price-origin-resolution-real-data": "node --env-file-if-exists=.env --import tsx src/modules/level-engine/level-lines-exact-price-origin-resolution-real-data-validation.cli.ts",
     "test:history-warmup-realtime-isolation": "node --import tsx --test test/history-warmup-realtime-isolation.test.ts",
+    "validate:market-wide-history-memory-stability": "node --expose-gc --import tsx scripts/validate-market-wide-history-memory-stability.mjs",
     "test:causal-setup-real-data-validation": "node --import tsx --test test/causal-setup-real-data-validation.test.ts",
     "validate:causal-setup-real-data": "node --env-file-if-exists=.env --import tsx src/modules/setup-engine/causal-setup-real-data-validation.cli.ts",
     "test:causal-stage-boundary-analysis": "node --import tsx --test test/causal-stage-boundary-analysis.test.ts",

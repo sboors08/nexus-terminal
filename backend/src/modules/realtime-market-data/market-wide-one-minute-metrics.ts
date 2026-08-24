@@ -12,6 +12,7 @@ import {
   calculateMarketVolumeSpike,
   DEFAULT_MARKET_VOLUME_SPIKE_OPTIONS,
   type MarketVolumeSpike,
+  type MarketVolumeSpikeKline,
   type MarketVolumeSpikeOptions,
 } from './market-volume-spikes.js';
 import {
@@ -45,9 +46,27 @@ export interface MarketWideSymbolChange {
   removedSymbols: string[];
 }
 
+interface StoredMarketWideKline {
+  eventTimeMs: number;
+  openTimeMs: number;
+  closeTimeMs: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume:
+    number
+    | null
+    | undefined;
+  quoteVolume: number;
+  tradesCount: number;
+  takerBuyQuoteVolume: number;
+  isClosed: boolean;
+}
+
 interface MarketWideSymbolState {
   klines:
-    BinanceOneMinuteKlineUpdate[];
+    StoredMarketWideKline[];
   bookTicker:
     RealtimeBookTicker
     | null;
@@ -198,16 +217,280 @@ function timestampToIso(
   return date.toISOString();
 }
 
-function cloneKline(
+function readStoredTimestamp(
+  value: string,
+  symbol: string,
+  context: string,
+): number {
+  const timestamp =
+    Date.parse(value);
+
+  if (!Number.isFinite(timestamp)) {
+    throw new Error(
+      `Invalid market-wide ${context} timestamp: ${symbol}`,
+    );
+  }
+
+  return timestamp;
+}
+
+function toStoredKline(
+  update:
+    BinanceOneMinuteKlineUpdate,
+  symbol: string,
+  context: string,
+): StoredMarketWideKline {
+  return {
+    eventTimeMs:
+      readStoredTimestamp(
+        update.eventTime,
+        symbol,
+        context,
+      ),
+
+    openTimeMs:
+      readStoredTimestamp(
+        update.openTime,
+        symbol,
+        context,
+      ),
+
+    closeTimeMs:
+      readStoredTimestamp(
+        update.closeTime,
+        symbol,
+        context,
+      ),
+
+    open:
+      update.open,
+
+    high:
+      update.high,
+
+    low:
+      update.low,
+
+    close:
+      update.close,
+
+    volume:
+      update.volume,
+
+    quoteVolume:
+      update.quoteVolume,
+
+    tradesCount:
+      update.tradesCount,
+
+    takerBuyQuoteVolume:
+      update.takerBuyQuoteVolume,
+
+    isClosed:
+      update.isClosed,
+  };
+}
+
+function toPublicKline(
+  symbol: string,
   value:
-    BinanceOneMinuteKlineUpdate
-    | null,
-):
-  BinanceOneMinuteKlineUpdate
-  | null {
-  return value
-    ? { ...value }
-    : null;
+    StoredMarketWideKline,
+): BinanceOneMinuteKlineUpdate {
+  const result:
+    BinanceOneMinuteKlineUpdate = {
+      symbol,
+
+      eventTime:
+        new Date(
+          value.eventTimeMs,
+        ).toISOString(),
+
+      openTime:
+        new Date(
+          value.openTimeMs,
+        ).toISOString(),
+
+      closeTime:
+        new Date(
+          value.closeTimeMs,
+        ).toISOString(),
+
+      open:
+        value.open,
+
+      high:
+        value.high,
+
+      low:
+        value.low,
+
+      close:
+        value.close,
+
+      quoteVolume:
+        value.quoteVolume,
+
+      tradesCount:
+        value.tradesCount,
+
+      takerBuyQuoteVolume:
+        value.takerBuyQuoteVolume,
+
+      isClosed:
+        value.isClosed,
+    };
+
+  if (value.volume !== undefined) {
+    result.volume =
+      value.volume;
+  }
+
+  return result;
+}
+
+function toVolumeSpikeKline(
+  value:
+    StoredMarketWideKline,
+): MarketVolumeSpikeKline {
+  return {
+    openTime:
+      new Date(
+        value.openTimeMs,
+      ).toISOString(),
+
+    closeTime:
+      new Date(
+        value.closeTimeMs,
+      ).toISOString(),
+
+    open:
+      value.open,
+
+    close:
+      value.close,
+
+    quoteVolume:
+      value.quoteVolume,
+
+    tradesCount:
+      value.tradesCount,
+  };
+}
+
+function mergeStoredKlineHistory(
+  current:
+    readonly StoredMarketWideKline[],
+  incoming:
+    readonly StoredMarketWideKline[],
+): {
+  klines:
+    StoredMarketWideKline[];
+  appliedCount: number;
+} {
+  const merged:
+    StoredMarketWideKline[] = [];
+
+  let currentIndex = 0;
+  let incomingIndex = 0;
+  let appliedCount = 0;
+
+  while (
+    currentIndex < current.length
+    || incomingIndex < incoming.length
+  ) {
+    const currentValue =
+      current[
+        currentIndex
+      ];
+
+    const incomingValue =
+      incoming[
+        incomingIndex
+      ];
+
+    if (!currentValue) {
+      if (incomingValue) {
+        merged.push(
+          incomingValue,
+        );
+
+        incomingIndex += 1;
+        appliedCount += 1;
+      }
+
+      continue;
+    }
+
+    if (!incomingValue) {
+      merged.push(
+        currentValue,
+      );
+
+      currentIndex += 1;
+      continue;
+    }
+
+    if (
+      currentValue.openTimeMs
+      < incomingValue.openTimeMs
+    ) {
+      merged.push(
+        currentValue,
+      );
+
+      currentIndex += 1;
+      continue;
+    }
+
+    if (
+      incomingValue.openTimeMs
+      < currentValue.openTimeMs
+    ) {
+      merged.push(
+        incomingValue,
+      );
+
+      incomingIndex += 1;
+      appliedCount += 1;
+      continue;
+    }
+
+    if (
+      incomingValue.eventTimeMs
+      > currentValue.eventTimeMs
+    ) {
+      merged.push(
+        incomingValue,
+      );
+
+      appliedCount += 1;
+    }
+    else {
+      merged.push(
+        currentValue,
+      );
+    }
+
+    currentIndex += 1;
+    incomingIndex += 1;
+  }
+
+  if (
+    merged.length
+    > MAX_MARKET_WIDE_KLINES
+  ) {
+    merged.splice(
+      0,
+      merged.length
+        - MAX_MARKET_WIDE_KLINES,
+    );
+  }
+
+  return {
+    klines:
+      merged,
+    appliedCount,
+  };
 }
 
 function cloneBookTicker(
@@ -739,6 +1022,199 @@ export function calculateMarketScannerAnomalies(
   };
 }
 
+function calculateStoredMarketScannerAnomalies(
+  sourceKlines:
+    readonly StoredMarketWideKline[],
+  windowMinutes: number,
+  baselineWindows =
+    MARKET_SCANNER_ANOMALY_BASELINE_WINDOWS,
+): MarketScannerAnomalies | null {
+  if (
+    !Number.isInteger(
+      windowMinutes,
+    )
+    || windowMinutes <= 0
+  ) {
+    throw new Error(
+      'Scanner anomaly windowMinutes must be a positive integer',
+    );
+  }
+
+  if (
+    !Number.isInteger(
+      baselineWindows,
+    )
+    || baselineWindows <= 0
+  ) {
+    throw new Error(
+      'Scanner anomaly baselineWindows must be a positive integer',
+    );
+  }
+
+  const baselineKlineCount =
+    baselineWindows
+    * windowMinutes;
+
+  const requiredKlineCount =
+    baselineKlineCount
+    + windowMinutes;
+
+  if (
+    sourceKlines.length
+    < requiredKlineCount
+  ) {
+    return null;
+  }
+
+  const startIndex =
+    sourceKlines.length
+    - requiredKlineCount;
+
+  for (
+    let index = startIndex;
+    index < sourceKlines.length;
+    index += 1
+  ) {
+    const current =
+      sourceKlines[index];
+
+    if (!current) {
+      return null;
+    }
+
+    if (index === startIndex) {
+      continue;
+    }
+
+    const previous =
+      sourceKlines[
+        index - 1
+      ];
+
+    if (
+      !previous
+      || current.openTimeMs
+        - previous.openTimeMs
+        !== 60_000
+    ) {
+      return null;
+    }
+  }
+
+  const baselineQuoteVolumes:
+    number[] = [];
+
+  const baselineTradesCounts:
+    number[] = [];
+
+  for (
+    let windowIndex = 0;
+    windowIndex < baselineWindows;
+    windowIndex += 1
+  ) {
+    const windowStart =
+      startIndex
+      + windowIndex
+        * windowMinutes;
+
+    let quoteVolume = 0;
+    let tradesCount = 0;
+
+    for (
+      let offset = 0;
+      offset < windowMinutes;
+      offset += 1
+    ) {
+      const kline =
+        sourceKlines[
+          windowStart
+          + offset
+        ];
+
+      if (
+        !kline
+        || !kline.isClosed
+      ) {
+        return null;
+      }
+
+      quoteVolume +=
+        kline.quoteVolume;
+
+      tradesCount +=
+        kline.tradesCount;
+    }
+
+    baselineQuoteVolumes.push(
+      quoteVolume,
+    );
+
+    baselineTradesCounts.push(
+      tradesCount,
+    );
+  }
+
+  const baselineQuoteVolume =
+    medianScannerValue(
+      baselineQuoteVolumes,
+    );
+
+  const baselineTradesCount =
+    medianScannerValue(
+      baselineTradesCounts,
+    );
+
+  if (
+    baselineQuoteVolume <= 0
+    || baselineTradesCount <= 0
+  ) {
+    return null;
+  }
+
+  const currentStart =
+    startIndex
+    + baselineKlineCount;
+
+  let currentQuoteVolume = 0;
+  let currentTradesCount = 0;
+
+  for (
+    let offset = 0;
+    offset < windowMinutes;
+    offset += 1
+  ) {
+    const kline =
+      sourceKlines[
+        currentStart
+        + offset
+      ];
+
+    if (!kline) {
+      return null;
+    }
+
+    currentQuoteVolume +=
+      kline.quoteVolume;
+
+    currentTradesCount +=
+      kline.tradesCount;
+  }
+
+  return {
+    volumeAnomaly:
+      roundScannerAnomaly(
+        currentQuoteVolume
+        / baselineQuoteVolume,
+      ),
+
+    tradesAnomaly:
+      roundScannerAnomaly(
+        currentTradesCount
+        / baselineTradesCount,
+      ),
+  };
+}
+
 export class MarketWideOneMinuteMetricsStore {
   private readonly states =
     new Map<
@@ -827,74 +1303,44 @@ export class MarketWideOneMinuteMetricsStore {
       return false;
     }
 
-    const nextOpenTime =
-      Date.parse(
-        update.openTime,
+    const normalizedUpdate =
+      toStoredKline(
+        update,
+        symbol,
+        'kline',
       );
-
-    const nextEventTime =
-      Date.parse(
-        update.eventTime,
-      );
-
-    if (
-      !Number.isFinite(
-        nextOpenTime,
-      )
-      || !Number.isFinite(
-        nextEventTime,
-      )
-    ) {
-      throw new Error(
-        `Invalid market-wide kline timestamp: ${symbol}`,
-      );
-    }
 
     const latest =
       state.klines.at(-1);
 
     if (latest) {
-      const latestOpenTime =
-        Date.parse(
-          latest.openTime,
-        );
-
-      const latestEventTime =
-        Date.parse(
-          latest.eventTime,
-        );
-
       if (
-        nextOpenTime
-        < latestOpenTime
+        normalizedUpdate.openTimeMs
+        < latest.openTimeMs
       ) {
         return false;
       }
 
       if (
-        nextOpenTime
-          === latestOpenTime
-        && nextEventTime
-          < latestEventTime
+        normalizedUpdate.openTimeMs
+          === latest.openTimeMs
+        && normalizedUpdate.eventTimeMs
+          < latest.eventTimeMs
       ) {
         return false;
       }
     }
 
-    const normalizedUpdate = {
-      ...update,
-      symbol,
-    };
-
     if (
       latest
-      && latest.openTime
-        === normalizedUpdate.openTime
+      && latest.openTimeMs
+        === normalizedUpdate.openTimeMs
     ) {
       state.klines[
         state.klines.length - 1
       ] = normalizedUpdate;
-    } else {
+    }
+    else {
       state.klines.push(
         normalizedUpdate,
       );
@@ -921,7 +1367,7 @@ export class MarketWideOneMinuteMetricsStore {
     const updatesBySymbol =
       new Map<
         string,
-        BinanceOneMinuteKlineUpdate[]
+        StoredMarketWideKline[]
       >();
 
     for (const update of updates) {
@@ -938,33 +1384,17 @@ export class MarketWideOneMinuteMetricsStore {
         continue;
       }
 
-      const openTime =
-        Date.parse(
-          update.openTime,
-        );
-
-      const eventTime =
-        Date.parse(
-          update.eventTime,
-        );
-
-      if (
-        !Number.isFinite(openTime)
-        || !Number.isFinite(eventTime)
-      ) {
-        throw new Error(
-          `Invalid market-wide historical kline timestamp: ${symbol}`,
-        );
-      }
-
       const symbolUpdates =
         updatesBySymbol.get(symbol)
         ?? [];
 
-      symbolUpdates.push({
-        ...update,
-        symbol,
-      });
+      symbolUpdates.push(
+        toStoredKline(
+          update,
+          symbol,
+          'historical kline',
+        ),
+      );
 
       updatesBySymbol.set(
         symbol,
@@ -988,77 +1418,66 @@ export class MarketWideOneMinuteMetricsStore {
         continue;
       }
 
-      const klinesByOpenTime =
-        new Map(
-          state.klines.map(
-            (kline) => [
-              kline.openTime,
-              kline,
-            ],
-          ),
-        );
+      symbolUpdates.sort(
+        (
+          left,
+          right,
+        ) => {
+          const openTimeDifference =
+            left.openTimeMs
+            - right.openTimeMs;
+
+          return openTimeDifference !== 0
+            ? openTimeDifference
+            : left.eventTimeMs
+              - right.eventTimeMs;
+        },
+      );
+
+      const deduplicatedUpdates:
+        StoredMarketWideKline[] = [];
 
       for (
         const update
         of symbolUpdates
       ) {
-        const existing =
-          klinesByOpenTime.get(
-            update.openTime,
-          );
+        const previous =
+          deduplicatedUpdates.at(-1);
 
-        if (!existing) {
-          klinesByOpenTime.set(
-            update.openTime,
-            update,
-          );
+        if (
+          previous
+          && previous.openTimeMs
+            === update.openTimeMs
+        ) {
+          if (
+            update.eventTimeMs
+            > previous.eventTimeMs
+          ) {
+            deduplicatedUpdates[
+              deduplicatedUpdates.length
+              - 1
+            ] = update;
+          }
 
-          appliedCount += 1;
           continue;
         }
 
-        const existingEventTime =
-          Date.parse(
-            existing.eventTime,
-          );
-
-        const nextEventTime =
-          Date.parse(
-            update.eventTime,
-          );
-
-        if (
-          nextEventTime
-          > existingEventTime
-        ) {
-          klinesByOpenTime.set(
-            update.openTime,
-            update,
-          );
-
-          appliedCount += 1;
-        }
+        deduplicatedUpdates.push(
+          update,
+        );
       }
+
+      const merged =
+        mergeStoredKlineHistory(
+          state.klines,
+          deduplicatedUpdates,
+        );
 
       state.klines =
-        [
-          ...klinesByOpenTime.values(),
-        ].sort(
-          (left, right) =>
-            Date.parse(left.openTime)
-            - Date.parse(right.openTime),
-        );
+        merged.klines;
 
-      if (
-        state.klines.length
-        > MAX_MARKET_WIDE_KLINES
-      ) {
-        state.klines.splice(
-          0,
-          state.klines.length
-            - MAX_MARKET_WIDE_KLINES,
-        );
-      }
+      appliedCount +=
+        merged.appliedCount;
     }
 
     return appliedCount;
@@ -1323,18 +1742,48 @@ export class MarketWideOneMinuteMetricsStore {
           ]
         : this.getSymbols();
 
+    const hasValidPeriodShape =
+      Number.isInteger(
+        options.periodMinutes,
+      )
+      && options.periodMinutes > 0
+      && Number.isInteger(
+        options.baselinePeriods,
+      )
+      && options.baselinePeriods > 0;
+
     return symbols
       .map((item) => {
         const state =
           this.states.get(item);
 
-        return state
-          ? calculateMarketVolumeSpike(
-              item,
-              state.klines,
-              options,
+        if (!state) {
+          return null;
+        }
+
+        const requiredKlineCount =
+          hasValidPeriodShape
+            ? (
+                options.baselinePeriods
+                + 2
+              )
+              * options.periodMinutes
+            : state.klines.length;
+
+        const sourceKlines =
+          state.klines
+            .slice(
+              -requiredKlineCount,
             )
-          : null;
+            .map(
+              toVolumeSpikeKline,
+            );
+
+        return calculateMarketVolumeSpike(
+          item,
+          sourceKlines,
+          options,
+        );
       })
       .filter(
         (
@@ -1355,6 +1804,7 @@ export class MarketWideOneMinuteMetricsStore {
         },
       );
   }
+
   getKlines(
     symbol: string,
     limit?: number,
@@ -1391,11 +1841,14 @@ export class MarketWideOneMinuteMetricsStore {
           );
 
     return klines.map(
-      (kline) => ({
-        ...kline,
-      }),
+      (kline) =>
+        toPublicKline(
+          normalizedSymbol,
+          kline,
+        ),
     );
   }
+
   getState(
     symbol: string,
   ): {
@@ -1426,13 +1879,18 @@ export class MarketWideOneMinuteMetricsStore {
     return state
       ? {
           kline:
-            cloneKline(
-              latestKline,
-            ),
+            latestKline
+              ? toPublicKline(
+                  normalizedSymbol,
+                  latestKline,
+                )
+              : null,
+
           bookTicker:
             cloneBookTicker(
               state.bookTicker,
             ),
+
           openInterest:
             cloneOpenInterest(
               state.openInterest,
@@ -1446,7 +1904,7 @@ export class MarketWideOneMinuteMetricsStore {
       MarketWideSymbolState,
     scannerWindow:
       MarketScannerWindowId,
-  ): BinanceOneMinuteKlineUpdate[] {
+  ): StoredMarketWideKline[] {
     const windowMinutes =
       getMarketScannerWindowMs(
         scannerWindow,
@@ -1472,9 +1930,8 @@ export class MarketWideOneMinuteMetricsStore {
       )
       .map((kline) => ({
         timestampMs:
-          Date.parse(
-            kline.openTime,
-          ),
+          kline.openTimeMs,
+
         closePrice:
           kline.close,
       }));
@@ -1510,7 +1967,7 @@ export class MarketWideOneMinuteMetricsStore {
       );
 
     const scannerAnomalies =
-      calculateMarketScannerAnomalies(
+      calculateStoredMarketScannerAnomalies(
         state.klines,
         windowMs / 60_000,
       );
@@ -1593,25 +2050,42 @@ export class MarketWideOneMinuteMetricsStore {
           ) * 100
         : null;
 
-    const highestPrice =
-      klines.length > 0
-        ? Math.max(
-            ...klines.map(
-              (kline) =>
-                kline.high,
-            ),
-          )
-        : null;
+    let highestPrice:
+      number | null = null;
 
-    const lowestPrice =
-      klines.length > 0
-        ? Math.min(
-            ...klines.map(
-              (kline) =>
-                kline.low,
-            ),
-          )
-        : null;
+    let lowestPrice:
+      number | null = null;
+
+    let quoteVolume = 0;
+    let tradesCount = 0;
+    let buyQuoteVolume = 0;
+
+    for (const kline of klines) {
+      highestPrice =
+        highestPrice === null
+          ? kline.high
+          : Math.max(
+              highestPrice,
+              kline.high,
+            );
+
+      lowestPrice =
+        lowestPrice === null
+          ? kline.low
+          : Math.min(
+              lowestPrice,
+              kline.low,
+            );
+
+      quoteVolume +=
+        kline.quoteVolume;
+
+      tradesCount +=
+        kline.tradesCount;
+
+      buyQuoteVolume +=
+        kline.takerBuyQuoteVolume;
+    }
 
     const volatilityPct =
       firstKline
@@ -1626,28 +2100,6 @@ export class MarketWideOneMinuteMetricsStore {
           ) * 100
         : null;
 
-    const quoteVolume =
-      klines.reduce(
-        (
-          total,
-          kline,
-        ) =>
-          total
-          + kline.quoteVolume,
-        0,
-      );
-
-    const tradesCount =
-      klines.reduce(
-        (
-          total,
-          kline,
-        ) =>
-          total
-          + kline.tradesCount,
-        0,
-      );
-
     const collectedMinutes =
       Math.max(
         1,
@@ -1657,18 +2109,6 @@ export class MarketWideOneMinuteMetricsStore {
     const tradesPerMinute =
       tradesCount
       / collectedMinutes;
-
-    const buyQuoteVolume =
-      klines.reduce(
-        (
-          total,
-          kline,
-        ) =>
-          total
-          + kline
-              .takerBuyQuoteVolume,
-        0,
-      );
 
     const sellQuoteVolume =
       Math.max(
@@ -1692,28 +2132,39 @@ export class MarketWideOneMinuteMetricsStore {
       windowMs,
       price,
       priceChangePct,
+
       openInterest:
         state.openInterest
           ?.openInterest
         ?? null,
+
       openInterestUpdatedAt:
         state.openInterest
           ?.updatedAt
         ?? null,
-      btcCorrelation: null,
-      relativeStrengthPct: null,
+
+      btcCorrelation:
+        null,
+
+      relativeStrengthPct:
+        null,
+
       volumeAnomaly:
         scannerAnomalies
           ?.volumeAnomaly
         ?? null,
+
       tradesAnomaly:
         scannerAnomalies
           ?.tradesAnomaly
         ?? null,
+
       volatilityPct,
+
       spreadPct:
         bookTicker?.spreadPct
         ?? null,
+
       topBookQuoteValue,
       orderBookImbalancePct,
       liquidityScore,
@@ -1721,21 +2172,36 @@ export class MarketWideOneMinuteMetricsStore {
       quoteVolume,
       tradesCount,
       tradesPerMinute,
-      buyTradesCount: 0,
-      sellTradesCount: 0,
+
+      buyTradesCount:
+        0,
+
+      sellTradesCount:
+        0,
+
       buyQuoteVolume,
       sellQuoteVolume,
+
       windowStartedAt:
-        firstKline?.openTime
-        ?? null,
+        firstKline
+          ? new Date(
+              firstKline.openTimeMs,
+            ).toISOString()
+          : null,
+
       updatedAt:
         latestTimestamp([
-          latestKline?.eventTime,
+          latestKline
+            ? new Date(
+                latestKline.eventTimeMs,
+              ).toISOString()
+            : null,
+
           bookTicker?.updatedAt,
+
           state.openInterest
             ?.updatedAt,
         ]),
     };
   }
-
 }
