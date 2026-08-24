@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   MarketWideOneMinuteMetricsStore,
   parseBinanceOneMinuteKlineEvent,
+  type BinanceOneMinuteKlineUpdate,
 } from '../src/modules/realtime-market-data/market-wide-one-minute-metrics.js';
 
 function klinePayload(
@@ -1013,5 +1014,219 @@ test(
       metric.tradesAnomaly,
       null,
     );
+  },
+);
+
+test(
+  'keeps three-day history bounded while backfilling older pages',
+  () => {
+    const store =
+      new MarketWideOneMinuteMetricsStore([
+        'MEMUSDT',
+      ]);
+
+    const totalMinutes =
+      4_325;
+
+    const retainedMinutes =
+      4_320;
+
+    const baseTime =
+      Date.parse(
+        '2026-08-20T00:00:00.000Z',
+      );
+
+    const buildUpdate = (
+      index: number,
+      eventOffsetMs:
+        number = 59_999,
+    ): BinanceOneMinuteKlineUpdate => {
+      const openTime =
+        baseTime
+        + index * 60_000;
+
+      return {
+        symbol:
+          'MEMUSDT',
+
+        eventTime:
+          new Date(
+            openTime
+            + eventOffsetMs,
+          ).toISOString(),
+
+        openTime:
+          new Date(
+            openTime,
+          ).toISOString(),
+
+        closeTime:
+          new Date(
+            openTime
+            + 59_999,
+          ).toISOString(),
+
+        open:
+          100 + index,
+
+        high:
+          102 + index,
+
+        low:
+          99 + index,
+
+        close:
+          101 + index,
+
+        volume:
+          1_000 + index,
+
+        quoteVolume:
+          10_000 + index,
+
+        tradesCount:
+          100 + index,
+
+        takerBuyQuoteVolume:
+          5_000 + index,
+
+        isClosed:
+          true,
+      };
+    };
+
+    const live =
+      buildUpdate(
+        totalMinutes - 1,
+        59_999,
+      );
+
+    assert.equal(
+      store.applyKline(
+        live,
+      ),
+      true,
+    );
+
+    let appliedCount = 0;
+
+    for (
+      let endIndex =
+        totalMinutes - 1;
+      endIndex >= 0;
+    ) {
+      const startIndex =
+        Math.max(
+          0,
+          endIndex - 999,
+        );
+
+      const page:
+        BinanceOneMinuteKlineUpdate[] = [];
+
+      for (
+        let index = startIndex;
+        index <= endIndex;
+        index += 1
+      ) {
+        page.push(
+          buildUpdate(
+            index,
+            index
+              === totalMinutes - 1
+              ? 30_000
+              : 59_999,
+          ),
+        );
+      }
+
+      appliedCount +=
+        store.applyHistoricalKlines(
+          page,
+        );
+
+      endIndex =
+        startIndex - 1;
+    }
+
+    assert.equal(
+      appliedCount,
+      totalMinutes - 1,
+    );
+
+    const retained =
+      store.getKlines(
+        'MEMUSDT',
+      );
+
+    assert.equal(
+      retained.length,
+      retainedMinutes,
+    );
+
+    assert.equal(
+      retained[0]?.openTime,
+      new Date(
+        baseTime
+        + 5 * 60_000,
+      ).toISOString(),
+    );
+
+    const latest =
+      retained.at(-1);
+
+    assert.ok(latest);
+
+    assert.equal(
+      latest.openTime,
+      live.openTime,
+    );
+
+    assert.equal(
+      latest.eventTime,
+      live.eventTime,
+    );
+
+    assert.equal(
+      latest.close,
+      live.close,
+    );
+
+    assert.equal(
+      new Set(
+        retained.map(
+          (kline) =>
+            kline.openTime,
+        ),
+      ).size,
+      retainedMinutes,
+    );
+
+    for (
+      let index = 1;
+      index < retained.length;
+      index += 1
+    ) {
+      const previous =
+        retained[index - 1];
+
+      const current =
+        retained[index];
+
+      assert.ok(
+        previous
+        && current,
+      );
+
+      assert.equal(
+        Date.parse(
+          current.openTime,
+        )
+        - Date.parse(
+            previous.openTime,
+          ),
+        60_000,
+      );
+    }
   },
 );
