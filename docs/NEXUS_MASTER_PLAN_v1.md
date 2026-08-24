@@ -2,9 +2,9 @@
 
 **Статус:** основной источник правды по продукту и разработке
 **Репозиторий:** `sboors08/nexus-terminal`
-**Дата фиксации:** 2026-08-23
+**Дата фиксации:** 2026-08-24
 **Язык работы:** русский
-**Базовое состояние:** `main` / `origin/main` на merge-коммите `3422b99febf070ece198da4fbcb410577bf477bf`, PR #187
+**Базовое состояние:** `main` / `origin/main` на merge-коммите `c53346425d805eaa6b6ec13cd99974fd4af6f5f3`, PR #189
 **Текущая ориентировочная готовность:** числовой процент не подтверждён; фактический статус 13 этапов зафиксирован в разделах 25–26
 
 ---
@@ -898,8 +898,8 @@ Replay обязателен для v1.0.
 - отдельная пользовательская вкладка `Levels` не планируется: уровни должны работать внутри `Market`, `Scanner` и `Workspace`;
 - Mark Price + Funding Rate Runtime Foundation v0.1 merged в PR #186;
 - Open Interest Runtime Foundation v0.1 merged в PR #187;
-- Liquidations Runtime Foundation v0.1 реализован и locally/live validated в текущей feature-ветке; commit, PR, merge и CI ещё не подтверждены;
-- пользовательское отображение полного Futures Metrics context в терминале ещё не завершено;
+- Liquidations Runtime Foundation v0.1 merged в PR #188; feature commit `d6faf472d03bce01505ff5e5440a4fc5e39cc087`, merge commit `bdc90c8950a60fc5f6845b9abb7beae46b2013f5`, PR и post-merge CI подтверждены;
+- Futures Metrics Terminal Exposure v0.1 merged в PR #189; Scanner selected-symbol market view показывает factual Mark Price, Funding Rate, Open Interest и liquidation history без trading interpretation; feature commit `8dac22a20cad02a3d0a0c12e8fb9048ccfc3d7a4`, merge commit `c53346425d805eaa6b6ec13cd99974fd4af6f5f3`, PR и post-merge CI подтверждены;
 - Alerts имеют единый backend runtime и provider-neutral External Delivery Foundation. Persistence snapshot v2 сохраняет rules, enabled state, bounded trigger history, source-event dedupe, активные cooldown scopes и delivery outbox; snapshot v1 мигрирует детерминированно с пустым outbox. Каждый trigger ставится в outbox по immutable trigger id и стабильному idempotency key, а `pending/sending/delivered/failed`, bounded attempts, retry/backoff и interrupted-send recovery переживают restart. Отказ enqueue или delivery не отменяет trigger и не останавливает event sources; наружу выводятся только безопасные error codes и агрегированные diagnostics. Production delivery adapters и vendor credentials по умолчанию отсутствуют, поэтому реальная внешняя отправка ещё не включена. Multi-user ownership, Auth, постоянная History/Replay data layer, production DB/backup и закрытая beta не завершены.
 
 ---
@@ -908,11 +908,11 @@ Replay обязателен для v1.0.
 
 Мелкие PR и внутренние чек-листы не заменяют этот маршрут. Статусы ниже не являются процентами и не означают автоматическое закрытие этапа.
 
-| Этап | Название | Состояние на 2026-08-12 | Граница этапа |
+| Этап | Название | Состояние на 2026-08-24 | Граница этапа |
 | --- | --- | --- | --- |
 | 1 | Публичная страница | Частично | Есть публичный frontend-фундамент и SEO/i18n-заготовки; финальные лендинг, тексты, локализация и заявка в beta не завершены |
 | 2 | Binance USDⓈ-M Futures Migration | Завершён | PR #27; целевой рынок переведён на активные USDT perpetual contracts |
-| 3 | Futures Market Metrics | Частично | Реализованы realtime и multi-window цена/объём/сделки/волатильность/BTC-метрики; Mark Price + Funding Rate merged в PR #186; Open Interest merged в PR #187; Liquidations Runtime Foundation v0.1 реализован и locally/live validated в текущей feature-ветке. Backend factual foundations практически закрыты, но commit/PR/merge Liquidations и пользовательское отображение Futures Metrics в терминале ещё не завершены |
+| 3 | Futures Market Metrics | Реализован v0.1, развитие продолжается | Realtime и multi-window цена/объём/сделки/волатильность/BTC-метрики работают; Mark Price + Funding Rate merged в PR #186, Open Interest — PR #187, Liquidations — PR #188, factual terminal exposure — PR #189. Историческая OI-аналитика, OI delta и другие расширенные derivatives metrics остаются отдельными будущими расширениями и не блокируют v0.1 |
 | 4 | Futures Scanner | Реализован v0.1, развитие продолжается | Есть таблица, окна, фильтры, сортировки, Volume Spikes, live metrics, Charts Core и causal Level Lines; causal Setup pipeline подключён на backend |
 | 5 | Charts, Market и Workspace | Реализованы v0.1, развитие продолжается | Charts и Workspace реализованы v0.1, causal-интеграция Workspace выполнена; `Market → Workspace` восстановлен в PR #133–#134; Workspace отображает backend Unified Decision без frontend-пересчёта направления |
 | 6 | Levels Engine | Level Lines и causal-трекеры v0.1 объединены; exact-price resolution path проверен на real data | Канонические отдельные causal lines, Departure, Observation, Approach и realtime confirmation реализованы. На `4 995` свечах подтверждены `40` exact-price decisions без residual collisions/violations; frozen Manual Review sample ранее завершён `100/100` и повторно не запускается |
@@ -1023,33 +1023,30 @@ Replay обязателен для v1.0.
 
 ## 31. Следующий шаг
 
-Последняя полностью закрытая задача:
+Последняя полностью закрытая техническая задача:
 
-**NEXUS Setup Outcome Sample Sufficiency v0.1**
+**NEXUS Futures Metrics Terminal Exposure v0.1**
 
 Фактический результат:
 
-- PR #184 merged в `main`;
-- feature commit: `d72f2125a796db31d35712cfec290ea4bc5eeeac`;
-- merge commit: `d4aa844895aeadc95c975a053b0a82930186d34f`;
-- PR Backend и Frontend CI — `success`;
-- post-merge Backend и Frontend CI — `success`;
-- readiness policy зафиксирована до исследования labels:
-  - минимум `100` eligible measured candidates всего;
-  - минимум `25` для каждого canonical `setupType × direction` cohort;
-- на factual validation sample было `1 / 100` eligible measured candidate;
-- cohort coverage:
-  - `level_breakout:long` — `0 / 25`;
-  - `level_breakout:short` — `0 / 25`;
-  - `level_bounce:long` — `0 / 25`;
-  - `level_bounce:short` — `1 / 25`;
-- unresolved data-integrity blockers на проверенной factual sample отсутствовали;
-- `labelRuleResearchEligible = false`;
-- profitability labels не применялись;
-- production Setup rules не менялись;
-- training и Self-Learning не запускались.
+- PR #189 merged в `main`;
+- feature commit: `8dac22a20cad02a3d0a0c12e8fb9048ccfc3d7a4`;
+- merge commit: `c53346425d805eaa6b6ec13cd99974fd4af6f5f3`;
+- PR CI — `success`;
+- post-merge `main` CI run `32750124511` — `success`;
+- Scanner selected-symbol market preview показывает factual:
+  - Mark Price;
+  - Funding Rate;
+  - Open Interest;
+  - liquidation history;
+- selected-symbol market preview работает даже при нуле текущих Setup Engine candidates;
+- liquidation side остаётся factual source order side `BUY/SELL` и не преобразуется во frontend LONG/SHORT inference;
+- Setup Engine rules не менялись;
+- trading rules, ranking, profitability labels, PnL, training и Self-Learning не добавлялись.
 
-Текущий обязательный data-track:
+Stage 3 — **Futures Market Metrics** — после PR #186–#189 считается реализованным v0.1 и переходит в режим последующего расширения.
+
+Текущий обязательный data-track остаётся неизменным:
 
 **NEXUS factual Setup Outcome accumulation under Sufficiency Gate**
 
@@ -1064,7 +1061,29 @@ Replay обязателен для v1.0.
 - достижение sufficiency gate само по себе не применяет label и не меняет trading rules;
 - Self-Learning остаётся заблокированным до отдельного явного решения.
 
-Пока factual sample накапливается, разрешена отдельная независимая разработка других задач официальной дорожной карты в отдельном worktree от актуального `origin/main`, если она не прерывает collector и не подменяет sufficiency gate.
+Ближайшая независимая техническая задача:
+
+**NEXUS Market-Wide History Warmup Memory Stability v0.1**
+
+Причина приоритета:
+
+- collecting runtime фактически достигал V8 heap limit около 4 GB;
+- проблема наблюдалась во время market-wide history warmup большого Binance USD-M universe;
+- временное отключение warmup через process environment восстановило устойчивую работу collector без изменения source;
+- нестабильность collector напрямую мешает надёжному factual Setup Outcome accumulation.
+
+Границы следующей задачи:
+
+- не обновлять и не мутировать frozen collecting checkout;
+- работать в отдельном worktree от актуального `origin/main`;
+- локализовать и устранить причину memory pressure в history warmup/runtime data retention;
+- не маскировать проблему простым увеличением `--max-old-space-size`;
+- сохранить production market-data contracts;
+- не менять Level Lines, Setup Engine thresholds, Unified Decision или trading rules;
+- не вводить profitability labels, ranking, training или Self-Learning;
+- подтвердить исправление tests/build и отдельной bounded-memory runtime validation.
+
+До завершения этой задачи factual Outcome collector продолжает работать независимо в текущем безопасном режиме.
 
 ---
 ## 32. Приоритет источников правды
@@ -1234,11 +1253,11 @@ Factual `missing_third_touch_anchor` сам по себе не является 
 
 ## 39. Futures Mark Price + Funding Rate Runtime Foundation v0.1
 
-Статус: `IMPLEMENTED_AND_LOCALLY_VALIDATED`.
+Статус: `MERGED`.
 
 Раздел официальной дорожной карты:
 
-`Stage 3 — Futures Market Metrics`. Open Interest Runtime Foundation v0.1 локально реализован и валидирован; ликвидации остаются впереди.
+`Stage 3 — Futures Market Metrics`. Foundation merged в PR #186; последующие PR #187–#189 завершили Open Interest, Liquidations и factual terminal exposure v0.1.
 
 Реализовано:
 
@@ -1274,23 +1293,18 @@ Factual `missing_third_touch_anchor` сам по себе не является 
 
 Factual Setup Outcome collection продолжает работать независимо и не была перезапущена ради этой feature.
 
-Stage 3 остаётся частично завершённым.
-
-Следующие отдельные derivatives-metrics задачи:
-
-1. Open Interest;
-2. ликвидации.
+На момент PR #186 Stage 3 ещё оставался частично завершённым. Последующие factual derivatives задачи завершены в PR #187–#189.
 
 Подробный контракт:
 
 `NEXUS_FUTURES_MARK_PRICE_FUNDING_RATE_RUNTIME_v0.1.md`.
 
-Commit, PR, merge и CI должны подтверждаться отдельно после их фактического выполнения.
+Merge подтверждён PR #186; дальнейшее состояние Stage 3 зафиксировано в последующих разделах.
 ---
 
 ## 40. Futures Open Interest Runtime Foundation v0.1
 
-Статус: `IMPLEMENTED_AND_LOCALLY_VALIDATED`.
+Статус: `MERGED`.
 
 Раздел официальной дорожной карты:
 
@@ -1340,22 +1354,18 @@ Commit, PR, merge и CI должны подтверждаться отдельн
 
 Factual Setup Outcome collection продолжает работать независимо и не была перезапущена ради этой feature.
 
-Stage 3 остаётся частично завершённым.
-
-Следующая отдельная derivatives-metrics задача:
-
-`Liquidations Runtime Foundation v0.1`.
+После PR #187 Stage 3 ещё оставался частично завершённым. Liquidations Runtime Foundation затем merged в PR #188, а factual terminal exposure — в PR #189.
 
 Подробный контракт:
 
 `NEXUS_FUTURES_OPEN_INTEREST_RUNTIME_v0.1.md`.
 
-Commit, PR, merge и CI должны подтверждаться отдельно после их фактического выполнения.
+Merge подтверждён PR #187; дальнейшее состояние Stage 3 зафиксировано в последующих разделах.
 ---
 
 ## 41. Futures Liquidations Runtime Foundation v0.1
 
-Статус: `IMPLEMENTED_AND_LOCALLY_VALIDATED`.
+Статус: `MERGED`.
 
 Раздел официальной дорожной карты:
 
@@ -1432,12 +1442,84 @@ Historical backfill и permanent persistence в v0.1 отсутствуют.
 
 Исходный factual collector не перезапускался, collecting `main` не обновлялся и collecting source не изменялся.
 
-### Следующий Stage 3 шаг
+### Фактический merge status
 
-После merge Liquidations:
+- PR #188 merged в `main`;
+- feature commit: `d6faf472d03bce01505ff5e5440a4fc5e39cc087`;
+- merge commit: `bdc90c8950a60fc5f6845b9abb7beae46b2013f5`;
+- PR и post-merge CI подтверждены.
 
-`Futures Metrics Terminal Exposure v0.1`.
+Следующий Stage 3 шаг — `Futures Metrics Terminal Exposure v0.1` — завершён отдельным PR #189.
 
-Цель — вывести factual Mark Price / Funding Rate / Open Interest / Liquidations в пользовательский терминал без изменения trading rules.
+---
 
-Commit, PR, merge и CI Liquidations подтверждаются отдельно после фактического выполнения.
+## 42. Futures Metrics Terminal Exposure v0.1
+
+Статус: `MERGED`.
+
+Раздел официальной дорожной карты:
+
+`Stage 3 — Futures Market Metrics`.
+
+PR #189 завершил пользовательское factual отображение основных Futures Metrics v0.1.
+
+Реализовано:
+
+- Scanner selected-symbol market preview;
+- Mark Price из существующего realtime snapshot;
+- Funding Rate из factual Mark Price stream;
+- Open Interest из market-wide scanner metrics;
+- liquidation history из read-only market-wide liquidation endpoint;
+- liquidation source order side сохраняется как factual `BUY/SELL`;
+- newest-first liquidation ordering;
+- selected-symbol OI polling;
+- selected-symbol liquidation polling;
+- market preview продолжает работать при нуле активных Setup Engine candidates;
+- render-only market anchor не является Setup candidate, signal или scored opportunity.
+
+Backend compatibility fix в том же PR:
+
+- `@aggTrade` использует Binance Futures `/market`;
+- `@markPrice@1s` использует `/market`;
+- `@bookTicker` остаётся на `/public`.
+
+Runtime validation на `BTCUSDT` подтвердила:
+
+- Mark Price UI;
+- Funding UI;
+- Open Interest UI;
+- Liquidation UI;
+- realtime SSE;
+- OI polling;
+- liquidation polling;
+- отсутствие Vite error overlay.
+
+Validation:
+
+- full frontend check — `PASSED`;
+- realtime tests — `295/295 PASSED`;
+- Alerts runtime tests — `8/8 PASSED`;
+- production frontend build — `PASSED`;
+- feature PR CI — `success`;
+- post-merge `main` CI run `32750124511` — `success`.
+
+Факты Git:
+
+- feature commit: `8dac22a20cad02a3d0a0c12e8fb9048ccfc3d7a4`;
+- PR #189;
+- merge commit: `c53346425d805eaa6b6ec13cd99974fd4af6f5f3`.
+
+Границы:
+
+- Setup Engine не изменён;
+- Level Lines не изменены;
+- trading rules не изменены;
+- liquidation scoring не добавлен;
+- LONG/SHORT liquidation inference не добавлен;
+- profitability labels не добавлены;
+- PnL не рассчитывается;
+- ranking не изменён;
+- training не запускается;
+- Self-Learning не запускается.
+
+После PR #189 Stage 3 считается реализованным v0.1. Расширенная derivatives analytics остаётся будущим развитием и не меняет этот factual completion status.
