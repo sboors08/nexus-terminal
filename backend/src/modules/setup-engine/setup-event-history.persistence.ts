@@ -1321,8 +1321,8 @@ implements SetupEventHistoryPersistenceContract {
     snapshot:
       SetupEventHistoryPersistenceSnapshot,
   ): Promise<void> {
-    const normalized =
-      normalizeSetupEventHistoryPersistenceSnapshot(
+    const serialized =
+      JSON.stringify(
         snapshot,
       );
 
@@ -1346,11 +1346,7 @@ implements SetupEventHistoryPersistenceContract {
 
       await writeFile(
         temporaryPath,
-        `${JSON.stringify(
-          normalized,
-          null,
-          2,
-        )}\n`,
+        `${serialized}\n`,
         'utf8',
       );
 

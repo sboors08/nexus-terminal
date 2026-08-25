@@ -177,6 +177,12 @@ implements
     Promise<void> =
       Promise.resolve();
 
+  private persistenceDrainActive =
+    false;
+
+  private persistenceDirty =
+    false;
+
   private lifecycleRevision =
     0;
 
@@ -769,60 +775,103 @@ implements
         this.droppedEventsCount,
 
       events:
-        this.events.map(
-          cloneEvent,
-        ),
+        [...this.events],
     };
   }
 
   private queuePersistence():
   Promise<void> {
+    const persistence =
+      this.persistence;
+
     if (
-      !this.persistence
+      !persistence
       || !this.persistenceHydrated
       || !this.persistenceWritable
     ) {
       return Promise.resolve();
     }
 
-    const snapshot =
-      this.buildPersistenceSnapshot();
+    /*
+     * Lifecycle events may arrive much faster than a large
+     * JSON snapshot can be written to disk.
+     *
+     * Do not build one complete cloned snapshot per event.
+     * While one persistence drain is active, mark the
+     * current in-memory History as dirty. After the active
+     * save finishes, persist one fresh snapshot containing
+     * every event accumulated in the meantime.
+     *
+     * This preserves the latest complete factual History
+     * while bounding retained persistence work to one drain.
+     */
+    this.persistenceDirty =
+      true;
 
-    this.persistenceSaveAttempts +=
-      1;
+    if (
+      this.persistenceDrainActive
+    ) {
+      return this.persistenceQueue;
+    }
+
+    this.persistenceDrainActive =
+      true;
 
     this.pendingPersistenceWrites +=
       1;
 
-    const write =
+    const drain =
       async () => {
         try {
-          await this.persistence?.save(
-            snapshot,
-          );
+          while (
+            this.persistenceDirty
+            && this.persistenceWritable
+          ) {
+            this.persistenceDirty =
+              false;
 
-          this.persistenceSavesCount +=
-            1;
+            /*
+             * Snapshot allocation intentionally happens only
+             * when the previous disk write has completed.
+             */
+            const snapshot =
+              this.buildPersistenceSnapshot();
 
-          this.persistenceState =
-            'ready';
+            this.persistenceSaveAttempts +=
+              1;
 
-          this.persistenceVersion =
-            snapshot.version;
+            try {
+              await persistence.save(
+                snapshot,
+              );
 
-          this.lastPersistedAt =
-            snapshot.savedAt;
+              this.persistenceSavesCount +=
+                1;
 
-          this.lastPersistenceErrorCode =
-            null;
-        } catch (error) {
-          this.recordPersistenceError(
-            error,
-            'setup_event_history_persistence_write_failed',
-          );
+              this.persistenceState =
+                'ready';
+
+              this.persistenceVersion =
+                snapshot.version;
+
+              this.lastPersistedAt =
+                snapshot.savedAt;
+
+              this.lastPersistenceErrorCode =
+                null;
+            } catch (error) {
+              this.recordPersistenceError(
+                error,
+                'setup_event_history_persistence_write_failed',
+              );
+            }
+          }
         } finally {
           this.pendingPersistenceWrites -=
             1;
+
+          this.persistenceDrainActive =
+            false;
         }
       };
 
@@ -832,7 +881,7 @@ implements
           () => undefined,
         )
         .then(
-          write,
+          drain,
         );
 
     return this.persistenceQueue;
