@@ -1081,3 +1081,350 @@ test(
     );
   },
 );
+class DeferredSavePersistence
+implements SetupEventHistoryPersistenceContract {
+  readonly adapter =
+    'deferred_save_test';
+
+  readonly snapshots:
+    SetupEventHistoryPersistenceSnapshot[] = [];
+
+  private firstSaveStartedResolver:
+    () => void =
+      () => undefined;
+
+  private firstSaveReleaseResolver:
+    () => void =
+      () => undefined;
+
+  private readonly firstSaveStarted =
+    new Promise<void>(
+      (resolve) => {
+        this.firstSaveStartedResolver =
+          resolve;
+      },
+    );
+
+  private readonly firstSaveRelease =
+    new Promise<void>(
+      (resolve) => {
+        this.firstSaveReleaseResolver =
+          resolve;
+      },
+    );
+
+  async load():
+  Promise<unknown | null> {
+    return null;
+  }
+
+  async save(
+    snapshot:
+      SetupEventHistoryPersistenceSnapshot,
+  ): Promise<void> {
+    this.snapshots.push(
+      snapshot,
+    );
+
+    if (
+      this.snapshots.length === 1
+    ) {
+      this.firstSaveStartedResolver();
+
+      await this.firstSaveRelease;
+    }
+  }
+
+  waitForFirstSave():
+  Promise<void> {
+    return this.firstSaveStarted;
+  }
+
+  releaseFirstSave():
+  void {
+    this.firstSaveReleaseResolver();
+  }
+}
+
+test(
+  'coalesces burst persistence writes while preserving the latest full lifecycle snapshot',
+  async () => {
+    const source =
+      new TestEventSource();
+
+    const persistence =
+      new DeferredSavePersistence();
+
+    const history =
+      new SetupEventHistoryService(
+        source,
+        {
+          maxEvents:
+            1_000,
+        },
+        persistence,
+      );
+
+    await history.start();
+
+    const baseTime =
+      Date.parse(
+        '2026-08-24T00:00:00.000Z',
+      );
+
+    source.emit(
+      createEvent({
+        eventId:
+          1,
+        candidateId:
+          'setup-coalesced-1',
+        type:
+          'candidate_created',
+        occurredAt:
+          new Date(
+            baseTime,
+          ).toISOString(),
+        previousStage:
+          null,
+        currentStage:
+          'LEVEL_CONFIRMED',
+        outcome:
+          null,
+      }),
+    );
+
+    await persistence
+      .waitForFirstSave();
+
+    for (
+      let index = 2;
+      index <= 101;
+      index += 1
+    ) {
+      source.emit(
+        createEvent({
+          eventId:
+            index,
+          candidateId:
+            `setup-coalesced-${index}`,
+          type:
+            'candidate_created',
+          occurredAt:
+            new Date(
+              baseTime
+              + index * 60_000,
+            ).toISOString(),
+          previousStage:
+            null,
+          currentStage:
+            'LEVEL_CONFIRMED',
+          outcome:
+            null,
+        }),
+      );
+    }
+
+    const duringBurst =
+      history.getStatus();
+
+    assert.equal(
+      duringBurst.eventsCount,
+      101,
+    );
+
+    assert.equal(
+      duringBurst.persistence
+        ?.pendingWrites,
+      1,
+    );
+
+    assert.equal(
+      duringBurst.persistence
+        ?.saveAttempts,
+      1,
+    );
+
+    assert.equal(
+      persistence.snapshots.length,
+      1,
+    );
+
+    persistence
+      .releaseFirstSave();
+
+    await history.stop();
+
+    const finalStatus =
+      history.getStatus();
+
+    assert.equal(
+      persistence.snapshots.length,
+      2,
+    );
+
+    assert.equal(
+      persistence.snapshots[0]
+        ?.events.length,
+      1,
+    );
+
+    assert.equal(
+      persistence.snapshots[1]
+        ?.events.length,
+      101,
+    );
+
+    assert.equal(
+      persistence.snapshots[1]
+        ?.events.at(-1)
+        ?.eventId,
+      101,
+    );
+
+    assert.equal(
+      finalStatus.persistence
+        ?.pendingWrites,
+      0,
+    );
+
+    assert.equal(
+      finalStatus.persistence
+        ?.saveAttempts,
+      2,
+    );
+
+    assert.equal(
+      finalStatus.persistence
+        ?.savesCount,
+      2,
+    );
+  },
+);
+
+
+test(
+  'persists Setup Event History snapshots as compact JSON',
+  async () => {
+    await withTempDirectory(
+      async (
+        directory,
+      ) => {
+        const filePath =
+          join(
+            directory,
+            'compact-history.json',
+          );
+
+        const persistence =
+          new JsonFileSetupEventHistoryPersistence({
+            filePath,
+          });
+
+        const occurredAt =
+          '2026-08-25T12:00:00.000Z';
+
+        const event =
+          createEvent({
+            eventId:
+              1,
+            candidateId:
+              'setup-compact-json-episode-1',
+            type:
+              'candidate_created',
+            occurredAt,
+            previousStage:
+              null,
+            currentStage:
+              'LEVEL_CONFIRMED',
+            outcome:
+              null,
+          });
+
+        await persistence.save({
+          schema:
+            SETUP_EVENT_HISTORY_PERSISTENCE_SCHEMA,
+          version:
+            SETUP_EVENT_HISTORY_PERSISTENCE_VERSION,
+          savedAt:
+            occurredAt,
+          droppedEventsCount:
+            0,
+          events: [
+            event,
+          ],
+        });
+
+        const source =
+          await readFile(
+            filePath,
+            'utf8',
+          );
+
+        const nonEmptyLines =
+          source
+            .split(
+              '\n',
+            )
+            .filter(
+              (line) =>
+                line.length > 0,
+            );
+
+        assert.equal(
+          nonEmptyLines.length,
+          1,
+        );
+
+        assert.equal(
+          source.includes(
+            '\n  "',
+          ),
+          false,
+        );
+
+        const parsed =
+          JSON.parse(
+            source,
+          ) as {
+            schema: string;
+            version: number;
+            events:
+              SetupLifecycleEvent[];
+          };
+
+        assert.equal(
+          parsed.schema,
+          SETUP_EVENT_HISTORY_PERSISTENCE_SCHEMA,
+        );
+
+        assert.equal(
+          parsed.version,
+          SETUP_EVENT_HISTORY_PERSISTENCE_VERSION,
+        );
+
+        assert.equal(
+          parsed.events.length,
+          1,
+        );
+
+        const loaded =
+          await persistence.load();
+
+        assert.ok(
+          loaded,
+        );
+
+        assert.equal(
+          loaded.events.length,
+          1,
+        );
+
+        assert.equal(
+          loaded.events[0]
+            ?.candidateId,
+          'setup-compact-json-episode-1',
+        );
+      },
+    );
+  },
+);
