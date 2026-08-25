@@ -2,6 +2,7 @@ import type {
   SetupDetectionRuntimeEventSource,
 } from './setup-detection-runtime.types.js';
 import type {
+  SetupEngineStage,
   SetupEngineState,
 } from './setup-engine.types.js';
 import {
@@ -31,6 +32,22 @@ SetupEventHistoryOptions = {
   maxEvents:
     50_000,
 };
+
+const TERMINAL_STAGES:
+readonly SetupEngineStage[] = [
+  'BREAKOUT_CONFIRMED',
+  'REJECTION_CONFIRMED',
+  'SETUP_EXPIRED',
+];
+
+function isTerminalStage(
+  stage:
+    SetupEngineStage,
+): boolean {
+  return TERMINAL_STAGES.includes(
+    stage,
+  );
+}
 
 function cloneCandidate(
   candidate:
@@ -441,6 +458,54 @@ implements
       .map(
         cloneEvent,
       );
+  }
+
+  getRestartCandidates():
+  SetupEngineState[] {
+    const seenCandidateIds =
+      new Set<string>();
+
+    const restartCandidates:
+      SetupEngineState[] = [];
+
+    for (
+      let index =
+        this.events.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      const event =
+        this.events[index];
+
+      if (
+        !event
+        || seenCandidateIds.has(
+          event.candidateId,
+        )
+      ) {
+        continue;
+      }
+
+      seenCandidateIds.add(
+        event.candidateId,
+      );
+
+      if (
+        isTerminalStage(
+          event.candidate.stage,
+        )
+      ) {
+        continue;
+      }
+
+      restartCandidates.push(
+        cloneCandidate(
+          event.candidate,
+        ),
+      );
+    }
+
+    return restartCandidates;
   }
 
   getEvent(

@@ -740,6 +740,19 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       'onReady',
       async () => {
         await setupEventHistoryService.start();
+
+        if (
+          setupEventHistoryService
+            instanceof SetupEventHistoryService
+          && setupDetectionRuntimeService
+            instanceof SetupDetectionRuntimeService
+        ) {
+          setupDetectionRuntimeService
+            .restoreCandidates(
+              setupEventHistoryService
+                .getRestartCandidates(),
+            );
+        }
       },
     );
 

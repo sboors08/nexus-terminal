@@ -2110,3 +2110,152 @@ test(
     history.stop();
   },
 );
+
+test(
+  'builds restart candidates from latest non-terminal lifecycle snapshots',
+  () => {
+    const source =
+      new TestEventSource();
+
+    const history =
+      new SetupEventHistoryService(
+        source,
+        {
+          maxEvents:
+            10,
+        },
+      );
+
+    history.start();
+
+    const created =
+      createEvent({
+        eventId:
+          1,
+
+        candidateId:
+          'setup-live',
+      });
+
+    created.candidate.currentPrice =
+      99;
+
+    source.emit(
+      created,
+    );
+
+    const advanced =
+      createEvent({
+        eventId:
+          2,
+
+        candidateId:
+          'setup-live',
+
+        type:
+          'stage_transition',
+
+        previousStage:
+          'LEVEL_CONFIRMED',
+
+        currentStage:
+          'APPROACHING_THIRD_TOUCH',
+      });
+
+    advanced.candidate.currentPrice =
+      99.5;
+
+    advanced.candidate.updatedAt =
+      '2026-07-26T12:07:00.000Z';
+
+    source.emit(
+      advanced,
+    );
+
+    source.emit(
+      createEvent({
+        eventId:
+          3,
+
+        candidateId:
+          'setup-finished',
+
+        type:
+          'breakout_confirmed',
+
+        previousStage:
+          'THIRD_TOUCH_CONFIRMED',
+
+        currentStage:
+          'BREAKOUT_CONFIRMED',
+
+        outcome:
+          'breakout',
+      }),
+    );
+
+    source.emit(
+      createEvent({
+        eventId:
+          4,
+
+        candidateId:
+          'setup-another',
+      }),
+    );
+
+    const restartCandidates =
+      history.getRestartCandidates();
+
+    assert.deepEqual(
+      restartCandidates.map(
+        (candidate) =>
+          candidate.id,
+      ),
+      [
+        'setup-another',
+        'setup-live',
+      ],
+    );
+
+    const live =
+      restartCandidates.find(
+        (candidate) =>
+          candidate.id
+          === 'setup-live',
+      );
+
+    assert.ok(live);
+
+    assert.equal(
+      live.stage,
+      'APPROACHING_THIRD_TOUCH',
+    );
+
+    assert.equal(
+      live.currentPrice,
+      99.5,
+    );
+
+    live.level.centerPrice =
+      1;
+
+    const reread =
+      history
+        .getRestartCandidates()
+        .find(
+          (candidate) =>
+            candidate.id
+            === 'setup-live',
+        );
+
+    assert.ok(reread);
+
+    assert.equal(
+      reread.level.centerPrice,
+      100,
+    );
+
+    history.stop();
+  },
+);

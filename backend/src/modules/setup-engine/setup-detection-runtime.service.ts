@@ -442,6 +442,128 @@ export class SetupDetectionRuntimeService {
     this.state = 'stopped';
   }
 
+  restoreCandidates(
+    candidates:
+      readonly SetupEngineState[],
+  ): void {
+    if (
+      this.state === 'running'
+    ) {
+      throw new Error(
+        'Setup Detection Runtime candidates can only be restored before runtime start',
+      );
+    }
+
+    const now =
+      this.readNow();
+
+    const nowMs =
+      now.getTime();
+
+    for (
+      const sourceCandidate
+      of candidates
+    ) {
+      if (
+        isTerminalStage(
+          sourceCandidate.stage,
+        )
+      ) {
+        continue;
+      }
+
+      const updatedAtMs =
+        readTimestamp(
+          sourceCandidate.updatedAt,
+          'restored candidate updatedAt',
+        );
+
+      const expiresAtMs =
+        readTimestamp(
+          sourceCandidate.expiresAt,
+          'restored candidate expiresAt',
+        );
+
+      const existing =
+        this.candidates.get(
+          sourceCandidate.id,
+        );
+
+      if (
+        existing
+        && timestampValue(
+          existing.updatedAt,
+        ) >= updatedAtMs
+      ) {
+        continue;
+      }
+
+      const restored =
+        cloneCandidate(
+          sourceCandidate,
+        );
+
+      if (
+        expiresAtMs > nowMs
+      ) {
+        this.candidates.set(
+          restored.id,
+          restored,
+        );
+
+        continue;
+      }
+
+      const occurredAt =
+        restored.expiresAt;
+
+      this.evaluationsCount += 1;
+
+      this.lastEvaluationAt =
+        occurredAt;
+
+      try {
+        const expired =
+          advanceSetupEngineState(
+            restored,
+            {
+              type:
+                'EXPIRED',
+
+              occurredAt,
+            },
+          );
+
+        this.candidates.set(
+          expired.id,
+          cloneCandidate(
+            expired,
+          ),
+        );
+
+        this.stageTransitionsCount +=
+          1;
+
+        this.lastTransitionAt =
+          expired.updatedAt;
+
+        this.emitStageTransition(
+          restored,
+          expired,
+        );
+      } catch (error) {
+        this.failedEvaluations += 1;
+
+        this.lastError =
+          error instanceof Error
+            ? `${restored.id}: ${error.message}`
+            : `${restored.id}: Setup restart expiration failed`;
+      }
+    }
+
+    this.enforceCandidateLimit();
+  }
+
   subscribeLifecycleEvents(
     listener:
       SetupLifecycleEventListener,

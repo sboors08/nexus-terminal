@@ -24,6 +24,9 @@ import type {
   SetupDetectionRuntimeOptions,
   SetupDetectionRuntimeSource,
 } from '../src/modules/setup-engine/setup-detection-runtime.types.js';
+import type {
+  SetupLifecycleEvent,
+} from '../src/modules/setup-engine/setup-lifecycle-events.types.js';
 
 const START_TIME_MS =
   Date.parse(
@@ -952,5 +955,214 @@ test(
       runtime.stops,
       1,
     );
+  },
+);
+
+test(
+  'restores active candidates before startup and expires stale snapshots at persisted expiresAt',
+  () => {
+    const {
+      service,
+    } =
+      createRealtimeService();
+
+    service.applyHistoricalKlines(
+      buildHistory(true),
+    );
+
+    const seedRuntime =
+      new SetupDetectionRuntimeService(
+        service,
+        RUNTIME_OPTIONS,
+      );
+
+    seedRuntime.start();
+
+    const seedCandidates =
+      seedRuntime.getCandidates();
+
+    seedRuntime.stop();
+
+    assert.equal(
+      seedCandidates.length,
+      2,
+    );
+
+    const first =
+      seedCandidates[0];
+
+    const second =
+      seedCandidates[1];
+
+    assert.ok(first);
+    assert.ok(second);
+
+    const liveCandidate = {
+      ...first,
+
+      level: {
+        ...first.level,
+      },
+
+      updatedAt:
+        '2026-07-26T12:08:30.000Z',
+
+      expiresAt:
+        '2026-07-26T13:05:00.000Z',
+    };
+
+    const staleCandidate = {
+      ...second,
+
+      level: {
+        ...second.level,
+      },
+
+      updatedAt:
+        '2026-07-26T12:08:30.000Z',
+
+      expiresAt:
+        '2026-07-26T12:09:00.000Z',
+    };
+
+    const runtime =
+      new SetupDetectionRuntimeService(
+        service,
+        {
+          ...RUNTIME_OPTIONS,
+
+          now: () =>
+            new Date(
+              '2026-07-26T12:10:00.000Z',
+            ),
+        },
+      );
+
+    const lifecycleEvents:
+      SetupLifecycleEvent[] = [];
+
+    const unsubscribe =
+      runtime.subscribeLifecycleEvents(
+        (event) => {
+          lifecycleEvents.push(
+            event,
+          );
+        },
+      );
+
+    runtime.restoreCandidates([
+      liveCandidate,
+      staleCandidate,
+    ]);
+
+    const restoredLive =
+      runtime.getCandidate(
+        liveCandidate.id,
+      );
+
+    const restoredStale =
+      runtime.getCandidate(
+        staleCandidate.id,
+      );
+
+    assert.ok(restoredLive);
+    assert.ok(restoredStale);
+
+    assert.equal(
+      restoredLive.stage,
+      liveCandidate.stage,
+    );
+
+    assert.equal(
+      restoredLive.updatedAt,
+      liveCandidate.updatedAt,
+    );
+
+    assert.equal(
+      restoredStale.stage,
+      'SETUP_EXPIRED',
+    );
+
+    assert.equal(
+      restoredStale.updatedAt,
+      staleCandidate.expiresAt,
+    );
+
+    const staleExpiryEvents =
+      lifecycleEvents.filter(
+        (event) =>
+          event.candidateId
+            === staleCandidate.id
+          && event.type
+            === 'setup_expired',
+      );
+
+    assert.equal(
+      staleExpiryEvents.length,
+      1,
+    );
+
+    assert.equal(
+      staleExpiryEvents[0]
+        ?.occurredAt,
+      staleCandidate.expiresAt,
+    );
+
+    assert.equal(
+      staleExpiryEvents[0]
+        ?.previousStage,
+      staleCandidate.stage,
+    );
+
+    runtime.restoreCandidates([
+      liveCandidate,
+      staleCandidate,
+    ]);
+
+    assert.equal(
+      lifecycleEvents.filter(
+        (event) =>
+          event.candidateId
+            === staleCandidate.id
+          && event.type
+            === 'setup_expired',
+      ).length,
+      1,
+    );
+
+    runtime.start();
+
+    const liveAfterStart =
+      runtime.getCandidate(
+        liveCandidate.id,
+      );
+
+    assert.ok(liveAfterStart);
+
+    assert.equal(
+      liveAfterStart.stage,
+      liveCandidate.stage,
+    );
+
+    const duplicateCreatedEvents =
+      lifecycleEvents.filter(
+        (event) =>
+          event.type
+            === 'candidate_created'
+          && (
+            event.candidateId
+              === liveCandidate.id
+            || event.candidateId
+              === staleCandidate.id
+          ),
+      );
+
+    assert.equal(
+      duplicateCreatedEvents.length,
+      0,
+    );
+
+    runtime.stop();
+    unsubscribe();
   },
 );
