@@ -44,21 +44,13 @@ import {
   useCausalLevelLines,
 } from '@/shared/level-lines';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
+import { TokenLogo } from '@/shared/ui/TokenLogo';
 import { DashboardScannerFilters } from './DashboardScannerFilters';
 import filterStyles from './DashboardScannerFilters.module.css';
 import styles from './DashboardPage.module.css';
 
 type DashboardScannerMetricView =
   ReturnType<typeof buildDashboardScannerMetricView>;
-
-function getDashboardSymbolIcon(
-  symbol: string,
-): string {
-  const baseAsset =
-    symbol.split('/')[0] ?? symbol;
-
-  return baseAsset.slice(0, 1) || '◆';
-}
 
 function HotCard({
   symbol,
@@ -109,9 +101,11 @@ function HotCard({
       </span>
 
       <div className={styles.cardHead}>
-        <span className={styles.coinIcon}>
-          {getDashboardSymbolIcon(symbol)}
-        </span>
+        <TokenLogo
+          symbol={symbol}
+          size={36}
+          className={styles.coinIcon}
+        />
 
         <span className={styles.coinIdentity}>
           <strong>{symbol}</strong>
@@ -1495,7 +1489,11 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                 <strong
                   className={styles.scannerSymbol}
                 >
-                  <i className={styles.coinDot} />
+                  <TokenLogo
+                    symbol={String(row[0])}
+                    size={14}
+                    className={styles.scannerCoinLogo}
+                  />
 
                   <span>{row[0]}</span>
 
@@ -2077,9 +2075,12 @@ const barCount =
       <article className={`${styles.panel} ${styles.chartPanel}`}>
         <div className={styles.chartHeader}>
           <div className={styles.chartPair}>
-            <span className={styles.chartCoin}>
-              {getDashboardSymbolIcon(selected)}
-            </span>
+            <TokenLogo
+              symbol={selected}
+              size={22}
+              className={styles.chartCoin}
+              eager
+            />
 
             <strong>
               {selected}

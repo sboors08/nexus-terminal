@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import { buildMarketWorkspaceUrl } from '@/shared/routing/setupContext';
+import { TokenLogo } from '@/shared/ui/TokenLogo';
 import {
   buildWatchlistRealtimeView,
   useRealtimeMarketData,
@@ -111,9 +112,11 @@ function WatchlistRow({
   return (
     <article className={styles.instrumentRow}>
       <div className={styles.instrumentCell}>
-        <span className={styles.symbolMark}>
-          {instrument.symbol.slice(0, 1)}
-        </span>
+        <TokenLogo
+          symbol={instrument.symbol}
+          size={36}
+          className={styles.symbolMark}
+        />
 
         <span>
           <strong>{instrument.symbol}</strong>
