@@ -1991,3 +1991,10 @@
     font-size: var(--nexus-font-size-xs);
   }
 }
+
+
+.symbolLogo {
+  flex: 0 0 34px;
+  margin-right: 2px;
+  border-color: var(--nexus-color-border-info);
+}

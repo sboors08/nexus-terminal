@@ -49,6 +49,7 @@ import {
   useCausalLevelLines,
 } from '@/shared/level-lines';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
+import { TokenLogo } from '@/shared/ui/TokenLogo';
 import { DirectionBadge } from '@/shared/ui/DirectionBadge';
 import {
   SetupStageBadge,
@@ -1949,6 +1950,13 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               }
             </p>
             <div className={styles.symbolRow}>
+              <TokenLogo
+                symbol={selectedSetup.symbol}
+                size={34}
+                className={styles.symbolLogo}
+                eager
+              />
+
               <h1>{selectedSetup.symbol}</h1>
 
               <label

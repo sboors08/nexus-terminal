@@ -1,0 +1,42 @@
+.root {
+  --token-logo-size: 32px;
+  width: var(--token-logo-size);
+  height: var(--token-logo-size);
+  flex: 0 0 var(--token-logo-size);
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-round);
+  color: var(--nexus-color-info);
+  background:
+    radial-gradient(
+      circle at 32% 24%,
+      rgb(255 255 255 / 12%),
+      transparent 42%
+    ),
+    var(--nexus-color-info-soft);
+  vertical-align: middle;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fallback {
+  display: block;
+  max-width: 90%;
+  overflow: hidden;
+  font-family: var(--nexus-font-family-mono);
+  font-size: max(
+    7px,
+    calc(var(--token-logo-size) * 0.3)
+  );
+  font-weight: var(--nexus-font-weight-bold);
+  line-height: 1;
+  text-overflow: clip;
+  white-space: nowrap;
+}

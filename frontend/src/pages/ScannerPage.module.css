@@ -2631,7 +2631,26 @@
 .chartGridIdentity {
   min-width: 0;
   display: grid;
-  gap: 2px;
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: center;
+}
+
+.chartGridLogo {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.chartGridIdentity > strong {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.chartGridIdentity > small {
+  grid-column: 2;
+  grid-row: 2;
 }
 
 .chartGridIdentity strong {
@@ -2745,4 +2764,15 @@
   .chartGridChart {
     height: 200px;
   }
+}
+
+
+.previewLogo {
+  flex: 0 0 32px;
+  border-color: var(--nexus-color-border-info);
+}
+
+.coinMark,
+.volumeSpikeCoin {
+  overflow: hidden;
 }

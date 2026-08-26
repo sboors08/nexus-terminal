@@ -44,6 +44,7 @@ import {
   type ScannerTimeframe,
 } from '@/shared/api';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
+import { TokenLogo } from '@/shared/ui/TokenLogo';
 import { DirectionBadge, type TradeDirection } from '@/shared/ui/DirectionBadge';
 import { SetupStageBadge, type SetupStage } from '@/shared/ui/SetupStageBadge';
 import { LevelV2ShadowInspectionPanel } from '@/shared/ui/LevelV2ShadowInspectionPanel';
@@ -1555,6 +1556,12 @@ function ScannerPageContent({
                                   >
                                     <span className={styles.chartGridCardHeader}>
                                       <span className={styles.chartGridIdentity}>
+                                        <TokenLogo
+                                          symbol={setup.symbol}
+                                          size={28}
+                                          className={styles.chartGridLogo}
+                                        />
+
                                         <strong>
                                           {setup.symbol}
                                         </strong>
@@ -1801,7 +1808,11 @@ function ScannerPageContent({
                     aria-pressed={selected}
                   >
                     <span className={styles.instrumentCell}>
-                      <span className={styles.coinMark}>{setup.symbol.slice(0, 1)}</span>
+                      <TokenLogo
+                        symbol={setup.symbol}
+                        size={30}
+                        className={styles.coinMark}
+                      />
                       <span>
                         <strong>{setup.symbol}</strong>
                         <small>{setup.exchange}</small>
@@ -1897,6 +1908,13 @@ function ScannerPageContent({
             <div className={styles.previewHeader}>
               <div className={styles.setupHeaderLine}>
                 <div className={styles.symbolLine}>
+                  <TokenLogo
+                    symbol={selectedSymbol}
+                    size={32}
+                    className={styles.previewLogo}
+                    eager
+                  />
+
                   <h2>{selectedSymbol}</h2>
                   <DirectionBadge direction={displayDirection} />
                   <span className={styles.timeframeBadge}>
@@ -2632,7 +2650,11 @@ function ScannerPageContent({
           >
             <span className={styles.volumeSpikeCardHeader}>
               <span className={styles.volumeSpikeSymbol}>
-                <span className={styles.volumeSpikeCoin}>{spike.symbol.slice(0, 1)}</span>
+                <TokenLogo
+                  symbol={spike.symbol}
+                  size={30}
+                  className={styles.volumeSpikeCoin}
+                />
                 <span>
                   <strong>{spike.symbol}</strong>
                   <small>BINANCE FUTURES</small>
