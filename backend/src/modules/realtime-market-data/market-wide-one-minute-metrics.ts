@@ -1833,10 +1833,28 @@ export class MarketWideOneMinuteMetricsStore {
       return [];
     }
 
+    /*
+     * A missed WebSocket close update may leave an open
+     * candle behind newer closed candles.
+     *
+     * Consumers may use one current open candle, but an
+     * open candle must never remain inside closed history.
+     */
+    const readableKlines =
+      state.klines.filter(
+        (
+          kline,
+          index,
+        ) =>
+          kline.isClosed
+          || index
+            === state.klines.length - 1,
+      );
+
     const klines =
       limit === undefined
-        ? state.klines
-        : state.klines.slice(
+        ? readableKlines
+        : readableKlines.slice(
             -limit,
           );
 
