@@ -24,7 +24,7 @@ LevelV2ShadowHistoryOptions = {
   maxEntriesPerSymbol:
     60,
   maxTotalEntries:
-    30_000,
+    10_000,
 };
 
 interface StoredHistoryEntry {
