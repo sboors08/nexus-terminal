@@ -1230,3 +1230,170 @@ test(
     }
   },
 );
+
+
+test(
+  'filters a superseded open candle from readable kline history',
+  () => {
+    const store =
+      new MarketWideOneMinuteMetricsStore([
+        'GAPUSDT',
+      ]);
+
+    const baseTime =
+      Date.parse(
+        '2024-07-20T12:00:00.000Z',
+      );
+
+    function buildUpdate(
+      minuteIndex: number,
+      isClosed: boolean,
+    ):
+    BinanceOneMinuteKlineUpdate {
+      const openTimeMs =
+        baseTime
+        + minuteIndex * 60_000;
+
+      return {
+        symbol:
+          'GAPUSDT',
+
+        eventTime:
+          new Date(
+            openTimeMs
+            + (
+              isClosed
+                ? 59_999
+                : 30_000
+            ),
+          ).toISOString(),
+
+        openTime:
+          new Date(
+            openTimeMs,
+          ).toISOString(),
+
+        closeTime:
+          new Date(
+            openTimeMs
+            + 59_999,
+          ).toISOString(),
+
+        open:
+          100 + minuteIndex,
+
+        high:
+          102 + minuteIndex,
+
+        low:
+          99 + minuteIndex,
+
+        close:
+          101 + minuteIndex,
+
+        volume:
+          1_000,
+
+        quoteVolume:
+          10_000,
+
+        tradesCount:
+          100,
+
+        takerBuyQuoteVolume:
+          5_000,
+
+        isClosed,
+      };
+    }
+
+    /*
+     * Minute zero never received its closing update.
+     * Newer closed and current open candles followed it.
+     */
+    assert.equal(
+      store.applyKline(
+        buildUpdate(
+          0,
+          false,
+        ),
+      ),
+      true,
+    );
+
+    assert.equal(
+      store.applyKline(
+        buildUpdate(
+          1,
+          true,
+        ),
+      ),
+      true,
+    );
+
+    assert.equal(
+      store.applyKline(
+        buildUpdate(
+          2,
+          false,
+        ),
+      ),
+      true,
+    );
+
+    const readable =
+      store.getKlines(
+        'GAPUSDT',
+      );
+
+    assert.deepEqual(
+      readable.map(
+        (kline) => ({
+          openTime:
+            kline.openTime,
+          isClosed:
+            kline.isClosed,
+        }),
+      ),
+      [
+        {
+          openTime:
+            new Date(
+              baseTime + 60_000,
+            ).toISOString(),
+          isClosed:
+            true,
+        },
+        {
+          openTime:
+            new Date(
+              baseTime + 120_000,
+            ).toISOString(),
+          isClosed:
+            false,
+        },
+      ],
+    );
+
+    let openCandleSeen =
+      false;
+
+    for (
+      const candle
+      of readable
+    ) {
+      if (!candle.isClosed) {
+        openCandleSeen =
+          true;
+
+        continue;
+      }
+
+      assert.equal(
+        openCandleSeen,
+        false,
+        'closed candle appeared after an open candle',
+      );
+    }
+  },
+);
