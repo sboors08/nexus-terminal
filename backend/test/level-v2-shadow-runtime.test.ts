@@ -997,3 +997,22 @@ test(
     );
   },
 );
+
+test(
+  'bounds default Level v2 histories to the readable retention window',
+  () => {
+    assert.equal(
+      DEFAULT_LEVEL_V2_SHADOW_RUNTIME_OPTIONS
+        .historyOptions
+        ?.maxTotalEntries,
+      10_000,
+    );
+
+    assert.equal(
+      DEFAULT_LEVEL_V2_SHADOW_RUNTIME_OPTIONS
+        .marketEvidenceHistoryOptions
+        ?.maxTotalEntries,
+      10_000,
+    );
+  },
+);

@@ -25,7 +25,7 @@ LevelV2ShadowMarketEvidenceHistoryOptions = {
   maxEntriesPerClassifier:
     120,
   maxTotalEntries:
-    100_000,
+    10_000,
 };
 
 interface StoredEntry {
