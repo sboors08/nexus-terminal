@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
+import {
+  readFileSync,
+} from 'node:fs';
 import test from 'node:test';
 import {
   loadNexusDrawings,
   moveNexusDrawing,
+  removeNexusDrawingById,
   saveNexusDrawings,
   toggleNexusDrawingLock,
   toggleNexusDrawingVisibility,
@@ -176,6 +180,235 @@ test(
         drawing,
       ).hidden,
       true,
+    );
+  },
+);
+
+test(
+  'removes only the targeted drawing without mutating the original list',
+  () => {
+    const first =
+      createTrend();
+
+    const second = {
+      ...createTrend(),
+      id: 'trend-2',
+    };
+
+    const drawings = [
+      first,
+      second,
+    ];
+
+    const result =
+      removeNexusDrawingById(
+        drawings,
+        first.id,
+      );
+
+    assert.deepEqual(
+      result,
+      [
+        second,
+      ],
+    );
+
+    assert.deepEqual(
+      drawings,
+      [
+        first,
+        second,
+      ],
+    );
+  },
+);
+
+test(
+  'keeps chart tools one-shot and protects locked drawings from right-click deletion',
+  () => {
+    const overlaySource =
+      readFileSync(
+        new URL(
+          '../src/shared/charts/ui/NexusChartDrawingOverlay.tsx',
+          import.meta.url,
+        ),
+        'utf8',
+      );
+
+    const overlayStyles =
+      readFileSync(
+        new URL(
+          '../src/shared/charts/ui/NexusChartDrawingOverlay.module.css',
+          import.meta.url,
+        ),
+        'utf8',
+      );
+
+    const completeDrawingStart =
+      overlaySource.indexOf(
+        'const completeDrawing =',
+      );
+
+    const pointerDownStart =
+      overlaySource.indexOf(
+        'const handlePointerDown =',
+      );
+
+    const completeDrawingSource =
+      overlaySource.slice(
+        completeDrawingStart,
+        pointerDownStart,
+      );
+
+    assert.ok(
+      completeDrawingStart >= 0,
+    );
+
+    assert.ok(
+      pointerDownStart
+      > completeDrawingStart,
+    );
+
+    assert.match(
+      completeDrawingSource,
+      /setActiveTool\('cursor'\);/,
+    );
+
+    assert.equal(
+      overlaySource.match(
+        /completeDrawing\(drawing\);/g,
+      )?.length,
+      6,
+    );
+
+    assert.match(
+      overlaySource,
+      /onContextMenu=\{/,
+    );
+
+    assert.match(
+      overlaySource,
+      /addEventListener\(\s*'contextmenu'/,
+    );
+
+    assert.match(
+      overlaySource,
+      /if \(hit\.locked\)/,
+    );
+
+    assert.match(
+      overlaySource,
+      /removeNexusDrawingById\(/,
+    );
+
+    assert.match(
+      overlaySource,
+      /quickMeasureDraft/,
+    );
+
+    assert.match(
+      overlaySource,
+      /if \(event\.shiftKey\)/,
+    );
+
+    assert.match(
+      overlaySource,
+      /Shift \+ ЛКМ/,
+    );
+
+    assert.match(
+      overlaySource,
+      /id: 'horizontalRay',\s*label: 'Горизонтальная линия',\s*shortcut: 'Alt \+ H'/,
+    );
+
+    assert.doesNotMatch(
+      overlaySource,
+      /id: 'horizontal',\s*label: 'Горизонтальная линия'/,
+    );
+
+    assert.match(
+      overlaySource,
+      /\['h', 'horizontalRay'\]/,
+    );
+
+    assert.match(
+      overlaySource,
+      /x1=\{start\.x\}[\s\S]*x2=\{width\}[\s\S]*y2=\{start\.y\}/,
+    );
+
+    assert.match(
+      overlaySource,
+      /styles\.measureArea/,
+    );
+
+    assert.match(
+      overlaySource,
+      /styles\.measureBadge/,
+    );
+
+    assert.match(
+      overlaySource,
+      /Бары: \{measuredCandleCount\}/,
+    );
+
+    assert.doesNotMatch(
+      overlaySource,
+      /styles\.measureLine/,
+    );
+
+    assert.match(
+      overlayStyles,
+      /\.measureGuide \{/,
+    );
+
+    assert.match(
+      overlayStyles,
+      /\.measureArea \{/,
+    );
+
+    assert.match(
+      overlaySource,
+      /quickMeasureDragging/,
+    );
+
+    assert.match(
+      overlaySource,
+      /quickMeasureDraft\s*&& !event\.shiftKey/,
+    );
+
+    assert.match(
+      overlaySource,
+      /event\.shiftKey\s*\|\| activeTool === 'measure'/,
+    );
+
+    assert.match(
+      overlaySource,
+      /drawing\.type\s*!=+ 'measure'/,
+    );
+
+    assert.doesNotMatch(
+      overlaySource,
+      /'fibRetracement',\s*'measure',\s*'longPosition'/,
+    );
+
+    assert.doesNotMatch(
+      overlaySource,
+      /label: 'Коррекция Fibonacci'/,
+    );
+
+    assert.doesNotMatch(
+      overlaySource,
+      /label: 'Расширение Fibonacci'/,
+    );
+
+    assert.match(
+      overlayStyles,
+      /\.toolFlyout \{/,
+    );
+
+    assert.match(
+      overlayStyles,
+      /flex-direction: column;/,
     );
   },
 );

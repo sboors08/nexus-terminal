@@ -3,43 +3,46 @@
   z-index: 6;
   top: 8px;
   left: 8px;
-  right: 8px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  min-width: 0;
-  padding: 5px;
+  gap: 3px;
+  width: 38px;
+  padding: 4px;
   border: 1px solid rgba(76, 101, 92, 0.72);
   border-radius: 8px;
-  background: rgba(7, 14, 18, 0.93);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(8px);
+  background: rgba(9, 13, 16, 0.96);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
 }
 
 .toolScroller {
   display: flex;
-  flex: 1 1 auto;
+  flex-direction: column;
   align-items: center;
-  gap: 3px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  gap: 2px;
+  overflow: visible;
 }
 
 .toolButton,
 .actionButton {
   display: grid;
-  flex: 0 0 30px;
-  width: 30px;
-  height: 30px;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
   place-items: center;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 5px;
   color: #91a39c;
   background: transparent;
   font: 600 12px/1 var(--nexus-font-family-mono);
   cursor: pointer;
+}
+
+.toolButton svg,
+.actionButton svg {
+  width: 20px;
+  height: 20px;
 }
 
 .toolButton:hover:not(:disabled),
@@ -52,8 +55,13 @@
 .toolButton.active,
 .actionButton.active {
   color: #ffffff;
-  border-color: rgba(74, 168, 255, 0.9);
-  background: rgba(74, 168, 255, 0.24);
+  border-color: rgba(48, 219, 151, 0.72);
+  background: rgba(48, 219, 151, 0.2);
+}
+
+.quickMeasureActive {
+  color: #31db97;
+  box-shadow: 0 0 12px rgba(49, 219, 151, 0.32);
 }
 
 .toolButton.longTool {
@@ -66,15 +74,14 @@
 
 .toolButton:disabled,
 .actionButton:disabled {
-  opacity: 0.34;
-  cursor: not-allowed;
+  display: none;
 }
 
 .separator {
   flex: 0 0 1px;
-  width: 1px;
-  height: 22px;
-  margin: 0 2px;
+  width: 24px;
+  height: 1px;
+  margin: 2px 0;
   background: rgba(76, 101, 92, 0.65);
 }
 
@@ -83,6 +90,103 @@
   color: #72837d;
   font: 600 10px/1 var(--nexus-font-family-mono);
   text-align: center;
+}
+
+.toolGroup {
+  position: relative;
+}
+
+.groupChevron {
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  color: #64736e;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.toolFlyout {
+  position: absolute;
+  z-index: 10;
+  top: -4px;
+  left: 36px;
+  width: 310px;
+  max-height: min(620px, calc(100vh - 100px));
+  overflow-y: auto;
+  padding: 7px;
+  border: 1px solid rgba(73, 84, 80, 0.72);
+  border-radius: 7px;
+  background: #1d1e20;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.56);
+  scrollbar-width: thin;
+}
+
+.menuHeading,
+.menuSection {
+  padding: 7px 8px;
+  color: #7f8b87;
+  font: 600 10px/1.2 var(--nexus-font-family-mono);
+  letter-spacing: 0.08em;
+}
+
+.menuSection {
+  margin-top: 6px;
+  border-top: 1px solid rgba(94, 103, 100, 0.42);
+  padding-top: 12px;
+}
+
+.menuItem {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 36px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  color: #f0f4f2;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuItem:hover,
+.menuItemActive {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.menuItemActive {
+  color: #31db97;
+}
+
+.menuItemIcon {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+}
+
+.menuItemIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.menuItemLabel {
+  overflow: hidden;
+  font: 500 13px/1.2 var(
+    --nexus-font-family-sans,
+    Inter,
+    sans-serif
+  );
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcut {
+  color: #8d9793;
+  background: transparent;
+  font: 500 10px/1 var(--nexus-font-family-mono);
 }
 
 .layer {
@@ -154,10 +258,50 @@
   stroke-dasharray: 5 5;
 }
 
-.measureLine {
-  stroke: #32d583;
-  stroke-width: 2;
-  stroke-dasharray: 5 4;
+.measureGuide {
+  stroke: rgba(164, 180, 196, 0.72);
+  stroke-width: 1;
+  stroke-dasharray: 5 6;
+  vector-effect: non-scaling-stroke;
+}
+
+.measureArea {
+  fill: rgba(41, 98, 255, 0.22);
+  stroke: #3d73ff;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.measureSpan,
+.measureSpanArrow {
+  fill: none;
+  stroke: #4b83ff;
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.measureBadge {
+  fill: #2962ff;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1;
+}
+
+.measurePositive .measureArea {
+  fill: rgba(41, 98, 255, 0.22);
+}
+
+.measureNegative .measureArea {
+  fill: rgba(255, 82, 112, 0.2);
+  stroke: #ff5270;
+}
+
+.measureNegative .measureSpan,
+.measureNegative .measureSpanArrow {
+  stroke: #ff6b83;
+}
+
+.measureNegative .measureBadge {
+  fill: #e34862;
 }
 
 .channelLine {
@@ -226,7 +370,6 @@
 }
 
 .priceLabel,
-.measureLabel,
 .fibonacciLabel,
 .note,
 .positionLabel {
@@ -243,11 +386,23 @@
   font-size: 11px;
 }
 
-.measureLabel {
-  fill: #32d583;
-  font-size: 12px;
-  font-weight: 700;
+.measureBadgeTitle,
+.measureBadgeMeta {
+  fill: #ffffff;
+  font-family: var(--nexus-font-family-mono);
   text-anchor: middle;
+  pointer-events: none;
+}
+
+.measureBadgeTitle {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.measureBadgeMeta {
+  fill: rgba(255, 255, 255, 0.88);
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .fibonacciLabel {
@@ -270,8 +425,8 @@
 .hint {
   position: absolute;
   z-index: 7;
-  top: 50px;
-  left: 12px;
+  top: 8px;
+  left: 54px;
   padding: 5px 8px;
   border: 1px solid rgba(187, 139, 255, 0.6);
   border-radius: 5px;
@@ -279,6 +434,44 @@
   background: rgba(7, 14, 18, 0.92);
   font: 600 10px/1 var(--nexus-font-family-mono);
   pointer-events: none;
+}
+
+@media (max-width: 820px) {
+  [data-nexus-chart-toolbar].toolbar {
+    top: auto;
+    bottom: 6px;
+    left: 6px;
+    right: 6px;
+    flex-direction: row;
+    width: auto;
+    max-width: calc(100% - 12px);
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .toolbar .toolScroller {
+    flex-direction: row;
+  }
+
+  .toolbar .separator {
+    width: 1px;
+    height: 22px;
+    margin: 0 2px;
+  }
+
+  .toolbar .toolFlyout {
+    top: auto;
+    bottom: 36px;
+    left: 0;
+    width: min(310px, calc(100vw - 24px));
+    max-height: 58vh;
+  }
+
+  .hint.hint {
+    top: auto;
+    bottom: 50px;
+    left: 8px;
+  }
 }
 
 @media (max-width: 820px) {
