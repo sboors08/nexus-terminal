@@ -11,6 +11,7 @@ export * from './useOrderBookDepth';
 export * from './workspaceLiquidityMap';
 export * from './workspaceMarketDynamics';
 export * from './dashboardRealtime';
+export * from './dashboardMarketContext';
 export * from './dashboardScannerMetrics';
 export * from './useDashboardScannerMetrics';
 export * from './scannerFilters';
