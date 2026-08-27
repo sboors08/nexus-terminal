@@ -2,7 +2,9 @@ import {
   useEffect,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type RefObject,
 } from 'react';
 
@@ -20,6 +22,7 @@ import {
   createNexusDrawingId,
   loadNexusDrawings,
   moveNexusDrawing,
+  removeNexusDrawingById,
   saveNexusDrawings,
   toggleNexusDrawingLock,
   toggleNexusDrawingVisibility,
@@ -34,6 +37,12 @@ import styles from './NexusChartDrawingOverlay.module.css';
 type EditorTool =
   | 'pan'
   | NexusDrawingTool;
+
+type ToolMenuId =
+  | 'lines'
+  | 'shapes'
+  | 'positions'
+  | 'annotations';
 
 type TwoPointTool =
   | 'trend'
@@ -92,107 +101,275 @@ interface NexusChartDrawingOverlayProps {
   scope: string;
 }
 
-const TOOLS: readonly {
+interface ToolDefinition {
   id: EditorTool;
   label: string;
-  symbol: string;
-}[] = [
+  shortcut?: string;
+}
+
+const PRIMARY_TOOLS:
+  readonly ToolDefinition[] = [
   {
     id: 'pan',
     label: 'Навигация по графику',
-    symbol: '✋',
   },
   {
     id: 'cursor',
     label: 'Выбор и редактирование',
-    symbol: '↖',
   },
+];
+
+const LINE_TOOLS:
+  readonly ToolDefinition[] = [
   {
     id: 'trend',
     label: 'Трендовая линия',
-    symbol: '╱',
+    shortcut: 'Alt + T',
   },
   {
     id: 'ray',
     label: 'Луч',
-    symbol: '↗',
   },
   {
     id: 'infiniteLine',
-    label: 'Бесконечная линия',
-    symbol: '↔',
-  },
-  {
-    id: 'horizontal',
-    label: 'Горизонтальная линия',
-    symbol: '—',
+    label: 'Продлённая линия',
   },
   {
     id: 'horizontalRay',
-    label: 'Горизонтальный луч',
-    symbol: '—›',
+    label: 'Горизонтальная линия',
+    shortcut: 'Alt + H',
   },
   {
     id: 'vertical',
     label: 'Вертикальная линия',
-    symbol: '│',
+    shortcut: 'Alt + V',
   },
+];
+
+const CHANNEL_TOOLS:
+  readonly ToolDefinition[] = [
   {
     id: 'parallelChannel',
     label: 'Параллельный канал',
-    symbol: '∥',
   },
+];
+
+const SHAPE_TOOLS:
+  readonly ToolDefinition[] = [
   {
     id: 'rectangle',
     label: 'Прямоугольник',
-    symbol: '▭',
   },
   {
     id: 'ellipse',
     label: 'Эллипс',
-    symbol: '◯',
   },
-  {
-    id: 'fibRetracement',
-    label: 'Коррекция Fibonacci',
-    symbol: 'Fib',
-  },
-  {
-    id: 'fibExtension',
-    label: 'Расширение Fibonacci',
-    symbol: 'Ext',
-  },
-  {
-    id: 'measure',
-    label: 'Измерение цены и времени',
-    symbol: 'Δ',
-  },
+];
+
+const MEASURE_TOOL: ToolDefinition = {
+  id: 'measure',
+  label: 'Линейка — удерживайте Shift и протяните ЛКМ',
+  shortcut: 'Shift + ЛКМ',
+};
+
+const POSITION_TOOLS:
+  readonly ToolDefinition[] = [
   {
     id: 'longPosition',
     label: 'Позиция LONG',
-    symbol: 'L',
   },
   {
     id: 'shortPosition',
     label: 'Позиция SHORT',
-    symbol: 'S',
   },
+];
+
+const ANNOTATION_TOOLS:
+  readonly ToolDefinition[] = [
   {
     id: 'text',
     label: 'Текстовая заметка',
-    symbol: 'T',
   },
   {
     id: 'arrow',
     label: 'Стрелка',
-    symbol: '➜',
   },
   {
     id: 'marker',
     label: 'Метка',
-    symbol: '●',
   },
 ];
+
+const MENU_TOOLS = {
+  lines: [
+    ...LINE_TOOLS,
+    ...CHANNEL_TOOLS,
+  ],
+  shapes:
+    SHAPE_TOOLS,
+  positions:
+    POSITION_TOOLS,
+  annotations:
+    ANNOTATION_TOOLS,
+} satisfies Record<
+  ToolMenuId,
+  readonly ToolDefinition[]
+>;
+
+function ChartToolIcon({
+  tool,
+}: {
+  tool: EditorTool;
+}) {
+  const common = {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeLinecap:
+      'round' as const,
+    strokeLinejoin:
+      'round' as const,
+    strokeWidth: 1.5,
+  };
+
+  let content:
+    ReactNode;
+
+  switch (tool) {
+    case 'pan':
+      content = (
+        <path
+          d="M8 11V5.5a1 1 0 0 1 2 0V9 4.5a1 1 0 0 1 2 0V9 5.5a1 1 0 0 1 2 0v4.2l1-1a1.2 1.2 0 0 1 1.8 1.6l-3.5 5.3a3 3 0 0 1-2.5 1.4H9.5a3 3 0 0 1-2.7-1.7L5 11.5A1.2 1.2 0 0 1 7.1 10L8 11Z"
+        />
+      );
+      break;
+    case 'cursor':
+      content = (
+        <path d="M5 3l11 8-5 .8-2.5 4.5L5 3Z" />
+      );
+      break;
+    case 'horizontal':
+      content = (
+        <>
+          <line x1="3" y1="10" x2="17" y2="10" />
+          <circle cx="5" cy="10" r="1.5" />
+        </>
+      );
+      break;
+    case 'horizontalRay':
+      content = (
+        <>
+          <line x1="4" y1="10" x2="17" y2="10" />
+          <circle cx="4" cy="10" r="1.5" />
+        </>
+      );
+      break;
+    case 'vertical':
+      content = (
+        <>
+          <line x1="10" y1="3" x2="10" y2="17" />
+          <circle cx="10" cy="10" r="1.5" />
+        </>
+      );
+      break;
+    case 'rectangle':
+      content = (
+        <rect x="3.5" y="5" width="13" height="10" rx="1" />
+      );
+      break;
+    case 'ellipse':
+      content = (
+        <ellipse cx="10" cy="10" rx="6.5" ry="5" />
+      );
+      break;
+    case 'parallelChannel':
+      content = (
+        <>
+          <line x1="3" y1="14" x2="14" y2="3" />
+          <line x1="6" y1="17" x2="17" y2="6" />
+          <circle cx="3" cy="14" r="1" />
+          <circle cx="17" cy="6" r="1" />
+        </>
+      );
+      break;
+    case 'measure':
+      content = (
+        <>
+          <path d="M4 14.5 14.5 4 17 6.5 6.5 17 4 14.5Z" />
+          <path d="m8 12 1.5 1.5M10 10l1.5 1.5M12 8l1.5 1.5" />
+        </>
+      );
+      break;
+    case 'longPosition':
+      content = (
+        <>
+          <path d="M10 17V4m0 0L6 8m4-4 4 4" />
+          <line x1="5" y1="17" x2="15" y2="17" />
+        </>
+      );
+      break;
+    case 'shortPosition':
+      content = (
+        <>
+          <path d="M10 3v13m0 0-4-4m4 4 4-4" />
+          <line x1="5" y1="3" x2="15" y2="3" />
+        </>
+      );
+      break;
+    case 'text':
+      content = (
+        <path d="M4 4h12M10 4v12M7 16h6" />
+      );
+      break;
+    case 'arrow':
+      content = (
+        <path d="M3 15 16 4m0 0-1 5m1-5-5 1" />
+      );
+      break;
+    case 'marker':
+      content = (
+        <>
+          <circle cx="10" cy="9" r="4" />
+          <path d="M10 13v4" />
+        </>
+      );
+      break;
+    case 'ray':
+      content = (
+        <>
+          <line x1="4" y1="16" x2="16" y2="4" />
+          <circle cx="4" cy="16" r="1.5" />
+          <path d="m12 4 4 0 0 4" />
+        </>
+      );
+      break;
+    case 'infiniteLine':
+      content = (
+        <>
+          <line x1="3" y1="17" x2="17" y2="3" />
+          <path d="m3 13 0 4 4 0M13 3h4v4" />
+        </>
+      );
+      break;
+    default:
+      content = (
+        <>
+          <line x1="4" y1="16" x2="16" y2="4" />
+          <circle cx="4" cy="16" r="1.5" />
+          <circle cx="16" cy="4" r="1.5" />
+        </>
+      );
+  }
+
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      {...common}
+    >
+      {content}
+    </svg>
+  );
+}
 
 const TWO_POINT_TOOLS =
   new Set<EditorTool>([
@@ -202,7 +379,6 @@ const TWO_POINT_TOOLS =
     'rectangle',
     'ellipse',
     'fibRetracement',
-    'measure',
     'longPosition',
     'shortPosition',
     'arrow',
@@ -397,6 +573,25 @@ export function NexusChartDrawingOverlay({
   );
 
   const [
+    openToolMenu,
+    setOpenToolMenu,
+  ] = useState<ToolMenuId | null>(
+    null,
+  );
+
+  const [
+    lastLineTool,
+    setLastLineTool,
+  ] = useState<EditorTool>(
+    'trend',
+  );
+
+  const [
+    shiftPressed,
+    setShiftPressed,
+  ] = useState(false);
+
+  const [
     drawings,
     setDrawings,
   ] = useState<
@@ -436,10 +631,22 @@ export function NexusChartDrawingOverlay({
   >(null);
 
   const [
+    quickMeasureDragging,
+    setQuickMeasureDragging,
+  ] = useState(false);
+
+  const [
     threePointDraft,
     setThreePointDraft,
   ] = useState<
     ThreePointDraft | null
+  >(null);
+
+  const [
+    quickMeasureDraft,
+    setQuickMeasureDraft,
+  ] = useState<
+    TwoPointDraft | null
   >(null);
 
   const [
@@ -471,17 +678,40 @@ export function NexusChartDrawingOverlay({
     skipPersistenceRef.current =
       true;
 
-    setDrawings(
+    const storedDrawings =
       loadNexusDrawings(
         scope,
-      ),
+      );
+
+    const persistentDrawings =
+      storedDrawings.filter(
+        (drawing) =>
+          drawing.type
+          !== 'measure',
+      );
+
+    setDrawings(
+      persistentDrawings,
     );
+
+    if (
+      persistentDrawings.length
+      !== storedDrawings.length
+    ) {
+      saveNexusDrawings(
+        scope,
+        persistentDrawings,
+      );
+    }
 
     setPast([]);
     setFuture([]);
     setSelectedId(null);
     setTwoPointDraft(null);
     setThreePointDraft(null);
+    setQuickMeasureDraft(null);
+    setQuickMeasureDragging(false);
+    setOpenToolMenu(null);
   }, [scope]);
 
   useEffect(() => {
@@ -502,6 +732,44 @@ export function NexusChartDrawingOverlay({
     drawings,
     scope,
   ]);
+
+  useEffect(() => {
+    if (!openToolMenu) {
+      return;
+    }
+
+    const closeToolMenu = (
+      event: PointerEvent,
+    ) => {
+      const target =
+        event.target;
+
+      if (
+        target instanceof Element
+        && target.closest(
+          '[data-nexus-chart-toolbar]',
+        )
+      ) {
+        return;
+      }
+
+      setOpenToolMenu(null);
+    };
+
+    window.addEventListener(
+      'pointerdown',
+      closeToolMenu,
+      true,
+    );
+
+    return () => {
+      window.removeEventListener(
+        'pointerdown',
+        closeToolMenu,
+        true,
+      );
+    };
+  }, [openToolMenu]);
 
   useEffect(() => {
     const chart =
@@ -804,7 +1072,8 @@ export function NexusChartDrawingOverlay({
 
   const getPointerScreenPoint = (
     event:
-      ReactPointerEvent<SVGSVGElement>,
+      | ReactPointerEvent<SVGSVGElement>
+      | ReactMouseEvent<SVGSVGElement>,
   ): ScreenPoint => {
     const bounds =
       event.currentTarget
@@ -1580,11 +1849,84 @@ export function NexusChartDrawingOverlay({
     };
   };
 
+  const completeDrawing = (
+    drawing: NexusDrawing,
+  ) => {
+    commitDrawings([
+      ...drawings,
+      drawing,
+    ]);
+
+    setSelectedId(
+      drawing.id,
+    );
+
+    setTwoPointDraft(null);
+    setThreePointDraft(null);
+    setQuickMeasureDraft(null);
+    setOpenToolMenu(null);
+    setActiveTool('cursor');
+  };
+
   const handlePointerDown = (
     event:
       ReactPointerEvent<SVGSVGElement>,
   ) => {
     if (event.button !== 0) {
+      return;
+    }
+
+    if (
+      quickMeasureDraft
+      && !event.shiftKey
+    ) {
+      setQuickMeasureDraft(null);
+      setQuickMeasureDragging(false);
+
+      if (
+        activeTool === 'measure'
+      ) {
+        setActiveTool('cursor');
+      }
+
+      event.preventDefault();
+      return;
+    }
+
+    if (
+      event.shiftKey
+      || activeTool === 'measure'
+    ) {
+      const measurePoint =
+        getChartPoint(
+          event,
+          true,
+        );
+
+      if (!measurePoint) {
+        return;
+      }
+
+      setTwoPointDraft(null);
+      setThreePointDraft(null);
+      setCursorDrag(null);
+      setOpenToolMenu(null);
+      setShiftPressed(true);
+      setQuickMeasureDraft({
+        type: 'measure',
+        start:
+          measurePoint,
+        current:
+          measurePoint,
+      });
+      setQuickMeasureDragging(true);
+
+      event.currentTarget
+        .setPointerCapture(
+          event.pointerId,
+        );
+
+      event.preventDefault();
       return;
     }
 
@@ -1676,14 +2018,7 @@ export function NexusChartDrawingOverlay({
             chartPoint.price,
         };
 
-      commitDrawings([
-        ...drawings,
-        drawing,
-      ]);
-
-      setSelectedId(
-        drawing.id,
-      );
+      completeDrawing(drawing);
 
       return;
     }
@@ -1701,14 +2036,7 @@ export function NexusChartDrawingOverlay({
             chartPoint.time,
         };
 
-      commitDrawings([
-        ...drawings,
-        drawing,
-      ]);
-
-      setSelectedId(
-        drawing.id,
-      );
+      completeDrawing(drawing);
 
       return;
     }
@@ -1726,14 +2054,7 @@ export function NexusChartDrawingOverlay({
             chartPoint,
         };
 
-      commitDrawings([
-        ...drawings,
-        drawing,
-      ]);
-
-      setSelectedId(
-        drawing.id,
-      );
+      completeDrawing(drawing);
 
       return;
     }
@@ -1753,6 +2074,7 @@ export function NexusChartDrawingOverlay({
         );
 
       if (!text?.trim()) {
+        setActiveTool('cursor');
         return;
       }
 
@@ -1767,14 +2089,7 @@ export function NexusChartDrawingOverlay({
             text.trim(),
         };
 
-      commitDrawings([
-        ...drawings,
-        drawing,
-      ]);
-
-      setSelectedId(
-        drawing.id,
-      );
+      completeDrawing(drawing);
 
       return;
     }
@@ -1830,16 +2145,7 @@ export function NexusChartDrawingOverlay({
           ],
         };
 
-      commitDrawings([
-        ...drawings,
-        drawing,
-      ]);
-
-      setSelectedId(
-        drawing.id,
-      );
-
-      setThreePointDraft(null);
+      completeDrawing(drawing);
 
       return;
     }
@@ -1875,6 +2181,18 @@ export function NexusChartDrawingOverlay({
       );
 
     if (!point) {
+      return;
+    }
+
+    if (quickMeasureDraft) {
+      if (quickMeasureDragging) {
+        setQuickMeasureDraft({
+          ...quickMeasureDraft,
+          current:
+            point,
+        });
+      }
+
       return;
     }
 
@@ -1939,6 +2257,43 @@ export function NexusChartDrawingOverlay({
     event:
       ReactPointerEvent<SVGSVGElement>,
   ) => {
+    if (quickMeasureDraft) {
+      const point =
+        getChartPoint(
+          event,
+          true,
+        )
+        ?? quickMeasureDraft.current;
+
+      setQuickMeasureDraft({
+        ...quickMeasureDraft,
+        current:
+          point,
+      });
+      setQuickMeasureDragging(false);
+
+      if (
+        activeTool === 'measure'
+      ) {
+        setOpenToolMenu(null);
+        setActiveTool('cursor');
+      }
+
+      if (
+        event.currentTarget
+          .hasPointerCapture(
+            event.pointerId,
+          )
+      ) {
+        event.currentTarget
+          .releasePointerCapture(
+            event.pointerId,
+          );
+      }
+
+      return;
+    }
+
     if (cursorDrag) {
       if (cursorDrag.changed) {
         setPast(
@@ -1970,16 +2325,7 @@ export function NexusChartDrawingOverlay({
             point,
         });
 
-      commitDrawings([
-        ...drawings,
-        drawing,
-      ]);
-
-      setSelectedId(
-        drawing.id,
-      );
-
-      setTwoPointDraft(null);
+      completeDrawing(drawing);
     }
 
     if (
@@ -1998,13 +2344,124 @@ export function NexusChartDrawingOverlay({
   const cancelDrafts = () => {
     setTwoPointDraft(null);
     setThreePointDraft(null);
+    setQuickMeasureDraft(null);
+    setQuickMeasureDragging(false);
     setCursorDrag(null);
   };
+
+  const removeDrawingAtPoint = (
+    point: ScreenPoint,
+  ): boolean => {
+    const hit =
+      findHitDrawing(
+        point,
+      );
+
+    if (!hit) {
+      return false;
+    }
+
+    cancelDrafts();
+    setActiveTool('cursor');
+
+    if (hit.locked) {
+      setSelectedId(hit.id);
+      return true;
+    }
+
+    commitDrawings(
+      removeNexusDrawingById(
+        drawings,
+        hit.id,
+      ),
+    );
+
+    setSelectedId(null);
+    return true;
+  };
+
+  const handleContextMenu = (
+    event:
+      ReactMouseEvent<SVGSVGElement>,
+  ) => {
+    if (
+      removeDrawingAtPoint(
+        getPointerScreenPoint(
+          event,
+        ),
+      )
+    ) {
+      event.preventDefault();
+    }
+  };
+
+  useEffect(() => {
+    if (activeTool !== 'pan') {
+      return;
+    }
+
+    const svg =
+      svgRef.current;
+
+    const parent =
+      svg?.parentElement;
+
+    if (!svg || !parent) {
+      return;
+    }
+
+    const handlePanContextMenu = (
+      event: MouseEvent,
+    ) => {
+      if (
+        !(event.target
+          instanceof HTMLCanvasElement)
+      ) {
+        return;
+      }
+
+      const bounds =
+        svg.getBoundingClientRect();
+
+      const removed =
+        removeDrawingAtPoint({
+          x:
+            event.clientX
+            - bounds.left,
+          y:
+            event.clientY
+            - bounds.top,
+        });
+
+      if (removed) {
+        event.preventDefault();
+      }
+    };
+
+    parent.addEventListener(
+      'contextmenu',
+      handlePanContextMenu,
+    );
+
+    return () => {
+      parent.removeEventListener(
+        'contextmenu',
+        handlePanContextMenu,
+      );
+    };
+  }, [
+    activeTool,
+    drawings,
+  ]);
 
   useEffect(() => {
     const handleKeyDown = (
       event: KeyboardEvent,
     ) => {
+      if (event.key === 'Shift') {
+        setShiftPressed(true);
+      }
+
       const target =
         event.target;
 
@@ -2021,9 +2478,35 @@ export function NexusChartDrawingOverlay({
         event.key === 'Escape'
       ) {
         cancelDrafts();
+        setOpenToolMenu(null);
         setSelectedId(null);
         setActiveTool('pan');
         return;
+      }
+
+      if (event.altKey) {
+        const shortcutTool =
+          new Map<string, EditorTool>([
+            ['t', 'trend'],
+            ['h', 'horizontalRay'],
+            ['v', 'vertical'],
+          ]).get(
+            event.key.toLowerCase(),
+          );
+
+        if (shortcutTool) {
+          event.preventDefault();
+          setLastLineTool(
+            shortcutTool,
+          );
+          cancelDrafts();
+          setOpenToolMenu(null);
+          setSelectedId(null);
+          setActiveTool(
+            shortcutTool,
+          );
+          return;
+        }
       }
 
       if (
@@ -2076,15 +2559,47 @@ export function NexusChartDrawingOverlay({
       }
     };
 
+    const handleKeyUp = (
+      event: KeyboardEvent,
+    ) => {
+      if (event.key === 'Shift') {
+        setShiftPressed(false);
+      }
+    };
+
+    const handleWindowBlur = () => {
+      setShiftPressed(false);
+    };
+
     window.addEventListener(
       'keydown',
       handleKeyDown,
+    );
+
+    window.addEventListener(
+      'keyup',
+      handleKeyUp,
+    );
+
+    window.addEventListener(
+      'blur',
+      handleWindowBlur,
     );
 
     return () => {
       window.removeEventListener(
         'keydown',
         handleKeyDown,
+      );
+
+      window.removeEventListener(
+        'keyup',
+        handleKeyUp,
+      );
+
+      window.removeEventListener(
+        'blur',
+        handleWindowBlur,
       );
     };
   });
@@ -2814,62 +3329,264 @@ export function NexusChartDrawingOverlay({
           drawing.points[1].time
           - drawing.points[0].time;
 
+        const priceDelta =
+          drawing.points[1].price
+          - drawing.points[0].price;
+
+        const measuredCandleCount =
+          drawing.type === 'measure'
+            ? candles.filter(
+                (candle) => {
+                  const candleTime =
+                    parseCandleTime(
+                      candle,
+                    );
+
+                  if (candleTime === null) {
+                    return false;
+                  }
+
+                  const startTime =
+                    Math.min(
+                      drawing.points[0]
+                        .time,
+                      drawing.points[1]
+                        .time,
+                    );
+
+                  const endTime =
+                    Math.max(
+                      drawing.points[0]
+                        .time,
+                      drawing.points[1]
+                        .time,
+                    );
+
+                  return (
+                    candleTime >= startTime
+                    && candleTime <= endTime
+                  );
+                },
+              ).length
+            : 0;
+
+        const measureLeft =
+          Math.min(
+            start.x,
+            end.x,
+          );
+
+        const measureRight =
+          Math.max(
+            start.x,
+            end.x,
+          );
+
+        const measureTop =
+          Math.min(
+            start.y,
+            end.y,
+          );
+
+        const measureBottom =
+          Math.max(
+            start.y,
+            end.y,
+          );
+
+        const measureWidth =
+          Math.max(
+            measureRight
+            - measureLeft,
+            1,
+          );
+
+        const measureHeight =
+          Math.max(
+            measureBottom
+            - measureTop,
+            1,
+          );
+
+        const measureMiddleY =
+          (
+            measureTop
+            + measureBottom
+          ) / 2;
+
+        const measureBadgeWidth =
+          190;
+
+        const measureBadgeHeight =
+          44;
+
+        const measureBadgeX =
+          Math.max(
+            4,
+            Math.min(
+              (
+                measureLeft
+                + measureRight
+              ) / 2
+              - measureBadgeWidth / 2,
+              width
+              - measureBadgeWidth
+              - 4,
+            ),
+          );
+
+        const measureBadgeY =
+          measureTop
+          >= measureBadgeHeight + 12
+            ? measureTop
+              - measureBadgeHeight
+              - 8
+            : Math.min(
+                measureTop + 8,
+                height
+                - measureBadgeHeight
+                - 4,
+              );
+
+        const measureDirectionClass =
+          percent < 0
+            ? styles.measureNegative
+            : styles.measurePositive;
+
         shape = (
           <>
-            <line
-              x1={lineStart.x}
-              y1={lineStart.y}
-              x2={lineEnd.x}
-              y2={lineEnd.y}
-              className={
-                drawing.type
-                === 'measure'
-                  ? styles.measureLine
-                  : drawing.type
-                  === 'arrow'
-                    ? styles.arrowLine
-                    : styles.trendLine
-              }
-              markerEnd={
-                drawing.type
-                === 'arrow'
-                  ? 'url(#nexus-arrow)'
-                  : undefined
-              }
-            />
-
             {drawing.type
               === 'measure'
               ? (
-                <text
-                  x={
-                    (
-                      start.x
-                      + end.x
-                    ) / 2
-                  }
-                  y={
-                    (
-                      start.y
-                      + end.y
-                    ) / 2
-                    - 10
-                  }
+                <g
                   className={
-                    styles.measureLabel
+                    measureDirectionClass
                   }
                 >
-                  {percent >= 0
-                    ? '+'
-                    : ''}
-                  {percent.toFixed(2)}%
-                  {' · '}
-                  {formatDuration(
-                    duration,
-                  )}
-                </text>
+                  <line
+                    x1={end.x}
+                    y1={0}
+                    x2={end.x}
+                    y2={height}
+                    className={
+                      styles.measureGuide
+                    }
+                  />
+
+                  <line
+                    x1={0}
+                    y1={end.y}
+                    x2={width}
+                    y2={end.y}
+                    className={
+                      styles.measureGuide
+                    }
+                  />
+
+                  <rect
+                    x={measureLeft}
+                    y={measureTop}
+                    width={measureWidth}
+                    height={measureHeight}
+                    className={
+                      styles.measureArea
+                    }
+                  />
+
+                  <line
+                    x1={measureLeft}
+                    y1={measureMiddleY}
+                    x2={measureRight}
+                    y2={measureMiddleY}
+                    className={
+                      styles.measureSpan
+                    }
+                  />
+
+                  <path
+                    d={[
+                      `M ${measureRight - 6} ${measureMiddleY - 4}`,
+                      `L ${measureRight} ${measureMiddleY}`,
+                      `L ${measureRight - 6} ${measureMiddleY + 4}`,
+                    ].join(' ')}
+                    className={
+                      styles.measureSpanArrow
+                    }
+                  />
+
+                  <rect
+                    x={measureBadgeX}
+                    y={measureBadgeY}
+                    width={measureBadgeWidth}
+                    height={measureBadgeHeight}
+                    rx={5}
+                    className={
+                      styles.measureBadge
+                    }
+                  />
+
+                  <text
+                    x={
+                      measureBadgeX
+                      + measureBadgeWidth / 2
+                    }
+                    y={measureBadgeY + 18}
+                    className={
+                      styles.measureBadgeTitle
+                    }
+                  >
+                    {priceDelta >= 0
+                      ? '+'
+                      : ''}
+                    {formatPrice(
+                      priceDelta,
+                    )}
+                    {' ('}
+                    {percent >= 0
+                      ? '+'
+                      : ''}
+                    {percent.toFixed(2)}%
+                    {')'}
+                  </text>
+
+                  <text
+                    x={
+                      measureBadgeX
+                      + measureBadgeWidth / 2
+                    }
+                    y={measureBadgeY + 34}
+                    className={
+                      styles.measureBadgeMeta
+                    }
+                  >
+                    Бары: {measuredCandleCount}
+                    {' · '}
+                    {formatDuration(
+                      duration,
+                    )}
+                  </text>
+                </g>
               )
-              : null}
+              : (
+                <line
+                  x1={lineStart.x}
+                  y1={lineStart.y}
+                  x2={lineEnd.x}
+                  y2={lineEnd.y}
+                  className={
+                    drawing.type
+                    === 'arrow'
+                      ? styles.arrowLine
+                      : styles.trendLine
+                  }
+                  markerEnd={
+                    drawing.type
+                    === 'arrow'
+                      ? 'url(#nexus-arrow)'
+                      : undefined
+                  }
+                />
+              )}
           </>
         );
       }
@@ -2892,7 +3609,11 @@ export function NexusChartDrawingOverlay({
 
   const previewDrawing:
     NexusDrawing | null =
-      twoPointDraft
+      quickMeasureDraft
+        ? createTwoPointDrawing(
+            quickMeasureDraft,
+          )
+        : twoPointDraft
         ? createTwoPointDrawing(
             twoPointDraft,
           )
@@ -2930,6 +3651,7 @@ export function NexusChartDrawingOverlay({
     tool: EditorTool,
   ) => {
     cancelDrafts();
+    setOpenToolMenu(null);
     setActiveTool(tool);
 
     if (tool !== 'cursor') {
@@ -3007,6 +3729,85 @@ export function NexusChartDrawingOverlay({
     setSelectedId(null);
   };
 
+  const selectMenuTool = (
+    tool: EditorTool,
+    menu: ToolMenuId,
+  ) => {
+    if (menu === 'lines') {
+      setLastLineTool(tool);
+    }
+
+    setTool(tool);
+  };
+
+  const menuContainsActiveTool = (
+    menu: ToolMenuId,
+  ) =>
+    MENU_TOOLS[menu].some(
+      (tool) =>
+        tool.id === activeTool,
+    );
+
+  const renderToolMenuItems = (
+    tools:
+      readonly ToolDefinition[],
+    menu: ToolMenuId,
+  ) =>
+    tools.map(
+      (tool) => (
+        <button
+          key={tool.id}
+          type="button"
+          role="menuitem"
+          className={[
+            styles.menuItem,
+            activeTool === tool.id
+              ? styles.menuItemActive
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          aria-label={tool.label}
+          onClick={() =>
+            selectMenuTool(
+              tool.id,
+              menu,
+            )
+          }
+        >
+          <span
+            className={
+              styles.menuItemIcon
+            }
+          >
+            <ChartToolIcon
+              tool={tool.id}
+            />
+          </span>
+
+          <span
+            className={
+              styles.menuItemLabel
+            }
+          >
+            {tool.label}
+          </span>
+
+          {tool.shortcut
+            ? (
+              <kbd
+                className={
+                  styles.shortcut
+                }
+              >
+                {tool.shortcut}
+              </kbd>
+            )
+            : null}
+        </button>
+      ),
+    );
+
   void revision;
 
   return (
@@ -3015,7 +3816,12 @@ export function NexusChartDrawingOverlay({
         className={
           styles.toolbar
         }
+        data-nexus-chart-toolbar="true"
         onPointerDown={
+          (event) =>
+            event.stopPropagation()
+        }
+        onContextMenu={
           (event) =>
             event.stopPropagation()
         }
@@ -3025,7 +3831,7 @@ export function NexusChartDrawingOverlay({
             styles.toolScroller
           }
         >
-          {TOOLS.map(
+          {PRIMARY_TOOLS.map(
             (tool) => (
               <button
                 key={tool.id}
@@ -3035,14 +3841,6 @@ export function NexusChartDrawingOverlay({
                   activeTool
                   === tool.id
                     ? styles.active
-                    : '',
-                  tool.id
-                  === 'longPosition'
-                    ? styles.longTool
-                    : '',
-                  tool.id
-                  === 'shortPosition'
-                    ? styles.shortTool
                     : '',
                 ]
                   .filter(Boolean)
@@ -3063,10 +3861,342 @@ export function NexusChartDrawingOverlay({
                   )
                 }
               >
-                {tool.symbol}
+                <ChartToolIcon
+                  tool={tool.id}
+                />
               </button>
             ),
           )}
+
+          <span
+            className={
+              styles.separator
+            }
+          />
+
+          <div
+            className={
+              styles.toolGroup
+            }
+          >
+            <button
+              type="button"
+              className={[
+                styles.toolButton,
+                menuContainsActiveTool(
+                  'lines',
+                )
+                  ? styles.active
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              title="Линии и каналы"
+              aria-label="Линии и каналы"
+              aria-expanded={
+                openToolMenu === 'lines'
+              }
+              onClick={() =>
+                setOpenToolMenu(
+                  (menu) =>
+                    menu === 'lines'
+                      ? null
+                      : 'lines',
+                )
+              }
+            >
+              <ChartToolIcon
+                tool={lastLineTool}
+              />
+              <span
+                className={
+                  styles.groupChevron
+                }
+              >
+                ›
+              </span>
+            </button>
+
+            {openToolMenu === 'lines'
+              ? (
+                <div
+                  className={
+                    styles.toolFlyout
+                  }
+                  role="menu"
+                  aria-label="Линии и каналы"
+                >
+                  <div
+                    className={
+                      styles.menuHeading
+                    }
+                  >
+                    ЛИНИИ
+                  </div>
+
+                  {renderToolMenuItems(
+                    LINE_TOOLS,
+                    'lines',
+                  )}
+
+                  <div
+                    className={
+                      styles.menuSection
+                    }
+                  >
+                    КАНАЛЫ
+                  </div>
+
+                  {renderToolMenuItems(
+                    CHANNEL_TOOLS,
+                    'lines',
+                  )}
+                </div>
+              )
+              : null}
+          </div>
+
+          <div
+            className={
+              styles.toolGroup
+            }
+          >
+            <button
+              type="button"
+              className={[
+                styles.toolButton,
+                menuContainsActiveTool(
+                  'shapes',
+                )
+                  ? styles.active
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              title="Геометрические фигуры"
+              aria-label="Геометрические фигуры"
+              aria-expanded={
+                openToolMenu === 'shapes'
+              }
+              onClick={() =>
+                setOpenToolMenu(
+                  (menu) =>
+                    menu === 'shapes'
+                      ? null
+                      : 'shapes',
+                )
+              }
+            >
+              <ChartToolIcon
+                tool="rectangle"
+              />
+              <span
+                className={
+                  styles.groupChevron
+                }
+              >
+                ›
+              </span>
+            </button>
+
+            {openToolMenu === 'shapes'
+              ? (
+                <div
+                  className={
+                    styles.toolFlyout
+                  }
+                  role="menu"
+                  aria-label="Геометрические фигуры"
+                >
+                  <div
+                    className={
+                      styles.menuHeading
+                    }
+                  >
+                    ФИГУРЫ
+                  </div>
+
+                  {renderToolMenuItems(
+                    SHAPE_TOOLS,
+                    'shapes',
+                  )}
+                </div>
+              )
+              : null}
+          </div>
+
+          <div
+            className={
+              styles.toolGroup
+            }
+          >
+            <button
+              type="button"
+              className={[
+                styles.toolButton,
+                menuContainsActiveTool(
+                  'positions',
+                )
+                  ? styles.active
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              title="Торговые позиции"
+              aria-label="Торговые позиции"
+              aria-expanded={
+                openToolMenu
+                === 'positions'
+              }
+              onClick={() =>
+                setOpenToolMenu(
+                  (menu) =>
+                    menu === 'positions'
+                      ? null
+                      : 'positions',
+                )
+              }
+            >
+              <ChartToolIcon
+                tool="longPosition"
+              />
+              <span
+                className={
+                  styles.groupChevron
+                }
+              >
+                ›
+              </span>
+            </button>
+
+            {openToolMenu
+              === 'positions'
+              ? (
+                <div
+                  className={
+                    styles.toolFlyout
+                  }
+                  role="menu"
+                  aria-label="Торговые позиции"
+                >
+                  <div
+                    className={
+                      styles.menuHeading
+                    }
+                  >
+                    ПОЗИЦИИ
+                  </div>
+
+                  {renderToolMenuItems(
+                    POSITION_TOOLS,
+                    'positions',
+                  )}
+                </div>
+              )
+              : null}
+          </div>
+
+          <div
+            className={
+              styles.toolGroup
+            }
+          >
+            <button
+              type="button"
+              className={[
+                styles.toolButton,
+                menuContainsActiveTool(
+                  'annotations',
+                )
+                  ? styles.active
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              title="Текст и метки"
+              aria-label="Текст и метки"
+              aria-expanded={
+                openToolMenu
+                === 'annotations'
+              }
+              onClick={() =>
+                setOpenToolMenu(
+                  (menu) =>
+                    menu
+                    === 'annotations'
+                      ? null
+                      : 'annotations',
+                )
+              }
+            >
+              <ChartToolIcon
+                tool="text"
+              />
+              <span
+                className={
+                  styles.groupChevron
+                }
+              >
+                ›
+              </span>
+            </button>
+
+            {openToolMenu
+              === 'annotations'
+              ? (
+                <div
+                  className={
+                    styles.toolFlyout
+                  }
+                  role="menu"
+                  aria-label="Текст и метки"
+                >
+                  <div
+                    className={
+                      styles.menuHeading
+                    }
+                  >
+                    АННОТАЦИИ
+                  </div>
+
+                  {renderToolMenuItems(
+                    ANNOTATION_TOOLS,
+                    'annotations',
+                  )}
+                </div>
+              )
+              : null}
+          </div>
+
+          <button
+            type="button"
+            className={[
+              styles.toolButton,
+              activeTool === 'measure'
+                ? styles.active
+                : '',
+              quickMeasureDraft
+              || shiftPressed
+                ? styles.quickMeasureActive
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            title={MEASURE_TOOL.label}
+            aria-label={
+              MEASURE_TOOL.label
+            }
+            aria-pressed={
+              activeTool === 'measure'
+            }
+            onClick={() =>
+              setTool('measure')
+            }
+          >
+            <ChartToolIcon
+              tool="measure"
+            />
+          </button>
         </div>
 
         <span
@@ -3236,6 +4366,8 @@ export function NexusChartDrawingOverlay({
         className={[
           styles.layer,
           activeTool !== 'pan'
+          || shiftPressed
+          || quickMeasureDraft
             ? styles.interactive
             : '',
         ]
@@ -3253,6 +4385,9 @@ export function NexusChartDrawingOverlay({
         }
         onPointerCancel={
           cancelDrafts
+        }
+        onContextMenu={
+          handleContextMenu
         }
       >
         <defs>

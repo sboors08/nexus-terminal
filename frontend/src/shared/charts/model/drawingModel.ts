@@ -372,6 +372,17 @@ export function toggleNexusDrawingVisibility(
   };
 }
 
+export function removeNexusDrawingById(
+  drawings:
+    readonly NexusDrawing[],
+  drawingId: string,
+): readonly NexusDrawing[] {
+  return drawings.filter(
+    (drawing) =>
+      drawing.id !== drawingId,
+  );
+}
+
 function isChartPoint(
   value: unknown,
 ): value is NexusChartPoint {
