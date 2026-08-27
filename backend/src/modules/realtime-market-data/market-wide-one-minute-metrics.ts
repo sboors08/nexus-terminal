@@ -1215,6 +1215,25 @@ function calculateStoredMarketScannerAnomalies(
   };
 }
 
+export const MARKET_SCANNER_MINIMUM_BTC_CORRELATION_WINDOW:
+MarketScannerWindowId = '5m';
+
+function resolveBtcCorrelationWindow(
+  scannerWindow:
+    MarketScannerWindowId,
+): MarketScannerWindowId {
+  return (
+    getMarketScannerWindowMs(
+      scannerWindow,
+    )
+    < getMarketScannerWindowMs(
+      MARKET_SCANNER_MINIMUM_BTC_CORRELATION_WINDOW,
+    )
+  )
+    ? MARKET_SCANNER_MINIMUM_BTC_CORRELATION_WINDOW
+    : scannerWindow;
+}
+
 export class MarketWideOneMinuteMetricsStore {
   private readonly states =
     new Map<
@@ -1685,11 +1704,16 @@ export class MarketWideOneMinuteMetricsStore {
           )
         : null;
 
+    const btcCorrelationWindow =
+      resolveBtcCorrelationWindow(
+        scannerWindow,
+      );
+
     const btcSamples =
       btcState
         ? this.getPriceSamples(
             btcState,
-            scannerWindow,
+            btcCorrelationWindow,
           )
         : [];
 
@@ -1707,7 +1731,7 @@ export class MarketWideOneMinuteMetricsStore {
             : calculateScannerBtcCorrelation(
                 this.getPriceSamples(
                   metricState,
-                  scannerWindow,
+                  btcCorrelationWindow,
                 ),
                 btcSamples,
               );

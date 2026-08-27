@@ -704,6 +704,32 @@ test(
         sol.btcCorrelation - 1,
       ) < 0.000_000_001,
     );
+
+    const oneMinuteSol =
+      store
+        .getMetrics(
+          undefined,
+          '1m',
+        )
+        .find(
+          (metric) =>
+            metric.symbol
+            === 'SOLUSDT',
+        );
+
+    assert.ok(oneMinuteSol);
+
+    assert.ok(
+      oneMinuteSol.btcCorrelation
+      !== null,
+    );
+
+    assert.ok(
+      Math.abs(
+        oneMinuteSol.btcCorrelation
+        - 1,
+      ) < 0.000_000_001,
+    );
   },
 );
 

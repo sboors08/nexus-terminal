@@ -20,6 +20,7 @@
     "src/shared/realtime/workspaceLiquidityMap.ts",
     "src/shared/realtime/workspaceMarketDynamics.ts",
     "src/shared/realtime/dashboardRealtime.ts",
+    "src/shared/realtime/dashboardMarketContext.ts",
     "src/shared/realtime/dashboardScannerMetrics.ts",
     "src/shared/realtime/scannerFilters.ts",
     "src/shared/realtime/scannerSetupTable.ts",

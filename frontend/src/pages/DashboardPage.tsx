@@ -2,6 +2,8 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router';
 import bearMarket from '@/assets/bear-market.png';
 import bullMarket from '@/assets/bull-market.png';
+import collectingMarket from '@/assets/collecting-market.png';
+import neutralMarket from '@/assets/neutral-market.png';
 import {
   nexusApi,
   useApiQuery,
@@ -24,8 +26,9 @@ import {
   createDefaultScannerFilterState,
   filterAndSortScannerRows,
   buildDashboardScannerMetricView,
-
+  formatDashboardMarketChange,
   normalizeDashboardRealtimeSymbol,
+  resolveDashboardMarketContext,
   sortDashboardScannerRows,
   useBinanceSymbolUniverse,
   useMarketWideScannerMetrics,
@@ -216,36 +219,6 @@ function HotCard({
     </button>
   );
 }
-type MarketMode =
-  | 'bullish'
-  | 'bearish'
-  | 'neutral';
-
-type ResolvedMarketMode = {
-  mode: MarketMode;
-  title:
-    | 'BULLISH'
-    | 'BEARISH'
-    | 'NEUTRAL'
-    | 'СБОР ДАННЫХ';
-  trend:
-    | 'TRENDING UP'
-    | 'TRENDING DOWN'
-    | 'СМЕШАННЫЙ РЫНОК'
-    | 'НЕТ СИГНАЛА';
-  risk:
-    | 'RISK ON'
-    | 'RISK OFF'
-    | 'RISK —';
-  accent: string;
-  glow: string;
-  image: string | null;
-  marketBreadthPct: number | null;
-  marketVolatilityPct: number | null;
-  marketVolatilityLabel: string;
-  liveMarketCount: number;
-};
-
 const DASHBOARD_ACTIVITY_PERIOD_TO_SCANNER_WINDOW:
 Record<
   DashboardActivityPeriod,
@@ -258,138 +231,6 @@ Record<
   '4H': '4h',
   '24H': '1d',
 };
-
-function calculateMedian(
-  values: readonly number[],
-): number | null {
-  if (values.length === 0) return null;
-
-  const sorted = [...values].sort(
-    (left, right) => left - right,
-  );
-  const middle = Math.floor(
-    sorted.length / 2,
-  );
-
-  if (sorted.length % 2 === 1) {
-    return sorted[middle] ?? null;
-  }
-
-  const lower = sorted[middle - 1];
-  const upper = sorted[middle];
-
-  return lower === undefined
-    || upper === undefined
-    ? null
-    : (lower + upper) / 2;
-}
-
-function resolveMarketMode(
-  btcChangePct: number | null,
-  rows: ReadonlyArray<{
-    view: DashboardScannerMetricView;
-  }>,
-  activityPeriod: DashboardActivityPeriod,
-): ResolvedMarketMode {
-  const liveViews = rows
-    .map(({ view }) => view)
-    .filter(
-      (view) =>
-        view.isLive
-        && view.priceChangePct !== null,
-    );
-
-  const marketBreadthPct =
-    liveViews.length === 0
-      ? null
-      : (
-          liveViews.filter(
-            (view) =>
-              (view.priceChangePct ?? 0) > 0,
-          ).length
-          / liveViews.length
-        ) * 100;
-
-  const marketVolatilityPct =
-    calculateMedian(
-      liveViews
-        .map((view) => view.volatilityPct)
-        .filter(
-          (value): value is number =>
-            value !== null,
-        ),
-    );
-
-  const base = {
-    marketBreadthPct,
-    marketVolatilityPct,
-    marketVolatilityLabel:
-      marketVolatilityPct === null
-        ? 'нет данных'
-        : `медиана ${activityPeriod}`,
-    liveMarketCount: liveViews.length,
-  };
-
-  if (
-    btcChangePct === null
-    || marketBreadthPct === null
-    || liveViews.length < 5
-  ) {
-    return {
-      ...base,
-      mode: 'neutral',
-      title: 'СБОР ДАННЫХ',
-      trend: 'НЕТ СИГНАЛА',
-      risk: 'RISK —',
-      accent: '#91a39c',
-      glow: 'rgb(145 163 156 / 16%)',
-      image: null,
-    };
-  }
-
-  if (
-    btcChangePct > 0
-    && marketBreadthPct >= 55
-  ) {
-    return {
-      ...base,
-      mode: 'bullish',
-      title: 'BULLISH',
-      trend: 'TRENDING UP',
-      risk: 'RISK ON',
-      accent: '#35df8d',
-      glow: 'rgb(48 221 137 / 22%)',
-      image: bullMarket,
-    };
-  }
-
-  if (
-    btcChangePct < 0
-    && marketBreadthPct <= 45
-  ) {
-    return {
-      ...base,
-      mode: 'bearish',
-      title: 'BEARISH',
-      trend: 'TRENDING DOWN',
-      risk: 'RISK OFF',
-      accent: '#ff5b54',
-      glow: 'rgb(255 91 84 / 24%)',
-      image: bearMarket,
-    };
-  }
-
-  return {
-    ...base,
-    mode: 'neutral',
-    title: 'NEUTRAL',
-    trend: 'СМЕШАННЫЙ РЫНОК',
-    risk: 'RISK —',
-    accent: '#91a39c',
-    glow: 'rgb(145 163 156 / 16%)',
-    image: null,
-  };
-}
 
 
 /* Dashboard Volume Spikes v0.1 */
@@ -859,16 +700,39 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
     ?? null;
 
   const marketMode = useMemo(
-    () =>
-      resolveMarketMode(
-        btcRealtime.changePct,
-        dashboardScannerRows,
-        activityPeriod,
-      ),
+    () => {
+      const context =
+        resolveDashboardMarketContext({
+          btcMetric:
+            scannerMetrics
+              .metrics
+              .BTCUSDT,
+          rows:
+            dashboardScannerRows,
+          activityPeriod,
+          scannerStatus:
+            scannerMetrics.status,
+        });
+
+      return {
+        ...context,
+        image:
+          context.mode === 'bullish'
+            ? bullMarket
+            : context.mode === 'bearish'
+              ? bearMarket
+              : context.mode === 'neutral'
+                ? neutralMarket
+                : context.mode === 'collecting'
+                  ? collectingMarket
+                  : null,
+      };
+    },
     [
       activityPeriod,
-      btcRealtime.changePct,
       dashboardScannerRows,
+      scannerMetrics.metrics,
+      scannerMetrics.status,
     ],
   );
   const marketModeStyle = {
@@ -1207,7 +1071,11 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                 alt={
                   marketMode.mode === 'bullish'
                     ? 'Бычий режим рынка'
-                    : 'Медвежий режим рынка'
+                    : marketMode.mode === 'bearish'
+                      ? 'Медвежий режим рынка'
+                      : marketMode.mode === 'neutral'
+                        ? 'Смешанный режим рынка'
+                        : 'Сбор рыночных данных'
                 }
               />
             ) : (
@@ -1238,15 +1106,17 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
               </strong>
               <em
                 className={
-                  btcRealtime.changePct === null
+                  marketMode.btcChangePct === null
                     ? styles.neutral
-                    : btcRealtime.changePct < 0
+                    : marketMode.btcChangePct < 0
                       ? styles.negative
                       : styles.positive
                 }
-                title="Изменение рассчитано по доступным сделкам текущего realtime-потока."
+                title={`Изменение BTC за выбранный период ${activityPeriod} из market-wide данных.`}
               >
-                {btcRealtime.changeLabel}
+                {formatDashboardMarketChange(
+                  marketMode.btcChangePct,
+                )}
               </em>
             </div>
 
@@ -1285,11 +1155,27 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
         </div>
 
         <div className={styles.fearRow}>
-          <span>FEAR &amp; GREED</span>
+          <span
+            title="Внутренний индекс NEXUS: движение BTC, ширина рынка и медианная волатильность выбранного периода."
+          >
+            NEXUS FEAR &amp; GREED
+          </span>
           <FearGreed
-            value={null}
-            label="нет данных"
-            tone={marketMode.accent}
+            value={
+              marketMode
+                .sentiment
+                .value
+            }
+            label={
+              marketMode
+                .sentiment
+                .label
+            }
+            tone={
+              marketMode
+                .sentiment
+                .tone
+            }
           />
         </div>
       </article>
