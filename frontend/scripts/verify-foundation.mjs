@@ -54,12 +54,12 @@ const requiredMarketModeMarkers = [
   "from '@/assets/bear-market.png'",
   "title: 'BEARISH'",
   "trend: 'TRENDING DOWN'",
-  "risk: 'RISK OFF'",
+  "risk: 'ПРОДАВЦЫ СИЛЬНЕЕ'",
   'calculateMedian',
   'marketBreadthPct',
   'marketVolatilityPct',
   'liveMarketCount',
-  "title: 'СБОР ДАННЫХ'",
+  "'СБОР ДАННЫХ'",
   "title: 'NEUTRAL'",
   'MARKET BREADTH',
 ];
@@ -127,6 +127,7 @@ const [
   alertsDataSource,
   historyDataSource,
   replayDataSource,
+  marketContextSource,
   ...pageSources
 ] = await Promise.all([
   readFile(resolve(root, 'src/styles/tokens.css'), 'utf8'),
@@ -137,6 +138,7 @@ const [
   readFile(resolve(root, 'src/features/alerts/alertsData.ts'), 'utf8'),
   readFile(resolve(root, 'src/features/market-history/marketHistoryData.ts'), 'utf8'),
   readFile(resolve(root, 'src/features/replay/replayData.ts'), 'utf8'),
+  readFile(resolve(root, 'src/shared/realtime/dashboardMarketContext.ts'), 'utf8'),
   ...dataPages.map((page) => readFile(resolve(root, 'src/pages', page), 'utf8')),
 ]);
 
@@ -145,7 +147,11 @@ const missingRoutes = requiredRoutes.filter((route) => !routesSource.includes(ro
 const missingLocales = requiredLocales.filter((locale) => !localeConfigSource.includes(locale));
 const missingApiMethods = requiredApiMethods.filter((method) => !contractsSource.includes(method));
 const dashboardSource = pageSources[0];
-const missingMarketModeMarkers = requiredMarketModeMarkers.filter((marker) => !dashboardSource.includes(marker));
+const marketModeCorpus = [
+  dashboardSource,
+  marketContextSource,
+].join('\n');
+const missingMarketModeMarkers = requiredMarketModeMarkers.filter((marker) => !marketModeCorpus.includes(marker));
 const setupContextCorpus = [
   setupContextSource,
   alertsDataSource,
