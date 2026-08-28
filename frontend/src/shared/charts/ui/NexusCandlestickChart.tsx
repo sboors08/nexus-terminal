@@ -36,10 +36,10 @@ import {
 } from './NexusChartDrawingOverlay.js';
 
 const CHART_COLORS = {
-  background: '#070e12',
-  text: '#72837d',
-  grid: '#17231f',
-  border: '#263833',
+  background: '#101112',
+  text: '#7f858c',
+  grid: '#22252a',
+  border: '#2a2d31',
   up: '#32d583',
   down: '#ff6273',
   volumeUp: 'rgba(50, 213, 131, 0.25)',
@@ -218,7 +218,7 @@ export function NexusCandlestickChart({
             textColor:
               CHART_COLORS.text,
             attributionLogo:
-              true,
+              false,
           },
           grid: {
             vertLines: {
@@ -233,10 +233,36 @@ export function NexusCandlestickChart({
           crosshair: {
             mode:
               CrosshairMode.Normal,
+            vertLine: {
+              color:
+                '#59616a',
+              width:
+                1,
+              style:
+                LineStyle.Dashed,
+              labelBackgroundColor:
+                '#3b4148',
+            },
+            horzLine: {
+              color:
+                '#59616a',
+              width:
+                1,
+              style:
+                LineStyle.Dashed,
+              labelBackgroundColor:
+                '#3b4148',
+            },
           },
           rightPriceScale: {
             borderColor:
               CHART_COLORS.border,
+            scaleMargins: {
+              top:
+                0.08,
+              bottom:
+                0.2,
+            },
           },
           timeScale: {
             borderColor:
@@ -246,9 +272,9 @@ export function NexusCandlestickChart({
             secondsVisible:
               false,
             rightOffset:
-              4,
-            barSpacing:
               8,
+            barSpacing:
+              6,
             minBarSpacing:
               3,
           },

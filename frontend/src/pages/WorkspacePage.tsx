@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
 import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
@@ -178,6 +183,18 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
         ]
       : undefined;
 
+  const chartCandleChangePct =
+    latestCandle
+    && latestCandle.open !== 0
+      ? (
+          (
+            latestCandle.close
+            - latestCandle.open
+          )
+          / latestCandle.open
+        ) * 100
+      : null;
+
   const candleFreshness =
     candlesQuery.freshness;
 
@@ -317,6 +334,35 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     );
   const [tapeFilter, setTapeFilter] = useState<TapeFilter>('all');
   const [noteOpen, setNoteOpen] = useState(false);
+  const chartPanelRef =
+    useRef<HTMLElement | null>(
+      null,
+    );
+  const [
+    chartFullscreen,
+    setChartFullscreen,
+  ] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setChartFullscreen(
+        document.fullscreenElement
+        === chartPanelRef.current,
+      );
+    };
+
+    document.addEventListener(
+      'fullscreenchange',
+      handleFullscreenChange,
+    );
+
+    return () => {
+      document.removeEventListener(
+        'fullscreenchange',
+        handleFullscreenChange,
+      );
+    };
+  }, []);
 
   const realtime = useRealtimeMarketData({
     symbol: selectedSetup.symbol,
@@ -2062,9 +2108,26 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
 
       <div className={styles.workspaceGrid}>
         <div className={styles.leftColumn}>
-          <article className={styles.chartPanel}>
-            <div className={styles.panelToolbar}>
-              <div className={styles.timeframeControl} aria-label="Таймфрейм графика">
+          <article
+            ref={chartPanelRef}
+            className={styles.chartPanel}
+          >
+            <div
+              className={
+                styles.professionalChartToolbar
+              }
+            >
+              <div
+                className={
+                  styles.chartToolbarPrimary
+                }
+              >
+                <div
+                  className={
+                    styles.timeframeControl
+                  }
+                  aria-label="Таймфрейм графика"
+                >
                 {(['1m', '5m', '15m', '1h', '4h', '1d'] as const).map((value) => (
                   <button
                     key={value}
@@ -2075,17 +2138,213 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                     {value}
                   </button>
                 ))}
+                </div>
+
+                <span
+                  className={
+                    styles.chartToolbarDivider
+                  }
+                />
+
+                <button
+                  type="button"
+                  className={
+                    styles.chartToolbarIcon
+                  }
+                  aria-label="Свечной график"
+                  title="Свечной график"
+                >
+                  <span aria-hidden="true">
+                    ◫
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className={
+                    styles.chartToolbarIcon
+                  }
+                  aria-label="Индикаторы графика"
+                  title="Индикаторы будут подключены отдельным этапом"
+                  disabled
+                >
+                  <span aria-hidden="true">
+                    ☷
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className={
+                    styles.chartToolbarIcon
+                  }
+                  aria-label="Настройки графика"
+                  title="Настройки графика будут подключены отдельным этапом"
+                  disabled
+                >
+                  <span aria-hidden="true">
+                    ⚙
+                  </span>
+                </button>
               </div>
+
+              <div
+                className={styles.chartModeTabs}
+                role="tablist"
+                aria-label="Режим отображения рынка"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  className={styles.chartModeActive}
+                >
+                  График
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  title="Глубина рынка будет подключена позднее"
+                  disabled
+                >
+                  Глубина
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  title="Подробности инструмента будут подключены позднее"
+                  disabled
+                >
+                  Подробности
+                </button>
+                <button
+                  type="button"
+                  className={
+                    styles.chartFullscreenButton
+                  }
+                  aria-label={
+                    chartFullscreen
+                      ? 'Выйти из полноэкранного режима'
+                      : 'Открыть график на весь экран'
+                  }
+                  title={
+                    chartFullscreen
+                      ? 'Выйти из полноэкранного режима'
+                      : 'На весь экран'
+                  }
+                  onClick={() => {
+                    if (
+                      document.fullscreenElement
+                      === chartPanelRef.current
+                    ) {
+                      void document.exitFullscreen();
+                      return;
+                    }
+
+                    void chartPanelRef.current
+                      ?.requestFullscreen();
+                  }}
+                >
+                  <span aria-hidden="true">
+                    {chartFullscreen ? '↙' : '↗'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div
+              className={
+                styles.chartInstrumentStrip
+              }
+            >
+              <div
+                className={
+                  styles.chartInstrumentIdentity
+                }
+              >
+                <TokenLogo
+                  symbol={contractSetup.symbol}
+                  size={20}
+                  eager
+                />
+                <strong>
+                  {contractSetup.symbol}
+                </strong>
+                <span>
+                  · {selectedSetup.exchange}
+                  {' · '}
+                  {timeframe}
+                </span>
+              </div>
+
+              {latestCandle
+                ? (
+                  <div
+                    className={styles.chartOhlc}
+                    aria-label="OHLC последней свечи"
+                  >
+                    <span>
+                      ОТКР
+                      {' '}
+                      <strong>
+                        {formatChartPrice(latestCandle.open)}
+                      </strong>
+                    </span>
+                    <span>
+                      МАКС
+                      {' '}
+                      <strong>
+                        {formatChartPrice(latestCandle.high)}
+                      </strong>
+                    </span>
+                    <span>
+                      МИН
+                      {' '}
+                      <strong>
+                        {formatChartPrice(latestCandle.low)}
+                      </strong>
+                    </span>
+                    <span>
+                      ЗАКР
+                      {' '}
+                      <strong>
+                        {formatChartPrice(latestCandle.close)}
+                      </strong>
+                    </span>
+                    <strong
+                      className={
+                        chartCandleChangePct
+                        === null
+                          ? styles.neutralValue
+                          : chartCandleChangePct
+                            >= 0
+                            ? styles.positive
+                            : styles.negative
+                      }
+                    >
+                      {chartCandleChangePct
+                      === null
+                        ? '—'
+                        : `${
+                            chartCandleChangePct
+                            >= 0
+                              ? '+'
+                              : ''
+                          }${
+                            chartCandleChangePct
+                              .toFixed(2)
+                          }%`}
+                    </strong>
+                  </div>
+                )
+                : null}
+
               <div className={styles.chartLegend}>
                 <span>
                   <i className={styles.levelLegend} />
-                  {' '}
-                  Causal-уровни {causalLevelLines.states.length}
-                </span>
-                <span>
-                  <i className={styles.priceLegend} />
-                  {' '}
-                  Цена {formatChartPrice(chartCurrentPrice)}
+                  Уровни {causalLevelLines.states.length}
                 </span>
                 <span
                   className={[
@@ -2104,19 +2363,6 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 >
                   <i />
                   {candleFreshness.label}
-                  {
-                    candleFreshness.state
-                      !== 'live'
-                    && (
-                      <>
-                        {' · '}
-                        {
-                          candleFreshness
-                            .lastUpdatedLabel
-                        }
-                      </>
-                    )
-                  }
                 </span>
                 <span
                   className={[
@@ -2124,7 +2370,8 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                     styles[`liveIndicator_${realtimeWorkspace.connectionTone}`],
                   ].join(' ')}
                 >
-                  <i /> {realtimeWorkspace.connectionLabel}
+                  <i />
+                  {realtimeWorkspace.connectionLabel}
                 </span>
               </div>
             </div>
@@ -2237,10 +2484,16 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 )}
             </div>
 
-            <CausalLevelStateStrip
-              levels={causalLevelLines}
-              focusState={workspaceCausalState}
-            />
+            <div
+              className={
+                styles.chartLevelStateStrip
+              }
+            >
+              <CausalLevelStateStrip
+                levels={causalLevelLines}
+                focusState={workspaceCausalState}
+              />
+            </div>
 
             <div className={styles.chartMetrics}>
               {
