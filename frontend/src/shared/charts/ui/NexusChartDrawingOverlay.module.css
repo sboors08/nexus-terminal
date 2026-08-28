@@ -488,3 +488,30 @@
     height: 28px;
   }
 }
+
+/* NEXUS Professional Chart Shell v1 */
+
+@media (min-width: 821px) {
+  [data-nexus-chart-toolbar].toolbar {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 46px;
+    gap: 3px;
+    padding: 8px 4px;
+    border: 0;
+    border-right: 1px solid #24272b;
+    border-radius: 0;
+    background: rgba(16, 17, 18, 0.98);
+    box-shadow: none;
+  }
+
+  .toolbar .toolFlyout {
+    left: 45px;
+  }
+
+  .hint.hint {
+    top: 10px;
+    left: 54px;
+  }
+}
