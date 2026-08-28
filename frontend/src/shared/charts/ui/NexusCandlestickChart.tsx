@@ -165,8 +165,8 @@ export function NexusCandlestickChart({
   const chartPriceFormat =
     useMemo(
       () =>
-        resolveNexusChartPriceFormat([
-          ...candles.flatMap(
+        resolveNexusChartPriceFormat(
+          candles.flatMap(
             (candle) => [
               candle.open,
               candle.high,
@@ -174,22 +174,8 @@ export function NexusCandlestickChart({
               candle.close,
             ],
           ),
-
-          ...priceLines.map(
-            (line) =>
-              line.price,
-          ),
-
-          ...horizontalSegments.map(
-            (segment) =>
-              segment.price,
-          ),
-        ]),
-      [
-        candles,
-        horizontalSegments,
-        priceLines,
-      ],
+        ),
+      [candles],
     );
 
   useEffect(() => {

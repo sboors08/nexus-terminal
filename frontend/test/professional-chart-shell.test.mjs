@@ -119,3 +119,33 @@ test(
     );
   },
 );
+
+test(
+  'derives price-axis precision from market candles instead of drawing coordinates',
+  () => {
+    const priceFormatBlock =
+      chartSource.match(
+        /const chartPriceFormat\s*=([\s\S]*?)useEffect\(\(\) =>/u,
+      )?.[1];
+
+    assert.ok(
+      priceFormatBlock,
+      'chart price-format block must be present',
+    );
+
+    assert.match(
+      priceFormatBlock,
+      /candles\.flatMap/,
+    );
+
+    assert.doesNotMatch(
+      priceFormatBlock,
+      /priceLines\.map/,
+    );
+
+    assert.doesNotMatch(
+      priceFormatBlock,
+      /horizontalSegments\.map/,
+    );
+  },
+);

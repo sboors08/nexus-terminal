@@ -50,6 +50,30 @@ test(
 );
 
 test(
+  'ignores floating-point tails on large BTC prices',
+  () => {
+    assert.deepEqual(
+      resolveNexusChartPriceFormat([
+        78028.2,
+        78028.199999999997,
+        79492.8,
+        77626.9,
+      ]),
+      {
+        type:
+          'price',
+
+        precision:
+          2,
+
+        minMove:
+          0.01,
+      },
+    );
+  },
+);
+
+test(
   'ignores invalid price values',
   () => {
     assert.deepEqual(
