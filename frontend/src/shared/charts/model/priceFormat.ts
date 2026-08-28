@@ -7,28 +7,43 @@ export interface NexusChartPriceFormat {
 function readDecimalPlaces(
   value: number,
 ): number {
-  const normalized =
-    value
-      .toFixed(12)
-      .replace(
-        /0+$/,
-        '',
-      )
-      .replace(
-        /\.$/,
-        '',
+  for (
+    let precision = 0;
+    precision <= 8;
+    precision += 1
+  ) {
+    const scale =
+      10 ** precision;
+
+    const scaledValue =
+      value * scale;
+
+    const nearestInteger =
+      Math.round(
+        scaledValue,
       );
 
-  const separatorIndex =
-    normalized.indexOf(
-      '.',
-    );
+    const tolerance =
+      Number.EPSILON
+      * Math.max(
+        1,
+        Math.abs(
+          scaledValue,
+        ),
+      )
+      * 32;
 
-  return separatorIndex < 0
-    ? 0
-    : normalized.length
-      - separatorIndex
-      - 1;
+    if (
+      Math.abs(
+        scaledValue
+        - nearestInteger,
+      ) <= tolerance
+    ) {
+      return precision;
+    }
+  }
+
+  return 8;
 }
 
 export function resolveNexusChartPriceFormat(
