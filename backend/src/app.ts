@@ -413,6 +413,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     env.binanceMarketWideHistoryWarmupEnabled
     ?? env.nodeEnv !== 'test';
 
+  const marketWideHistoryWarmupRequestTimeoutMs =
+    env.binanceMarketWideHistoryWarmupRequestTimeoutMs
+    ?? 15_000;
+
   const marketWideHistoryWarmupService =
     options.marketWideHistoryWarmupService
     === undefined
@@ -425,8 +429,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
                     env.binanceBaseUrl
                     ?? 'https://fapi.binance.com',
                   requestTimeoutMs:
-                    env.binanceMarketWideHistoryWarmupRequestTimeoutMs
-                    ?? 15_000,
+                    marketWideHistoryWarmupRequestTimeoutMs,
                 }),
               target:
                 marketWideRealtimeService,
@@ -442,6 +445,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
               retryBaseDelayMs:
                 env.binanceMarketWideHistoryWarmupRetryBaseDelayMs
                 ?? 1_000,
+              requestWatchdogTimeoutMs:
+                marketWideHistoryWarmupRequestTimeoutMs
+                + 5_000,
             })
           : null
       : options.marketWideHistoryWarmupService;

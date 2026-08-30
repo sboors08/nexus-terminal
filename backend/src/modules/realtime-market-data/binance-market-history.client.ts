@@ -18,6 +18,7 @@ export interface BinanceOneMinuteHistoryRequest {
   symbol: string;
   limit: number;
   endTime?: number;
+  signal?: AbortSignal;
 }
 
 export class BinanceMarketHistoryError
@@ -378,6 +379,7 @@ export class BinanceMarketHistoryClient {
       await this.requestJson(
         `/fapi/v1/klines?${query.toString()}`,
         symbol,
+        request.signal,
       );
 
     if (!Array.isArray(payload)) {
@@ -408,9 +410,25 @@ export class BinanceMarketHistoryClient {
   private async requestJson(
     path: string,
     symbol: string,
+    requestSignal?: AbortSignal,
   ): Promise<unknown> {
     const controller =
       new AbortController();
+
+    const abortFromRequest =
+      () => controller.abort();
+
+    if (requestSignal?.aborted) {
+      controller.abort();
+    } else {
+      requestSignal?.addEventListener(
+        'abort',
+        abortFromRequest,
+        {
+          once: true,
+        },
+      );
+    }
 
     const timeout =
       setTimeout(
@@ -490,6 +508,11 @@ export class BinanceMarketHistoryClient {
       );
     } finally {
       clearTimeout(timeout);
+
+      requestSignal?.removeEventListener(
+        'abort',
+        abortFromRequest,
+      );
     }
   }
 }
