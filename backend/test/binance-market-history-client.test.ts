@@ -202,6 +202,74 @@ test(
 );
 
 test(
+  'propagates an external request abort to Binance fetch',
+  async () => {
+    let fetchAborted = false;
+
+    const client =
+      new BinanceMarketHistoryClient({
+        baseUrl:
+          'https://fapi.binance.com',
+        requestTimeoutMs: 10_000,
+        fetchImpl:
+          async (_input, init) =>
+            await new Promise<Response>(
+              (_resolve, reject) => {
+                init?.signal
+                  ?.addEventListener(
+                    'abort',
+                    () => {
+                      fetchAborted = true;
+
+                      const error =
+                        new Error('aborted');
+
+                      error.name =
+                        'AbortError';
+
+                      reject(error);
+                    },
+                    {
+                      once: true,
+                    },
+                  );
+              },
+            ),
+      });
+
+    const controller =
+      new AbortController();
+
+    const request =
+      client.fetchOneMinuteKlines({
+        symbol: 'BTCUSDT',
+        limit: 1,
+        signal:
+          controller.signal,
+      });
+
+    controller.abort();
+
+    await assert.rejects(
+      request,
+      (
+        error: unknown,
+      ) =>
+        error
+          instanceof
+            BinanceMarketHistoryError
+        && error.message
+          === 'Binance history request timed out',
+    );
+
+    assert.equal(
+      fetchAborted,
+      true,
+    );
+  },
+);
+
+test(
   'rejects an unsafe Binance history request limit',
   async () => {
     let fetchCalled =

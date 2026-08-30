@@ -436,6 +436,104 @@ test(
 );
 
 test(
+  'bounds a non-settling history request and continues the warm-up',
+  async () => {
+    const requests:
+      string[] = [];
+
+    let stalledRequestAborted =
+      false;
+
+    const service =
+      new MarketWideHistoryWarmupService({
+        minutesPerSymbol: 60,
+        requestDelayMs: 0,
+        maxRequestAttempts: 3,
+        retryBaseDelayMs: 0,
+        requestWatchdogTimeoutMs: 10,
+        historySource: {
+          fetchOneMinuteKlines:
+            async (request) => {
+              requests.push(
+                request.symbol,
+              );
+
+              if (
+                request.symbol
+                === 'BTCUSDT'
+              ) {
+                request.signal
+                  ?.addEventListener(
+                    'abort',
+                    () => {
+                      stalledRequestAborted =
+                        true;
+                    },
+                    {
+                      once: true,
+                    },
+                  );
+
+                return await new Promise<
+                  BinanceOneMinuteKlineUpdate[]
+                >(() => undefined);
+              }
+
+              return createPage(
+                request.symbol,
+                request.limit,
+                request.endTime,
+              );
+            },
+        },
+        target: {
+          applyHistoricalKlines:
+            (updates) =>
+              updates.length,
+        },
+      });
+
+    await service.start([
+      'BTCUSDT',
+      'SOLUSDT',
+    ]);
+
+    assert.deepEqual(
+      requests,
+      [
+        'BTCUSDT',
+        'SOLUSDT',
+      ],
+    );
+
+    assert.equal(
+      stalledRequestAborted,
+      true,
+    );
+
+    assert.deepEqual(
+      service.getStatus(),
+      {
+        state: 'completed',
+        totalSymbols: 2,
+        processedSymbols: 2,
+        successfulSymbols: 1,
+        failedSymbols: 1,
+        appliedKlines: 60,
+        currentSymbol: null,
+        lastError:
+          'Market-wide history request timed out for BTCUSDT after 10ms',
+        currentStageIndex: 1,
+        totalStages: 1,
+        completedStages: 1,
+        currentStageTargetMinutes:
+          60,
+      },
+    );
+  },
+);
+
+test(
   'reprocesses a symbol that failed its first stage pass',
   async () => {
     const requests:

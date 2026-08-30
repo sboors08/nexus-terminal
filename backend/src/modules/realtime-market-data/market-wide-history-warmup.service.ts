@@ -53,6 +53,7 @@ export interface MarketWideHistoryWarmupOptions {
   requestDelayMs: number;
   maxRequestAttempts?: number;
   retryBaseDelayMs?: number;
+  requestWatchdogTimeoutMs?: number;
   delay?: (
     delayMs: number,
   ) => Promise<void>;
@@ -70,8 +71,14 @@ const DEFAULT_MAX_REQUEST_ATTEMPTS =
 const DEFAULT_RETRY_BASE_DELAY_MS =
   1_000;
 
+const DEFAULT_REQUEST_WATCHDOG_TIMEOUT_MS =
+  20_000;
+
 const MAX_RETRY_DELAY_MS =
   60_000;
+
+const MAX_REQUEST_WATCHDOG_TIMEOUT_MS =
+  120_000;
 
 const MAX_HISTORY_DEPTH_MINUTES =
   3 * 24 * 60;
@@ -193,6 +200,20 @@ async function defaultDelay(
   );
 }
 
+class MarketWideHistoryWarmupRequestTimeoutError
+  extends Error {
+  constructor(
+    public readonly symbol: string,
+    timeoutMs: number,
+  ) {
+    super(
+      `Market-wide history request timed out for ${symbol} after ${timeoutMs}ms`,
+    );
+    this.name =
+      'MarketWideHistoryWarmupRequestTimeoutError';
+  }
+}
+
 export class MarketWideHistoryWarmupService {
   private state:
     MarketWideHistoryWarmupState =
@@ -241,6 +262,9 @@ export class MarketWideHistoryWarmupService {
   private readonly retryBaseDelayMs:
     number;
 
+  private readonly requestWatchdogTimeoutMs:
+    number;
+
   private readonly requestedMinutes =
     new Map<
       string,
@@ -255,6 +279,9 @@ export class MarketWideHistoryWarmupService {
 
   private readonly exhaustedSymbols =
     new Set<string>();
+
+  private readonly unavailableSymbolErrors =
+    new Map<string, string>();
 
   constructor(
     private readonly options:
@@ -293,6 +320,17 @@ export class MarketWideHistoryWarmupService {
       'retryBaseDelayMs',
       0,
       MAX_RETRY_DELAY_MS,
+    );
+
+    this.requestWatchdogTimeoutMs =
+      options.requestWatchdogTimeoutMs
+      ?? DEFAULT_REQUEST_WATCHDOG_TIMEOUT_MS;
+
+    validateInteger(
+      this.requestWatchdogTimeoutMs,
+      'requestWatchdogTimeoutMs',
+      1,
+      MAX_REQUEST_WATCHDOG_TIMEOUT_MS,
     );
 
     this.delay =
@@ -338,6 +376,7 @@ export class MarketWideHistoryWarmupService {
     this.requestedMinutes.clear();
     this.earliestOpenTimes.clear();
     this.exhaustedSymbols.clear();
+    this.unavailableSymbolErrors.clear();
 
     if (
       normalizedSymbols.length === 0
@@ -450,8 +489,20 @@ export class MarketWideHistoryWarmupService {
           return;
         }
 
-        this.currentSymbol =
-          symbol;
+        const unavailableError =
+          this.unavailableSymbolErrors.get(
+            symbol,
+          );
+
+        if (unavailableError) {
+          this.failedSymbols += 1;
+          this.processedSymbols += 1;
+          this.lastError =
+            unavailableError;
+          continue;
+        }
+
+        this.currentSymbol = symbol;
 
         try {
           const completed =
@@ -475,14 +526,26 @@ export class MarketWideHistoryWarmupService {
           }
 
           this.failedSymbols += 1;
-          failedStageSymbols.push(
-            symbol,
-          );
-
-          this.lastError =
+          const message =
             error instanceof Error
               ? error.message
               : `Unable to warm up ${symbol}`;
+
+          this.lastError = message;
+
+          if (
+            error instanceof
+              MarketWideHistoryWarmupRequestTimeoutError
+          ) {
+            this.unavailableSymbolErrors.set(
+              symbol,
+              message,
+            );
+          } else {
+            failedStageSymbols.push(
+              symbol,
+            );
+          }
         }
 
         this.processedSymbols += 1;
@@ -534,11 +597,23 @@ export class MarketWideHistoryWarmupService {
             return;
           }
 
-          this.lastError =
+          const message =
             error instanceof Error
               ? error.message
               : 'Unable to warm up '
                 + symbol;
+
+          this.lastError = message;
+
+          if (
+            error instanceof
+              MarketWideHistoryWarmupRequestTimeoutError
+          ) {
+            this.unavailableSymbolErrors.set(
+              symbol,
+              message,
+            );
+          }
         }
 
         this.currentSymbol = null;
@@ -704,6 +779,56 @@ export class MarketWideHistoryWarmupService {
     return true;
   }
 
+  private async fetchPageAttempt(
+    request:
+      BinanceOneMinuteHistoryRequest,
+  ): Promise<
+    BinanceOneMinuteKlineUpdate[]
+  > {
+    const controller =
+      new AbortController();
+
+    let timeout:
+      ReturnType<typeof setTimeout>
+      | null = null;
+
+    const timeoutPromise =
+      new Promise<never>(
+        (_, reject) => {
+          timeout = setTimeout(
+            () => {
+              controller.abort();
+
+              reject(
+                new MarketWideHistoryWarmupRequestTimeoutError(
+                  request.symbol,
+                  this.requestWatchdogTimeoutMs,
+                ),
+              );
+            },
+            this.requestWatchdogTimeoutMs,
+          );
+        },
+      );
+
+    try {
+      return await Promise.race([
+        this.options
+          .historySource
+          .fetchOneMinuteKlines({
+            ...request,
+            signal:
+              controller.signal,
+          }),
+        timeoutPromise,
+      ]);
+    } finally {
+      if (timeout !== null) {
+        clearTimeout(timeout);
+      }
+    }
+  }
+
   private async fetchPageWithRetry(
     request:
       BinanceOneMinuteHistoryRequest,
@@ -720,11 +845,9 @@ export class MarketWideHistoryWarmupService {
     ) {
       try {
         const klines =
-          await this.options
-            .historySource
-            .fetchOneMinuteKlines(
-              request,
-            );
+          await this.fetchPageAttempt(
+            request,
+          );
 
         if (
           this.options
@@ -753,6 +876,9 @@ export class MarketWideHistoryWarmupService {
         }
 
         if (
+          error instanceof
+            MarketWideHistoryWarmupRequestTimeoutError
+          ||
           attempt
           >= this.maxRequestAttempts
         ) {
