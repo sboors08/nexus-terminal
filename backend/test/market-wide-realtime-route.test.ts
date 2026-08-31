@@ -7,6 +7,14 @@ import type {
 import type {
   RealtimeLiquidation,
 } from '../src/modules/realtime-market-data/realtime-market-data.types.js';
+import type {
+  LiquidationHeatmapSnapshot,
+  LiquidationHeatmapTimeBucket,
+} from '../src/modules/realtime-market-data/liquidation-heatmap-contract.js';
+import type {
+  LiquidationHeatmapHistoryContract,
+  LiquidationHeatmapHistoryQuery,
+} from '../src/modules/realtime-market-data/liquidation-heatmap-history.service.js';
 import {
   getMarketScannerWindowMs,
   type MarketScannerWindowId,
@@ -27,6 +35,9 @@ function createMetric(
     windowMs: 60_000,
     price,
     priceChangePct: 1,
+    openInterest: 10_000,
+    openInterestUpdatedAt:
+      '2026-07-21T12:00:30.000Z',
     btcCorrelation: null,
     relativeStrengthPct: 0.5,
     volatilityPct: 2,
@@ -189,7 +200,64 @@ implements MarketWideHistoryWarmupRouteService {
     };
   }
 }
-async function createApp() {
+
+class TestLiquidationHeatmapHistory
+implements LiquidationHeatmapHistoryContract {
+  recordedSnapshots:
+    LiquidationHeatmapSnapshot[] = [];
+
+  lastQuery:
+    LiquidationHeatmapHistoryQuery | null = null;
+
+  async start(): Promise<void> {}
+
+  async stop(): Promise<void> {}
+
+  async recordSnapshot(
+    snapshot: LiquidationHeatmapSnapshot,
+  ): Promise<LiquidationHeatmapTimeBucket> {
+    this.recordedSnapshots.push(snapshot);
+    return this.toBucket(snapshot);
+  }
+
+  async getBuckets(
+    query: LiquidationHeatmapHistoryQuery,
+  ): Promise<LiquidationHeatmapTimeBucket[]> {
+    this.lastQuery = query;
+    const snapshot = this.recordedSnapshots.at(-1);
+    return snapshot ? [this.toBucket(snapshot)] : [];
+  }
+
+  private toBucket(
+    snapshot: LiquidationHeatmapSnapshot,
+  ): LiquidationHeatmapTimeBucket {
+    const bucketStartMs = Math.floor(
+      Date.parse(snapshot.generatedAt) / 60_000,
+    ) * 60_000;
+
+    return {
+      historyVersion:
+        'liquidation-heatmap-history-v0.1',
+      symbol: snapshot.symbol,
+      timeframe: snapshot.timeframe,
+      bucketStart:
+        new Date(bucketStartMs).toISOString(),
+      bucketEnd:
+        new Date(bucketStartMs + 60_000).toISOString(),
+      generatedAt: snapshot.generatedAt,
+      status: snapshot.status,
+      marketPrice: snapshot.marketPrice,
+      inputs: { ...snapshot.inputs },
+      observedEvents: [],
+      estimatedZones: snapshot.estimatedZones,
+    };
+  }
+}
+
+async function createApp(
+  liquidationHeatmapHistoryService?:
+    LiquidationHeatmapHistoryContract,
+) {
   const app = Fastify({
     logger: false,
   });
@@ -202,6 +270,9 @@ async function createApp() {
         new TestMarketWideService(),
       marketWideHistoryWarmupService:
         new TestHistoryWarmupService(),
+      ...(liquidationHeatmapHistoryService
+        ? { liquidationHeatmapHistoryService }
+        : {}),
     },
   );
 
@@ -603,6 +674,214 @@ test(
         'invalid_liquidation_limit',
       );
     }
+
+    await app.close();
+  },
+);
+
+test(
+  'liquidation heatmap route separates observed events from NEXUS estimates',
+  async () => {
+    const app =
+      await createApp();
+
+    const response =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/liquidation-heatmap?symbol=BTCUSDT&scannerWindow=15m&limit=50',
+      });
+
+    assert.equal(
+      response.statusCode,
+      200,
+    );
+
+    const payload =
+      response.json<
+        LiquidationHeatmapSnapshot
+      >();
+
+    assert.equal(
+      payload.contractVersion,
+      'liquidation-heatmap-v0.1',
+    );
+    assert.equal(
+      payload.modelVersion,
+      'nexus-liquidation-zones-v0.1',
+    );
+    assert.equal(
+      payload.symbol,
+      'BTCUSDT',
+    );
+    assert.equal(
+      payload.timeframe,
+      '15m',
+    );
+    assert.equal(
+      payload.observedEvents.length,
+      1,
+    );
+    assert.equal(
+      payload.observedEvents[0]
+        ?.liquidatedPositionSide,
+      'long',
+    );
+    assert.equal(
+      payload.observedEvents[0]
+        ?.isEstimate,
+      false,
+    );
+    assert.equal(
+      payload.estimatedZones.length,
+      10,
+    );
+    assert.deepEqual(
+      payload.historyBuckets,
+      [],
+    );
+    assert.ok(
+      payload.estimatedZones.every(
+        (zone) =>
+          zone.isEstimate
+          && zone.source === 'nexus_model',
+      ),
+    );
+    assert.equal(
+      payload.disclosure.estimated,
+      'NEXUS_MODEL_NOT_EXCHANGE_FACT',
+    );
+
+    await app.close();
+  },
+);
+
+test(
+  'liquidation heatmap route records and returns bounded time-price history',
+  async () => {
+    const history =
+      new TestLiquidationHeatmapHistory();
+    const app = await createApp(history);
+    const response = await app.inject({
+      method: 'GET',
+      url:
+        '/api/v1/market/realtime/market-wide/liquidation-heatmap?symbol=BTCUSDT&scannerWindow=5m&historyLimit=120',
+    });
+    const payload = response.json<
+      LiquidationHeatmapSnapshot
+    >();
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(history.recordedSnapshots.length, 1);
+    assert.deepEqual(history.lastQuery, {
+      symbol: 'BTCUSDT',
+      timeframe: '5m',
+      limit: 120,
+    });
+    assert.equal(payload.historyBuckets.length, 1);
+    assert.equal(
+      payload.historyBuckets[0]?.historyVersion,
+      'liquidation-heatmap-history-v0.1',
+    );
+    await app.close();
+  },
+);
+
+test(
+  'liquidation heatmap route validates required query parameters',
+  async () => {
+    const app =
+      await createApp();
+
+    const missingSymbol =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/liquidation-heatmap',
+      });
+
+    assert.equal(
+      missingSymbol.statusCode,
+      400,
+    );
+    assert.equal(
+      missingSymbol.json().error,
+      'invalid_liquidation_heatmap_symbol',
+    );
+
+    const invalidWindow =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/liquidation-heatmap?symbol=BTCUSDT&scannerWindow=2d',
+      });
+
+    assert.equal(
+      invalidWindow.statusCode,
+      400,
+    );
+    assert.equal(
+      invalidWindow.json().error,
+      'invalid_liquidation_heatmap_window',
+    );
+
+    const invalidLimit =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/liquidation-heatmap?symbol=BTCUSDT&limit=0',
+      });
+
+    assert.equal(
+      invalidLimit.statusCode,
+      400,
+    );
+    assert.equal(
+      invalidLimit.json().error,
+      'invalid_liquidation_heatmap_limit',
+    );
+
+    const invalidHistoryLimit =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/liquidation-heatmap?symbol=BTCUSDT&historyLimit=1441',
+      });
+
+    assert.equal(
+      invalidHistoryLimit.statusCode,
+      400,
+    );
+    assert.equal(
+      invalidHistoryLimit.json().error,
+      'invalid_liquidation_heatmap_history_limit',
+    );
+
+    await app.close();
+  },
+);
+
+test(
+  'liquidation heatmap route rejects symbols outside market-wide universe',
+  async () => {
+    const app =
+      await createApp();
+
+    const response =
+      await app.inject({
+        method: 'GET',
+        url:
+          '/api/v1/market/realtime/market-wide/liquidation-heatmap?symbol=ADAUSDT',
+      });
+
+    assert.equal(
+      response.statusCode,
+      404,
+    );
+    assert.equal(
+      response.json().error,
+      'market_wide_symbol_not_found',
+    );
 
     await app.close();
   },

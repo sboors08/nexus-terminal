@@ -9,6 +9,11 @@ import {
 } from './modules/api-contract/feedback-store.js';
 import { BinanceMarketDataClient } from './modules/market-data/binance-market-data.client.js';
 import type { MarketDataProvider } from './modules/market-data/market-data.provider.js';
+import {
+  MarketDataStorageQuotaService,
+  type MarketDataStorageQuotaController,
+  type MarketDataStorageQuotaLifecycle,
+} from './modules/market-data/market-data-storage-quota.service.js';
 import { BinanceWebSocketMarketDataService } from './modules/realtime-market-data/binance-websocket.service.js';
 import { BinanceOrderBookDepthService } from './modules/realtime-market-data/binance-order-book-depth.service.js';
 import { BinanceMarketHistoryClient } from './modules/realtime-market-data/binance-market-history.client.js';
@@ -17,6 +22,10 @@ import { BinanceSymbolUniverseService } from './modules/realtime-market-data/bin
 import { MarketWideHistoryWarmupService } from './modules/realtime-market-data/market-wide-history-warmup.service.js';
 import { MarketWideOpenInterestPoller } from './modules/realtime-market-data/market-wide-open-interest-poller.js';
 import { MarketWideRealtimeService } from './modules/realtime-market-data/market-wide-realtime.service.js';
+import {
+  LiquidationHeatmapHistoryService,
+  type LiquidationHeatmapHistoryContract,
+} from './modules/realtime-market-data/liquidation-heatmap-history.service.js';
 import {
   MarketWideRuntimeCoordinator,
   type MarketWideOpenInterestRuntimeTarget,
@@ -115,6 +124,10 @@ export interface BuildAppOptions {
   env?: AppEnv;
   marketDataProvider?: MarketDataProvider;
   feedbackStore?: FeedbackStore;
+  marketDataStorageQuotaService?:
+    MarketDataStorageQuotaLifecycle | null;
+  liquidationHeatmapHistoryService?:
+    LiquidationHeatmapHistoryContract | null;
   realtimeMarketDataService?: RealtimeMarketDataService | null;
   orderBookDepthService?: OrderBookDepthRuntimeService | null;
   binanceSymbolUniverseService?: BinanceSymbolUniverseService | null;
@@ -165,6 +178,19 @@ function isSetupDetectionRuntimeEventSource(
         >
     ).subscribeLifecycleEvents
       === 'function',
+  );
+}
+
+function isMarketDataStorageQuotaController(
+  value: MarketDataStorageQuotaLifecycle | null,
+): value is MarketDataStorageQuotaController {
+  const candidate = value as
+    Partial<MarketDataStorageQuotaController> | null;
+
+  return Boolean(
+    candidate
+    && typeof candidate.enforce === 'function'
+    && typeof candidate.protect === 'function',
   );
 }
 
@@ -254,6 +280,56 @@ function isMarketImpulseMetricsSource(
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const env = options.env ?? readEnv();
+  const gibibyte = 1024 ** 3;
+  const marketDataStorageQuotaEnabled =
+    env.marketDataStorageQuotaEnabled
+    ?? env.nodeEnv !== 'test';
+  const marketDataStorageQuotaService =
+    options.marketDataStorageQuotaService
+    === undefined
+      ? marketDataStorageQuotaEnabled
+        ? new MarketDataStorageQuotaService({
+            rootPath:
+              env.marketDataStorageRootPath
+              ?? './data/market',
+            maxBytes:
+              (env.marketDataStorageMaxGiB ?? 20)
+              * gibibyte,
+            cleanupThresholdBytes:
+              (
+                env.marketDataStorageCleanupThresholdGiB
+                ?? 16
+              ) * gibibyte,
+            cleanupTargetBytes:
+              (
+                env.marketDataStorageCleanupTargetGiB
+                ?? 14
+              ) * gibibyte,
+            sweepIntervalMs:
+              env.marketDataStorageSweepIntervalMs
+              ?? 60_000,
+          })
+        : null
+      : options.marketDataStorageQuotaService;
+  const liquidationHeatmapHistoryService =
+    options.liquidationHeatmapHistoryService
+    === undefined
+      ? marketDataStorageQuotaEnabled
+        ? new LiquidationHeatmapHistoryService({
+            rootPath:
+              env.marketDataStorageRootPath
+              ?? './data/market',
+            ...(isMarketDataStorageQuotaController(
+              marketDataStorageQuotaService,
+            )
+              ? {
+                  quota:
+                    marketDataStorageQuotaService,
+                }
+              : {}),
+          })
+        : null
+      : options.liquidationHeatmapHistoryService;
   const marketDataProvider = options.marketDataProvider ?? new BinanceMarketDataClient({
     baseUrl: env.binanceBaseUrl ?? 'https://fapi.binance.com',
     requestTimeoutMs: env.binanceRequestTimeoutMs ?? 5_000,
@@ -741,6 +817,38 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     },
   });
 
+  if (marketDataStorageQuotaService) {
+    app.addHook(
+      'onReady',
+      async () => {
+        await marketDataStorageQuotaService.start();
+      },
+    );
+
+    app.addHook(
+      'onClose',
+      async () => {
+        await marketDataStorageQuotaService.stop();
+      },
+    );
+  }
+
+  if (liquidationHeatmapHistoryService) {
+    app.addHook(
+      'onReady',
+      async () => {
+        await liquidationHeatmapHistoryService.start();
+      },
+    );
+
+    app.addHook(
+      'onClose',
+      async () => {
+        await liquidationHeatmapHistoryService.stop();
+      },
+    );
+  }
+
   if (setupEventHistoryService) {
     app.addHook(
       'onReady',
@@ -910,6 +1018,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : {}),
     ...(marketWideHistoryWarmupService
       ? { marketWideHistoryWarmupService }
+      : {}),
+    ...(liquidationHeatmapHistoryService
+      ? { liquidationHeatmapHistoryService }
       : {}),
     ...(setupDetectionRuntimeReader
       ? { setupDetectionRuntimeReader }

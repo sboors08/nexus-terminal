@@ -20,6 +20,11 @@ export type {
   NexusChartPriceLine,
 } from './ui/NexusCandlestickChart.js';
 
+export {
+  NexusLiquidationHeatmap,
+  type NexusLiquidationHeatmapProps,
+} from './ui/NexusLiquidationHeatmap.js';
+
 export * from './model/drawingModel.js';
 
 export {

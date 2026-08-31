@@ -122,7 +122,7 @@ test(
 );
 
 test(
-  'removes fabricated market dynamics and fixes midpoint distance precision',
+  'removes fabricated market dynamics after the visible depth panel replacement',
   () => {
     assert.doesNotMatch(
       workspaceSource,
@@ -144,9 +144,14 @@ test(
       /68 \/ 32/u,
     );
 
+    assert.doesNotMatch(
+      workspaceSource,
+      /const liquidityMapPanel/u,
+    );
+
     assert.match(
-      compactSource,
-      /minimumFractionDigits:2,maximumFractionDigits:2/u,
+      workspaceSource,
+      /NexusLiquidationHeatmap/u,
     );
   },
 );

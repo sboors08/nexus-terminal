@@ -12,6 +12,15 @@ import type {
 import type {
   RealtimeLiquidation,
 } from './realtime-market-data.types.js';
+import type {
+  LiquidationHeatmapInputStatus,
+} from './liquidation-heatmap-contract.js';
+import type {
+  LiquidationHeatmapHistoryContract,
+} from './liquidation-heatmap-history.service.js';
+import {
+  estimateNexusLiquidationHeatmap,
+} from './nexus-liquidation-zone-estimator.js';
 import {
   DEFAULT_MARKET_VOLUME_SPIKE_OPTIONS,
   type MarketVolumeSpike,
@@ -60,6 +69,9 @@ interface MarketWideRealtimeRoutesOptions {
 
   marketWideHistoryWarmupService?:
     MarketWideHistoryWarmupRouteService;
+
+  liquidationHeatmapHistoryService?:
+    LiquidationHeatmapHistoryContract;
 }
 
 function sendError(
@@ -149,6 +161,23 @@ function parseIntegerQueryNumber(
   return Number.isInteger(parsed)
     ? parsed
     : null;
+}
+
+function resolveLiquidationSourceStatus(
+  status: MarketWideRealtimeStatus,
+): LiquidationHeatmapInputStatus {
+  if (status.state === 'connected') {
+    return 'live';
+  }
+
+  if (
+    status.state === 'degraded'
+    || status.state === 'reconnecting'
+  ) {
+    return 'stale';
+  }
+
+  return 'unavailable';
 }
 
 function isMarketVolumeSpikeStatus(
@@ -613,6 +642,178 @@ FastifyPluginAsync<
           requestedLimit
           ?? 100,
         );
+    },
+  );
+
+  app.get<{
+    Querystring: {
+      symbol?: string;
+      scannerWindow?: string;
+      limit?: string;
+      historyLimit?: string;
+    };
+  }>(
+    '/market/realtime/market-wide/liquidation-heatmap',
+    async (
+      request,
+      reply,
+    ) => {
+      const symbol =
+        normalizeSymbol(
+          request.query.symbol,
+        );
+
+      if (
+        symbol === null
+        || symbol === ''
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_liquidation_heatmap_symbol',
+          'Liquidation heatmap requires a valid symbol',
+        );
+      }
+
+      const scannerWindow =
+        request.query
+          .scannerWindow;
+
+      if (
+        scannerWindow !== undefined
+        && !isMarketScannerWindowId(
+          scannerWindow,
+        )
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_liquidation_heatmap_window',
+          'Invalid liquidation heatmap scanner window',
+        );
+      }
+
+      const requestedLimit =
+        parseIntegerQueryNumber(
+          request.query.limit,
+        );
+
+      if (
+        requestedLimit === null
+        || (
+          requestedLimit !== undefined
+          && (
+            requestedLimit < 1
+            || requestedLimit > 1_000
+          )
+        )
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_liquidation_heatmap_limit',
+          'Liquidation heatmap limit must be an integer from 1 to 1000',
+        );
+      }
+
+      const metric = options
+        .marketWideRealtimeService
+        .getMetrics(
+          symbol,
+          scannerWindow ?? '1m',
+        )
+        .at(0);
+
+      if (!metric) {
+        return sendError(
+          request,
+          reply,
+          404,
+          'market_wide_symbol_not_found',
+          `Symbol ${symbol} is not present in the market-wide universe`,
+        );
+      }
+
+      const realtimeStatus =
+        options
+          .marketWideRealtimeService
+          .getStatus();
+
+      const snapshot = estimateNexusLiquidationHeatmap({
+        metrics: metric,
+        liquidations:
+          options
+            .marketWideRealtimeService
+            .getRecentLiquidations(
+              symbol,
+              requestedLimit
+              ?? 100,
+            ),
+        generatedAt:
+          new Date().toISOString(),
+        forceOrderStatus:
+          resolveLiquidationSourceStatus(
+            realtimeStatus,
+          ),
+      });
+
+      const requestedHistoryLimit =
+        parseIntegerQueryNumber(
+          request.query.historyLimit,
+        );
+
+      if (
+        requestedHistoryLimit === null
+        || (
+          requestedHistoryLimit !== undefined
+          && (
+            requestedHistoryLimit < 1
+            || requestedHistoryLimit > 1_440
+          )
+        )
+      ) {
+        return sendError(
+          request,
+          reply,
+          400,
+          'invalid_liquidation_heatmap_history_limit',
+          'Liquidation heatmap history limit must be an integer from 1 to 1440',
+        );
+      }
+
+      if (!options.liquidationHeatmapHistoryService) {
+        return snapshot;
+      }
+
+      try {
+        await options
+          .liquidationHeatmapHistoryService
+          .recordSnapshot(snapshot);
+        const historyBuckets = await options
+          .liquidationHeatmapHistoryService
+          .getBuckets({
+            symbol,
+            timeframe:
+              scannerWindow ?? '1m',
+            limit:
+              requestedHistoryLimit
+              ?? 360,
+          });
+
+        return {
+          ...snapshot,
+          historyBuckets,
+        };
+      } catch (error) {
+        request.log.warn(
+          { error, symbol },
+          'Liquidation heatmap history is unavailable',
+        );
+        return snapshot;
+      }
     },
   );
 

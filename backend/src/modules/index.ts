@@ -28,6 +28,9 @@ import {
 import type {
   MarketWideRealtimeService,
 } from './realtime-market-data/market-wide-realtime.service.js';
+import type {
+  LiquidationHeatmapHistoryContract,
+} from './realtime-market-data/liquidation-heatmap-history.service.js';
 import {
   realtimeMarketDataRoutes,
 } from './realtime-market-data/realtime-market-data.routes.js';
@@ -150,6 +153,9 @@ interface ApiModulesOptions {
 
   marketWideHistoryWarmupService?:
     MarketWideHistoryWarmupService;
+
+  liquidationHeatmapHistoryService?:
+    LiquidationHeatmapHistoryContract;
 
   setupDetectionRuntimeReader?:
     SetupDetectionRuntimeReader;
@@ -651,6 +657,16 @@ FastifyPluginAsync<
                 marketWideHistoryWarmupService:
                   options
                     .marketWideHistoryWarmupService,
+              }
+            : {}
+        ),
+        ...(
+          options
+            .liquidationHeatmapHistoryService
+            ? {
+                liquidationHeatmapHistoryService:
+                  options
+                    .liquidationHeatmapHistoryService,
               }
             : {}
         ),

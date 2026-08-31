@@ -37,7 +37,7 @@ const compactSource =
   );
 
 test(
-  'connects Workspace to the dedicated order book stream',
+  'keeps the dedicated order book stream as an internal NEXUS input',
   () => {
     assert.match(
       workspaceSource,
@@ -70,19 +70,19 @@ test(
     );
 
     assert.match(
-      workspaceSource,
-      /orderBook\.reconnect/u,
+      compactSource,
+      /buildWorkspaceMarketDynamics\(\{tradeTape,liquidityMap,\}\)/u,
     );
   },
 );
 
 test(
-  'renders the same live liquidity panel in Market preview and Setup Workspace',
+  'replaces the visible depth panel with the liquidation heatmap',
   () => {
     assert.equal(
       (
         workspaceSource.match(
-          /\{liquidityMapPanel\}/gu,
+          /\{liquidationHeatmapPanel\}/gu,
         )
         ?? []
       ).length,
@@ -90,33 +90,13 @@ test(
     );
 
     assert.match(
-      compactSource,
-      /liquidityMap\.asks\.map/u,
+      workspaceSource,
+      /NexusLiquidationHeatmap/u,
     );
 
-    assert.match(
-      compactSource,
-      /liquidityMap\.bids\.map/u,
-    );
-
-    assert.match(
-      compactSource,
-      /liquidityMap\.freshness\.label/u,
-    );
-
-    assert.match(
-      compactSource,
-      /liquidityMap\.imbalancePct/u,
-    );
-
-    assert.match(
-      compactSource,
-      /liquidityMap\.bidDepthQuote/u,
-    );
-
-    assert.match(
-      compactSource,
-      /liquidityMap\.askDepthQuote/u,
+    assert.doesNotMatch(
+      workspaceSource,
+      /const liquidityMapPanel/u,
     );
   },
 );
@@ -147,49 +127,16 @@ test(
 );
 
 test(
-  'includes live, collecting, stale, error, retry, and depth visualization styles',
+  'keeps an adaptive panel slot for the liquidation heatmap',
   () => {
-    for (
-      const className
-      of [
-        'liquiditySummary',
-        'liquidityHeader',
-        'liquidityMap',
-        'liquidityRow',
-        'liquidityBar',
-        'liquidityQuote',
-        'liquidityDistance',
-        'currentPriceDivider',
-        'pressureBlock',
-      ]
-    ) {
-      assert.match(
-        workspaceStyles,
-        new RegExp(
-          `\\.${className}\\b`,
-          'u',
-        ),
-      );
-    }
-
     assert.match(
-      workspaceSource,
-      /COLLECTING/u,
+      workspaceStyles,
+      /\.liquidationHeatmapPanel\b/u,
     );
 
     assert.match(
-      workspaceSource,
-      /STALE/u,
-    );
-
-    assert.match(
-      compactSource,
-      /liquidityMap\.freshness\.state==='error'/u,
-    );
-
-    assert.match(
-      compactSource,
-      /liquidityMap\.freshness\.label/u,
+      workspaceStyles,
+      /@media \(max-width: 820px\)/u,
     );
   },
 );
