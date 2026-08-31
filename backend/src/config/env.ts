@@ -23,6 +23,12 @@ export interface AppEnv {
   unifiedDecisionCoverageGapObservationEnabled?: boolean;
   unifiedDecisionCoverageGapObservationPath?: string;
   unifiedDecisionCoverageGapObservationCapacity?: number;
+  marketDataStorageQuotaEnabled?: boolean;
+  marketDataStorageRootPath?: string;
+  marketDataStorageMaxGiB?: number;
+  marketDataStorageCleanupThresholdGiB?: number;
+  marketDataStorageCleanupTargetGiB?: number;
+  marketDataStorageSweepIntervalMs?: number;
   binanceBaseUrl?: string;
   binanceRequestTimeoutMs?: number;
   binanceSymbolsLimit?: number;
@@ -148,6 +154,46 @@ function readQuoteAsset(
 }
 
 export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
+  const marketDataStorageMaxGiB = readInteger(
+    source.MARKET_DATA_STORAGE_MAX_GIB,
+    20,
+    'MARKET_DATA_STORAGE_MAX_GIB',
+    1,
+    10_000,
+  );
+  const marketDataStorageCleanupThresholdGiB = readInteger(
+    source.MARKET_DATA_STORAGE_CLEANUP_THRESHOLD_GIB,
+    16,
+    'MARKET_DATA_STORAGE_CLEANUP_THRESHOLD_GIB',
+    1,
+    9_999,
+  );
+  const marketDataStorageCleanupTargetGiB = readInteger(
+    source.MARKET_DATA_STORAGE_CLEANUP_TARGET_GIB,
+    14,
+    'MARKET_DATA_STORAGE_CLEANUP_TARGET_GIB',
+    0,
+    9_998,
+  );
+
+  if (
+    marketDataStorageCleanupTargetGiB
+    >= marketDataStorageCleanupThresholdGiB
+  ) {
+    throw new Error(
+      'MARKET_DATA_STORAGE_CLEANUP_TARGET_GIB must be less than MARKET_DATA_STORAGE_CLEANUP_THRESHOLD_GIB',
+    );
+  }
+
+  if (
+    marketDataStorageCleanupThresholdGiB
+    >= marketDataStorageMaxGiB
+  ) {
+    throw new Error(
+      'MARKET_DATA_STORAGE_CLEANUP_THRESHOLD_GIB must be less than MARKET_DATA_STORAGE_MAX_GIB',
+    );
+  }
+
   return {
     nodeEnv: readEnum(source.NODE_ENV, NODE_ENV_VALUES, 'development', 'NODE_ENV'),
     host: source.HOST?.trim() || '0.0.0.0',
@@ -210,6 +256,24 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
         10,
         100_000,
       ),
+    marketDataStorageQuotaEnabled: readBoolean(
+      source.MARKET_DATA_STORAGE_QUOTA_ENABLED,
+      source.NODE_ENV !== 'test',
+      'MARKET_DATA_STORAGE_QUOTA_ENABLED',
+    ),
+    marketDataStorageRootPath:
+      source.MARKET_DATA_STORAGE_ROOT_PATH?.trim()
+      || './data/market',
+    marketDataStorageMaxGiB,
+    marketDataStorageCleanupThresholdGiB,
+    marketDataStorageCleanupTargetGiB,
+    marketDataStorageSweepIntervalMs: readInteger(
+      source.MARKET_DATA_STORAGE_SWEEP_INTERVAL_MS,
+      60_000,
+      'MARKET_DATA_STORAGE_SWEEP_INTERVAL_MS',
+      1_000,
+      86_400_000,
+    ),
     binanceBaseUrl: readHttpUrl(source.BINANCE_BASE_URL, 'https://fapi.binance.com', 'BINANCE_BASE_URL'),
     binanceRequestTimeoutMs: readInteger(source.BINANCE_REQUEST_TIMEOUT_MS, 5_000, 'BINANCE_REQUEST_TIMEOUT_MS', 250, 30_000),
     binanceSymbolsLimit: readInteger(

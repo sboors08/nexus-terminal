@@ -10,6 +10,8 @@ export * from './orderBookDepthClient';
 export * from './useOrderBookDepth';
 export * from './workspaceLiquidityMap';
 export * from './workspaceMarketDynamics';
+export * from './liquidationHeatmap';
+export * from './useLiquidationHeatmap';
 export * from './dashboardRealtime';
 export * from './dashboardMarketContext';
 export * from './dashboardScannerMetrics';

@@ -481,6 +481,10 @@
   overflow: hidden;
 }
 
+.liquidationHeatmapPanel {
+  background: #071010;
+}
+
 .panelHeader {
   min-height: 58px;
   justify-content: space-between;
