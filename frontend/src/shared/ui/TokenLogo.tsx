@@ -61,6 +61,7 @@ export function getTokenBaseAsset(
 
 export function getTokenLogoSources(
   symbol: string,
+  preferredSource?: string | null,
 ): string[] {
   const baseAsset =
     getTokenBaseAsset(symbol)
@@ -76,14 +77,36 @@ export function getTokenLogoSources(
   const encodedAsset =
     encodeURIComponent(baseAsset);
 
-  return [
+  const fallbackSources = [
     `https://assets.coincap.io/assets/icons/${encodedAsset}@2x.png`,
     `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/${encodedAsset}.png`,
   ];
+
+  if (!preferredSource) {
+    return fallbackSources;
+  }
+
+  try {
+    const url = new URL(preferredSource);
+
+    if (url.protocol !== 'https:') {
+      return fallbackSources;
+    }
+
+    return Array.from(
+      new Set([
+        url.toString(),
+        ...fallbackSources,
+      ]),
+    );
+  } catch {
+    return fallbackSources;
+  }
 }
 
 interface TokenLogoProps {
   symbol: string;
+  preferredSource?: string | null;
   size?: number;
   className?: string;
   eager?: boolean;
@@ -91,6 +114,7 @@ interface TokenLogoProps {
 
 export function TokenLogo({
   symbol,
+  preferredSource = null,
   size = 32,
   className = '',
   eager = false,
@@ -101,8 +125,14 @@ export function TokenLogo({
   const sources =
     useMemo(
       () =>
-        getTokenLogoSources(symbol),
-      [symbol],
+        getTokenLogoSources(
+          symbol,
+          preferredSource,
+        ),
+      [
+        preferredSource,
+        symbol,
+      ],
     );
 
   const [
@@ -114,7 +144,10 @@ export function TokenLogo({
     () => {
       setSourceIndex(0);
     },
-    [baseAsset],
+    [
+      baseAsset,
+      preferredSource,
+    ],
   );
 
   const source =

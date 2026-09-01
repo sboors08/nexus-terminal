@@ -11,6 +11,7 @@ function createMarketSymbol() {
     symbol: 'SOLUSDT',
     baseAsset: 'SOL',
     quoteAsset: 'USDT',
+    logoUrl: 'https://bin.bnbstatic.com/images/sol.png',
     exchange: 'binance',
     price: 187.42,
     priceChangePct: 2.81,
@@ -89,6 +90,11 @@ test('fetches and validates runtime Market symbols', async () => {
     symbols[0].volumeQuote,
     148000000,
   );
+
+  assert.equal(
+    symbols[0].logoUrl,
+    'https://bin.bnbstatic.com/images/sol.png',
+  );
 });
 
 test('rejects an invalid runtime Market symbol contract', () => {
@@ -132,5 +138,17 @@ test('rejects a non-array Market symbols response', () => {
         ],
       }),
     /Invalid market symbols response/u,
+  );
+});
+
+test('rejects an insecure Market symbol logo URL', () => {
+  assert.throws(
+    () => parseRuntimeMarketSymbols([
+      {
+        ...createMarketSymbol(),
+        logoUrl: 'http://example.com/sol.png',
+      },
+    ]),
+    /logoUrl/u,
   );
 });

@@ -81,6 +81,11 @@ test(
       componentSource,
       /1000000\|10000\|1000/u,
     );
+
+    assert.match(
+      componentSource,
+      /preferredSource/u,
+    );
   },
 );
 
@@ -151,6 +156,47 @@ test(
     assert.doesNotMatch(
       watchlist,
       /instrument\.symbol\.slice\(0,\s*1\)/u,
+    );
+  },
+);
+test(
+  'renders real token logos on the Market page',
+  () => {
+    const market =
+      readSource(
+        '../src/pages/MarketPage.tsx',
+      );
+
+    const uses =
+      market.match(
+        /<TokenLogo\b/gu,
+      )
+      ?? [];
+
+    assert.ok(
+      uses.length >= 2,
+      `MarketPage expected at least 2 TokenLogo uses, received ${uses.length}`,
+    );
+
+    assert.doesNotMatch(
+      market,
+      /selected\.baseAsset\.slice\(0,\s*1\)/u,
+    );
+
+    assert.doesNotMatch(
+      market,
+      /symbol\.baseAsset\.slice\(0,\s*1\)/u,
+    );
+
+    const preferredSources =
+      market.match(
+        /preferredSource=\{/gu,
+      )
+      ?? [];
+
+    assert.equal(
+      preferredSources.length,
+      2,
     );
   },
 );

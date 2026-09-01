@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import type { ApiErrorResponse, FeedbackPayload, SetupFeedback } from '../../contracts/nexus-api.js';
+import type { TokenLogoMetadataProvider } from '../market-data/binance-token-logo-metadata.service.js';
 import { MarketDataUnavailableError, MarketSymbolNotFoundError, type MarketDataProvider } from '../market-data/market-data.provider.js';
 import { alerts, createWorkspaceSnapshot, replaySessions, setupHistory, setups } from './fixtures.js';
 import type { FeedbackStore } from './feedback-store.js';
@@ -7,6 +8,7 @@ import type { FeedbackStore } from './feedback-store.js';
 interface ApiContractRoutesOptions {
   marketDataProvider: MarketDataProvider;
   feedbackStore: FeedbackStore;
+  tokenLogoMetadataProvider?: TokenLogoMetadataProvider;
 }
 
 function sendError(request: FastifyRequest, reply: FastifyReply, statusCode: number, error: string, message: string) {
@@ -44,7 +46,20 @@ function isSetupFeedback(value: unknown): value is SetupFeedback {
 
 export const apiContractRoutes: FastifyPluginAsync<ApiContractRoutesOptions> = async (app, options) => {
   app.get('/market/symbols', async (request, reply) => {
-    try { return await options.marketDataProvider.getMarketSymbols(); } catch (error) { return sendMarketDataError(request, reply, error); }
+    try {
+      const symbols = await options.marketDataProvider.getMarketSymbols();
+      if (!options.tokenLogoMetadataProvider) return symbols;
+
+      try {
+        return await options.tokenLogoMetadataProvider.enrichMarketSymbols(symbols);
+      } catch (error) {
+        request.log.warn(
+          { error },
+          'Token-logo metadata is unavailable; returning market symbols without remote logos',
+        );
+        return symbols;
+      }
+    } catch (error) { return sendMarketDataError(request, reply, error); }
   });
 
   app.get<{

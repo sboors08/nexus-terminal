@@ -13,6 +13,7 @@ export interface MarketSymbol {
   symbol: string;
   baseAsset: string;
   quoteAsset: string;
+  logoUrl?: string | null;
   exchange: Exchange;
   price: number;
   priceChangePct: number;

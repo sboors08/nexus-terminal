@@ -132,6 +132,40 @@ function readNullableNumber(
   );
 }
 
+function readOptionalLogoUrl(
+  record: JsonRecord,
+  index: number,
+): string | null {
+  const value = record.logoUrl;
+
+  if (
+    value === undefined
+    || value === null
+  ) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    throw new Error(
+      `Invalid market symbol logoUrl at index ${index}`,
+    );
+  }
+
+  try {
+    const url = new URL(value);
+
+    if (url.protocol !== 'https:') {
+      throw new Error('Logo URL must use HTTPS');
+    }
+
+    return url.toString();
+  } catch {
+    throw new Error(
+      `Invalid market symbol logoUrl at index ${index}`,
+    );
+  }
+}
+
 export function parseRuntimeMarketSymbols(
   value: unknown,
 ): MarketSymbol[] {
@@ -185,6 +219,12 @@ export function parseRuntimeMarketSymbols(
             'quoteAsset',
             index,
             MARKET_ASSET_PATTERN,
+          ),
+
+        logoUrl:
+          readOptionalLogoUrl(
+            record,
+            index,
           ),
 
         exchange:

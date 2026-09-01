@@ -13,6 +13,9 @@ import {
 import type {
   MarketDataProvider,
 } from './market-data/market-data.provider.js';
+import type {
+  TokenLogoMetadataProvider,
+} from './market-data/binance-token-logo-metadata.service.js';
 import {
   binanceSymbolUniverseRoutes,
 } from './realtime-market-data/binance-symbol-universe.routes.js';
@@ -135,6 +138,9 @@ import type {
 interface ApiModulesOptions {
   marketDataProvider:
     MarketDataProvider;
+
+  tokenLogoMetadataProvider?:
+    TokenLogoMetadataProvider;
 
   feedbackStore:
     FeedbackStore;
@@ -273,6 +279,15 @@ FastifyPluginAsync<
     {
       marketDataProvider:
         options.marketDataProvider,
+
+      ...(
+        options.tokenLogoMetadataProvider
+          ? {
+              tokenLogoMetadataProvider:
+                options.tokenLogoMetadataProvider,
+            }
+          : {}
+      ),
 
       feedbackStore:
         options.feedbackStore,

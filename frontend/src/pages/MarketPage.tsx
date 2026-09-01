@@ -18,6 +18,7 @@ import {
   useCausalLevelLines,
 } from '@/shared/level-lines';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
+import { TokenLogo } from '@/shared/ui/TokenLogo';
 import styles from './MarketPage.module.css';
 
 type MarketTimeframe = MarketCandleTimeframe;
@@ -224,7 +225,16 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
       <div className={styles.marketGrid}>
         <section className={styles.chartPanel}>
           <header className={styles.panelHeader}>
-            <div className={styles.symbolTitle}><span className={styles.symbolIcon}>{selected.baseAsset.slice(0, 1)}</span><div><span className={styles.panelKicker}>График рынка</span><h2>{selected.baseAsset}<small>/{selected.quoteAsset}</small></h2></div></div>
+            <div className={styles.symbolTitle}>
+              <TokenLogo
+                symbol={selected.symbol}
+                preferredSource={selected.logoUrl}
+                size={38}
+                className={styles.symbolIcon}
+                eager
+              />
+              <div><span className={styles.panelKicker}>График рынка</span><h2>{selected.baseAsset}<small>/{selected.quoteAsset}</small></h2></div>
+            </div>
             <div className={styles.priceBlock}>
               <strong>{realtimeMarket.priceLabel}</strong>
 
@@ -361,7 +371,15 @@ function MarketPageContent({ symbols }: { symbols: MarketSymbol[] }) {
                 return (
                   <button key={symbol.symbol} className={`${styles.coinRow} ${selected.symbol === symbol.symbol ? styles.coinRowSelected : ''}`} type="button" onClick={() => setSelectedSymbol(symbol.symbol)}>
                     <span className={styles.rank}>{String(index + 1).padStart(2, '0')}</span>
-                    <span className={styles.coinIdentity}><i>{symbol.baseAsset.slice(0, 1)}</i><span><strong>{symbol.baseAsset}</strong><small>/{symbol.quoteAsset}</small></span></span>
+                    <span className={styles.coinIdentity}>
+                      <TokenLogo
+                        symbol={symbol.symbol}
+                        preferredSource={symbol.logoUrl}
+                        size={28}
+                        className={styles.coinLogo}
+                      />
+                      <span><strong>{symbol.baseAsset}</strong><small>/{symbol.quoteAsset}</small></span>
+                    </span>
                     <span className={styles.coinPrice}>
                       <strong>{rowRealtime.priceLabel}</strong>
                       <small
