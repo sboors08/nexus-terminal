@@ -4,6 +4,7 @@ import { buildApp } from '../src/app.js';
 import type { AppEnv } from '../src/config/env.js';
 import { createCandles, marketSymbols } from '../src/modules/api-contract/fixtures.js';
 import { InMemoryFeedbackStore } from '../src/modules/api-contract/feedback-store.js';
+import type { TokenLogoMetadataProvider } from '../src/modules/market-data/binance-token-logo-metadata.service.js';
 import { MarketDataUnavailableError, type MarketDataProvider } from '../src/modules/market-data/market-data.provider.js';
 
 const testEnv: AppEnv = { nodeEnv: 'test', host: '127.0.0.1', port: 4100, apiPrefix: '/api/v1', corsOrigins: ['http://localhost:5173'], logLevel: 'silent' };
@@ -25,6 +26,36 @@ test('NEXUS API returns 503 when market data is unavailable', async (t) => {
   const unavailable: MarketDataProvider = { getMarketSymbols: async () => { throw new MarketDataUnavailableError('offline'); }, getCandles: async () => { throw new MarketDataUnavailableError('offline'); } };
   const app = await buildApp({ env: testEnv, marketDataProvider: unavailable }); t.after(async () => app.close());
   const response = await app.inject({ method: 'GET', url: '/api/v1/market/symbols' }); assert.equal(response.statusCode, 503); assert.equal(response.json().error, 'market_data_unavailable');
+});
+
+test('NEXUS API enriches market symbols with cached logo metadata', async (t) => {
+  const tokenLogoMetadataProvider: TokenLogoMetadataProvider = {
+    enrichMarketSymbols: async (symbols) =>
+      symbols.map((symbol) => ({
+        ...symbol,
+        logoUrl: `https://bin.bnbstatic.com/images/${symbol.baseAsset.toLowerCase()}.png`,
+      })),
+  };
+
+  const app = await buildApp({ env: testEnv, marketDataProvider: fixtureProvider, tokenLogoMetadataProvider });
+  t.after(async () => app.close());
+
+  const response = await app.inject({ method: 'GET', url: '/api/v1/market/symbols' });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json()[0].logoUrl, 'https://bin.bnbstatic.com/images/btc.png');
+});
+
+test('NEXUS API keeps market symbols available when logo metadata fails', async (t) => {
+  const tokenLogoMetadataProvider: TokenLogoMetadataProvider = {
+    enrichMarketSymbols: async () => { throw new Error('metadata offline'); },
+  };
+
+  const app = await buildApp({ env: testEnv, marketDataProvider: fixtureProvider, tokenLogoMetadataProvider });
+  t.after(async () => app.close());
+
+  const response = await app.inject({ method: 'GET', url: '/api/v1/market/symbols' });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json()[0].logoUrl, undefined);
 });
 
 test('NEXUS API Contract persists setup feedback', async (t) => {

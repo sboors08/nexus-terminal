@@ -25,6 +25,7 @@
     "test:liquidation-heatmap-api": "node --import tsx --test test/market-wide-realtime-route.test.ts test/nexus-liquidation-zone-estimator.test.ts test/liquidation-heatmap-contract.test.ts",
     "test:liquidation-heatmap-history": "node --import tsx --test test/liquidation-heatmap-history.test.ts test/market-wide-realtime-route.test.ts",
     "test:market-data-storage-quota": "node --import tsx --test test/market-data-storage-quota.test.ts",
+    "test:token-logo-metadata": "node --import tsx --test test/binance-token-logo-metadata.test.ts test/api-contract.test.ts",
     "test:level-engine-contract": "node --import tsx --test test/level-engine-contract.test.ts",
     "test:level-engine-touch-detector": "node --import tsx --test test/level-engine-touch-detector.test.ts",
     "test:level-engine-break-evaluator": "node --import tsx --test test/level-engine-break-evaluator.test.ts",

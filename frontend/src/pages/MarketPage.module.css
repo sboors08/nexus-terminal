@@ -204,7 +204,7 @@
 }
 
 .symbolIcon,
-.coinIdentity i {
+.coinLogo {
   display: grid;
   place-items: center;
   border: 1px solid rgb(50 213 131 / 28%);
@@ -378,7 +378,7 @@
   min-width: 0;
 }
 
-.coinIdentity i {
+.coinLogo {
   flex: 0 0 auto;
   width: 28px;
   height: 28px;

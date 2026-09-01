@@ -8,6 +8,10 @@ import {
   type FeedbackStore,
 } from './modules/api-contract/feedback-store.js';
 import { BinanceMarketDataClient } from './modules/market-data/binance-market-data.client.js';
+import {
+  BinanceTokenLogoMetadataService,
+  type TokenLogoMetadataProvider,
+} from './modules/market-data/binance-token-logo-metadata.service.js';
 import type { MarketDataProvider } from './modules/market-data/market-data.provider.js';
 import {
   MarketDataStorageQuotaService,
@@ -123,6 +127,8 @@ import type {
 export interface BuildAppOptions {
   env?: AppEnv;
   marketDataProvider?: MarketDataProvider;
+  tokenLogoMetadataProvider?:
+    TokenLogoMetadataProvider | null;
   feedbackStore?: FeedbackStore;
   marketDataStorageQuotaService?:
     MarketDataStorageQuotaLifecycle | null;
@@ -336,6 +342,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     symbolsLimit: env.binanceSymbolsLimit ?? 1_000,
     cacheTtlMs: env.binanceCacheTtlMs ?? 15_000,
   });
+
+  const tokenLogoMetadataProvider =
+    options.tokenLogoMetadataProvider
+    === undefined
+      ? env.nodeEnv === 'test'
+        ? null
+        : new BinanceTokenLogoMetadataService()
+      : options.tokenLogoMetadataProvider;
 
   const feedbackStore =
     options.feedbackStore
@@ -1005,6 +1019,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(apiModules, {
     prefix: env.apiPrefix,
     marketDataProvider,
+    ...(tokenLogoMetadataProvider
+      ? { tokenLogoMetadataProvider }
+      : {}),
     feedbackStore,
     ...(realtimeMarketDataService ? { realtimeMarketDataService } : {}),
     ...(orderBookDepthService
