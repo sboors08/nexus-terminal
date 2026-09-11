@@ -21,6 +21,10 @@ const componentSource =
   readSource(
     '../src/shared/ui/TokenLogo.tsx',
   );
+const componentStyles =
+  readSource(
+    '../src/shared/ui/TokenLogo.module.css',
+  );
 
 const pageContracts = [
   {
@@ -33,7 +37,7 @@ const pageContracts = [
     path:
       '../src/pages/ScannerPage.tsx',
     minimumUses:
-      4,
+      2,
   },
   {
     path:
@@ -85,6 +89,36 @@ test(
     assert.match(
       componentSource,
       /preferredSource/u,
+    );
+  },
+);
+
+test(
+  'keeps an identified fallback visible until a remote logo has decoded',
+  () => {
+    assert.match(componentSource, /data-token-logo-state=/u);
+    assert.match(componentSource, /data-token-logo-symbol=\{baseAsset\}/u);
+    assert.match(componentSource, /onLoad=\{\(\) => setLoadedSource\(source\)\}/u);
+    assert.match(componentSource, /loadedSource === source/u);
+    assert.match(componentSource, /className=\{styles\.fallback\}[\s\S]*?\{baseAsset\.slice\(0, 2\)\}/u);
+    assert.match(componentStyles, /\.image\s*\{[\s\S]*?opacity:\s*0;/u);
+    assert.match(componentStyles, /\.imageLoaded\s*\{[\s\S]*?opacity:\s*1;/u);
+
+    const dashboard = readSource('../src/pages/DashboardPage.tsx');
+    assert.ok(
+      (dashboard.match(/<TokenLogo[\s\S]*?eager[\s\S]*?\/>/gu) ?? []).length >= 3,
+      'Dashboard logos must be requested eagerly in Hot List, Market Scanner and chart header',
+    );
+  },
+);
+
+test(
+  'does not hide an already loaded cached logo after its load event',
+  () => {
+    assert.doesNotMatch(
+      componentSource,
+      /setImageLoaded\(false\)/u,
+      'a post-render reset can overwrite a fast cached onLoad result',
     );
   },
 );

@@ -18,9 +18,11 @@ test('shows unavailable market values while a realtime snapshot is unavailable',
   const view = buildScannerRealtimeMarketView(undefined);
 
   assert.equal(view.isLive, false);
+  assert.equal(view.price, null);
   assert.equal(view.priceLabel, '—');
   assert.equal(view.bidLabel, '—');
   assert.equal(view.updatedAtLabel, 'нет данных');
+  assert.equal(view.updatedAt, null);
   assert.deepEqual(view.recentTrades, []);
 });
 
@@ -73,10 +75,15 @@ test('builds bid, ask, spread and a newest-first trade tape', () => {
   });
 
   assert.equal(view.isLive, true);
+  assert.equal(view.price, 64292.81);
   assert.equal(view.priceLabel, '64 292.81');
   assert.equal(view.bidLabel, '64 292.80');
   assert.equal(view.askLabel, '64 292.81');
   assert.equal(view.spreadLabel, '0.0100 · 0.00002%');
+  assert.equal(
+    view.updatedAt,
+    '2026-07-18T17:08:51.000Z',
+  );
   assert.deepEqual(view.recentTrades.map((trade) => trade.id), ['trade-2', 'trade-1']);
 });
 

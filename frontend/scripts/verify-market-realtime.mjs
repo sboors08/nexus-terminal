@@ -51,16 +51,14 @@ const requiredMarkers = [
   'useRealtimeMarketData({',
   'buildMarketRealtimeView',
   'realtimeMarket.priceLabel',
-  'priceSourceUnavailable',
-  'UNAVAILABLE',
-  'realtimeMarket.bidLabel',
-  'realtimeMarket.askLabel',
-  'realtimeMarket.spreadLabel',
-  'realtime.reconnect',
-  '.realtimeStrip',
-  '.liveDotConnected',
-  '.liveDotPending',
-  '.liveDotError',
+  'realtime.snapshots[selected.symbol]',
+  'realtime.snapshots[symbol.symbol]',
+  'setSelectedSymbol(',
+  'aria-selected={selected.symbol === symbol.symbol}',
+  '<NexusCandlestickChart',
+  'horizontalSegments={',
+  'buildMarketWorkspaceUrl(',
+  'Workspace ↗',
   "export * from './marketRealtime'",
   'src/shared/realtime/marketRealtime.ts',
   'test/market-realtime.test.mjs',
@@ -106,5 +104,5 @@ if (missingFiles.length > 0 || missingMarkers.length > 0) {
 }
 
 console.log(
-  'NEXUS frontend verified: Market List Realtime Integration v0.1 is present.',
+  'NEXUS frontend verified: current Market chart, symbol selection, realtime list and Workspace route are present.',
 );

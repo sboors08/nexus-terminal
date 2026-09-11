@@ -29,6 +29,7 @@ export interface NexusLiquidationHeatmapProps {
   status: LiquidationHeatmapQueryStatus;
   error: Error | null;
   onRetry: () => void;
+  fillContainer?: boolean;
 }
 
 const WIDTH = 1_000;
@@ -163,6 +164,7 @@ export function NexusLiquidationHeatmap({
   status,
   error,
   onRetry,
+  fillContainer = false,
 }: NexusLiquidationHeatmapProps) {
   const clipPathId = useId().replace(/:/gu, '');
   const [viewport, setViewport] =
@@ -728,7 +730,13 @@ export function NexusLiquidationHeatmap({
   }, [candles.length]);
 
   return (
-    <section className={styles.root}>
+    <section
+      className={
+        fillContainer
+          ? `${styles.root} ${styles.fillContainer}`
+          : styles.root
+      }
+    >
       <header className={styles.header}>
         <div>
           <p className={styles.eyebrow}>

@@ -64,6 +64,7 @@ import {
   fetchRuntimeSetupFeedback,
 } from '../runtime/feedbackApi';
 import { mapLevelV2ShadowSnapshotsToScannerSetups } from '../runtime/levelV2ShadowScanner';
+import { formatScannerTradeTime } from '@/shared/realtime/scannerRealtime';
 import {
   DASHBOARD_VIEW_DATA,
   type DashboardActivityPeriod,
@@ -484,7 +485,11 @@ function runtimeContractSetupToScannerSetup(
           )
         + '.',
 
-      'Расстояние до уровня: '
+      'Снимок Setup Engine · '
+        + formatScannerTradeTime(
+            setup.updatedAt,
+          )
+        + ': до centerPrice '
         + setup.distanceToLevelPct
             .toFixed(4)
         + '%.',
@@ -518,6 +523,21 @@ function runtimeContractSetupToScannerSetup(
 
     levelActiveFrom:
       setup.level.formedAt,
+
+    levelLow:
+      setup.level.zoneLow,
+
+    levelHigh:
+      setup.level.zoneHigh,
+
+    levelReferencePrice:
+      setup.level.centerPrice,
+
+    snapshotPrice:
+      setup.currentPrice,
+
+    snapshotUpdatedAt:
+      setup.updatedAt,
 
     runtimeData:
       true,

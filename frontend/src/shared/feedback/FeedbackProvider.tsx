@@ -403,7 +403,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
             </button>
           )}
           <button className={styles.feedbackButton} type="button" onClick={openGeneralFeedback}>
-            <span>✦</span> Feedback
+            <span className={styles.feedbackIcon} aria-hidden="true">✦</span>
+            <span className={styles.feedbackLabel}>Feedback</span>
           </button>
         </div>
       )}

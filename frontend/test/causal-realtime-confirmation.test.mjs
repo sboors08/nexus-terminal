@@ -1,9 +1,22 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
   buildCausalLevelLinesView,
 } from '../node_modules/.tmp/realtime-test/level-lines/model/causalLevelLines.js';
+
+function readFrontendSource(
+  relativePath,
+) {
+  return readFileSync(
+    new URL(
+      relativePath,
+      import.meta.url,
+    ),
+    'utf8',
+  );
+}
 
 function buildSnapshot(
   status,
@@ -211,7 +224,11 @@ test(
       'confirmed',
     );
     assert.equal(
-      view.horizontalSegments[0]?.title,
+      view.horizontalSegments.find(
+        (segment) =>
+          segment.endTime
+          === undefined,
+      )?.title,
       'CONFIRMATION',
     );
   },
@@ -412,6 +429,290 @@ test(
       view.confirmedBreakoutStates[0]
         ?.line.id,
       line.id,
+    );
+  },
+);
+
+test(
+  'keeps origin history separate from the active causal level segment',
+  () => {
+    const snapshot =
+      buildSnapshot('confirmed');
+    const line =
+      snapshot.activeLevels[0];
+
+    line.price =
+      102.25;
+    line.originExtremumPrice =
+      102;
+
+    const view =
+      buildCausalLevelLinesView(
+        snapshot,
+        [],
+      );
+    const formation =
+      view.horizontalSegments.find(
+        (segment) =>
+          segment.endTime
+          === line.activeFrom,
+      );
+    const active =
+      view.horizontalSegments.find(
+        (segment) =>
+          segment.startTime
+          === line.activeFrom
+          && segment.endTime
+            === undefined,
+      );
+
+    assert.deepEqual(
+      formation,
+      {
+        price:
+          line.originExtremumPrice,
+        startTime:
+          line.originExtremumAt,
+        endTime:
+          line.activeFrom,
+        color:
+          'rgba(255, 98, 115, 0.38)',
+        lineStyle:
+          'dashed',
+        axisLabelVisible:
+          false,
+      },
+    );
+
+    assert.equal(
+      active?.price,
+      line.originExtremumPrice,
+    );
+    assert.equal(
+      active?.startTime,
+      line.activeFrom,
+    );
+    assert.equal(
+      active?.lineStyle,
+      'solid',
+    );
+    assert.equal(
+      active?.title,
+      'CONFIRMATION',
+    );
+    assert.equal(
+      active?.axisLabelVisible,
+      true,
+    );
+    assert.equal(
+      view.horizontalSegments.filter(
+        (segment) =>
+          segment.axisLabelVisible,
+      ).length,
+      1,
+    );
+    assert.equal(
+      view.horizontalSegments.filter(
+        (segment) =>
+          segment.title,
+      ).length,
+      1,
+    );
+  },
+);
+
+test(
+  'does not backdate levels into an earlier snapshot and keeps causal times stable with future candles',
+  () => {
+    const snapshot =
+      buildSnapshot('confirmed');
+    const withoutLevel = {
+      ...snapshot,
+      activeLevels: [],
+      lines: [],
+    };
+
+    assert.deepEqual(
+      buildCausalLevelLinesView(
+        withoutLevel,
+        snapshot.candles,
+      ).horizontalSegments,
+      [],
+    );
+
+    const before =
+      buildCausalLevelLinesView(
+        snapshot,
+        snapshot.candles,
+      ).horizontalSegments;
+    const futureCandle = {
+      ...snapshot.candles[0],
+      openTime:
+        '2026-08-07T12:02:00.000Z',
+      closeTime:
+        '2026-08-07T12:02:59.999Z',
+    };
+    const after =
+      buildCausalLevelLinesView(
+        snapshot,
+        [
+          ...snapshot.candles,
+          futureCandle,
+        ],
+      ).horizontalSegments;
+
+    assert.deepEqual(
+      after.map(
+        ({
+          price,
+          startTime,
+          endTime,
+        }) => ({
+          price,
+          startTime,
+          endTime,
+        }),
+      ),
+      before.map(
+        ({
+          price,
+          startTime,
+          endTime,
+        }) => ({
+          price,
+          startTime,
+          endTime,
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'uses mirrored formation and active styles for support and resistance',
+  () => {
+    for (
+      const kind
+      of [
+        'support',
+        'resistance',
+      ]
+    ) {
+      for (
+        const status
+        of [
+          'candidate',
+          'confirmed',
+        ]
+      ) {
+        const snapshot =
+          buildSnapshot('collecting');
+        const line =
+          snapshot.activeLevels[0];
+
+        line.kind = kind;
+        line.status = status;
+
+        const segments =
+          buildCausalLevelLinesView(
+            snapshot,
+            [],
+          ).horizontalSegments;
+        const formation =
+          segments.find(
+            (segment) =>
+              segment.endTime
+              === line.activeFrom,
+          );
+        const active =
+          segments.find(
+            (segment) =>
+              segment.endTime
+              === undefined,
+          );
+
+        assert.equal(
+          formation?.lineStyle,
+          'dashed',
+        );
+        assert.equal(
+          formation?.axisLabelVisible,
+          false,
+        );
+        assert.equal(
+          formation?.title,
+          undefined,
+        );
+        assert.equal(
+          active?.lineStyle,
+          status === 'candidate'
+            ? 'dashed'
+            : 'solid',
+        );
+        assert.equal(
+          active?.axisLabelVisible,
+          true,
+        );
+      }
+    }
+  },
+);
+
+test(
+  'keeps the shared causal segment path connected to every production chart',
+  () => {
+    const directPages = [
+      {
+        path: '../src/pages/WorkspacePage.tsx',
+        levelView: 'causalLevelLines',
+      },
+      {
+        path: '../src/pages/DashboardPage.tsx',
+        levelView: 'dashboardLevelLines',
+      },
+      {
+        path: '../src/pages/MarketPage.tsx',
+        levelView: 'causalLevelLines',
+      },
+    ];
+
+    for (
+      const {
+        path,
+        levelView,
+      }
+      of directPages
+    ) {
+      const source =
+        readFrontendSource(
+          path,
+        );
+
+      assert.match(
+        source,
+        /useCausalLevelLines/u,
+      );
+      assert.match(
+        source,
+        new RegExp(
+          `horizontalSegments=\\{[\\s\\S]*?${levelView}\\s*\\.horizontalSegments`,
+          'u',
+        ),
+      );
+    }
+
+    const scannerSource =
+      readFrontendSource(
+        '../src/pages/ScannerPage.tsx',
+      );
+
+    assert.match(
+      scannerSource,
+      /buildSelectedSetupHorizontalSegments\([\s\S]*?causalLevelLines[\s\S]*?\.horizontalSegments/u,
+    );
+    assert.match(
+      scannerSource,
+      /horizontalSegments=\{chartHorizontalSegments\}/u,
     );
   },
 );

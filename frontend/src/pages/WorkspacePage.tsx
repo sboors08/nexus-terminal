@@ -3,6 +3,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ROUTES } from '@/app/routing/routes';
@@ -51,7 +52,6 @@ import {
 } from '@/shared/charts';
 import {
   CausalRealtimeConfirmationPanel,
-  CausalLevelStateStrip,
   UnifiedDecisionPanel,
   useCausalLevelLines,
 } from '@/shared/level-lines';
@@ -66,12 +66,25 @@ import styles from './WorkspacePage.module.css';
 
 type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
 type TapeFilter = 'all' | PrintSide;
+type WorkspaceCompactTool = 'tape' | 'heatmap' | 'dynamics';
+
+const WORKSPACE_COMPACT_TOOLS: readonly {
+  id: WorkspaceCompactTool;
+  label: string;
+}[] = [
+  { id: 'tape', label: 'Лента' },
+  { id: 'heatmap', label: 'Карта' },
+  { id: 'dynamics', label: 'Динамика' },
+];
 
 type WorkspacePageData = {
   contractSetup: Setup;
   view: WorkspaceViewData;
   replayAvailable: boolean;
 };
+
+const DEFAULT_WORKSPACE_SYMBOL =
+  'BTCUSDT';
 
 function ChecklistIcon({ state }: { state: 'passed' | 'warning' | 'waiting' }) {
   if (state === 'passed') return <span aria-hidden="true">✓</span>;
@@ -343,6 +356,8 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
       ],
     );
   const [tapeFilter, setTapeFilter] = useState<TapeFilter>('all');
+  const [compactTool, setCompactTool] =
+    useState<WorkspaceCompactTool>('tape');
   const [noteOpen, setNoteOpen] = useState(false);
   const chartPanelRef =
     useRef<HTMLElement | null>(
@@ -352,6 +367,45 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     chartFullscreen,
     setChartFullscreen,
   ] = useState(false);
+
+  const handleCompactToolKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+  ) => {
+    const currentIndex =
+      WORKSPACE_COMPACT_TOOLS.findIndex(
+        (tool) => tool.id === compactTool,
+      );
+    let nextIndex = currentIndex;
+
+    if (event.key === 'ArrowRight') {
+      nextIndex =
+        (currentIndex + 1)
+        % WORKSPACE_COMPACT_TOOLS.length;
+    } else if (event.key === 'ArrowLeft') {
+      nextIndex =
+        (
+          currentIndex
+          - 1
+          + WORKSPACE_COMPACT_TOOLS.length
+        ) % WORKSPACE_COMPACT_TOOLS.length;
+    } else if (event.key === 'Home') {
+      nextIndex = 0;
+    } else if (event.key === 'End') {
+      nextIndex = WORKSPACE_COMPACT_TOOLS.length - 1;
+    } else {
+      return;
+    }
+
+    event.preventDefault();
+    const nextTool =
+      WORKSPACE_COMPACT_TOOLS[nextIndex];
+    setCompactTool(nextTool.id);
+    document
+      .getElementById(
+        `workspace-compact-tab-${nextTool.id}`,
+      )
+      ?.focus();
+  };
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -806,6 +860,22 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
       === 'resistance'
         ? 'сопротивления'
         : 'уровня';
+  const workspaceModeStatus =
+    isMarketPreview
+      ? 'Рыночный обзор'
+      : isRuntimeSetup
+        ? isBreakConfirmed
+          ? 'Пробой подтверждён'
+          : `Уровень ${workspaceLevelLabel}`
+        : selectedSetup.kind;
+  const workspaceModeStatusTitle =
+    isMarketPreview
+      ? 'Рыночный обзор · сетап ещё не сформирован'
+      : isRuntimeSetup
+        ? isBreakConfirmed
+          ? `Пробой уровня ${workspaceLevelLabel} подтверждён · зона ${chartLevelLabel}`
+          : `Взаимодействие с уровнем ${workspaceLevelLabel} · зона ${chartLevelLabel}`
+        : `${selectedSetup.kind} · зона ${chartLevelLabel}`;
   const workspaceTouchDetail =
     workspaceTouchCount === null
       ? 'Causal-уровень ещё не выбран backend.'
@@ -1096,7 +1166,20 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
     };
 
   const tradeTapePanel = (
-    <article className={styles.dataPanel}>
+    <article
+      id="workspace-lower-tape"
+      role="tabpanel"
+      aria-labelledby="workspace-compact-tab-tape"
+      className={
+        [
+          styles.dataPanel,
+          styles.tradeTapePanel,
+          compactTool === 'tape'
+            ? styles.compactPanelActive
+            : styles.compactPanelInactive,
+        ].join(' ')
+      }
+    >
       <div className={styles.panelHeader}>
         <div>
           <p className={styles.panelEyebrow}>
@@ -1360,8 +1443,17 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
 
   const liquidationHeatmapPanel = (
     <article
+      id="workspace-lower-heatmap"
+      role="tabpanel"
+      aria-labelledby="workspace-compact-tab-heatmap"
       className={
-        `${styles.dataPanel} ${styles.liquidationHeatmapPanel}`
+        [
+          styles.dataPanel,
+          styles.liquidationHeatmapPanel,
+          compactTool === 'heatmap'
+            ? styles.compactPanelActive
+            : styles.compactPanelInactive,
+        ].join(' ')
       }
     >
       <NexusLiquidationHeatmap
@@ -1372,14 +1464,24 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
         status={liquidationHeatmap.status}
         error={liquidationHeatmap.error}
         onRetry={liquidationHeatmap.retry}
+        fillContainer
       />
     </article>
   );
 
   const marketDynamicsPanel = (
     <article
+      id="workspace-lower-dynamics"
+      role="tabpanel"
+      aria-labelledby="workspace-compact-tab-dynamics"
       className={
-        `${styles.dataPanel} ${styles.marketDynamicsPanel}`
+        [
+          styles.dataPanel,
+          styles.marketDynamicsPanel,
+          compactTool === 'dynamics'
+            ? styles.compactPanelActive
+            : styles.compactPanelInactive,
+        ].join(' ')
       }
     >
       <div className={styles.panelHeader}>
@@ -1412,6 +1514,8 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
           </span>
         </div>
       </div>
+
+      <div className={styles.panelScrollBody}>
 
       <p className={styles.marketDynamicsDescription}>
         {marketDynamics.modeDescription}
@@ -1629,12 +1733,16 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             .lastUpdatedLabel
         }
       </p>
+      </div>
     </article>
   );
 
   return (
     <section className={styles.workspace}>
-      <header className={styles.pageHeader}>
+      <header
+        className={styles.pageHeader}
+        data-workspace-header="compact"
+      >
         <div className={styles.instrumentHeader}>
           <Link
             className={styles.backLink}
@@ -1656,84 +1764,65 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
           >
             ←
           </Link>
-          <div>
-            <p className={styles.eyebrow}>
-              {
-                isMarketPreview
-                  ? 'Рабочее пространство · рыночный обзор Binance'
-                  : isRuntimeSetup
-                    ? 'Рабочее пространство · runtime-сетап Setup Engine'
-                    : 'Рабочее пространство · тестовые данные'
-              }
-            </p>
-            <div className={styles.symbolRow}>
-              <TokenLogo
-                symbol={selectedSetup.symbol}
-                size={34}
-                className={styles.symbolLogo}
-                eager
-              />
 
-              <h1>{selectedSetup.symbol}</h1>
+          <TokenLogo
+            symbol={selectedSetup.symbol}
+            size={26}
+            className={styles.symbolLogo}
+            eager
+          />
 
-              <label
-                className={styles.symbolPicker}
-              >
-                <span>Монета</span>
+          <h1>{selectedSetup.symbol}</h1>
 
-                <select
-                  value={contractSetup.symbol}
-                  aria-label="Выбрать монету Workspace"
-                  onChange={(event) => {
-                    selectSymbol(
-                      event.currentTarget.value,
-                    );
-                  }}
-                >
-                  {workspaceSymbols.map(
-                    (symbol) => (
-                      <option
-                        key={symbol}
-                        value={symbol}
-                      >
-                        {
-                          symbol.endsWith('USDT')
-                            ? `${
-                                symbol.slice(
-                                  0,
-                                  -4,
-                                )
-                              }/USDT`
-                            : symbol
-                        }
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-
-              {!isMarketPreview && (
-                <DirectionBadge
-                  direction={
-                    selectedSetup.direction
-                  }
-                />
+          <label
+            className={styles.symbolPicker}
+          >
+            <select
+              value={contractSetup.symbol}
+              aria-label="Выбрать монету Workspace"
+              onChange={(event) => {
+                selectSymbol(
+                  event.currentTarget.value,
+                );
+              }}
+            >
+              {workspaceSymbols.map(
+                (symbol) => (
+                  <option
+                    key={symbol}
+                    value={symbol}
+                  >
+                    {
+                      symbol.endsWith('USDT')
+                        ? `${
+                            symbol.slice(
+                              0,
+                              -4,
+                            )
+                          }/USDT`
+                        : symbol
+                    }
+                  </option>
+                ),
               )}
-              <span className={styles.exchangeBadge}>{selectedSetup.exchange}</span>
-              <span className={styles.timeframeBadge}>{timeframe}</span>
-            </div>
-            <p className={styles.setupDescription}>
-              {
-                isMarketPreview
-                  ? 'Рыночный обзор · сетап ещё не сформирован'
-                  : isRuntimeSetup
-                    ? isBreakConfirmed
-                      ? `Пробой уровня ${workspaceLevelLabel} подтверждён · зона ${chartLevelLabel}`
-                      : `Взаимодействие с уровнем ${workspaceLevelLabel} · зона ${chartLevelLabel}`
-                    : `${selectedSetup.kind} · зона ${chartLevelLabel}`
+            </select>
+          </label>
+
+          {!isMarketPreview && (
+            <DirectionBadge
+              direction={
+                selectedSetup.direction
               }
-            </p>
-          </div>
+            />
+          )}
+          <span className={styles.exchangeBadge}>{selectedSetup.exchange}</span>
+          <span className={styles.timeframeBadge}>{timeframe}</span>
+          <span
+            className={styles.workspaceModeStatus}
+            title={workspaceModeStatusTitle}
+          >
+            {workspaceModeStatus}
+          </span>
         </div>
 
         <div className={styles.headerRight}>
@@ -1770,7 +1859,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                 Алерты пока недоступны
               </button>
             )}
-            <button className={styles.primaryButton} type="button" onClick={() => setNoteOpen((current) => !current)}>
+            <button className={styles.secondaryButton} type="button" onClick={() => setNoteOpen((current) => !current)}>
               {noteOpen ? 'Закрыть черновик' : 'Открыть черновик заметки'}
             </button>
           </div>
@@ -2047,7 +2136,10 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               </div>
             </div>
 
-            <div className={styles.chartCanvas}>
+            <div
+              className={styles.chartCanvas}
+              data-workspace-region="chart-canvas"
+            >
               {!hasCandleData
                 && (
                   candleFreshness.state
@@ -2153,17 +2245,6 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                     />
                   </>
                 )}
-            </div>
-
-            <div
-              className={
-                styles.chartLevelStateStrip
-              }
-            >
-              <CausalLevelStateStrip
-                levels={causalLevelLines}
-                focusState={workspaceCausalState}
-              />
             </div>
 
             <div className={styles.chartMetrics}>
@@ -2274,27 +2355,37 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
             </div>
           </article>
 
-          {
-            isMarketPreview
-              ? (
           <div className={styles.lowerGrid}>
+            <div
+              className={styles.compactToolTabs}
+              role="tablist"
+              aria-label="Нижние инструменты Workspace"
+            >
+              {WORKSPACE_COMPACT_TOOLS.map(
+                (tool) => (
+                  <button
+                    key={tool.id}
+                    id={`workspace-compact-tab-${tool.id}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={compactTool === tool.id}
+                    aria-controls={`workspace-lower-${tool.id}`}
+                    tabIndex={compactTool === tool.id ? 0 : -1}
+                    onClick={() => setCompactTool(tool.id)}
+                    onKeyDown={handleCompactToolKeyDown}
+                  >
+                    {tool.label}
+                  </button>
+                ),
+              )}
+            </div>
+
             {tradeTapePanel}
 
             {liquidationHeatmapPanel}
 
             {marketDynamicsPanel}
           </div>
-                )
-              : (
-          <div className={styles.lowerGrid}>
-            {tradeTapePanel}
-
-            {liquidationHeatmapPanel}
-
-            {marketDynamicsPanel}
-          </div>
-                )
-          }
 
         </div>
 
@@ -2324,6 +2415,8 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
               />
             )}
           </div>
+
+          <div className={styles.nexusPanelBody}>
 
           <UnifiedDecisionPanel
             levels={causalLevelLines}
@@ -2561,6 +2654,7 @@ function WorkspacePageContent({ data }: { data: WorkspacePageData }) {
                   : 'Контекст сетапа демонстрационный. Свечи, лента и стакан загружаются через backend Binance Futures; causal-подтверждение приходит готовым из Level Engine. NEXUS не выставляет ордера.'
             }
           </p>
+          </div>
         </aside>
       </div>
     </section>
@@ -2572,13 +2666,29 @@ export function WorkspacePage() {
   const [searchParams] = useSearchParams();
   const requestedSetupId = searchParams.get('setupId') ?? searchParams.get('setup') ?? '';
   const requestedSymbol = searchParams.get('symbol')?.toUpperCase() ?? '';
+  const workspaceSymbol =
+    requestedSymbol
+    || (
+      requestedSetupId.length === 0
+        ? DEFAULT_WORKSPACE_SYMBOL
+        : ''
+    );
+  const workspaceSetupId =
+    requestedSetupId
+    || (
+      workspaceSymbol.length > 0
+        ? buildMarketWorkspaceSetupId(
+            workspaceSymbol,
+          )
+        : ''
+    );
   const query = useApiQuery(
-    `workspace-context:${requestedSetupId}:${requestedSymbol}`,
+    `workspace-context:${workspaceSetupId}:${workspaceSymbol}`,
     async (): Promise<WorkspacePageData | null> => {
       const workspaceRequest =
         resolveWorkspaceViewRequest(
-          requestedSetupId,
-          requestedSymbol,
+          workspaceSetupId,
+          workspaceSymbol,
         );
 
       const primaryView =
@@ -2588,9 +2698,9 @@ export function WorkspacePage() {
         );
 
       const marketFallbackSetupId =
-        requestedSymbol
+        workspaceSymbol
           ? buildMarketWorkspaceSetupId(
-              requestedSymbol,
+              workspaceSymbol,
             )
           : null;
 
@@ -2600,7 +2710,7 @@ export function WorkspacePage() {
           marketFallbackSetupId
             ? await nexusApi.getWorkspaceView(
                 marketFallbackSetupId,
-                requestedSymbol,
+                workspaceSymbol,
               )
             : null
         );
@@ -2646,11 +2756,11 @@ export function WorkspacePage() {
 
   useSetupLifecycleRefresh({
     candidateId:
-      requestedSetupId,
+      workspaceSetupId,
 
     enabled:
-      requestedSetupId.length > 0
-      && !requestedSetupId.startsWith(
+      workspaceSetupId.length > 0
+      && !workspaceSetupId.startsWith(
         'market-',
       ),
 

@@ -13,6 +13,11 @@ const LEVEL_COLORS = {
   resistance: '#ff6273',
 } as const;
 
+const LEVEL_FORMATION_COLORS = {
+  support: 'rgba(50, 213, 131, 0.38)',
+  resistance: 'rgba(255, 98, 115, 0.38)',
+} as const;
+
 const VISIBLE_CANDLES = 160;
 
 export type CausalLevelStage =
@@ -44,6 +49,7 @@ export interface CausalLevelState {
 export interface CausalLevelHorizontalSegment {
   readonly price: number;
   readonly startTime: string;
+  readonly endTime?: string;
   readonly color: string;
   readonly title?: string;
   readonly lineStyle?: 'solid' | 'dashed';
@@ -403,36 +409,83 @@ export function buildCausalLevelLinesView(
     focusState:
       states[0] ?? null,
     horizontalSegments:
-      visibleStates.map(
-        (state) => ({
-          price:
-            state.line.price,
-          startTime:
-            state.line.activeFrom,
-          color:
-            LEVEL_COLORS[
-              state.line.kind
-            ],
-          title:
+      visibleStates.flatMap(
+        (state) => {
+          const line =
+            state.line;
+          const isPrimary =
             primaryLineIds.has(
-              state.line.id,
+              line.id,
+            );
+          const activeSegment:
+          CausalLevelHorizontalSegment = {
+            price:
+              line.originExtremumPrice,
+            startTime:
+              line.activeFrom,
+            color:
+              LEVEL_COLORS[
+                line.kind
+              ],
+            title:
+              isPrimary
+                ? state.stage
+                  ?? (
+                    line.kind === 'support'
+                      ? 'ПОДДЕРЖКА'
+                      : 'СОПРОТИВЛЕНИЕ'
+                  )
+                : undefined,
+            lineStyle:
+              line.status === 'candidate'
+                ? 'dashed'
+                : 'solid',
+            axisLabelVisible:
+              isPrimary,
+          };
+          const originTime =
+            Date.parse(
+              line.originExtremumAt,
+            );
+          const activeTime =
+            Date.parse(
+              line.activeFrom,
+            );
+
+          if (
+            !Number.isFinite(
+              originTime,
             )
-              ? state.stage
-                ?? (
-                  state.line.kind === 'support'
-                    ? 'ПОДДЕРЖКА'
-                    : 'СОПРОТИВЛЕНИЕ'
-                )
-              : undefined,
-          lineStyle:
-            state.line.status === 'candidate'
-              ? 'dashed'
-              : 'solid',
-          axisLabelVisible:
-            primaryLineIds.has(
-              state.line.id,
-            ),
-        }),
+            || !Number.isFinite(
+              activeTime,
+            )
+            || originTime >= activeTime
+          ) {
+            return [
+              activeSegment,
+            ];
+          }
+
+          return [
+            {
+              price:
+                line.originExtremumPrice,
+              startTime:
+                line.originExtremumAt,
+              endTime:
+                line.activeFrom,
+              color:
+                LEVEL_FORMATION_COLORS[
+                  line.kind
+                ],
+              lineStyle:
+                'dashed',
+              axisLabelVisible:
+                false,
+            },
+            activeSegment,
+          ];
+        },
       ),
   };
 }

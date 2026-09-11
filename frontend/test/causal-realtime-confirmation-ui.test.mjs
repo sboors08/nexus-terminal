@@ -145,7 +145,19 @@ test(
       workspaceSource.match(
         /focusState=\{workspaceCausalState\}/gu,
       )?.length,
-      2,
+      1,
+    );
+    assert.doesNotMatch(
+      workspaceSource,
+      /CausalLevelStateStrip/u,
+    );
+    assert.match(
+      workspaceSource,
+      /<UnifiedDecisionPanel[\s\S]*?levels=\{causalLevelLines\}/u,
+    );
+    assert.match(
+      workspaceSource,
+      /<CausalRealtimeConfirmationPanel[\s\S]*?levels=\{causalLevelLines\}/u,
     );
   },
 );

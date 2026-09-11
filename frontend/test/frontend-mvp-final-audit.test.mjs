@@ -165,16 +165,41 @@ test(
         /useCausalLevelLines/u,
         `${page} must load causal Level Lines`,
       );
-      assert.match(
-        source,
-        /horizontalSegments=\{[^}]*\.horizontalSegments/u,
-        `${page} must render causal horizontal segments`,
-      );
-      assert.match(
-        source,
-        /CausalLevelStateStrip/u,
-        `${page} must expose per-line state`,
-      );
+      if (page === 'ScannerPage.tsx') {
+        assert.match(
+          source,
+          /buildSelectedSetupHorizontalSegments\([\s\S]*?causalLevelLines[\s\S]*?\.horizontalSegments/u,
+          `${page} must preserve causal segments while composing the selected setup`,
+        );
+        assert.match(
+          source,
+          /horizontalSegments=\{chartHorizontalSegments\}/u,
+          `${page} must render the composed causal segments`,
+        );
+      } else {
+        assert.match(
+          source,
+          /horizontalSegments=\{[^}]*\.horizontalSegments/u,
+          `${page} must render causal horizontal segments`,
+        );
+      }
+      if (
+        page === 'WorkspacePage.tsx'
+        || page === 'ScannerPage.tsx'
+        || page === 'DashboardPage.tsx'
+      ) {
+        assert.doesNotMatch(
+          source,
+          /CausalLevelStateStrip/u,
+          `${page} keeps causal state in the chart and context without a separate strip`,
+        );
+      } else {
+        assert.match(
+          source,
+          /CausalLevelStateStrip/u,
+          `${page} must expose per-line state`,
+        );
+      }
     }
 
     const workspaceSource =
@@ -412,13 +437,37 @@ test(
           lineStyle:
             'dashed',
           title:
+            undefined,
+        },
+        {
+          price:
+            101,
+          lineStyle:
+            'dashed',
+          title:
             'APPROACH',
         },
         {
           price:
             101.4,
           lineStyle:
+            'dashed',
+          title:
+            undefined,
+        },
+        {
+          price:
+            101.4,
+          lineStyle:
             'solid',
+          title:
+            undefined,
+        },
+        {
+          price:
+            99,
+          lineStyle:
+            'dashed',
           title:
             undefined,
         },

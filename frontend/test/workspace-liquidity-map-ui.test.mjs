@@ -86,7 +86,7 @@ test(
         )
         ?? []
       ).length,
-      2,
+      1,
     );
 
     assert.match(

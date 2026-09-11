@@ -50,9 +50,9 @@
 }
 
 .presetStatus {
-  border-color: rgb(50 213 131 / 42%);
-  color: var(--nexus-color-long);
-  background: var(--nexus-color-long-soft);
+  border-color: var(--nexus-color-accent-border);
+  color: var(--nexus-color-accent-primary);
+  background: var(--nexus-color-accent-muted);
 }
 
 .customStatus {
@@ -446,12 +446,12 @@
 }
 
 .toggleRow input:checked + i {
-  border-color: var(--nexus-color-long);
-  background: var(--nexus-color-long-soft);
+  border-color: var(--nexus-color-accent-border);
+  background: var(--nexus-color-accent-muted);
 }
 
 .toggleRow input:checked + i::after {
-  background: var(--nexus-color-long);
+  background: var(--nexus-color-accent-primary);
   transform: translateX(16px);
 }
 
@@ -639,9 +639,9 @@
 }
 
 .primaryButton {
-  border: 1px solid var(--nexus-color-long);
+  border: 1px solid var(--nexus-color-accent-primary);
   color: var(--nexus-color-text-on-accent);
-  background: var(--nexus-color-long);
+  background: var(--nexus-color-accent-primary);
 }
 
 .secondaryButton {
@@ -651,7 +651,7 @@
 }
 
 .primaryButton:hover {
-  background: var(--nexus-color-long-hover);
+  background: var(--nexus-color-accent-hover);
 }
 
 .secondaryButton:hover {

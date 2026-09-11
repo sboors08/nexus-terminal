@@ -86,11 +86,12 @@ const checks = [
       'useMarketWideScannerMetrics',
       'indexScannerSetupMetrics',
       'applyScannerSetupLiveMetrics',
-      'SortableTableHeader',
-      'aria-sort',
-      'sortKey="volume"',
-      'sortKey="trades"',
-      'sortKey="btcStrength"',
+      'const SORT_OPTIONS',
+      'aria-label="Сортировка кандидатов"',
+      'selectTableSort(event.target.value',
+      "value: 'volume'",
+      "value: 'trades'",
+      "value: 'btcStrength'",
     ],
   },
   {
@@ -145,5 +146,5 @@ if (errors.length > 0) {
 }
 
 console.log(
-  'NEXUS frontend verified: Scanner Live Metrics, Filters & Header Sorting v0.2 are present.',
+  'NEXUS frontend verified: Scanner Live Metrics, Filters & Compact Sorting are present.',
 );

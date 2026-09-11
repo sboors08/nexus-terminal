@@ -1,11 +1,15 @@
 .feedbackDock {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
+  top: auto;
+  right: auto;
+  bottom: 12px;
+  left: 10px;
   z-index: 70;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+  transform: none;
 }
 
 .feedbackDock button {
@@ -20,20 +24,45 @@
   backdrop-filter: blur(14px);
 }
 
-.feedbackDock button span {
+.setupFeedbackButton span {
   margin-right: 6px;
   font-size: 15px;
 }
 
 .feedbackButton {
+  display: flex;
+  width: 38px;
+  height: 112px;
+  min-height: 112px !important;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 0 !important;
   color: #04110b;
-  border-color: rgb(50 213 131 / 55%) !important;
-  background: linear-gradient(135deg, #45e39a, #28bd75);
+  border-right: 1px solid var(--nexus-color-accent-border) !important;
+  border-radius: 10px !important;
+  border-color: var(--nexus-color-accent-border) !important;
+  background: linear-gradient(135deg, var(--nexus-color-accent-hover), var(--nexus-color-accent-active));
 }
 
 .feedbackButton:hover {
   transform: translateY(-1px);
-  background: linear-gradient(135deg, #5aeaa8, #32d583);
+  background: linear-gradient(135deg, #68e7dd, var(--nexus-color-accent-primary));
+}
+
+.feedbackIcon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.feedbackLabel {
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
 }
 
 .setupFeedbackButton {
@@ -66,7 +95,7 @@
   border: 1px solid #2b3846;
   border-radius: 16px;
   background:
-    radial-gradient(circle at 80% 0%, rgb(50 213 131 / 9%), transparent 34%),
+    radial-gradient(circle at 80% 0%, var(--nexus-color-accent-muted), transparent 34%),
     #0d1219;
   box-shadow: 0 30px 90px rgb(0 0 0 / 58%);
 }
@@ -169,7 +198,7 @@
 .form select:focus,
 .form textarea:focus {
   border-color: var(--nexus-color-accent-primary);
-  box-shadow: 0 0 0 3px rgb(50 213 131 / 10%);
+  box-shadow: 0 0 0 3px var(--nexus-color-accent-muted);
 }
 
 .counter {
@@ -301,8 +330,8 @@
 
 .reasonSelected {
   color: var(--nexus-color-text-primary) !important;
-  border-color: rgb(50 213 131 / 40%) !important;
-  background: var(--nexus-color-long-soft) !important;
+  border-color: var(--nexus-color-accent-border) !important;
+  background: var(--nexus-color-accent-muted) !important;
 }
 
 .errorMessage {
@@ -338,7 +367,7 @@
 
 .primaryButton,
 .successState button {
-  border: 1px solid rgb(50 213 131 / 55%);
+  border: 1px solid var(--nexus-color-accent-border);
   color: var(--nexus-color-text-on-accent);
   background: var(--nexus-color-accent-primary);
 }
@@ -391,10 +420,33 @@
 
 @media (max-width: 720px) {
   .feedbackDock {
+    top: auto;
     right: 14px;
     bottom: 14px;
+    left: auto;
     align-items: flex-end;
     flex-direction: column;
+    transform: none;
+  }
+
+  .feedbackButton {
+    width: auto;
+    height: 42px;
+    min-height: 42px !important;
+    flex-direction: row;
+    gap: 6px;
+    padding: 0 15px !important;
+    border-right: 1px solid var(--nexus-color-accent-border) !important;
+    border-radius: var(--nexus-radius-round) !important;
+  }
+
+  .feedbackButton:hover {
+    transform: translateY(-1px);
+  }
+
+  .feedbackLabel {
+    writing-mode: horizontal-tb;
+    transform: none;
   }
 
   .backdrop {

@@ -20,13 +20,20 @@
 }
 
 .image {
+  grid-area: 1 / 1;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+}
+
+.imageLoaded {
+  opacity: 1;
 }
 
 .fallback {
+  grid-area: 1 / 1;
   display: block;
   max-width: 90%;
   overflow: hidden;

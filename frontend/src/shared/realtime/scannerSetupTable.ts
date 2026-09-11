@@ -72,8 +72,186 @@ export interface ScannerSetupTableRow {
   levelLow?: number;
   levelHigh?: number;
   levelReferencePrice?: number;
+  snapshotPrice?: number | null;
+  snapshotUpdatedAt?: string | null;
   shadowScore?: number;
   shadowStatus?: string;
+}
+
+export type ScannerSetupDistanceSource =
+  | 'current'
+  | 'market-snapshot'
+  | 'candidate-snapshot'
+  | 'unavailable';
+
+export interface ScannerSetupMarketPrice {
+  price: number | null;
+  updatedAt: string | null;
+  isCurrent: boolean;
+}
+
+export interface ScannerSetupDistanceView {
+  source: ScannerSetupDistanceSource;
+  distancePercent: number | null;
+  distanceLabel: string;
+  price: number | null;
+  levelReferencePrice: number | null;
+  calculatedAt: string | null;
+}
+
+function isPositiveFiniteNumber(
+  value: number | null | undefined,
+): value is number {
+  return (
+    typeof value === 'number'
+    && Number.isFinite(value)
+    && value > 0
+  );
+}
+
+function normalizeTimestamp(
+  value: string | null | undefined,
+): string | null {
+  return (
+    value
+    && Number.isFinite(
+      Date.parse(value),
+    )
+  )
+    ? value
+    : null;
+}
+
+export function calculateScannerDistanceToLevelPct(
+  price: number,
+  levelReferencePrice: number,
+): number | null {
+  if (
+    !isPositiveFiniteNumber(price)
+    || !isPositiveFiniteNumber(
+      levelReferencePrice,
+    )
+  ) {
+    return null;
+  }
+
+  const distance =
+    Math.abs(
+      (
+        price
+        - levelReferencePrice
+      ) / levelReferencePrice
+      * 100,
+    );
+
+  return Math.round(
+    distance * 10_000,
+  ) / 10_000;
+}
+
+function formatScannerDistancePercent(
+  value: number | null,
+): string {
+  return value === null
+    ? '—'
+    : `${value.toFixed(4)}%`;
+}
+
+export function buildScannerSetupDistanceView(
+  setup: Pick<
+    ScannerSetupTableRow,
+    | 'distancePercent'
+    | 'levelReferencePrice'
+    | 'snapshotPrice'
+    | 'snapshotUpdatedAt'
+  >,
+  market: ScannerSetupMarketPrice,
+): ScannerSetupDistanceView {
+  const levelReferencePrice =
+    isPositiveFiniteNumber(
+      setup.levelReferencePrice,
+    )
+      ? setup.levelReferencePrice
+      : null;
+
+  if (
+    levelReferencePrice !== null
+    && isPositiveFiniteNumber(
+      market.price,
+    )
+  ) {
+    const distancePercent =
+      calculateScannerDistanceToLevelPct(
+        market.price,
+        levelReferencePrice,
+      );
+
+    return {
+      source:
+        market.isCurrent
+          ? 'current'
+          : 'market-snapshot',
+      distancePercent,
+      distanceLabel:
+        formatScannerDistancePercent(
+          distancePercent,
+        ),
+      price:
+        market.price,
+      levelReferencePrice,
+      calculatedAt:
+        normalizeTimestamp(
+          market.updatedAt,
+        ),
+    };
+  }
+
+  const snapshotDistance =
+    setup.distancePercent;
+
+  if (
+    levelReferencePrice !== null
+    && Number.isFinite(
+      snapshotDistance,
+    )
+    && snapshotDistance >= 0
+  ) {
+    return {
+      source:
+        'candidate-snapshot',
+      distancePercent:
+        snapshotDistance,
+      distanceLabel:
+        formatScannerDistancePercent(
+          snapshotDistance,
+        ),
+      price:
+        isPositiveFiniteNumber(
+          setup.snapshotPrice,
+        )
+          ? setup.snapshotPrice
+          : null,
+      levelReferencePrice,
+      calculatedAt:
+        normalizeTimestamp(
+          setup.snapshotUpdatedAt,
+        ),
+    };
+  }
+
+  return {
+    source:
+      'unavailable',
+    distancePercent:
+      null,
+    distanceLabel:
+      '—',
+    price:
+      null,
+    levelReferencePrice,
+    calculatedAt:
+      null,
+  };
 }
 
 export function isScannerSetupBelowKnownQuoteVolume(

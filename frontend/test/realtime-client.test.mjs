@@ -191,3 +191,58 @@ test('builds and receives multiple realtime symbols through one SSE connection',
 
   client.close();
 });
+
+test('keeps a late BTC snapshot isolated while Scanner is subscribed to BNB', () => {
+  let source = null;
+  const client = new RealtimeMarketDataClient({
+    symbol: 'BNBUSDT',
+    eventSourceFactory: (url) => {
+      source = new FakeEventSource(url);
+      return source;
+    },
+  });
+
+  client.connect();
+  assert.equal(source?.url, '/api/v1/market/realtime/stream?symbol=BNBUSDT');
+
+  source?.emit('snapshot', {
+    symbol: 'BTCUSDT',
+    lastTrade: {
+      id: 'late-btc',
+      symbol: 'BTCUSDT',
+      timestamp: '2026-09-09T17:19:59.000Z',
+      price: 78_772,
+      quantity: 0.01,
+      quoteValue: 787.72,
+      side: 'buy',
+      isBuyerMaker: false,
+    },
+    bookTicker: null,
+    recentTrades: [],
+    updatedAt: '2026-09-09T17:19:59.000Z',
+  });
+
+  assert.equal(client.getState().snapshots.BNBUSDT, undefined);
+  assert.equal(client.getState().snapshots.BTCUSDT?.lastTrade?.price, 78_772);
+
+  source?.emit('snapshot', {
+    symbol: 'BNBUSDT',
+    lastTrade: {
+      id: 'current-bnb',
+      symbol: 'BNBUSDT',
+      timestamp: '2026-09-09T17:20:00.000Z',
+      price: 741.78,
+      quantity: 8.2,
+      quoteValue: 6_082.596,
+      side: 'sell',
+      isBuyerMaker: true,
+    },
+    bookTicker: null,
+    recentTrades: [],
+    updatedAt: '2026-09-09T17:20:00.000Z',
+  });
+
+  assert.equal(client.getState().snapshots.BNBUSDT?.lastTrade?.price, 741.78);
+  assert.equal(client.getState().snapshots.BTCUSDT?.lastTrade?.price, 78_772);
+  client.close();
+});

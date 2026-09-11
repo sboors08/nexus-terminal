@@ -5,6 +5,7 @@ import bullMarket from '@/assets/bull-market.png';
 import collectingMarket from '@/assets/collecting-market.png';
 import neutralMarket from '@/assets/neutral-market.png';
 import {
+  fetchRuntimeMarketSymbols,
   nexusApi,
   useApiQuery,
   type DashboardActivityPeriod,
@@ -42,18 +43,22 @@ import {
   useMarketCandles,
   type MarketCandleTimeframe,
 } from '@/shared/charts';
-import {
-  CausalLevelStateStrip,
-  useCausalLevelLines,
-} from '@/shared/level-lines';
+import { useCausalLevelLines } from '@/shared/level-lines';
 import { AsyncDataState } from '@/shared/ui/AsyncDataState';
 import { TokenLogo } from '@/shared/ui/TokenLogo';
+import { DashboardLevelRadar } from './DashboardLevelRadar';
 import { DashboardScannerFilters } from './DashboardScannerFilters';
 import filterStyles from './DashboardScannerFilters.module.css';
 import styles from './DashboardPage.module.css';
 
 type DashboardScannerMetricView =
   ReturnType<typeof buildDashboardScannerMetricView>;
+
+type DashboardScannerMetricView24h =
+  DashboardScannerMetricView & {
+    priceChange24hPct: number | null;
+    priceChange24hLabel: string;
+  };
 
 function HotCard({
   symbol,
@@ -65,7 +70,7 @@ function HotCard({
 }: {
   symbol: string;
   rank: number;
-  view: DashboardScannerMetricView;
+  view: DashboardScannerMetricView24h;
   activityPeriod: DashboardActivityPeriod;
   selected: boolean;
   onSelect: () => void;
@@ -80,9 +85,9 @@ function HotCard({
           : styles.sourceUnavailable;
 
   const cardColor =
-    view.priceChangePct === null
+    view.priceChange24hPct === null
       ? '#82958d'
-      : view.priceChangePct < 0
+      : view.priceChange24hPct < 0
         ? '#ff6b63'
         : '#35df8d';
 
@@ -90,6 +95,8 @@ function HotCard({
     <button
       type="button"
       onClick={onSelect}
+      aria-pressed={selected}
+      data-testid="dashboard-hot-card"
       className={`${styles.hotCard} ${
         selected
           ? styles.hotCardSelected
@@ -108,6 +115,7 @@ function HotCard({
           symbol={symbol}
           size={36}
           className={styles.coinIcon}
+          eager
         />
 
         <span className={styles.coinIdentity}>
@@ -142,17 +150,18 @@ function HotCard({
         </span>
 
         <span>
-          Изменение
+          Изменение 24ч
           <strong
             className={
-              view.priceChangePct === null
+              view.priceChange24hPct === null
                 ? styles.neutral
-                : view.priceChangePct < 0
+                : view.priceChange24hPct < 0
                   ? styles.negative
                   : styles.positive
             }
+            title="Изменение цены за 24 часа по Binance"
           >
-            {view.priceChangeLabel}
+            {view.priceChange24hLabel}
           </strong>
         </span>
 
@@ -271,6 +280,7 @@ function buildDashboardVolumeSpikesScannerUrl(
 
   const params = new URLSearchParams();
   params.set('symbol', symbol);
+  params.set('minQuoteVolumeMillions', '0');
 
   return `${ROUTES.scanner}?${params.toString()}`;
 }
@@ -526,11 +536,51 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
       intervalMs: 2_000,
       scannerWindow,
     });
+
+  const marketSymbols24hQuery =
+    useApiQuery(
+      'dashboard-market-symbols-24h',
+      () => fetchRuntimeMarketSymbols(),
+      {
+        intervalMs: 15_000,
+        preserveData: true,
+      },
+    );
+
+  const marketSymbols24h = useMemo(
+    () =>
+      new Map(
+        (marketSymbols24hQuery.data ?? [])
+          .map(
+            (marketSymbol) => [
+              normalizeDashboardRealtimeSymbol(
+                marketSymbol.symbol,
+              ),
+              marketSymbol,
+            ] as const,
+          ),
+      ),
+    [marketSymbols24hQuery.data],
+  );
+
   const dashboardVolumeSpikes =
     useMarketVolumeSpikes({
       intervalMs: 5_000,
       limit: 5,
     });
+
+  const dashboardVolumeSpikeSymbols = useMemo(
+    () =>
+      new Set(
+        dashboardVolumeSpikes.spikes.map(
+          (spike) =>
+            spike.symbol
+              .replace('/', '')
+              .toUpperCase(),
+        ),
+      ),
+    [dashboardVolumeSpikes.spikes],
+  );
 
 
 
@@ -584,17 +634,29 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                   ? 'BINANCE'
                   : 'UNAVAILABLE';
 
+        const priceChange24hPct =
+          marketSymbols24h
+            .get(symbol)
+            ?.priceChangePct
+          ?? null;
+
         return {
           ...item,
           view: {
             ...metricView,
             sourceLabel,
+            priceChange24hPct,
+            priceChange24hLabel:
+              formatDashboardMarketChange(
+                priceChange24hPct,
+              ),
           },
         };
       }),
       ),
     [
       activityPeriod,
+      marketSymbols24h,
       scannerMetrics.metrics,
       scannerUniverseEntries,
       scannerUniverseRows,
@@ -642,6 +704,12 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
 
   const btcRealtime =
     dashboardRealtime.coins.BTCUSDT;
+
+  const btcPriceChange24h =
+    marketSymbols24h
+      .get('BTCUSDT')
+      ?.priceChangePct
+    ?? null;
 
   const dashboardHotRows = useMemo(
     () =>
@@ -740,302 +808,9 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
     '--market-glow': marketMode.glow,
   } as CSSProperties;
 
-  const selectedScannerView =
-    dashboardScannerRows.find(
-      ({ row }) =>
-        normalizeDashboardRealtimeSymbol(
-          String(row[0]),
-        ) === dashboardChartSymbol,
-    )?.view ?? null;
-
-  const liveInsightRows =
-    dashboardScannerRows.filter(
-      ({ view }) => view.isLive,
-    );
-
-  const dashboardInsights: Array<{
-    icon: string;
-    title: string;
-    text: string;
-  }> = [];
-
-  const activityLeader =
-    liveInsightRows.find(
-      ({ view }) =>
-        view.activityIsLive,
-    );
-
-  if (activityLeader) {
-    dashboardInsights.push({
-      icon: '🔥',
-      title: 'Лидер активности',
-      text:
-        `${String(activityLeader.row[0])}: `
-        + `${activityLeader.view.activityScore}/100, `
-        + `${activityLeader.view.tradesCountLabel} сделок, `
-        + `${activityLeader.view.speedLabel}.`,
-    });
-  }
-
-  const volumeLeader = [
-    ...liveInsightRows,
-  ]
-    .filter(
-      ({ view }) =>
-        view.quoteVolumeValue !== null,
-    )
-    .sort(
-      (left, right) =>
-        (
-          right.view.quoteVolumeValue
-          ?? 0
-        )
-        - (
-          left.view.quoteVolumeValue
-          ?? 0
-        ),
-    )[0];
-
-  if (volumeLeader) {
-    dashboardInsights.push({
-      icon: '💰',
-      title: 'Лидер объёма',
-      text:
-        `${String(volumeLeader.row[0])}: `
-        + `${volumeLeader.view.quoteVolumeLabel} `
-        + `за окно ${activityPeriod}.`,
-    });
-  }
-
-  const strengthLeader = [
-    ...liveInsightRows,
-  ]
-    .filter(
-      ({ view }) =>
-        view.relativeStrengthPct !== null,
-    )
-    .sort(
-      (left, right) =>
-        (
-          right.view.relativeStrengthPct
-          ?? Number.NEGATIVE_INFINITY
-        )
-        - (
-          left.view.relativeStrengthPct
-          ?? Number.NEGATIVE_INFINITY
-        ),
-    )[0];
-
-  if (strengthLeader) {
-    dashboardInsights.push({
-      icon: '⚡',
-      title: 'Сильнее BTC',
-      text:
-        `${String(strengthLeader.row[0])}: `
-        + `${strengthLeader.view.relativeStrengthLabel} `
-        + `относительно BTC за окно ${activityPeriod}.`,
-    });
-  }
-
-  const liquidityLeader = [
-    ...liveInsightRows,
-  ]
-    .filter(
-      ({ view }) =>
-        view.liquidityIsLive,
-    )
-    .sort(
-      (left, right) =>
-        right.view.liquidityScore
-        - left.view.liquidityScore,
-    )[0];
-
-  if (liquidityLeader) {
-    dashboardInsights.push({
-      icon: '◉',
-      title: 'Лучшая ликвидность',
-      text:
-        `${String(liquidityLeader.row[0])}: `
-        + `${liquidityLeader.view.liquidityScore}/9`
-        + (
-          liquidityLeader.view.spreadPct === null
-            ? '.'
-            : `, спред ${
-                liquidityLeader.view.spreadPct
-                  .toFixed(4)
-              }%.`
-        ),
-    });
-  }
-
-  const dashboardInsightConclusion =
-    marketMode.title === 'СБОР ДАННЫХ'
-      ? 'Недостаточно завершённых live-метрик для вывода по рынку.'
-      : marketMode.mode === 'bullish'
-        ? 'BTC и ширина рынка направлены вверх. Приоритет — подтверждённые лидеры активности.'
-        : marketMode.mode === 'bearish'
-          ? 'BTC и ширина рынка направлены вниз. Повышен риск продолжения снижения.'
-          : 'Движение BTC и ширина рынка не дают согласованного направления.';
-
-  const dashboardVisibleCandles =
-    (
-      dashboardCandlesQuery.data
-      ?? []
-    ).slice(-100);
-
-  const dashboardRangeRows: Array<{
-    label: string;
-    value: string;
-    tone:
-      | 'resistance'
-      | 'current'
-      | 'support';
-  }> =
-    dashboardVisibleCandles.length === 0
-      ? [
-          {
-            label: 'Диапазон',
-            value: 'нет данных',
-            tone: 'current',
-          },
-        ]
-      : [
-          {
-            label: 'Верх диапазона',
-            value:
-              formatDashboardChartPrice(
-                Math.max(
-                  ...dashboardVisibleCandles.map(
-                    (candle) => candle.high,
-                  ),
-                ),
-              ),
-            tone: 'resistance',
-          },
-          {
-            label: 'Текущая цена',
-            value:
-              formatDashboardChartPrice(
-                dashboardChartPrice,
-              ),
-            tone: 'current',
-          },
-          {
-            label: 'Низ диапазона',
-            value:
-              formatDashboardChartPrice(
-                Math.min(
-                  ...dashboardVisibleCandles.map(
-                    (candle) => candle.low,
-                  ),
-                ),
-              ),
-            tone: 'support',
-          },
-        ];
-
-  const dashboardDetailStats: Array<{
-    label: string;
-    value: string;
-    tone:
-      | 'positive'
-      | 'negative'
-      | 'neutral';
-  }> = selectedScannerView
-    ? [
-        {
-          label: `Изменение ${activityPeriod}`,
-          value:
-            selectedScannerView
-              .priceChangeLabel,
-          tone:
-            selectedScannerView
-              .priceChangePct === null
-              ? 'neutral'
-              : selectedScannerView
-                  .priceChangePct < 0
-                ? 'negative'
-                : 'positive',
-        },
-        {
-          label: `Объём ${activityPeriod}`,
-          value:
-            selectedScannerView
-              .quoteVolumeLabel,
-          tone: 'neutral',
-        },
-        {
-          label: 'Сделки',
-          value:
-            selectedScannerView
-              .tradesCountLabel,
-          tone: 'neutral',
-        },
-        {
-          label: 'Скорость',
-          value:
-            selectedScannerView
-              .speedLabel,
-          tone: 'neutral',
-        },
-        {
-          label: 'Волатильность',
-          value:
-            selectedScannerView
-              .volatilityLabel,
-          tone: 'neutral',
-        },
-        {
-          label: 'Спред',
-          value:
-            selectedScannerView
-              .spreadPct === null
-              ? 'нет данных'
-              : `${
-                  selectedScannerView
-                    .spreadPct
-                    .toFixed(4)
-                }%`,
-          tone: 'neutral',
-        },
-        {
-          label: 'Ликвидность',
-          value:
-            selectedScannerView
-              .liquidityIsLive
-              ? `${
-                  selectedScannerView
-                    .liquidityScore
-                }/9`
-              : 'нет данных',
-          tone:
-            selectedScannerView
-              .liquidityIsLive
-              ? 'positive'
-              : 'neutral',
-        },
-        {
-          label: 'Источник',
-          value:
-            selectedScannerView
-              .sourceLabel,
-          tone:
-            selectedScannerView.isLive
-              ? 'positive'
-              : 'neutral',
-        },
-      ]
-    : [
-        {
-          label: 'Источник',
-          value: 'нет данных',
-          tone: 'neutral',
-        },
-      ];
-
   return (
-    <section className={styles.dashboard}>
-      <article className={`${styles.panel} ${styles.marketMode}`} style={marketModeStyle} data-market-mode={marketMode.mode}>
+    <section className={styles.dashboard} data-testid="dashboard-root">
+      <article className={`${styles.panel} ${styles.marketMode}`} style={marketModeStyle} data-market-mode={marketMode.mode} data-testid="dashboard-market-mode">
         <header className={styles.panelHeader}>
           <h2>
             BTC MARKET MODE
@@ -1098,7 +873,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
 
           <div className={styles.btcStats}>
             <div>
-              <span>BTC PRICE</span>
+              <span>BTC PRICE · Δ24H</span>
               <strong>
                 {btcRealtime.priceValue === null
                   ? '—'
@@ -1106,16 +881,16 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
               </strong>
               <em
                 className={
-                  marketMode.btcChangePct === null
+                  btcPriceChange24h === null
                     ? styles.neutral
-                    : marketMode.btcChangePct < 0
+                    : btcPriceChange24h < 0
                       ? styles.negative
                       : styles.positive
                 }
-                title={`Изменение BTC за выбранный период ${activityPeriod} из market-wide данных.`}
+                title="Изменение BTC за 24 часа по Binance"
               >
                 {formatDashboardMarketChange(
-                  marketMode.btcChangePct,
+                  btcPriceChange24h,
                 )}
               </em>
             </div>
@@ -1180,9 +955,22 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
         </div>
       </article>
 
-      <article className={`${styles.panel} ${styles.hotList}`}>
+      <article className={`${styles.panel} ${styles.hotList}`} data-testid="dashboard-hot-list">
         <div className={styles.activityToolbar}>
           <div><span>ПЕРИОД АКТИВНОСТИ</span><div className={styles.periods}>{activityPeriods.map((period) => <button key={period} type="button" className={activityPeriod === period ? styles.periodActive : ''} onClick={() => setActivityPeriod(period)}>{period}</button>)}</div></div>
+          <div className={styles.hotTitle}>
+            <div>
+              <span>🔥</span>
+              <strong>HOT LIST</strong>
+              <small>
+                — САМЫЕ АКТИВНЫЕ МОНЕТЫ ПРЯМО СЕЙЧАС
+              </small>
+            </div>
+
+            <em>
+              {dashboardHotRows.length} LIVE
+            </em>
+          </div>
           <button
             type="button"
             className={`${styles.filterButton} ${activeScannerFilterCount > 0 ? filterStyles.filterButtonActive : ''}`}
@@ -1199,19 +987,6 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
               ? ` · ${activeScannerFilterCount}`
               : ''}
           </button>
-        </div>
-        <div className={styles.hotTitle}>
-          <div>
-            <span>🔥</span>
-            <strong>HOT LIST</strong>
-            <small>
-              — САМЫЕ АКТИВНЫЕ МОНЕТЫ ПРЯМО СЕЙЧАС
-            </small>
-          </div>
-
-          <em>
-            {dashboardHotRows.length} LIVE
-          </em>
         </div>
 
         <div className={styles.hotCards}>
@@ -1267,7 +1042,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
         }}
       />
 
-      <article className={`${styles.panel} ${styles.scanner}`}>
+      <article className={`${styles.panel} ${styles.scanner}`} data-testid="dashboard-market-scanner">
 
         <header className={styles.sectionHeader}>
           <div>
@@ -1333,7 +1108,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
             <span>#</span>
             <span>МОНЕТА</span>
             <span>АКТИВНОСТЬ</span>
-            <span>ЦЕНА / {activityPeriod}</span>
+            <span>ЦЕНА / 24Ч</span>
             <span>ОБЪЁМ {activityPeriod}</span>
             <span>СДЕЛКИ {activityPeriod}</span>
             <span>СКОРОСТЬ</span>
@@ -1356,6 +1131,11 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                     ? styles.scannerRowSelected
                     : '',
                 ].filter(Boolean).join(' ')}
+                aria-pressed={
+                  normalizeDashboardRealtimeSymbol(
+                    String(row[0]),
+                  ) === dashboardChartSymbol
+                }
                 aria-label={
                   `Показать ${String(row[0])} на графике`
                 }
@@ -1379,6 +1159,7 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
                     symbol={String(row[0])}
                     size={14}
                     className={styles.scannerCoinLogo}
+                    eager
                   />
 
                   <span>{row[0]}</span>
@@ -1421,20 +1202,15 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
 
                   <em
                     className={
-                      view.priceChangeLabel
-                        .startsWith('-')
-                        ? styles.negative
-                        : (
-                            view.priceChangeLabel
-                              === 'нет данных'
-                            || view.priceChangeLabel
-                              === 'сбор данных'
-                          )
-                          ? styles.neutral
+                      view.priceChange24hPct === null
+                        ? styles.neutral
+                        : view.priceChange24hPct < 0
+                          ? styles.negative
                           : styles.positive
                     }
+                    title="Изменение цены за 24 часа по Binance"
                   >
-                    {view.priceChangeLabel}
+                    {view.priceChange24hLabel}
                   </em>
                 </span>
 
@@ -1505,71 +1281,12 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
 
 
 
-      <div className={styles.dashboardSidebar}>
-      <article
-        className={
-          `${styles.panel} ${styles.insights}`
+      <div className={styles.dashboardSidebar} data-testid="dashboard-side-column">
+      <DashboardLevelRadar
+        volumeSpikeSymbols={
+          dashboardVolumeSpikeSymbols
         }
-      >
-        <header className={styles.sectionHeader}>
-          <div>
-            <h2>
-              ◈ &nbsp; NEXUS MARKET INSIGHTS
-            </h2>
-            <small>
-              Почему эти монеты находятся в топе?
-            </small>
-          </div>
-
-          <time>
-            {dashboardHotRows[0]
-              ?.view.updatedAtLabel
-              ?? 'нет данных'}
-          </time>
-        </header>
-
-        <div className={styles.insightList}>
-          {dashboardInsights.length > 0
-            ? dashboardInsights.map(
-                ({
-                  icon,
-                  title,
-                  text,
-                }) => (
-                  <div key={title}>
-                    <span>{icon}</span>
-
-                    <div>
-                      <strong>{title}</strong>
-                      <p>{text}</p>
-                    </div>
-                  </div>
-                ),
-              )
-            : (
-                <div>
-                  <span>…</span>
-
-                  <div>
-                    <strong>
-                      Сбор данных
-                    </strong>
-                    <p>
-                      Сводка появится после
-                      завершения live-окна
-                      Scanner Metrics.
-                    </p>
-                  </div>
-                </div>
-              )}
-        </div>
-
-        <div className={styles.insightConclusion}>
-          <strong>Вывод:</strong>
-          {' '}
-          {dashboardInsightConclusion}
-        </div>
-      </article>
+      />
 
 
       {/* Dashboard Volume Spikes Reference Layout v0.1 */}
@@ -1581,6 +1298,8 @@ function DashboardPageContent({ data }: { data: DashboardViewData }) {
           `${styles.panel} ${styles.dashboardVolumeSpikes}`
 
         }
+
+        data-testid="dashboard-volume-spikes"
 
       >
 
@@ -1895,70 +1614,9 @@ const barCount =
       </article>
 
 
-        <aside className={styles.marketDetails}>
-          <div className={styles.detailTabs}>
-            <strong>
-              ДАННЫЕ ИНСТРУМЕНТА
-            </strong>
-          </div>
-
-          <div className={styles.detailColumns}>
-            <article className={styles.detailCard}>
-              <h3>
-                ДИАПАЗОН ЗАГРУЖЕННЫХ СВЕЧЕЙ
-              </h3>
-
-              {dashboardRangeRows.map(
-                ({
-                  label,
-                  value,
-                  tone,
-                }) => (
-                  <div
-                    key={label}
-                    className={
-                      styles[`level_${tone}`]
-                    }
-                  >
-                    <span>{label}</span>
-                    <strong>{value}</strong>
-                  </div>
-                ),
-              )}
-            </article>
-
-            <article className={styles.detailCard}>
-              <h3>LIVE-СТАТИСТИКА</h3>
-
-              {dashboardDetailStats.map(
-                ({
-                  label,
-                  value,
-                  tone,
-                }) => (
-                  <div key={label}>
-                    <span>{label}</span>
-
-                    <strong
-                      className={
-                        tone === 'positive'
-                          ? styles.positive
-                          : tone === 'negative'
-                            ? styles.negative
-                            : styles.neutral
-                      }
-                    >
-                      {value}
-                    </strong>
-                  </div>
-                ),
-              )}
-            </article>
-          </div>
-        </aside>
       </div>
 
-      <article className={`${styles.panel} ${styles.chartPanel}`}>
+      <article className={`${styles.panel} ${styles.chartPanel}`} data-testid="dashboard-chart-panel">
         <div className={styles.chartHeader}>
           <div className={styles.chartPair}>
             <TokenLogo
@@ -2092,7 +1750,7 @@ const barCount =
           </span>
         </div>
 
-        <div className={styles.chartCanvas}>
+        <div className={styles.chartCanvas} data-testid="dashboard-chart-canvas">
           {
             dashboardCandlesQuery.status
               === 'loading'
@@ -2180,9 +1838,6 @@ const barCount =
           }
         </div>
 
-        <CausalLevelStateStrip
-          levels={dashboardLevelLines}
-        />
       </article>
 
     </section>

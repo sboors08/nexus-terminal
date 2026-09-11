@@ -128,9 +128,9 @@
 }
 
 .panelStatusLive {
-  border-color: var(--nexus-color-long);
-  color: var(--nexus-color-long);
-  background: var(--nexus-color-long-soft);
+  border-color: var(--nexus-color-accent-border);
+  color: var(--nexus-color-accent-primary);
+  background: var(--nexus-color-accent-muted);
 }
 
 .panelStatusPending {
@@ -288,8 +288,8 @@
 }
 
 .statusLive {
-  background: var(--nexus-color-long);
-  box-shadow: 0 0 8px var(--nexus-color-long);
+  background: var(--nexus-color-accent-primary);
+  box-shadow: 0 0 8px var(--nexus-color-accent-glow);
 }
 
 .statusPending {
@@ -317,9 +317,9 @@
 }
 
 .openButton {
-  border: var(--nexus-border-width) solid var(--nexus-color-info);
+  border: var(--nexus-border-width) solid var(--nexus-color-accent-primary);
   color: var(--nexus-color-text-on-accent);
-  background: var(--nexus-color-info);
+  background: var(--nexus-color-accent-primary);
 }
 
 .openButton:hover {

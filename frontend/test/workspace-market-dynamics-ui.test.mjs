@@ -72,7 +72,7 @@ test(
 );
 
 test(
-  'renders one live dynamics panel in Market preview and Setup Workspace',
+  'keeps one mounted live dynamics panel across Workspace modes',
   () => {
     assert.equal(
       (
@@ -81,7 +81,7 @@ test(
         )
         ?? []
       ).length,
-      2,
+      1,
     );
 
     assert.match(
