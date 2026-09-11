@@ -48,20 +48,20 @@
 .toolButton:hover:not(:disabled),
 .actionButton:hover:not(:disabled) {
   color: #f5faf8;
-  border-color: rgba(74, 168, 255, 0.55);
-  background: rgba(74, 168, 255, 0.14);
+  border-color: var(--nexus-color-accent-border);
+  background: var(--nexus-color-accent-muted);
 }
 
 .toolButton.active,
 .actionButton.active {
   color: #ffffff;
-  border-color: rgba(48, 219, 151, 0.72);
-  background: rgba(48, 219, 151, 0.2);
+  border-color: var(--nexus-color-accent-border);
+  background: var(--nexus-color-accent-muted);
 }
 
 .quickMeasureActive {
-  color: #31db97;
-  box-shadow: 0 0 12px rgba(49, 219, 151, 0.32);
+  color: var(--nexus-color-accent-primary);
+  box-shadow: 0 0 12px var(--nexus-color-accent-glow);
 }
 
 .toolButton.longTool {
@@ -157,7 +157,7 @@
 }
 
 .menuItemActive {
-  color: #31db97;
+  color: var(--nexus-color-accent-primary);
 }
 
 .menuItemIcon {

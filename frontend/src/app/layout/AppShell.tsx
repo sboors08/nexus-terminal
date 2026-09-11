@@ -20,7 +20,6 @@ const TOP_NAVIGATION = [
   { label: 'DASHBOARD', path: ROUTES.dashboard, end: true },
   { label: 'SCANNER', path: ROUTES.scanner, end: false },
   { label: 'MARKET', path: ROUTES.market, end: false },
-  { label: 'LEVELS', path: ROUTES.levelPreview, end: false },
   { label: 'WORKSPACE', path: ROUTES.workspace, end: false },
   { label: 'ALERTS', path: ROUTES.alerts, end: false },
   { label: 'WATCHLIST', path: ROUTES.watchlist, end: false },

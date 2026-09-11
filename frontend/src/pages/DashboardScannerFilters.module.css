@@ -19,7 +19,7 @@
   background:
     linear-gradient(
       145deg,
-      rgb(53 223 141 / 7%),
+      var(--nexus-color-accent-muted),
       transparent 40%
     ),
     #071116;
@@ -57,7 +57,7 @@
 }
 
 .header small {
-  color: #35df8d;
+  color: var(--nexus-color-accent-primary);
   font-size: 9px;
 }
 
@@ -105,8 +105,8 @@
 
 .field input:focus,
 .field select:focus {
-  border-color: #35df8d;
-  box-shadow: 0 0 0 2px rgb(53 223 141 / 9%);
+  border-color: var(--nexus-color-accent-primary);
+  box-shadow: 0 0 0 2px var(--nexus-color-accent-muted);
 }
 
 .field input::placeholder {
@@ -126,7 +126,7 @@
 .liveToggle input {
   width: 15px;
   height: 15px;
-  accent-color: #35df8d;
+  accent-color: var(--nexus-color-accent-primary);
 }
 
 .metricsGrid {
@@ -196,16 +196,16 @@
 }
 
 .applyButton {
-  border: 1px solid #35df8d;
+  border: 1px solid var(--nexus-color-accent-primary);
   color: #03140c;
-  background: #35df8d;
-  box-shadow: 0 0 18px rgb(53 223 141 / 14%);
+  background: var(--nexus-color-accent-primary);
+  box-shadow: 0 0 18px var(--nexus-color-accent-glow);
 }
 
 .filterButtonActive {
-  border-color: #35df8d !important;
-  color: #35df8d !important;
-  background: rgb(53 223 141 / 7%) !important;
+  border-color: var(--nexus-color-accent-border) !important;
+  color: var(--nexus-color-accent-primary) !important;
+  background: var(--nexus-color-accent-muted) !important;
 }
 
 .searchField {

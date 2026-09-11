@@ -1,9 +1,19 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
   buildNexusHorizontalSegmentData,
 } from '../node_modules/.tmp/realtime-test/charts/model/horizontalSegment.js';
+
+const chartSource =
+  readFileSync(
+    new URL(
+      '../src/shared/charts/ui/NexusCandlestickChart.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
 
 function makeCandle(
   openTime,
@@ -245,6 +255,70 @@ test(
           value: 100,
         },
       ],
+    );
+  },
+);
+
+test(
+  'clips a formation segment whose origin is older than the loaded candles',
+  () => {
+    const data =
+      buildNexusHorizontalSegmentData(
+        [
+          makeCandle(
+            '2026-01-01T00:02:00.000Z',
+            '2026-01-01T00:02:59.999Z',
+            true,
+          ),
+          makeCandle(
+            '2026-01-01T00:03:00.000Z',
+            '2026-01-01T00:03:59.999Z',
+            true,
+          ),
+        ],
+        '2026-01-01T00:00:00.000Z',
+        100,
+        '2026-01-01T00:03:59.999Z',
+      );
+
+    assert.deepEqual(
+      data,
+      [
+        {
+          time:
+            Date.parse(
+              '2026-01-01T00:02:00.000Z',
+            ) / 1000,
+          value:
+            100,
+        },
+        {
+          time:
+            Date.parse(
+              '2026-01-01T00:03:00.000Z',
+            ) / 1000,
+          value:
+            100,
+        },
+      ],
+    );
+  },
+);
+
+test(
+  'removes every horizontal segment series before replacing an updated view',
+  () => {
+    assert.match(
+      chartSource,
+      /const createdSeries\s*=\s*horizontalSegments[\s\S]*?horizontalSegmentSeriesRef\.current\s*=\s*createdSeries/u,
+    );
+    assert.match(
+      chartSource,
+      /for \([\s\S]*?of createdSeries[\s\S]*?chart\.removeSeries\(\s*entry\.series/u,
+    );
+    assert.match(
+      chartSource,
+      /horizontalSegmentSeriesRef\.current\s*=\s*\[\]/u,
     );
   },
 );

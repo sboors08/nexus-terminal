@@ -121,7 +121,15 @@ const requiredMarkers = [
   'Текст существует только до закрытия страницы и не сохраняется',
   'Закрыть без сохранения',
   'Внешний терминал не подключён',
-  'Рабочее пространство · runtime-сетап Setup Engine',
+  'data-workspace-header="compact"',
+  'styles.workspaceModeStatus',
+  '<NexusCandlestickChart',
+  'horizontalSegments={causalLevelLines.horizontalSegments}',
+  'Лента принтов',
+  '<NexusLiquidationHeatmap',
+  'Динамика рынка',
+  'styles.nexusPanel',
+  'useRealtimeMarketData({',
   'backend Binance Futures',
   'отмечен в демонстрационном сетапе',
   'export interface WorkspaceViewData',
@@ -140,6 +148,8 @@ const missingMarkers =
   );
 
 const forbiddenPageMarkers = [
+  'CausalLevelStateStrip',
+  'Рабочее пространство · runtime-сетап Setup Engine',
   'WorkspaceSnapshot',
   'snapshot.candles',
   'nexusApi.getWorkspaceSnapshot(',

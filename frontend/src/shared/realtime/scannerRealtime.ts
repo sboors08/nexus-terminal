@@ -7,11 +7,13 @@ import type {
 
 export interface ScannerRealtimeMarketView {
   isLive: boolean;
+  price: number | null;
   priceLabel: string;
   bidLabel: string;
   askLabel: string;
   spreadLabel: string;
   updatedAtLabel: string;
+  updatedAt: string | null;
   recentTrades: RealtimeTrade[];
 }
 
@@ -73,11 +75,13 @@ export function buildScannerRealtimeMarketView(
   if (!snapshot) {
     return {
       isLive: false,
+      price: null,
       priceLabel: unavailablePrice,
       bidLabel: '—',
       askLabel: '—',
       spreadLabel: '—',
       updatedAtLabel: 'нет данных',
+      updatedAt: null,
       recentTrades: [],
     };
   }
@@ -99,6 +103,8 @@ export function buildScannerRealtimeMarketView(
     isLive:
       currentPrice !== null
       || bookTicker !== null,
+    price:
+      currentPrice,
     priceLabel:
       currentPrice === null
         ? unavailablePrice
@@ -119,6 +125,7 @@ export function buildScannerRealtimeMarketView(
       updatedAt
         ? formatScannerTradeTime(updatedAt)
         : 'нет данных',
+    updatedAt,
     recentTrades:
       [...snapshot.recentTrades]
         .slice(-6)

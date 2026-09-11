@@ -5,19 +5,16 @@ import { useFeedbackPageContext } from '@/shared/feedback/FeedbackProvider';
 import { buildWorkspaceUrl } from '@/shared/routing/setupContext';
 import {
   NexusCandlestickChart,
-  NexusMiniCandlestickChart,
   useMarketCandles,
+  type NexusChartHorizontalSegment,
 } from '@/shared/charts';
-import {
-  CausalLevelStateStrip,
-  useCausalLevelLines,
-} from '@/shared/level-lines';
+import { useCausalLevelLines } from '@/shared/level-lines';
 import {
   DEFAULT_SCANNER_SETUP_TABLE_SORT_STATE,
   applyScannerSetupLiveMetrics,
+  buildScannerSetupDistanceView,
   buildScannerRealtimeMarketView,
   formatScannerPrice,
-  formatScannerQuantity,
   formatScannerTradeTime,
   getScannerRealtimeConnectionLabel,
   indexScannerSetupMetrics,
@@ -28,7 +25,6 @@ import {
   useMarketWideLiquidations,
   useMarketWideScannerMetrics,
   useRealtimeMarketData,
-  type MarketVolumeSpike,
   type MarketVolumeSpikePeriodMinutes,
   type MarketVolumeSpikeStatus,
   type ScannerSetupTableSortKey,
@@ -56,6 +52,11 @@ import {
   type TradingPresetDefinition,
   type TradingPreset,
 } from '@/shared/config/tradingPresets';
+import {
+  ScannerChartMarketOverlay,
+  findScannerMarketSymbol24h,
+  formatScanner24hPercent,
+} from './ScannerChartMarketOverlay';
 import styles from './ScannerPage.module.css';
 
 type DirectionFilter = 'all' | TradeDirection;
@@ -64,10 +65,32 @@ type KindFilter = 'all' | ScannerSetupKind;
 type DistanceFilter = 'all' | '0.5' | '1' | '2';
 type TouchesFilter = 'all' | '2' | '3';
 type BtcStrengthFilter = 'all' | 'positive' | 'negative';
-type ScannerViewMode = 'list' | 'grid';
 
 const DEFAULT_SCANNER_MIN_QUOTE_VOLUME_MILLIONS =
   '100';
+
+function resolveInitialScannerMinQuoteVolumeMillions(
+  value: string | null,
+): string {
+  if (value === null) {
+    return DEFAULT_SCANNER_MIN_QUOTE_VOLUME_MILLIONS;
+  }
+
+  const normalized =
+    value.trim().replace(',', '.');
+  const millions = Number(normalized);
+
+  if (
+    !Number.isFinite(millions)
+    || millions < 0
+  ) {
+    return DEFAULT_SCANNER_MIN_QUOTE_VOLUME_MILLIONS;
+  }
+
+  return millions === 0
+    ? ''
+    : normalized;
+}
 
 const STAGE_OPTIONS: Array<{ value: StageFilter; label: string }> = [
   { value: 'all', label: 'Все стадии' },
@@ -85,19 +108,23 @@ const KIND_OPTIONS: Array<{ value: KindFilter; label: string }> = [
   { value: 'Отскок от сопротивления', label: 'Отскок от сопротивления' },
 ];
 
-const VOLUME_SPIKE_STATUS_LABELS: Record<MarketVolumeSpikeStatus, string> = {
-  new: 'НОВЫЙ',
-  growing: 'РАСТЁТ',
-  stable: 'СТАБИЛЬНЫЙ',
-  fading: 'ЗАТУХАЕТ',
-};
-
-const VOLUME_SPIKE_PERIOD_OPTIONS:
-readonly MarketVolumeSpikePeriodMinutes[] = [
-  1,
-  3,
-  5,
-  15,
+const SORT_OPTIONS: Array<{
+  value: ScannerSetupTableSortKey;
+  label: string;
+}> = [
+  { value: 'distance', label: 'Расстояние' },
+  { value: 'symbol', label: 'Инструмент' },
+  { value: 'direction', label: 'Направление' },
+  { value: 'kind', label: 'Тип сетапа' },
+  { value: 'stage', label: 'Стадия' },
+  { value: 'timeframe', label: 'Таймфрейм' },
+  { value: 'level', label: 'Цена уровня' },
+  { value: 'touches', label: 'Касания' },
+  { value: 'formation', label: 'Формирование' },
+  { value: 'pullbacks', label: 'Откаты' },
+  { value: 'volume', label: 'Объём' },
+  { value: 'trades', label: 'Сделки' },
+  { value: 'btcStrength', label: 'Сила к BTC' },
 ];
 
 const VOLUME_SPIKE_STATUSES:
@@ -117,6 +144,109 @@ readonly ScannerTimeframe[] = [
   '4h',
 ];
 
+const SELECTED_SETUP_LEVEL_COLORS = {
+  support: '#32d583',
+  resistance: '#ff6273',
+} as const;
+
+function buildSelectedSetupHorizontalSegments(
+  setup: ScannerSetup,
+  isMarketPreview: boolean,
+  horizontalSegments:
+    readonly NexusChartHorizontalSegment[],
+): readonly NexusChartHorizontalSegment[] {
+  const price =
+    setup.levelReferencePrice;
+  const startTime =
+    setup.levelActiveFrom;
+  const startTimeMs =
+    startTime
+      ? Date.parse(startTime)
+      : Number.NaN;
+
+  if (
+    isMarketPreview
+    || price === undefined
+    || !Number.isFinite(price)
+    || price <= 0
+    || !startTime
+    || !Number.isFinite(startTimeMs)
+  ) {
+    return horizontalSegments;
+  }
+
+  const levelKind =
+    setup.kind.includes(
+      'поддержки',
+    )
+      ? 'support'
+      : 'resistance';
+  const color =
+    SELECTED_SETUP_LEVEL_COLORS[
+      levelKind
+    ];
+  const priceTolerance =
+    Math.max(
+      price * 1e-10,
+      1e-12,
+    );
+
+  const backgroundSegments =
+    horizontalSegments.filter(
+      (segment) => {
+        if (
+          segment.endTime
+          !== undefined
+        ) {
+          return true;
+        }
+
+        const sameColor =
+          segment.color.toLowerCase()
+          === color;
+        const sameStartTime =
+          Date.parse(
+            segment.startTime,
+          ) === startTimeMs;
+        const samePrice =
+          Math.abs(
+            segment.price - price,
+          ) <= priceTolerance;
+        const sameDisplayedPrice =
+          formatScannerPrice(
+            segment.price,
+          )
+          === formatScannerPrice(
+            price,
+          );
+
+        return !(
+          sameColor
+          && (
+            sameStartTime
+            || samePrice
+            || sameDisplayedPrice
+          )
+        );
+      },
+    );
+
+  return [
+    ...backgroundSegments,
+    {
+      price,
+      startTime,
+      color,
+      title:
+        levelKind === 'support'
+          ? 'СЕТАП · ПОДДЕРЖКА'
+          : 'СЕТАП · СОПРОТИВЛЕНИЕ',
+      lineStyle: 'solid',
+      axisLabelVisible: true,
+    },
+  ];
+}
+
 const DEFAULT_VOLUME_SPIKE_FILTERS = {
   periodMinutes: 5 as MarketVolumeSpikePeriodMinutes,
   baselinePeriods: 12,
@@ -124,80 +254,6 @@ const DEFAULT_VOLUME_SPIKE_FILTERS = {
   minTradesRatio: 1.5,
   minCurrentQuoteVolume: 50_000,
 };
-
-function getVolumeSpikeStatusClass(status: MarketVolumeSpikeStatus): string {
-  if (status === 'new') return styles.volumeSpikeNew;
-  if (status === 'growing') return styles.volumeSpikeGrowing;
-  if (status === 'stable') return styles.volumeSpikeStable;
-  return styles.volumeSpikeFading;
-}
-
-function formatVolumeSpikeQuoteVolume(value: number): string {
-  return `${new Intl.NumberFormat('ru-RU', {
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(value)} USDT`;
-}
-
-function formatVolumeSpikePriceChange(value: number | null): string {
-  if (value === null) return '—';
-  return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
-}
-
-function formatVolumeSpikeUpdatedAt(value: string | null): string {
-  if (!value) return 'ожидание данных';
-  const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) return 'обновлено';
-
-  return new Intl.DateTimeFormat('ru-RU', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(timestamp);
-}
-
-function formatOpenInterest(
-  value:
-    number
-    | null
-    | undefined,
-): string {
-  if (
-    value === null
-    || value === undefined
-    || !Number.isFinite(value)
-  ) {
-    return '—';
-  }
-
-  return new Intl.NumberFormat(
-    'ru-RU',
-    {
-      notation: 'compact',
-      maximumFractionDigits: 2,
-    },
-  ).format(value);
-}
-
-function formatFundingRate(
-  value:
-    number
-    | null
-    | undefined,
-): string {
-  if (
-    value === null
-    || value === undefined
-    || !Number.isFinite(value)
-  ) {
-    return '—';
-  }
-
-  return (
-    `${value > 0 ? '+' : ''}`
-    + `${value.toFixed(4)}%`
-  );
-}
 
 function createMarketPreviewAnchor(
   symbol:
@@ -300,92 +356,6 @@ function InfoHint({ label }: { label: string }) {
     <button className={styles.infoHint} type="button" aria-label={label} data-tooltip={label}>
       ?
     </button>
-  );
-}
-
-type SortableTableHeaderProps = {
-  label: string;
-  sortKey: ScannerSetupTableSortKey;
-  sortState: ScannerSetupTableSortState;
-  onSort: (sortKey: ScannerSetupTableSortKey) => void;
-  hint?: string;
-};
-
-function SortableTableHeader({
-  label,
-  sortKey,
-  sortState,
-  onSort,
-  hint,
-}: SortableTableHeaderProps) {
-  const active =
-    sortState.sortBy
-    === sortKey;
-
-  const ariaSort:
-    'none'
-    | 'ascending'
-    | 'descending' =
-      active
-        ? sortState.sortDirection
-          === 'desc'
-            ? 'descending'
-            : 'ascending'
-        : 'none';
-
-  const indicator =
-    active
-      ? sortState.sortDirection
-        === 'desc'
-          ? '↓'
-          : '↑'
-      : '↕';
-
-  return (
-    <span
-      className={
-        `${styles.sortableHeader} ${
-          hint
-            ? styles.headerWithHint
-            : ''
-        }`
-      }
-      role="columnheader"
-      aria-sort={ariaSort}
-    >
-      <button
-        type="button"
-        className={
-          active
-            ? `${styles.sortButton} ${styles.sortButtonActive}`
-            : styles.sortButton
-        }
-        onClick={() => onSort(sortKey)}
-        aria-label={
-          `Сортировать «${label}»: ${
-            active
-              ? sortState.sortDirection === 'desc'
-                ? 'сейчас по убыванию'
-                : 'сейчас по возрастанию'
-              : 'первое нажатие по убыванию'
-          }`
-        }
-      >
-        <span>{label}</span>
-        <span
-          className={styles.sortIndicator}
-          aria-hidden="true"
-        >
-          {indicator}
-        </span>
-      </button>
-
-      {
-        hint
-          ? <InfoHint label={hint} />
-          : null
-      }
-    </span>
   );
 }
 
@@ -588,13 +558,6 @@ function ScannerPageContent({
     && presetDefinition.scannerWindows.includes(requestedScannerWindow)
       ? requestedScannerWindow
       : presetDefinition.defaultScannerWindow;
-  const [
-    viewMode,
-    setViewMode,
-  ] = useState<ScannerViewMode>(
-    'list',
-  );
-
   const [search, setSearch] = useState('');
   const [direction, setDirection] = useState<DirectionFilter>('all');
   const [kind, setKind] = useState<KindFilter>('all');
@@ -621,52 +584,11 @@ function ScannerPageContent({
   const [distance, setDistance] = useState<DistanceFilter>('all');
   const [touches, setTouches] = useState<TouchesFilter>('all');
   const [btcStrength, setBtcStrength] = useState<BtcStrengthFilter>('all');
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [sortState, setSortState] =
     useState<ScannerSetupTableSortState>({
       ...DEFAULT_SCANNER_SETUP_TABLE_SORT_STATE,
     });
-
-  const [
-    volumeSpikePeriodMinutes,
-    setVolumeSpikePeriodMinutes,
-  ] = useState<MarketVolumeSpikePeriodMinutes>(
-    DEFAULT_VOLUME_SPIKE_FILTERS.periodMinutes,
-  );
-
-  const [
-    volumeSpikeBaselinePeriods,
-    setVolumeSpikeBaselinePeriods,
-  ] = useState(
-    DEFAULT_VOLUME_SPIKE_FILTERS.baselinePeriods,
-  );
-
-  const [
-    volumeSpikeMinVolumeRatio,
-    setVolumeSpikeMinVolumeRatio,
-  ] = useState(
-    DEFAULT_VOLUME_SPIKE_FILTERS.minVolumeRatio,
-  );
-
-  const [
-    volumeSpikeMinTradesRatio,
-    setVolumeSpikeMinTradesRatio,
-  ] = useState(
-    DEFAULT_VOLUME_SPIKE_FILTERS.minTradesRatio,
-  );
-
-  const [
-    volumeSpikeMinCurrentQuoteVolume,
-    setVolumeSpikeMinCurrentQuoteVolume,
-  ] = useState(
-    DEFAULT_VOLUME_SPIKE_FILTERS.minCurrentQuoteVolume,
-  );
-
-  const [
-    volumeSpikeStatuses,
-    setVolumeSpikeStatuses,
-  ] = useState<MarketVolumeSpikeStatus[]>(
-    [...VOLUME_SPIKE_STATUSES],
-  );
 
   const hasRuntimeSetups =
     setups.some(
@@ -868,47 +790,6 @@ function ScannerPageContent({
     displayedSetups,
   ]);
 
-  const gridSetups =
-    useMemo(
-      () => {
-        const uniqueSetups =
-          new Map<
-            string,
-            ScannerSetup
-          >();
-
-        for (
-          const setup
-          of filteredSetups
-        ) {
-          if (
-            !uniqueSetups.has(
-              setup.symbol,
-            )
-          ) {
-            uniqueSetups.set(
-              setup.symbol,
-              setup,
-            );
-          }
-
-          if (
-            uniqueSetups.size
-            === 4
-          ) {
-            break;
-          }
-        }
-
-        return [
-          ...uniqueSetups.values(),
-        ];
-      },
-      [
-        filteredSetups,
-      ],
-    );
-
   const selectedSetup = useMemo(() => {
     return filteredSetups.find((setup) => setup.id === requestedSetupId)
       ?? displayedSetups.find((setup) => setup.id === requestedSetupId)
@@ -958,6 +839,22 @@ function ScannerPageContent({
     timeframe: chartTimeframe,
     candles: candlesQuery.data ?? [],
   });
+  const chartHorizontalSegments =
+    useMemo(
+      () =>
+        buildSelectedSetupHorizontalSegments(
+          selectedSetup,
+          isMarketPreview,
+          causalLevelLines
+            .horizontalSegments,
+        ),
+      [
+        causalLevelLines
+          .horizontalSegments,
+        isMarketPreview,
+        selectedSetup,
+      ],
+    );
 
   const realtime = useRealtimeMarketData({
     symbol:
@@ -973,6 +870,51 @@ function ScannerPageContent({
     ),
     [realtimeSnapshot],
   );
+  const realtimeIsCurrent =
+    realtime.lifecycleState
+      === 'open'
+    && realtime.status?.state
+      === 'connected'
+    && realtimeMarket.price
+      !== null;
+  const selectedDistance =
+    useMemo(
+      () =>
+        buildScannerSetupDistanceView(
+          selectedSetup,
+          {
+            price:
+              realtimeMarket.price,
+            updatedAt:
+              realtimeMarket.updatedAt,
+            isCurrent:
+              realtimeIsCurrent,
+          },
+        ),
+      [
+        realtimeIsCurrent,
+        realtimeMarket.price,
+        realtimeMarket.updatedAt,
+        selectedSetup,
+      ],
+    );
+  const selectedDistanceTimeLabel =
+    selectedDistance.calculatedAt
+      ? formatScannerTradeTime(
+          selectedDistance.calculatedAt,
+        )
+      : 'время неизвестно';
+  const selectedDistanceSourceLabel =
+    selectedDistance.source
+      === 'current'
+      ? `Текущее · ${selectedDistanceTimeLabel}`
+      : selectedDistance.source
+          === 'market-snapshot'
+        ? `Рыночный снимок · ${selectedDistanceTimeLabel}`
+        : selectedDistance.source
+            === 'candidate-snapshot'
+          ? `Снимок Setup Engine · ${selectedDistanceTimeLabel}`
+          : 'Расстояние недоступно';
 
   const selectedFuturesMetrics =
     useMarketWideScannerMetrics({
@@ -1032,23 +974,35 @@ function ScannerPageContent({
     limit: 12,
     intervalMs: 5_000,
     periodMinutes:
-      volumeSpikePeriodMinutes,
+      DEFAULT_VOLUME_SPIKE_FILTERS.periodMinutes,
     baselinePeriods:
-      volumeSpikeBaselinePeriods,
+      DEFAULT_VOLUME_SPIKE_FILTERS.baselinePeriods,
     minVolumeRatio:
-      volumeSpikeMinVolumeRatio,
+      DEFAULT_VOLUME_SPIKE_FILTERS.minVolumeRatio,
     minTradesRatio:
-      volumeSpikeMinTradesRatio,
+      DEFAULT_VOLUME_SPIKE_FILTERS.minTradesRatio,
     minCurrentQuoteVolume:
-      volumeSpikeMinCurrentQuoteVolume,
+      DEFAULT_VOLUME_SPIKE_FILTERS.minCurrentQuoteVolume,
     statuses:
-      volumeSpikeStatuses,
+      VOLUME_SPIKE_STATUSES,
   });
 
   const selectedVolumeSpike =
     volumeSpikes.spikes.find(
       (spike) => spike.symbol === selectedSymbol,
     ) ?? null;
+
+  const selectedMarket24h = useMemo(
+    () =>
+      findScannerMarketSymbol24h(
+        marketSymbols24hQuery.data ?? [],
+        selectedSymbol,
+      ),
+    [
+      marketSymbols24hQuery.data,
+      selectedSymbol,
+    ],
+  );
 
   const marketPreviewPriceChange =
     selectedVolumeSpike?.priceChangePct ?? null;
@@ -1060,11 +1014,22 @@ function ScannerPageContent({
       : 'long'
     : selectedSetup.direction;
 
-  const displayPriceChange = isMarketPreview
-    ? marketPreviewPriceChange === null
-      ? '—'
-      : `${marketPreviewPriceChange >= 0 ? '+' : ''}${marketPreviewPriceChange.toFixed(2)}%`
-    : selectedSetup.priceChange;
+  const selectedPriceChange24h =
+    selectedMarket24h
+      ?.priceChangePct
+    ?? null;
+
+  const displayPriceChange =
+    formatScanner24hPercent(
+      selectedPriceChange24h,
+    );
+
+  const displayPriceChangeClass =
+    selectedPriceChange24h === null
+      ? undefined
+      : selectedPriceChange24h < 0
+        ? styles.negativeValue
+        : styles.positiveValue;
   useEffect(() => {
     if (resultsMode !== 'setups') {
       return;
@@ -1099,71 +1064,12 @@ function ScannerPageContent({
     setSearchParams(nextParams);
   };
 
-  const toggleVolumeSpikeStatus = (
-    status: MarketVolumeSpikeStatus,
-  ) => {
-    setVolumeSpikeStatuses(
-      (current) => {
-        if (current.includes(status)) {
-          if (current.length === 1) {
-            return current;
-          }
-
-          return current.filter(
-            (item) =>
-              item !== status,
-          );
-        }
-
-        return [
-          ...current,
-          status,
-        ];
-      },
-    );
-  };
-
-  const resetVolumeSpikeFilters = () => {
-    setVolumeSpikePeriodMinutes(
-      DEFAULT_VOLUME_SPIKE_FILTERS.periodMinutes,
-    );
-    setVolumeSpikeBaselinePeriods(
-      DEFAULT_VOLUME_SPIKE_FILTERS.baselinePeriods,
-    );
-    setVolumeSpikeMinVolumeRatio(
-      DEFAULT_VOLUME_SPIKE_FILTERS.minVolumeRatio,
-    );
-    setVolumeSpikeMinTradesRatio(
-      DEFAULT_VOLUME_SPIKE_FILTERS.minTradesRatio,
-    );
-    setVolumeSpikeMinCurrentQuoteVolume(
-      DEFAULT_VOLUME_SPIKE_FILTERS
-        .minCurrentQuoteVolume,
-    );
-    setVolumeSpikeStatuses(
-      [...VOLUME_SPIKE_STATUSES],
-    );
-  };
-
-  const selectVolumeSpike = (spike: MarketVolumeSpike) => {
-    setSearch(spike.symbol);
-
-    const matchingSetup = displayedSetups.find((setup) => setup.symbol === spike.symbol);
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set('symbol', spike.symbol);
-
-    if (matchingSetup) {
-      nextParams.set('setupId', matchingSetup.id);
-    }
-
-    setSearchParams(nextParams);
-  };
-
-  useFeedbackPageContext({
+  const { openSetupFeedback } = useFeedbackPageContext({
     screen: 'Scanner',
     symbol: selectedSymbol,
     timeframe: chartTimeframe,
     setupId: workspaceSetupId,
+    dock: 'hidden',
   });
 
   const selectTableSort = (
@@ -1195,16 +1101,34 @@ function ScannerPageContent({
     });
   };
 
+  const advancedFilterCount = [
+    distance !== 'all',
+    touches !== 'all',
+    btcStrength !== 'all',
+  ].filter(Boolean).length;
+
+  const candidatesStateLabel =
+    resultsMode === 'loading'
+      ? 'Обновление списка'
+      : resultsMode === 'error'
+        ? 'Ошибка обновления'
+        : setupsDataState === 'retained-loading'
+          ? 'Сохранённые · обновление'
+          : setupsDataState === 'retained-error'
+            ? 'Сохранённые · ошибка'
+            : 'Список актуален';
+
   return (
-    <section className={styles.scanner}>
-      <header className={styles.pageHeader}>
-        <div>
-          <p className={styles.eyebrow}>
-          {setupsSourceDescription}
-        </p>
+    <section className={styles.scanner} data-scanner-layout="focus">
+      <header className={styles.pageHeader} title={setupsSourceDescription}>
+        <div className={styles.headerSummary}>
           <h1 className={styles.title}>Scanner</h1>
-          <p className={styles.subtitle}>Полный список найденных ситуаций с фильтрацией, сортировкой и предпросмотром.</p>
+          <span className={styles.candidateCount}>
+            <strong>{filteredSetups.length}</strong> кандидатов
+          </span>
+          <span className={styles.listState}>{candidatesStateLabel}</span>
         </div>
+
         <div className={styles.headerControls}>
           <div
             className={styles.shadowModeControl}
@@ -1213,65 +1137,33 @@ function ScannerPageContent({
             <div className={styles.shadowModeButtons}>
               <button
                 type="button"
-                className={
-                  !shadowEnabled
-                    ? styles.shadowModeActive
-                    : ''
-                }
+                className={!shadowEnabled ? styles.shadowModeActive : ''}
                 aria-pressed={!shadowEnabled}
-                onClick={() =>
-                  setShadowEnabled(
-                    false,
-                  )
-                }
+                onClick={() => setShadowEnabled(false)}
               >
                 V1
               </button>
-
               <button
                 type="button"
-                className={
-                  shadowEnabled
-                    ? styles.shadowModeActive
-                    : ''
-                }
+                className={shadowEnabled ? styles.shadowModeActive : ''}
                 aria-pressed={shadowEnabled}
-                onClick={() =>
-                  setShadowEnabled(
-                    true,
-                  )
-                }
+                onClick={() => setShadowEnabled(true)}
               >
                 V1 + V2 Shadow
               </button>
             </div>
-
-            <div className={styles.shadowModeMeta}>
-              <span>{shadowStatusLabel}</span>
-
-              {
-                shadowEnabled
-                && shadowStatus === 'error'
-                  ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShadowRetryToken(
-                            (current) =>
-                              current + 1,
-                          )
-                        }
-                        title={
-                          shadowError
-                            ?.message
-                        }
-                      >
-                        Повторить
-                      </button>
-                    )
-                  : null
-              }
-            </div>
+            <span className={styles.shadowModeMeta}>
+              {shadowStatusLabel}
+              {shadowEnabled && shadowStatus === 'error' ? (
+                <button
+                  type="button"
+                  onClick={() => setShadowRetryToken((current) => current + 1)}
+                  title={shadowError?.message}
+                >
+                  Повторить
+                </button>
+              ) : null}
+            </span>
           </div>
 
           <div className={styles.headerStatus}>
@@ -1279,50 +1171,43 @@ function ScannerPageContent({
               className={`${styles.liveDot} ${realtimeDotClass}`}
               aria-hidden="true"
             />
-            {
-              resultsMode === 'setups'
-                ? `${realtimeLabel} · ${selectedSymbol}`
-                : resultsMode === 'loading'
-                  ? 'Обновляем кандидатов'
-                  : resultsMode === 'error'
-                    ? 'Ошибка обновления'
-                    : '0 кандидатов'
-            }
+            {resultsMode === 'setups'
+              ? `${realtimeLabel} · ${selectedSymbol}`
+              : resultsMode === 'loading'
+                ? 'Обновляем кандидатов'
+                : resultsMode === 'error'
+                  ? 'Ошибка обновления'
+                  : '0 кандидатов'}
           </div>
         </div>
       </header>
 
       <section className={styles.filtersPanel} aria-label="Фильтры Scanner">
-        <div className={styles.filterTopRow}>
+        <div className={styles.filterPrimaryRow}>
           <label className={styles.searchField}>
-            <span>Поиск инструмента</span>
+            <span>Инструмент</span>
             <input
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Например, SOLUSDT"
+              placeholder="SOLUSDT"
             />
           </label>
 
-                    <label className={styles.volumeFilterField}>
-            <span>
-              {'\u041e\u0431\u044a\u0451\u043c 24\u0447 \u043e\u0442, \u043c\u043b\u043d USDT'}
-            </span>
+          <label className={styles.volumeFilterField}>
+            <span>Объём 24ч от, млн</span>
             <input
               type="number"
               min="0"
               step="1"
               inputMode="decimal"
               value={minQuoteVolumeMillions}
-              onChange={(event) =>
-                setMinQuoteVolumeMillions(
-                  event.target.value,
-                )
-              }
+              onChange={(event) => setMinQuoteVolumeMillions(event.target.value)}
               placeholder="0"
             />
           </label>
-<div className={styles.directionFilter}>
+
+          <div className={styles.directionFilter}>
             <span className={styles.controlLabel}>Направление</span>
             <div className={styles.segmentedControl}>
               {(['all', 'long', 'short'] as const).map((value) => (
@@ -1341,14 +1226,18 @@ function ScannerPageContent({
           <label className={styles.selectField}>
             <span>Тип сетапа</span>
             <select value={kind} onChange={(event) => setKind(event.target.value as KindFilter)}>
-              {KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {KIND_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </label>
 
           <label className={styles.selectField}>
             <span>Стадия</span>
             <select value={stage} onChange={(event) => setStage(event.target.value as StageFilter)}>
-              {STAGE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {STAGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </label>
 
@@ -1358,446 +1247,135 @@ function ScannerPageContent({
             </span>
             <select
               value={chartTimeframe}
-              onChange={(event) =>
-                setChartTimeframe(
-                  event.target.value as
-                    ScannerTimeframe,
-                )
-              }
+              onChange={(event) => setChartTimeframe(event.target.value as ScannerTimeframe)}
             >
-              {availableTimeframes.map(
-                (value) => (
-                  <option
-                    key={value}
-                    value={value}
-                  >
-                    {value}
-                  </option>
-                ),
-              )}
+              {availableTimeframes.map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
             </select>
           </label>
+
+          <button
+            className={styles.moreFiltersButton}
+            type="button"
+            aria-expanded={advancedFiltersOpen}
+            aria-controls="scanner-advanced-filters"
+            onClick={() => setAdvancedFiltersOpen((open) => !open)}
+          >
+            Ещё фильтры
+            {advancedFilterCount > 0 ? <strong>{advancedFilterCount}</strong> : null}
+          </button>
+
+          <button className={styles.resetButton} type="button" onClick={resetFilters}>
+            Сбросить
+          </button>
         </div>
 
-        <div className={styles.filterBottomRow}>
-          <label className={styles.compactSelect}>
-            <span>До уровня <InfoHint label="Текущее расстояние цены до ближайшей границы ценовой зоны." /></span>
-            <select value={distance} onChange={(event) => setDistance(event.target.value as DistanceFilter)}>
-              <option value="all">Любое</option>
-              <option value="0.5">≤ 0.5%</option>
-              <option value="1">≤ 1%</option>
-              <option value="2">≤ 2%</option>
-            </select>
-          </label>
+        {advancedFiltersOpen ? (
+          <div
+            className={styles.advancedFilters}
+            id="scanner-advanced-filters"
+            data-testid="scanner-advanced-filters"
+          >
+            <label className={styles.compactSelect}>
+              <span>
+                До уровня · снимок
+                <InfoHint label="Сохранённое Setup Engine расстояние: |цена снимка − центральная цена уровня| / центральная цена уровня × 100%. Единица — процентные пункты." />
+              </span>
+              <select value={distance} onChange={(event) => setDistance(event.target.value as DistanceFilter)}>
+                <option value="all">Любое</option>
+                <option value="0.5">≤ 0.5%</option>
+                <option value="1">≤ 1%</option>
+                <option value="2">≤ 2%</option>
+              </select>
+            </label>
 
-          <label className={styles.compactSelect}>
-            <span>Касания <InfoHint label="Количество подтверждённых взаимодействий цены с найденной зоной." /></span>
-            <select value={touches} onChange={(event) => setTouches(event.target.value as TouchesFilter)}>
-              <option value="all">Любое</option>
-              <option value="2">От 2</option>
-              <option value="3">От 3</option>
-            </select>
-          </label>
+            <label className={styles.compactSelect}>
+              <span>Касания <InfoHint label="Количество подтверждённых взаимодействий цены с найденной зоной." /></span>
+              <select value={touches} onChange={(event) => setTouches(event.target.value as TouchesFilter)}>
+                <option value="all">Любое</option>
+                <option value="2">От 2</option>
+                <option value="3">От 3</option>
+              </select>
+            </label>
 
-          <label className={styles.compactSelect}>
-            <span>Сила к BTC <InfoHint label="Насколько инструмент сильнее или слабее BTC за сопоставимый период." /></span>
-            <select value={btcStrength} onChange={(event) => setBtcStrength(event.target.value as BtcStrengthFilter)}>
-              <option value="all">Любая</option>
-              <option value="positive">Сильнее BTC</option>
-              <option value="negative">Слабее BTC</option>
-            </select>
-          </label>
-
-          <div className={styles.filterSummary}>
-            <strong>{filteredSetups.length}</strong>
-            <span>
-              {
-                hasRuntimeSetups
-                  ? (
-                      Number(
-                        minQuoteVolumeMillions
-                          .replace(',', '.'),
-                      ) > 0
-                        ? 'кандидатов после фильтров'
-                        : `из ${setups.length} загружено`
-                    )
-                  : `из ${setups.length} сетапов`
-              }
-            </span>
+            <label className={styles.compactSelect}>
+              <span>Сила к BTC <InfoHint label="Насколько инструмент сильнее или слабее BTC за сопоставимый период." /></span>
+              <select value={btcStrength} onChange={(event) => setBtcStrength(event.target.value as BtcStrengthFilter)}>
+                <option value="all">Любая</option>
+                <option value="positive">Сильнее BTC</option>
+                <option value="negative">Слабее BTC</option>
+              </select>
+            </label>
           </div>
-
-          <button className={styles.resetButton} type="button" onClick={resetFilters}>Сбросить фильтры</button>
-        </div>
+        ) : null}
       </section>
 
-      {
-        filteredSetups.length === 0
-        && !isMarketPreview
-          ? (
-              <section
-                className={styles.chartGridPanel}
-                aria-label="Пустой результат Scanner"
-              >
-                <div className={styles.chartGridEmpty}>
-                  <strong>
-                    {
-                      resultsMode === 'loading'
-                        ? 'Обновляем кандидатов'
-                        : resultsMode === 'error'
-                          ? 'Кандидаты не загрузились'
-                          : 'Сетапы не найдены'
-                    }
-                  </strong>
-                  <span>
-                    {
-                      resultsMode === 'loading'
-                        ? 'Ждём ответ Setup Engine для нового порога объёма.'
-                        : resultsMode === 'error'
-                          ? 'Измени фильтры или повтори запрос после восстановления backend.'
-                          : 'Измени фильтры или сбрось их, чтобы вернуть кандидатов.'
-                    }
-                  </span>
-                  {
-                    resultsMode !== 'loading'
-                      ? (
-                          <button
-                            type="button"
-                            onClick={resetFilters}
-                          >
-                            Сбросить фильтры
-                          </button>
-                        )
-                      : null
-                  }
-                </div>
-              </section>
-            )
-          : viewMode === 'grid'
-          ? (
-              <section
-                className={styles.chartGridPanel}
-                aria-label="Сетка графиков кандидатов Scanner"
-              >
-                <div className={styles.panelHeader}>
-                  <div>
-                    <p className={styles.panelEyebrow}>
-                      Результаты поиска
-                    </p>
-                    <h2>
-                      Сетка кандидатов
-                    </h2>
-                  </div>
-
-                  <div className={styles.panelHeaderActions}>
-                    <span className={styles.testBadge}>
-                      {setupsSourceLabel}
-                    </span>
-
-                    <div
-                      className={styles.viewModeControl}
-                      aria-label="Режим отображения кандидатов"
-                    >
-                      <button
-                        type="button"
-                        className={
-                          false
-                            ? styles.viewModeActive
-                            : ''
-                        }
-                        aria-pressed={false}
-                        onClick={() => setViewMode('list')}
-                      >
-                        Список
-                      </button>
-
-                      <button
-                        type="button"
-                        className={
-                          viewMode === 'grid'
-                            ? styles.viewModeActive
-                            : ''
-                        }
-                        aria-pressed={viewMode === 'grid'}
-                        onClick={() => setViewMode('grid')}
-                      >
-                        Сетка
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {
-                  gridSetups.length > 0
-                    ? (
-                        <div className={styles.chartGrid}>
-                          {
-                            gridSetups.map(
-                              (setup) => {
-                                const selected =
-                                  setup.id
-                                  === selectedSetup.id;
-
-                                return (
-                                  <button
-                                    key={setup.id}
-                                    type="button"
-                                    className={`${styles.chartGridCard} ${selected ? styles.chartGridCardSelected : ''}`}
-                                    aria-pressed={selected}
-                                    aria-label={`Открыть ${setup.symbol} в основном графике`}
-                                    onClick={() => {
-                                      selectSetup(
-                                        setup.id,
-                                      );
-
-                                      setViewMode(
-                                        'list',
-                                      );
-                                    }}
-                                  >
-                                    <span className={styles.chartGridCardHeader}>
-                                      <span className={styles.chartGridIdentity}>
-                                        <TokenLogo
-                                          symbol={setup.symbol}
-                                          size={28}
-                                          className={styles.chartGridLogo}
-                                        />
-
-                                        <strong>
-                                          {setup.symbol}
-                                        </strong>
-                                        <small>
-                                          {setup.exchange}
-                                          {' · '}
-                                          {setup.timeframe}
-                                        </small>
-                                      </span>
-
-                                      <DirectionBadge
-                                        direction={setup.direction}
-                                      />
-                                    </span>
-
-                                    <span className={styles.chartGridSetupMeta}>
-                                      <SetupStageBadge
-                                        stage={setup.stage}
-                                        resultLabel={
-                                          setup.source === 'v2-shadow'
-                                            ? 'Отскок'
-                                            : setup.kind.includes('Отскок')
-                                              ? 'Отскок'
-                                              : 'Пробой'
-                                        }
-                                      />
-
-                                      <span>
-                                        {setup.kind}
-                                      </span>
-                                    </span>
-
-                                    <span className={styles.chartGridChart}>
-                                      <NexusMiniCandlestickChart
-                                        symbol={setup.symbol}
-                                        timeframe={setup.timeframe}
-                                      />
-                                    </span>
-
-                                    <span className={styles.chartGridMetrics}>
-                                      <span>
-                                        <small>До уровня</small>
-                                        <strong>
-                                          {setup.distanceLabel}
-                                        </strong>
-                                      </span>
-
-                                      <span>
-                                        <small>Касания</small>
-                                        <strong>
-                                          {setup.touches}
-                                        </strong>
-                                      </span>
-
-                                      <span>
-                                        <small>Объём</small>
-                                        <strong>
-                                          {
-                                            setup.volumeAnomaly === null
-                                              ? '—'
-                                              : `${setup.volumeAnomaly.toFixed(2)}×`
-                                          }
-                                        </strong>
-                                      </span>
-
-                                      <span>
-                                        <small>Сила к BTC</small>
-                                        <strong>
-                                          {setup.btcStrengthLabel}
-                                        </strong>
-                                      </span>
-                                    </span>
-                                  </button>
-                                );
-                              },
-                            )
-                          }
-                        </div>
-                      )
-                    : (
-                        <div className={styles.chartGridEmpty}>
-                          <strong>
-                            Сетапы не найдены
-                          </strong>
-                          <span>
-                            Измени фильтры или сбрось их, чтобы вернуть кандидатов.
-                          </span>
-                          <button
-                            type="button"
-                            onClick={resetFilters}
-                          >
-                            Сбросить фильтры
-                          </button>
-                        </div>
-                      )
-                }
-              </section>
-            )
-          : (
-              <div className={styles.scannerGrid}>
-        <article className={styles.tablePanel}>
-          <div className={styles.panelHeader}>
-            <div>
-              <p className={styles.panelEyebrow}>Результаты поиска</p>
-              <h2>Кандидаты и уровни</h2>
-            </div>
-
-            <div className={styles.panelHeaderActions}>
-              <span className={styles.testBadge}>
-                {setupsSourceLabel}
-              </span>
-
-              <div
-                className={styles.viewModeControl}
-                aria-label="Режим отображения кандидатов"
-              >
+      {filteredSetups.length === 0 && !isMarketPreview ? (
+        <section className={styles.chartGridPanel} aria-label="Пустой результат Scanner">
+          <div className={styles.chartGridEmpty}>
+            <strong>
+              {resultsMode === 'loading'
+                ? 'Обновляем кандидатов'
+                : resultsMode === 'error'
+                  ? 'Кандидаты не загрузились'
+                  : 'Сетапы не найдены'}
+            </strong>
+            <span>
+              {resultsMode === 'loading'
+                ? 'Ждём ответ Setup Engine для нового порога объёма.'
+                : resultsMode === 'error'
+                  ? 'Измени фильтры или повтори запрос после восстановления backend.'
+                  : 'Измени фильтры или сбрось их, чтобы вернуть кандидатов.'}
+            </span>
+            {resultsMode !== 'loading' ? (
+              <button type="button" onClick={resetFilters}>Сбросить фильтры</button>
+            ) : null}
+          </div>
+        </section>
+      ) : (
+        <div className={styles.scannerGrid} data-testid="scanner-focus-grid">
+          <article className={styles.tablePanel} aria-label="Кандидаты Scanner">
+            <div className={styles.candidatePanelHeader}>
+              <div>
+                <p className={styles.panelEyebrow}>Кандидаты</p>
+                <strong>{setupsSourceLabel}</strong>
+              </div>
+              <div className={styles.sortControl}>
+                <select
+                  aria-label="Сортировка кандидатов"
+                  value={sortState.sortBy}
+                  onChange={(event) => selectTableSort(event.target.value as ScannerSetupTableSortKey)}
+                >
+                  {SORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
                 <button
                   type="button"
-                  className={
-                    viewMode === 'list'
-                      ? styles.viewModeActive
-                      : ''
-                  }
-                  aria-pressed={viewMode === 'list'}
-                  onClick={() => setViewMode('list')}
+                  onClick={() => selectTableSort(sortState.sortBy)}
+                  aria-label={sortState.sortDirection === 'asc' ? 'По возрастанию' : 'По убыванию'}
+                  title={sortState.sortDirection === 'asc' ? 'По возрастанию' : 'По убыванию'}
                 >
-                  Список
-                </button>
-
-                <button
-                  type="button"
-                  className={
-                    false
-                      ? styles.viewModeActive
-                      : ''
-                  }
-                  aria-pressed={false}
-                  onClick={() => setViewMode('grid')}
-                >
-                  Сетка
+                  {sortState.sortDirection === 'asc' ? '↑' : '↓'}
                 </button>
               </div>
             </div>
-          </div>
-          <div className={styles.tableViewport}>
-            <div
-              className={styles.tableHeader}
-              role="row"
-              aria-label="Сортируемые столбцы Scanner"
-            >
-              <SortableTableHeader
-                label="Инструмент"
-                sortKey="symbol"
-                sortState={sortState}
-                onSort={selectTableSort}
-              />
-              <SortableTableHeader
-                label="Напр."
-                sortKey="direction"
-                sortState={sortState}
-                onSort={selectTableSort}
-              />
-              <SortableTableHeader
-                label="Тип сетапа"
-                sortKey="kind"
-                sortState={sortState}
-                onSort={selectTableSort}
-              />
-              <SortableTableHeader
-                label="Стадия"
-                sortKey="stage"
-                sortState={sortState}
-                onSort={selectTableSort}
-              />
-              <SortableTableHeader
-                label="TF"
-                sortKey="timeframe"
-                sortState={sortState}
-                onSort={selectTableSort}
-              />
-              <SortableTableHeader
-                label="Уровень"
-                sortKey="level"
-                sortState={sortState}
-                onSort={selectTableSort}
-              />
-              <SortableTableHeader
-                label="Касания"
-                sortKey="touches"
-                sortState={sortState}
-                onSort={selectTableSort}
-              />
-              <SortableTableHeader
-                label="Формирование"
-                sortKey="formation"
-                sortState={sortState}
-                onSort={selectTableSort}
-              />
-              <SortableTableHeader
-                label="До уровня"
-                sortKey="distance"
-                sortState={sortState}
-                onSort={selectTableSort}
-              />
-              <SortableTableHeader
-                label="Откаты"
-                sortKey="pullbacks"
-                sortState={sortState}
-                onSort={selectTableSort}
-              />
-              <SortableTableHeader
-                label="Объём"
-                sortKey="volume"
-                sortState={sortState}
-                onSort={selectTableSort}
-                hint="Отношение текущего объёма к медиане предыдущих периодов для этого инструмента и таймфрейма."
-              />
-              <SortableTableHeader
-                label="Сделки"
-                sortKey="trades"
-                sortState={sortState}
-                onSort={selectTableSort}
-                hint="Отношение текущего количества сделок к медиане предыдущих периодов."
-              />
-              <SortableTableHeader
-                label="Сила к BTC"
-                sortKey="btcStrength"
-                sortState={sortState}
-                onSort={selectTableSort}
-                hint="Положительное значение означает, что инструмент сильнее BTC; отрицательное — слабее."
-              />
-            </div>
 
-            <div className={styles.tableBody}>
+            <div className={styles.tableBody} data-testid="scanner-candidate-list">
               {filteredSetups.map((setup) => {
                 const selected = setup.id === selectedSetup.id;
+                const levelCenterLabel =
+                  setup.levelReferencePrice !== undefined
+                  && Number.isFinite(setup.levelReferencePrice)
+                    ? formatScannerPrice(setup.levelReferencePrice)
+                    : null;
+                const snapshotDistanceLabel =
+                  Number.isFinite(setup.distancePercent)
+                  && setup.distanceLabel !== '—'
+                    ? setup.distanceLabel
+                    : null;
+
                 return (
                   <button
                     key={setup.id}
@@ -1806,351 +1384,153 @@ function ScannerPageContent({
                     className={`${styles.tableRow} ${setup.source === 'v2-shadow' ? styles.tableRowShadow : ''} ${selected ? styles.tableRowSelected : ''}`}
                     onClick={() => selectSetup(setup.id)}
                     aria-pressed={selected}
+                    data-setup-id={setup.id}
+                    data-direction={setup.direction}
                   >
-                    <span className={styles.instrumentCell}>
-                      <TokenLogo
-                        symbol={setup.symbol}
-                        size={30}
-                        className={styles.coinMark}
-                      />
-                      <span>
-                        <strong>{setup.symbol}</strong>
-                        <small>{setup.exchange}</small>
-                        <span
-                          className={
+                    <span className={styles.cardPrimaryRow}>
+                      <span className={styles.instrumentCell}>
+                        <TokenLogo symbol={setup.symbol} size={26} className={styles.coinMark} />
+                        <strong data-testid="scanner-card-symbol">{setup.symbol}</strong>
+                      </span>
+                      <span className={styles.cardDirectionBadge}>
+                        <DirectionBadge direction={setup.direction} />
+                      </span>
+                      <span className={styles.cardStageBadge}>
+                        <SetupStageBadge
+                          stage={setup.stage}
+                          resultLabel={
                             setup.source === 'v2-shadow'
-                              ? styles.shadowSourceBadge
-                              : styles.v1SourceBadge
+                              ? 'Отскок'
+                              : setup.kind.includes('Отскок')
+                                ? 'Отскок'
+                                : 'Пробой'
                           }
-                        >
-                          {
-                            setup.source === 'v2-shadow'
-                              ? 'V2 SHADOW'
-                              : 'V1'
-                          }
-                        </span>
+                        />
                       </span>
                     </span>
-                    <DirectionBadge direction={setup.direction} />
-                    <span className={styles.kindCell}>{setup.kind}</span>
-                    <SetupStageBadge
-                      stage={setup.stage}
-                      resultLabel={
-                      setup.source === 'v2-shadow'
-                        ? '\u041e\u0442\u0441\u043a\u043e\u043a'
-                        : setup.kind.includes(
-                            '\u041e\u0442\u0441\u043a\u043e\u043a',
-                          )
-                          ? '\u041e\u0442\u0441\u043a\u043e\u043a'
-                          : '\u041f\u0440\u043e\u0431\u043e\u0439'
-                    }
-                    />
-                    <span className={styles.monoCell}>{setup.timeframe}</span>
-                    <span className={styles.levelCell}>{setup.level}</span>
-                    <strong className={styles.centerCell}>{setup.touches}</strong>
-                    <span className={styles.monoCell}>{setup.formationLabel}</span>
-                    <strong className={setup.stage === 'triggered' ? styles.triggeredValue : styles.distanceValue}>{setup.distanceLabel}</strong>
-                    <span>{setup.pullbackDepth}</span>
-                    <strong className={styles.monoCell}>
-                      {
-                        setup.volumeAnomaly
-                          === null
-                            ? '—'
-                            : setup.volumeAnomaly
-                                .toFixed(2)
-                              + '×'
-                      }
-                    </strong>
-                    <strong className={styles.monoCell}>
-                      {
-                        setup.tradesAnomaly
-                          === null
-                            ? '—'
-                            : setup.tradesAnomaly
-                                .toFixed(2)
-                              + '×'
-                      }
-                    </strong>
-                    <strong
-                      className={
-                        setup.btcStrength
-                        === null
-                          ? styles.monoCell
-                          : setup.btcStrength >= 0
-                            ? styles.positiveValue
-                            : styles.negativeValue
-                      }
-                    >
-                      {
-                        setup.btcStrength
-                        === null
-                          ? '—'
-                          : setup.btcStrengthLabel
-                      }
-                    </strong>
+
+                    <span className={styles.cardSecondaryRow}>
+                      <span className={styles.kindCell}>{setup.kind}</span>
+                      <span className={styles.cardMetaValue}>{setup.timeframe}</span>
+                      <span className={styles.cardMetaValue}>{setup.touches} кас.</span>
+                      {setup.source === 'v2-shadow' ? (
+                        <span className={styles.shadowSourceBadge}>V2 SHADOW</span>
+                      ) : null}
+                    </span>
+
+                    <span className={styles.cardMetricRow}>
+                      {levelCenterLabel ? (
+                        <span><small>Центр</small><strong>{levelCenterLabel}</strong></span>
+                      ) : null}
+                      {snapshotDistanceLabel ? (
+                        <span><small>До уровня · снимок</small><strong className={styles.distanceValue}>{snapshotDistanceLabel}</strong></span>
+                      ) : null}
+                      {setup.btcStrength !== null ? (
+                        <span>
+                          <small>К BTC</small>
+                          <strong className={setup.btcStrength >= 0 ? styles.positiveValue : styles.negativeValue}>
+                            {setup.btcStrengthLabel}
+                          </strong>
+                        </span>
+                      ) : null}
+                    </span>
                   </button>
                 );
               })}
-
-              {filteredSetups.length === 0 && (
-                <div className={styles.emptyState}>
-                  <strong>Сетапы не найдены</strong>
-                  <span>Измени фильтры или сбрось их, чтобы вернуть полный список.</span>
-                  <button type="button" onClick={resetFilters}>Сбросить фильтры</button>
-                </div>
-              )}
             </div>
-          </div>
-        </article>
+          </article>
 
-        <aside className={styles.previewPanel} aria-label="Предпросмотр выбранного сетапа">
-          <div className={styles.chartColumn}>
-            <div className={styles.previewHeader}>
-              <div className={styles.setupHeaderLine}>
-                <div className={styles.symbolLine}>
-                  <TokenLogo
-                    symbol={selectedSymbol}
-                    size={32}
-                    className={styles.previewLogo}
-                    eager
-                  />
-
-                  <h2>{selectedSymbol}</h2>
-                  <DirectionBadge direction={displayDirection} />
-                  <span className={styles.timeframeBadge}>
-                    {chartTimeframe}
-                  </span>
-                  <span
-                    className={
-                      selectedSetup.source === 'v2-shadow'
-                        ? styles.shadowSourceBadge
-                        : styles.v1SourceBadge
-                    }
-                  >
-                    {
-                      isMarketPreview
-                        ? 'MARKET'
-                        : selectedSetup.source === 'v2-shadow'
-                          ? 'V2 SHADOW'
-                          : 'V1'
-                    }
-                  </span>
-                </div>
-
-                <span className={styles.setupKindInline}>
-                  {
-                    isMarketPreview
-                      ? '\u0420\u044b\u043d\u043e\u0447\u043d\u044b\u0439 \u043e\u0431\u0437\u043e\u0440'
-                      : selectedSetup.kind
-                  }
-                </span>
-
-                {
-                  isMarketPreview
-                    ? (
-                          <span className={styles.marketPreviewInline}>
-                            Volume Spike ? {'\u0441\u0435\u0442\u0430\u043f \u0435\u0449\u0451 \u043d\u0435 \u0441\u0444\u043e\u0440\u043c\u0438\u0440\u043e\u0432\u0430\u043d'}
-                          </span>
-                        )
-                    : (
-                          <>
-                            <SetupStageBadge
-                              stage={selectedSetup.stage}
-                              resultLabel={
-                                selectedSetup.source === 'v2-shadow'
-                                  ? '\u041e\u0442\u0441\u043a\u043e\u043a'
-                                  : selectedSetup.kind.includes(
-                                      '\u041e\u0442\u0441\u043a\u043e\u043a',
-                                    )
-                                    ? '\u041e\u0442\u0441\u043a\u043e\u043a'
-                                    : '\u041f\u0440\u043e\u0431\u043e\u0439'
-                              }
-                            />
-
-                            <span className={styles.setupZoneInline}>
-                              {'\u0417\u043e\u043d\u0430'} {selectedSetup.level}
-                            </span>
-                          </>
-                        )
-                }
-              </div>
-
-              <div className={styles.priceBlock}>
-                <strong>{realtimeMarket.priceLabel}</strong>
-                <div className={styles.priceMeta}>
-                  <span
-                    className={
-                      displayDirection === 'long'
-                        ? styles.positiveValue
-                        : styles.negativeValue
-                    }
-                  >
-                    {displayPriceChange}
-                  </span>
-                  <span
-                    className={`${styles.priceSourceBadge} ${
-                      realtimeMarket.isLive
-                        ? styles.priceSourceLive
-                        : styles.priceSourceUnavailable
-                    }`}
-                  >
-                    {realtimeMarket.isLive ? 'LIVE' : 'UNAVAILABLE'}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <section className={styles.realtimeStrip} aria-label={`Realtime рынок ${selectedSymbol}`}>
-              <div>
-                <span>Bid</span>
-                <strong className={styles.positiveValue}>{realtimeMarket.bidLabel}</strong>
-              </div>
-              <div>
-                <span>Ask</span>
-                <strong className={styles.negativeValue}>{realtimeMarket.askLabel}</strong>
-              </div>
-              <div>
-                <span>Спред</span>
-                <strong>{realtimeMarket.spreadLabel}</strong>
-              </div>
-              <footer className={styles.realtimeStripFooter}>
-                <span>
-                  {realtimeMarket.isLive
-                    ? `Обновлено ${realtimeMarket.updatedAtLabel}`
-                    : `Для ${selectedSymbol} нет активной realtime-подписки`}
-                </span>
-                {realtime.error && (
-                  <button type="button" onClick={realtime.reconnect}>Переподключить</button>
-                )}
-              </footer>
-            </section>
-
-            <section
-              className={styles.realtimeStrip}
-              aria-label={`Futures метрики ${selectedSymbol}`}
-            >
-              <div>
-                <span>Mark Price</span>
-                <strong>
-                  {
-                    markPrice
-                      ? formatScannerPrice(
-                          markPrice.price,
-                        )
-                      : '—'
-                  }
-                </strong>
-              </div>
-
-              <div>
-                <span>Funding</span>
-                <strong
-                  className={
-                    markPrice
-                    && markPrice
-                      .fundingRatePct < 0
-                      ? styles.negativeValue
-                      : styles.positiveValue
-                  }
-                >
-                  {
-                    formatFundingRate(
-                      markPrice
-                        ?.fundingRatePct,
-                    )
-                  }
-                </strong>
-              </div>
-
-              <div>
-                <span>Open Interest</span>
-                <strong>
-                  {
-                    formatOpenInterest(
-                      selectedFuturesMetric
-                        ?.openInterest,
-                    )
-                  }
-                </strong>
-              </div>
-
-              <footer
-                className={
-                  styles
-                    .realtimeStripFooter
-                }
-              >
-                <span>
-                  {
-                    latestLiquidation
-                      ? (
-                          `Последняя ликвидация: `
-                          + `${latestLiquidation.side.toUpperCase()} order · `
-                          + `${formatScannerQuantity(latestLiquidation.filledQuantity)} @ `
-                          + `${formatScannerPrice(latestLiquidation.averagePrice || latestLiquidation.price)} · `
-                          + formatScannerTradeTime(
-                              latestLiquidation.tradeAt,
-                            )
-                        )
-                      : liquidationHistory.status
-                          === 'error'
-                        ? 'Liquidation feed недоступен'
-                        : 'За сохранённое realtime-окно ликвидаций нет'
-                  }
-                </span>
-
-                {
-                  (
-                    liquidationHistory.error
-                    || selectedFuturesMetrics.error
-                  )
-                    ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            liquidationHistory
-                              .retry();
-                            selectedFuturesMetrics
-                              .retry();
-                          }}
-                        >
-                          Обновить futures
-                        </button>
-                      )
-                    : null
-                }
-              </footer>
-            </section>
-
-            <div className={styles.chartCanvas}>
-              {candlesQuery.status === 'loading' && (
-                <div className={styles.chartState}>
-                  Загружаем свечи…
-                </div>
-              )}
-
-              {candlesQuery.status === 'error' && (
-                <div className={styles.chartState}>
-                  <span>Свечи не загрузились.</span>
-                  <button type="button" onClick={candlesQuery.retry}>
-                    Повторить
-                  </button>
-                </div>
-              )}
-
-              {candlesQuery.status === 'success'
-                && candlesQuery.data?.length === 0 && (
-                  <div className={styles.chartState}>
-                    Для выбранного периода нет свечей.
+          <aside className={styles.previewPanel} aria-label="Выбранный кандидат и контекст">
+            <div className={styles.chartColumn}>
+              <div className={styles.previewHeader}>
+                <div className={styles.setupHeaderLine}>
+                  <div className={styles.symbolLine}>
+                    <TokenLogo symbol={selectedSymbol} size={30} className={styles.previewLogo} eager />
+                    <h2>{selectedSymbol}</h2>
+                    <DirectionBadge direction={displayDirection} />
                   </div>
-                )}
+                  <span className={styles.timeframeBadge} title="Таймфрейм открытого графика">
+                    График · {chartTimeframe}
+                  </span>
+                  {!isMarketPreview ? (
+                    <span className={styles.timeframeBadge} title="Таймфрейм выбранного кандидата">
+                      Сетап · {selectedSetup.timeframe}
+                    </span>
+                  ) : null}
+                  <span className={styles.setupKindInline}>
+                    {isMarketPreview ? 'Рыночный обзор' : selectedSetup.kind}
+                  </span>
+                  {!isMarketPreview ? (
+                    <>
+                      <SetupStageBadge
+                        stage={selectedSetup.stage}
+                        resultLabel={
+                          selectedSetup.source === 'v2-shadow'
+                            ? 'Отскок'
+                            : selectedSetup.kind.includes('Отскок')
+                              ? 'Отскок'
+                              : 'Пробой'
+                        }
+                      />
+                      <span className={styles.setupZoneInline}>Зона {selectedSetup.level}</span>
+                    </>
+                  ) : null}
+                </div>
 
-              {candlesQuery.status === 'success'
-                && candlesQuery.data
-                && candlesQuery.data.length > 0 && (
+                <div className={styles.priceBlock}>
+                  <strong>{realtimeMarket.priceLabel}</strong>
+                  <div className={styles.priceMeta}>
+                    <span className={displayPriceChangeClass} title="Изменение цены за 24 часа по Binance">
+                      {displayPriceChange} · 24Ч
+                    </span>
+                    <span className={`${styles.priceSourceBadge} ${realtimeIsCurrent ? styles.priceSourceLive : styles.priceSourceUnavailable}`}>
+                      {realtimeIsCurrent
+                        ? 'LIVE'
+                        : realtimeMarket.price !== null
+                          ? 'SNAPSHOT'
+                          : 'UNAVAILABLE'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.chartCanvas} data-testid="scanner-chart-canvas">
+                <ScannerChartMarketOverlay
+                  symbol={selectedSymbol}
+                  market24h={selectedMarket24h}
+                  realtimeMarket={realtimeMarket}
+                  realtimeDotClassName={realtimeDotClass}
+                  markPrice={markPrice?.price ?? null}
+                  fundingRatePct={markPrice?.fundingRatePct ?? null}
+                  openInterest={selectedFuturesMetric?.openInterest}
+                  latestLiquidation={latestLiquidation}
+                  liquidationStatus={liquidationHistory.status}
+                  hasRealtimeError={Boolean(realtime.error)}
+                  hasFuturesError={Boolean(liquidationHistory.error || selectedFuturesMetrics.error)}
+                  onReconnect={realtime.reconnect}
+                  onRetryFutures={() => {
+                    liquidationHistory.retry();
+                    selectedFuturesMetrics.retry();
+                  }}
+                />
+
+                {candlesQuery.status === 'loading' ? (
+                  <div className={styles.chartState}>Загружаем свечи…</div>
+                ) : null}
+                {candlesQuery.status === 'error' ? (
+                  <div className={styles.chartState}>
+                    <span>Свечи не загрузились.</span>
+                    <button type="button" onClick={candlesQuery.retry}>Повторить</button>
+                  </div>
+                ) : null}
+                {candlesQuery.status === 'success' && candlesQuery.data?.length === 0 ? (
+                  <div className={styles.chartState}>Для выбранного периода нет свечей.</div>
+                ) : null}
+                {candlesQuery.status === 'success' && candlesQuery.data && candlesQuery.data.length > 0 ? (
                   <NexusCandlestickChart
                     candles={candlesQuery.data}
                     symbol={selectedSymbol}
-                    horizontalSegments={causalLevelLines.horizontalSegments}
+                    horizontalSegments={chartHorizontalSegments}
                     fillContainer
                     enableDrawingTools
                     drawingScope={`scanner:${selectedSymbol}:${chartTimeframe}`}
@@ -2158,540 +1538,133 @@ function ScannerPageContent({
                     isLoadingOlder={candlesQuery.isLoadingOlder}
                     hasMore={candlesQuery.hasMore}
                   />
-                )}
+                ) : null}
+              </div>
             </div>
 
-            <CausalLevelStateStrip levels={causalLevelLines} />
-
-            <section className={styles.tradesPanel} aria-label={`Последние сделки ${selectedSymbol}`}>
-              <div className={styles.tradesHeader}>
-                <div>
-                  <p className={styles.panelEyebrow}>Realtime tape</p>
-                  <h3>Последние сделки</h3>
-                </div>
-                <span>{realtimeMarket.recentTrades.length > 0 ? `${realtimeMarket.recentTrades.length} последних` : 'нет данных'}</span>
-              </div>
-
-              {realtimeMarket.recentTrades.length > 0 ? (
-                <div className={styles.tradesList}>
-                  {realtimeMarket.recentTrades.map((trade) => (
-                    <div className={styles.tradeRow} key={trade.id}>
-                      <time dateTime={trade.timestamp}>{formatScannerTradeTime(trade.timestamp)}</time>
-                      <span className={trade.side === 'buy' ? styles.tradeBuy : styles.tradeSell}>
-                        {trade.side === 'buy' ? 'BUY' : 'SELL'}
-                      </span>
-                      <strong>{formatScannerPrice(trade.price)}</strong>
-                      <span>{formatScannerQuantity(trade.quantity)}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className={styles.tradesEmpty}>
-                  Запусти backend, чтобы увидеть поток сделок по {selectedSymbol}.
-                </p>
-              )}
-            </section>
-          </div>
-
-          <div className={styles.nexusColumn}>
-            <div className={styles.nexusContextHeader}>
-              <p className={styles.panelEyebrow}>NEXUS ? CONTEXT</p>
-              <h3>
-  {
-    isMarketPreview
-      ? '\u0420\u044b\u043d\u043e\u0447\u043d\u044b\u0439 \u043a\u043e\u043d\u0442\u0435\u043a\u0441\u0442'
-      : selectedSetup.source
-        === 'v2-shadow'
-          ? '\u041a\u043e\u043d\u0442\u0435\u043a\u0441\u0442 \u0443\u0440\u043e\u0432\u043d\u044f'
-          : '\u041a\u043e\u043d\u0442\u0435\u043a\u0441\u0442 \u0441\u0435\u0442\u0430\u043f\u0430'
-  }
-</h3>
-              <span>
-                {
-                  selectedSetup.source === 'v2-shadow'
-                    ? 'V2 Shadow ? только наблюдение'
-                    : 'Производственный контур V1'
-                }
-              </span>
-            </div>
-
-            {isMarketPreview ? (
-              <div className={styles.previewMetrics}>
-                <div>
-                  <span>Период</span>
-                  <strong>
-                    {selectedVolumeSpike
-                      ? `${selectedVolumeSpike.periodMinutes} мин`
-                      : '—'}
-                  </strong>
-                </div>
-                <div>
-                  <span>Объём</span>
-                  <strong>
-                    {selectedVolumeSpike
-                      ? `${selectedVolumeSpike.volumeRatio.toFixed(2)}×`
-                      : '—'}
-                  </strong>
-                </div>
-                <div>
-                  <span>Сделки</span>
-                  <strong>
-                    {selectedVolumeSpike
-                      ? `${selectedVolumeSpike.tradesRatio.toFixed(2)}×`
-                      : '—'}
-                  </strong>
-                </div>
-                <div>
-                  <span>Изменение</span>
-                  <strong className={displayDirection === 'long' ? styles.positiveValue : styles.negativeValue}>
-                    {displayPriceChange}
-                  </strong>
-                </div>
-              </div>
-            ) : (
-              <div className={styles.previewMetrics}>
-                <div>
-                  <span>До уровня <InfoHint label="Расстояние от текущей цены до ближайшей границы зоны." /></span>
-                  <strong className={styles.distanceValue}>{selectedSetup.distanceLabel}</strong>
-                </div>
-                <div>
-                  <span>Касания</span>
-                  <strong>{selectedSetup.touches}</strong>
-                </div>
-                <div>
-                  <span>Формирование</span>
-                  <strong>{selectedSetup.formationLabel}</strong>
-                </div>
-                <div>
-                  <span>Объём</span>
-                  <strong>
-                    {
-                      selectedSetup.volumeAnomaly
-                      === null
-                        ? '—'
-                        : selectedSetup.volumeAnomaly
-                            .toFixed(2)
-                          + '×'
-                    }
-                  </strong>
-                </div>
-                <div>
-                  <span>Сделки</span>
-                  <strong>
-                    {
-                      selectedSetup.tradesAnomaly
-                      === null
-                        ? '—'
-                        : selectedSetup.tradesAnomaly
-                            .toFixed(2)
-                          + '×'
-                    }
-                  </strong>
-                </div>
-                <div>
-                  <span>Сила к BTC</span>
-                  <strong
-                    className={
-                      selectedSetup.btcStrength
-                      === null
-                        ? styles.monoCell
-                        : selectedSetup.btcStrength >= 0
-                          ? styles.positiveValue
-                          : styles.negativeValue
-                    }
-                  >
-                    {
-                      selectedSetup.btcStrength
-                      === null
-                        ? '—'
-                        : selectedSetup.btcStrengthLabel
-                    }
-                  </strong>
-                </div>
-              </div>
-            )}
-
-            {
-              selectedSetup.source === 'v2-shadow'
-                ? (
-                    <LevelV2ShadowInspectionPanel
-                      symbol={selectedSymbol}
-                      levelId={
-                        selectedSetup
-                          .shadowLevelId
-                        ?? null
-                      }
-                      lifecycleStatus={
-                        selectedSetup
-                          .shadowStatus
-                        ?? null
-                      }
+            <div className={styles.nexusColumn} data-testid="scanner-context-panel">
+              <div className={styles.nexusContextHeader}>
+                <p className={styles.panelEyebrow}>NEXUS · CONTEXT</p>
+                <h3>{isMarketPreview ? 'Рыночный контекст' : 'Контекст сетапа'}</h3>
+                {!isMarketPreview ? (
+                  <div className={styles.contextIdentity}>
+                    <span>{selectedSetup.kind}</span>
+                    <DirectionBadge direction={selectedSetup.direction} />
+                    <SetupStageBadge
+                      stage={selectedSetup.stage}
+                      resultLabel={selectedSetup.kind.includes('Отскок') ? 'Отскок' : 'Пробой'}
                     />
-                  )
-                : null
-            }
-
-            <section className={styles.reasonBlock}>
-              <p className={styles.panelEyebrow}>
-                {isMarketPreview ? 'Режим просмотра рынка' : 'Почему в Scanner'}
-              </p>
+                  </div>
+                ) : null}
+              </div>
 
               {isMarketPreview ? (
-                <p>
-                  Монета выбрана из Volume Spikes. Показаны реальные свечи и realtime-данные без подмены чужим торговым сетапом.
-                </p>
+                <div className={styles.previewMetrics}>
+                  {selectedVolumeSpike ? (
+                    <>
+                      <div><span>Период</span><strong>{selectedVolumeSpike.periodMinutes} мин</strong></div>
+                      <div><span>Объём</span><strong>{selectedVolumeSpike.volumeRatio.toFixed(2)}×</strong></div>
+                      <div><span>Сделки</span><strong>{selectedVolumeSpike.tradesRatio.toFixed(2)}×</strong></div>
+                    </>
+                  ) : null}
+                  <div><span>Изменение 24ч</span><strong className={displayPriceChangeClass}>{displayPriceChange}</strong></div>
+                </div>
               ) : (
-                <ul>
-                  {selectedSetup.reasons.map((reason) => <li key={reason}>{reason}</li>)}
-                </ul>
+                <>
+                  <div className={styles.contextDistance}>
+                    <span>
+                      Расстояние до centerPrice
+                      <InfoHint label="Формула: |показанная цена − центральная опорная цена выбранного уровня| / центральная опорная цена × 100%. Единица — процентные пункты. Границы диапазона зоны в этом расчёте не выбираются." />
+                    </span>
+                    <strong
+                      className={styles.distanceValue}
+                      title={
+                        selectedDistance.price !== null && selectedDistance.levelReferencePrice !== null
+                          ? `${formatScannerPrice(selectedDistance.price)} → ${formatScannerPrice(selectedDistance.levelReferencePrice)}`
+                          : undefined
+                      }
+                    >
+                      {selectedDistance.distanceLabel}
+                    </strong>
+                    <small>{selectedDistanceSourceLabel}</small>
+                  </div>
+
+                  <div className={styles.previewMetrics}>
+                    <div><span>Касания</span><strong>{selectedSetup.touches}</strong></div>
+                    <div><span>Формирование</span><strong>{selectedSetup.formationLabel}</strong></div>
+                    {selectedSetup.volumeAnomaly !== null ? (
+                      <div><span>Объём</span><strong>{selectedSetup.volumeAnomaly.toFixed(2)}×</strong></div>
+                    ) : null}
+                    {selectedSetup.tradesAnomaly !== null ? (
+                      <div><span>Сделки</span><strong>{selectedSetup.tradesAnomaly.toFixed(2)}×</strong></div>
+                    ) : null}
+                    {selectedSetup.btcStrength !== null ? (
+                      <div>
+                        <span>Сила к BTC</span>
+                        <strong className={selectedSetup.btcStrength >= 0 ? styles.positiveValue : styles.negativeValue}>
+                          {selectedSetup.btcStrengthLabel}
+                        </strong>
+                      </div>
+                    ) : null}
+                  </div>
+                </>
               )}
-            </section>
 
-            {
-              selectedSetup.source === 'v2-shadow'
-                ? (
-                    <div className={styles.shadowOnlyNotice}>
-                      <strong>V2 SHADOW · только наблюдение</strong>
-                      <span>
-                        Уровень не создаёт production-сетап,
-                        Workspace или алерт.
-                      </span>
-                    </div>
-                  )
-                : (
-                    <div className={styles.previewActions}>
-                      <Link
-                        className={styles.primaryLink}
-                        to={buildWorkspaceUrl(
-                          ROUTES.workspace,
-                          {
-                            setupId:
-                              workspaceSetupId,
-                            symbol:
-                              selectedSymbol,
-                            preset,
-                            scannerWindow,
-                            timeframe:
-                              chartTimeframe,
-                          },
-                        )}
-                      >
-                        Открыть Workspace
-                        <span aria-hidden="true">→</span>
-                      </Link>
-
-                      <button
-                        className={styles.secondaryLink}
-                        type="button"
-                        disabled
-                        title="Создание пользовательских алертов из Scanner ещё не подключено"
-                      >
-                        Алерты пока недоступны
-                      </button>
-                    </div>
-                  )
-            }
-          </div>
-        </aside>
-      </div>
-            )
-      }
-
-      {/* Scanner UX v2: secondary market pulse below workspace */}
-      <section className={styles.volumeSpikesPanel} aria-label="Всплески объёма">
-  <div className={styles.volumeSpikesHeader}>
-    <div>
-      <p className={styles.panelEyebrow}>Market-wide · Binance Futures</p>
-      <h2>ВСПЛЕСКИ ОБЪЁМА</h2>
-      <p>
-        {volumeSpikePeriodMinutes} мин · медиана{' '}
-        {volumeSpikeBaselinePeriods} предыдущих периодов
-      </p>
-    </div>
-    <div className={styles.volumeSpikesConnection}>
-      <span
-        className={`${styles.volumeSpikesConnectionDot} ${
-          volumeSpikes.status === 'error'
-            ? styles.volumeSpikesConnectionError
-            : volumeSpikes.status === 'ready'
-              ? styles.volumeSpikesConnectionReady
-              : styles.volumeSpikesConnectionPending
-        }`}
-        aria-hidden="true"
-      />
-      <span>
-        <strong>{
-          volumeSpikes.status === 'error'
-            ? 'ОШИБКА API'
-            : volumeSpikes.status === 'ready'
-              ? 'LIVE'
-              : 'ЗАГРУЗКА'
-        }</strong>
-        <small>{formatVolumeSpikeUpdatedAt(volumeSpikes.lastUpdatedAt)}</small>
-      </span>
-    </div>
-  </div>
-
-  <div
-    className={styles.volumeSpikesFilters}
-    aria-label="Фильтры всплесков объёма"
-  >
-    <label className={styles.volumeSpikesField}>
-      <span>Период</span>
-      <select
-        value={volumeSpikePeriodMinutes}
-        onChange={(event) => {
-          setVolumeSpikePeriodMinutes(
-            Number(
-              event.currentTarget.value,
-            ) as MarketVolumeSpikePeriodMinutes,
-          );
-        }}
-      >
-        {VOLUME_SPIKE_PERIOD_OPTIONS.map(
-          (value) => (
-            <option
-              key={value}
-              value={value}
-            >
-              {value} мин
-            </option>
-          ),
-        )}
-      </select>
-    </label>
-
-    <label className={styles.volumeSpikesField}>
-      <span>База периодов</span>
-      <input
-        type="number"
-        min="3"
-        max="48"
-        step="1"
-        value={volumeSpikeBaselinePeriods}
-        onChange={(event) => {
-          const value =
-            event.currentTarget.valueAsNumber;
-
-          if (Number.isFinite(value)) {
-            setVolumeSpikeBaselinePeriods(
-              Math.min(
-                48,
-                Math.max(
-                  3,
-                  Math.trunc(value),
-                ),
-              ),
-            );
-          }
-        }}
-      />
-    </label>
-
-    <label className={styles.volumeSpikesField}>
-      <span>Объём от</span>
-      <input
-        type="number"
-        min="1"
-        max="100"
-        step="0.1"
-        value={volumeSpikeMinVolumeRatio}
-        onChange={(event) => {
-          const value =
-            event.currentTarget.valueAsNumber;
-
-          if (Number.isFinite(value)) {
-            setVolumeSpikeMinVolumeRatio(
-              Math.min(
-                100,
-                Math.max(1, value),
-              ),
-            );
-          }
-        }}
-      />
-      <small>× к медиане</small>
-    </label>
-
-    <label className={styles.volumeSpikesField}>
-      <span>Сделки от</span>
-      <input
-        type="number"
-        min="0.1"
-        max="100"
-        step="0.1"
-        value={volumeSpikeMinTradesRatio}
-        onChange={(event) => {
-          const value =
-            event.currentTarget.valueAsNumber;
-
-          if (Number.isFinite(value)) {
-            setVolumeSpikeMinTradesRatio(
-              Math.min(
-                100,
-                Math.max(0.1, value),
-              ),
-            );
-          }
-        }}
-      />
-      <small>× к медиане</small>
-    </label>
-
-    <label className={styles.volumeSpikesField}>
-      <span>Мин. объём USDT</span>
-      <input
-        type="number"
-        min="0"
-        max="1000000000000"
-        step="10000"
-        value={
-          volumeSpikeMinCurrentQuoteVolume
-        }
-        onChange={(event) => {
-          const value =
-            event.currentTarget.valueAsNumber;
-
-          if (Number.isFinite(value)) {
-            setVolumeSpikeMinCurrentQuoteVolume(
-              Math.min(
-                1_000_000_000_000,
-                Math.max(0, value),
-              ),
-            );
-          }
-        }}
-      />
-    </label>
-
-    <div className={styles.volumeSpikesStatusFilters}>
-      <span>Статусы</span>
-      <div>
-        {VOLUME_SPIKE_STATUSES.map(
-          (status) => {
-            const active =
-              volumeSpikeStatuses
-                .includes(status);
-
-            return (
-              <button
-                key={status}
-                type="button"
-                className={
-                  active
-                    ? styles.volumeSpikesStatusActive
-                    : ''
-                }
-                aria-pressed={active}
-                onClick={() =>
-                  toggleVolumeSpikeStatus(
-                    status,
-                  )
-                }
-              >
-                {
-                  VOLUME_SPIKE_STATUS_LABELS[
-                    status
-                  ]
-                }
-              </button>
-            );
-          },
-        )}
-      </div>
-    </div>
-
-    <button
-      type="button"
-      className={styles.volumeSpikesReset}
-      onClick={resetVolumeSpikeFilters}
-    >
-      Сбросить
-    </button>
-  </div>
-
-  {volumeSpikes.status === 'loading' && volumeSpikes.spikes.length === 0 && (
-    <div className={styles.volumeSpikesState}>
-      <strong>Получаем всплески с backend…</strong>
-      <span>Первый ответ обычно приходит сразу после запуска Scanner.</span>
-    </div>
-  )}
-
-  {volumeSpikes.status === 'error' && (
-    <div className={`${styles.volumeSpikesState} ${styles.volumeSpikesError}`}>
-      <span>{volumeSpikes.error?.message ?? 'Не удалось загрузить всплески объёма.'}</span>
-      <button type="button" onClick={volumeSpikes.retry}>Повторить запрос</button>
-    </div>
-  )}
-
-  {volumeSpikes.status === 'ready' && volumeSpikes.spikes.length === 0 && (
-    <div className={styles.volumeSpikesState}>
-      <strong>Активных всплесков сейчас нет</strong>
-      <span>Блок обновляется автоматически каждые 5 секунд.</span>
-    </div>
-  )}
-
-  {volumeSpikes.spikes.length > 0 && (
-    <div className={styles.volumeSpikesGrid}>
-      {volumeSpikes.spikes.map((spike) => {
-        const priceClass = spike.priceChangePct === null
-          ? ''
-          : spike.priceChangePct >= 0
-            ? styles.positiveValue
-            : styles.negativeValue;
-
-        return (
-          <button
-            key={`${spike.symbol}-${spike.periodStartedAt}`}
-            type="button"
-            className={`${styles.volumeSpikeCard} ${getVolumeSpikeStatusClass(spike.status)}`}
-            onClick={() => selectVolumeSpike(spike)}
-            title={`Показать ${spike.symbol} в Scanner`}
-          >
-            <span className={styles.volumeSpikeCardHeader}>
-              <span className={styles.volumeSpikeSymbol}>
-                <TokenLogo
-                  symbol={spike.symbol}
-                  size={30}
-                  className={styles.volumeSpikeCoin}
+              {selectedSetup.source === 'v2-shadow' ? (
+                <LevelV2ShadowInspectionPanel
+                  symbol={selectedSymbol}
+                  levelId={selectedSetup.shadowLevelId ?? null}
+                  lifecycleStatus={selectedSetup.shadowStatus ?? null}
                 />
-                <span>
-                  <strong>{spike.symbol}</strong>
-                  <small>BINANCE FUTURES</small>
-                </span>
-              </span>
-              <span className={styles.volumeSpikeStatus}>
-                {VOLUME_SPIKE_STATUS_LABELS[spike.status]}
-              </span>
-            </span>
+              ) : null}
 
-            <span className={styles.volumeSpikeMetrics}>
-              <span>
-                <small>СИЛА ОБЪЁМА</small>
-                <strong>{spike.volumeRatio.toFixed(2)}×</strong>
-              </span>
-              <span>
-                <small>
-                  ЦЕНА · {spike.periodMinutes}М
-                </small>
-                <strong className={priceClass}>{formatVolumeSpikePriceChange(spike.priceChangePct)}</strong>
-              </span>
-              <span>
-                <small>ТЕКУЩИЙ ОБЪЁМ</small>
-                <strong>{formatVolumeSpikeQuoteVolume(spike.currentQuoteVolume)}</strong>
-              </span>
-            </span>
+              <section className={styles.reasonBlock}>
+                <p className={styles.panelEyebrow}>
+                  {isMarketPreview ? 'Режим просмотра рынка' : 'Почему в Scanner'}
+                </p>
+                {isMarketPreview ? (
+                  <p>Показаны реальные свечи и realtime-данные без подмены чужим торговым сетапом.</p>
+                ) : (
+                  <ul>{selectedSetup.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+                )}
+              </section>
 
-            <span className={styles.volumeSpikeCardFooter}>
-              <span>Сделки {spike.tradesRatio.toFixed(2)}×</span>
-              <span>Показать в Scanner →</span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  )}
-</section>
+              {selectedSetup.source === 'v2-shadow' ? (
+                <div className={styles.shadowOnlyNotice}>
+                  <strong>V2 SHADOW · только наблюдение</strong>
+                  <span>Уровень не создаёт production-сетап, Workspace или алерт.</span>
+                </div>
+              ) : (
+                <div className={styles.previewActions}>
+                  <Link
+                    className={styles.primaryLink}
+                    to={buildWorkspaceUrl(ROUTES.workspace, {
+                      setupId: workspaceSetupId,
+                      symbol: selectedSymbol,
+                      preset,
+                      scannerWindow,
+                      timeframe: chartTimeframe,
+                    })}
+                  >
+                    Открыть Workspace <span aria-hidden="true">→</span>
+                  </Link>
+                  <button className={styles.secondaryLink} type="button" onClick={openSetupFeedback}>
+                    Оценить сетап
+                  </button>
+                  <button
+                    className={styles.disabledAction}
+                    type="button"
+                    disabled
+                    title="Создание пользовательских алертов из Scanner ещё не подключено"
+                  >
+                    Алерты пока недоступны
+                  </button>
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
     </section>
   );
 }
@@ -2711,11 +1684,19 @@ export function ScannerPage() {
       .toUpperCase()
     ?? null;
 
+  const requestedMinQuoteVolumeMillions =
+    searchParams.get(
+      'minQuoteVolumeMillions',
+    );
+
   const [
     minQuoteVolumeMillions,
     setMinQuoteVolumeMillions,
   ] = useState(
-    DEFAULT_SCANNER_MIN_QUOTE_VOLUME_MILLIONS,
+    () =>
+      resolveInitialScannerMinQuoteVolumeMillions(
+        requestedMinQuoteVolumeMillions,
+      ),
   );
 
   const minQuoteVolume24h =

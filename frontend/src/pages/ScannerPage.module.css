@@ -61,8 +61,8 @@
   width: 8px;
   height: 8px;
   border-radius: var(--nexus-radius-round);
-  background: var(--nexus-color-long);
-  box-shadow: 0 0 0 5px var(--nexus-color-long-soft);
+  background: var(--nexus-color-accent-primary);
+  box-shadow: 0 0 0 5px var(--nexus-color-accent-muted);
 }
 
 .filtersPanel,
@@ -680,7 +680,7 @@
 }
 
 .primaryLink:hover {
-  background: var(--nexus-color-long-hover);
+  background: var(--nexus-color-accent-hover);
 }
 
 .secondaryLink {
@@ -1011,8 +1011,8 @@
 
 /* Scanner Realtime Integration v0.1 */
 .liveDotConnected {
-  background: var(--nexus-color-long);
-  box-shadow: 0 0 0 5px var(--nexus-color-long-soft);
+  background: var(--nexus-color-accent-primary);
+  box-shadow: 0 0 0 5px var(--nexus-color-accent-muted);
 }
 
 .liveDotPending {
@@ -1052,8 +1052,8 @@
 }
 
 .priceSourceLive {
-  color: var(--nexus-color-long);
-  background: var(--nexus-color-long-soft);
+  color: var(--nexus-color-accent-primary);
+  background: var(--nexus-color-accent-muted);
 }
 
 .priceSourceUnavailable {
@@ -2775,4 +2775,866 @@
 .coinMark,
 .volumeSpikeCoin {
   overflow: hidden;
+}
+
+/* Scanner chart 24h market overlay v0.1 */
+.chartColumn > .realtimeStrip {
+  display: none;
+}
+
+/* Scanner Desktop Visual Hierarchy — Focus v0.1 */
+.headerSummary,
+.candidatePanelHeader,
+.sortControl,
+.cardPrimaryRow,
+.cardSecondaryRow,
+.cardMetricRow,
+.contextIdentity,
+.contextDistance > span {
+  display: flex;
+  align-items: center;
+}
+
+.headerSummary {
+  min-width: 0;
+  gap: 10px;
+}
+
+.candidateCount,
+.listState {
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.candidateCount strong {
+  color: var(--nexus-color-text-primary);
+  font-size: 12px;
+}
+
+.listState {
+  padding-left: 10px;
+  border-left: 1px solid var(--nexus-color-border-subtle);
+}
+
+.filterPrimaryRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+}
+
+.moreFiltersButton {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--nexus-color-border-strong);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-secondary);
+  background: var(--nexus-color-bg-canvas);
+  font-size: 11px;
+  font-weight: var(--nexus-font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.moreFiltersButton:hover,
+.moreFiltersButton[aria-expanded='true'] {
+  border-color: var(--nexus-color-border-accent);
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-selected);
+}
+
+.moreFiltersButton strong {
+  min-width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--nexus-radius-round);
+  color: var(--nexus-color-text-on-accent);
+  background: var(--nexus-color-accent-primary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+}
+
+.advancedFilters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--nexus-color-border-subtle);
+}
+
+.candidatePanelHeader {
+  min-height: 34px;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.candidatePanelHeader > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.candidatePanelHeader > div:first-child > strong {
+  overflow: hidden;
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  font-weight: var(--nexus-font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sortControl {
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.sortControl select,
+.sortControl button {
+  min-height: 28px;
+  border: 1px solid var(--nexus-color-border-subtle);
+  border-radius: 6px;
+  color: var(--nexus-color-text-secondary);
+  background: var(--nexus-color-bg-canvas);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+}
+
+.sortControl select {
+  min-width: 0;
+  max-width: 104px;
+  padding: 0 7px;
+}
+
+.sortControl button {
+  width: 28px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.tableRow {
+  min-width: 0;
+  min-height: 88px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  gap: 5px;
+  padding: 7px 8px;
+  border: 1px solid var(--nexus-color-border-subtle);
+  background: var(--nexus-color-bg-canvas);
+}
+
+.tableRowSelected {
+  border-color: var(--nexus-color-accent-primary);
+  box-shadow: inset 3px 0 0 var(--nexus-color-accent-primary);
+  background:
+    linear-gradient(90deg, var(--nexus-color-bg-selected), transparent 72%),
+    var(--nexus-color-bg-canvas);
+}
+
+.tableRow > .cardPrimaryRow,
+.tableRow > .cardSecondaryRow,
+.tableRow > .cardMetricRow {
+  position: static;
+  min-width: 0;
+  grid-column: 1;
+  padding: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tableRow > .cardPrimaryRow { grid-row: 1; }
+.tableRow > .cardSecondaryRow { grid-row: 2; }
+.tableRow > .cardMetricRow { grid-row: 3; }
+
+.cardPrimaryRow {
+  display: grid;
+  grid-template-columns: minmax(84px, 1fr) auto auto;
+  align-items: center;
+  gap: 3px;
+}
+
+.cardPrimaryRow .instrumentCell {
+  display: grid;
+  grid-template-columns: 22px minmax(52px, 1fr);
+  gap: 4px;
+  overflow: hidden;
+}
+
+.cardPrimaryRow .coinMark {
+  width: 22px;
+  height: 22px;
+  flex-basis: 22px;
+}
+
+.cardPrimaryRow .instrumentCell strong {
+  min-width: 52px;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.cardDirectionBadge,
+.cardStageBadge {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.cardDirectionBadge > span,
+.cardStageBadge > span {
+  min-height: 20px;
+  padding-inline: 4px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.cardDirectionBadge > span {
+  font-size: 8px;
+}
+
+.cardStageBadge > span {
+  font-size: 7px;
+}
+
+.cardSecondaryRow {
+  gap: 8px;
+  color: var(--nexus-color-text-muted);
+  font-size: 10px;
+}
+
+.cardSecondaryRow .kindCell {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--nexus-color-text-secondary);
+  font-size: 10px;
+}
+
+.cardMetaValue {
+  flex: 0 0 auto;
+  font-family: var(--nexus-font-family-mono);
+}
+
+.cardSecondaryRow .shadowSourceBadge {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+.cardMetricRow {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cardMetricRow > span {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.cardMetricRow small {
+  overflow: hidden;
+  color: var(--nexus-color-text-muted);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.cardMetricRow strong {
+  overflow: hidden;
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contextIdentity {
+  min-width: 0;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: var(--nexus-color-text-secondary);
+  font-size: 11px;
+}
+
+.contextIdentity > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contextDistance {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+  background: var(--nexus-color-bg-surface-raised);
+}
+
+.contextDistance > span {
+  gap: 3px;
+  color: var(--nexus-color-text-muted);
+  font-size: 10px;
+}
+
+.contextDistance > strong {
+  font-size: 18px;
+}
+
+.contextDistance > small {
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+}
+
+.disabledAction {
+  min-height: 28px;
+  border: 0;
+  color: var(--nexus-color-text-disabled);
+  background: transparent;
+  font-size: 10px;
+  text-align: center;
+}
+
+@media (min-width: 1280px) {
+  .scanner {
+    width: 100%;
+    height: calc(100dvh - 80px);
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 6px;
+    overflow: hidden;
+  }
+
+  .pageHeader {
+    min-height: 30px;
+    margin: 0;
+  }
+
+  .pageHeader .title {
+    font-size: 20px;
+  }
+
+  .shadowModeControl {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .shadowModeMeta {
+    white-space: nowrap;
+  }
+
+  .filtersPanel {
+    margin: 0;
+    padding: 6px 8px;
+  }
+
+  .filterPrimaryRow {
+    grid-template-columns:
+      minmax(116px, 1.05fr)
+      minmax(96px, .64fr)
+      minmax(136px, .9fr)
+      minmax(142px, 1.05fr)
+      minmax(120px, .8fr)
+      minmax(78px, .46fr)
+      minmax(104px, .64fr)
+      auto;
+    gap: 6px;
+  }
+
+  .filterPrimaryRow .searchField,
+  .filterPrimaryRow .selectField,
+  .filterPrimaryRow .volumeFilterField,
+  .filterPrimaryRow .directionFilter,
+  .advancedFilters .compactSelect {
+    gap: 3px;
+  }
+
+  .filterPrimaryRow .searchField > span,
+  .filterPrimaryRow .selectField > span,
+  .filterPrimaryRow .volumeFilterField > span,
+  .filterPrimaryRow .controlLabel,
+  .advancedFilters .compactSelect > span {
+    font-size: 8px;
+    line-height: 1;
+  }
+
+  .filterPrimaryRow .searchField input,
+  .filterPrimaryRow .selectField select,
+  .filterPrimaryRow .volumeFilterField input,
+  .filterPrimaryRow .segmentedControl,
+  .advancedFilters .compactSelect select,
+  .moreFiltersButton,
+  .resetButton {
+    min-height: 31px;
+    height: 31px;
+  }
+
+  .scannerGrid {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    grid-template-columns: minmax(244px, 282px) minmax(0, 1fr);
+    gap: 7px;
+    align-items: stretch;
+    overflow: hidden;
+  }
+
+  .tablePanel {
+    position: static;
+    min-height: 0;
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    padding: 8px;
+    overflow: hidden;
+  }
+
+  .tableViewport { display: contents; }
+
+  .tableBody {
+    min-height: 0;
+    max-height: none;
+    gap: 5px;
+    padding-right: 3px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .tableRow {
+    min-height: 88px;
+  }
+
+  .previewPanel {
+    position: static;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(252px, 304px);
+    gap: 7px;
+    align-items: stretch;
+    padding: 8px;
+    overflow: hidden;
+  }
+
+  .chartColumn {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .chartColumn .previewHeader {
+    min-width: 0;
+    min-height: 34px;
+    margin: 0;
+  }
+
+  .setupHeaderLine {
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+
+  .symbolLine {
+    min-width: 0;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+
+  .symbolLine h2 {
+    overflow-wrap: normal;
+    white-space: nowrap;
+  }
+
+  .previewHeader h2 {
+    font-size: 14px;
+  }
+
+  .setupKindInline {
+    min-width: 42px;
+    max-width: 170px;
+    flex: 0 1 auto;
+    font-size: 10px;
+  }
+
+  .setupHeaderLine > .timeframeBadge {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .setupZoneInline {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 10px;
+    text-overflow: ellipsis;
+  }
+
+  .priceBlock {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .priceBlock > strong {
+    font-size: 15px;
+  }
+
+  .priceMeta {
+    display: grid;
+    justify-items: end;
+    gap: 2px;
+  }
+
+  .priceMeta > span:first-child {
+    font-size: 9px;
+  }
+
+  .chartColumn .chartCanvas {
+    min-height: 0;
+    height: auto;
+    margin: 0;
+  }
+
+  .nexusColumn {
+    position: static;
+    top: auto;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    max-height: none;
+    display: grid;
+    align-content: start;
+    gap: 7px;
+    padding-right: 3px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .nexusColumn .previewMetrics,
+  .nexusColumn .reasonBlock,
+  .nexusColumn .previewActions,
+  .nexusColumn .shadowOnlyNotice {
+    margin-top: 0;
+  }
+
+  .nexusColumn .previewMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nexusColumn .previewActions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    grid-template-columns: 1fr;
+    padding-top: 7px;
+    background: linear-gradient(180deg, transparent, var(--nexus-color-bg-surface) 18%);
+  }
+}
+
+@media (min-width: 1280px) and (max-height: 850px) {
+  .scanner {
+    gap: 5px;
+  }
+
+  .tableRow {
+    min-height: 82px;
+    padding-block: 6px;
+  }
+
+  .cardMetricRow small {
+    font-size: 7px;
+  }
+}
+
+@media (max-width: 1279px) {
+  .scannerGrid {
+    overflow: visible;
+  }
+
+  .tableBody {
+    gap: 6px;
+  }
+
+  .previewPanel {
+    margin-top: 8px;
+  }
+
+  .chartColumn,
+  .nexusColumn {
+    min-width: 0;
+  }
+
+  .nexusColumn {
+    margin-top: 8px;
+  }
+}
+
+@media (max-width: 780px) {
+  .headerSummary {
+    flex-wrap: wrap;
+  }
+
+  .filterPrimaryRow,
+  .advancedFilters {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chartMarketOverlay {
+  position: absolute;
+  z-index: 5;
+  top: 10px;
+  left: 52px;
+  width: 196px;
+  padding: 9px 10px 8px;
+  border: 1px solid var(--nexus-color-accent-border);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-secondary);
+  background:
+    linear-gradient(
+      145deg,
+      rgb(9 27 26 / 96%),
+      rgb(6 14 19 / 94%)
+    );
+  box-shadow:
+    0 10px 30px rgb(0 0 0 / 30%),
+    inset 0 1px 0 rgb(255 255 255 / 3%);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+.chartMarketOverlayHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  margin-bottom: 7px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--nexus-color-accent-muted);
+}
+
+.chartMarketOverlayHeader strong {
+  color: var(--nexus-color-accent-primary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+  letter-spacing: .06em;
+}
+
+.chartMarketOverlayHeader small {
+  overflow: hidden;
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chartMarketStats {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.chartMarketStats > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chartMarketStats dt,
+.chartMarketStats dd {
+  margin: 0;
+  line-height: 1.2;
+}
+
+.chartMarketStats dt {
+  color: var(--nexus-color-text-muted);
+  font-size: 9px;
+}
+
+.chartMarketStats dd {
+  color: var(--nexus-color-text-primary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 10px;
+  font-weight: var(--nexus-font-weight-bold);
+}
+
+.chartMarketStats dd.positiveValue,
+.chartLiveGrid strong.positiveValue {
+  color: var(--nexus-color-long);
+}
+
+.chartMarketStats dd.negativeValue,
+.chartLiveGrid strong.negativeValue {
+  color: var(--nexus-color-short);
+}
+
+.chartLiveDetails {
+  position: relative;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--nexus-color-accent-muted);
+}
+
+.chartLiveDetails > summary {
+  width: max-content;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--nexus-color-border-accent);
+  border-radius: var(--nexus-radius-round);
+  color: var(--nexus-color-accent-primary);
+  background: var(--nexus-color-accent-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  font-weight: var(--nexus-font-weight-bold);
+  letter-spacing: .05em;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.chartLiveDetails > summary::-webkit-details-marker {
+  display: none;
+}
+
+.chartLiveDetails > summary::marker {
+  content: '';
+}
+
+.chartLiveDetails > summary > span {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+}
+
+.chartLiveDetails > summary > i {
+  width: 5px;
+  height: 5px;
+  margin-left: 1px;
+  border-right: 1px solid currentcolor;
+  border-bottom: 1px solid currentcolor;
+  transform: translateY(-1px) rotate(45deg);
+  transition: transform var(--nexus-duration-fast);
+}
+
+.chartLiveDetails[open] > summary > i {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.chartLivePopover {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 7px);
+  left: -1px;
+  width: 380px;
+  max-width: calc(100vw - 96px);
+  padding: 9px;
+  border: 1px solid var(--nexus-color-border-accent);
+  border-radius: var(--nexus-radius-md);
+  background: rgb(7 17 22 / 98%);
+  box-shadow: 0 18px 36px rgb(0 0 0 / 45%);
+}
+
+.chartLiveGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.chartLiveGrid > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 6px 7px;
+  border: 1px solid var(--nexus-color-border-subtle);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-muted);
+  background: var(--nexus-color-bg-surface-raised);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.chartLiveGrid strong {
+  overflow: hidden;
+  color: var(--nexus-color-text-primary);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.chartLiveFooter {
+  display: grid;
+  gap: 4px;
+  margin-top: 7px;
+  color: var(--nexus-color-text-muted);
+  font-family: var(--nexus-font-family-mono);
+  font-size: 8px;
+  line-height: 1.35;
+}
+
+.chartLiveFooter button {
+  width: max-content;
+  min-height: 25px;
+  margin-top: 2px;
+  padding: 0 8px;
+  border: 1px solid var(--nexus-color-border-strong);
+  border-radius: var(--nexus-radius-sm);
+  color: var(--nexus-color-text-primary);
+  background: var(--nexus-color-bg-surface-raised);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .chartMarketOverlay {
+    top: 8px;
+    left: 48px;
+    width: 174px;
+    padding: 7px 8px;
+  }
+
+  .chartMarketOverlayHeader small {
+    display: none;
+  }
+
+  .chartMarketStats dt {
+    font-size: 8px;
+  }
+
+  .chartMarketStats dd {
+    font-size: 9px;
+  }
+
+  .chartLivePopover {
+    width: min(330px, calc(100vw - 76px));
+  }
+
+  .chartLiveGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

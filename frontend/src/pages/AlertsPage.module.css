@@ -70,13 +70,13 @@
 .liveDot,
 .unreadDot {
   border-radius: var(--nexus-radius-round);
-  background: var(--nexus-color-long);
+  background: var(--nexus-color-accent-primary);
 }
 
 .liveDot {
   width: 8px;
   height: 8px;
-  box-shadow: 0 0 0 5px var(--nexus-color-long-soft);
+  box-shadow: 0 0 0 5px var(--nexus-color-accent-muted);
 }
 
 .secondaryButton,
@@ -115,13 +115,13 @@
 }
 
 .primaryButton {
-  border: var(--nexus-border-width) solid var(--nexus-color-long);
+  border: var(--nexus-border-width) solid var(--nexus-color-accent-primary);
   color: var(--nexus-color-text-on-accent);
-  background: var(--nexus-color-long);
+  background: var(--nexus-color-accent-primary);
 }
 
 .primaryButton:hover {
-  background: var(--nexus-color-long-hover);
+  background: var(--nexus-color-accent-hover);
 }
 
 .summaryGrid {
@@ -459,7 +459,7 @@
 .unreadDot {
   width: 7px;
   height: 7px;
-  box-shadow: 0 0 0 4px var(--nexus-color-long-soft);
+  box-shadow: 0 0 0 4px var(--nexus-color-accent-muted);
 }
 
 .alertTitle {
@@ -747,12 +747,12 @@
 }
 
 .toggleActive {
-  border-color: var(--nexus-color-long);
-  background: var(--nexus-color-long-soft);
+  border-color: var(--nexus-color-accent-border);
+  background: var(--nexus-color-accent-muted);
 }
 
 .toggleActive span {
-  background: var(--nexus-color-long);
+  background: var(--nexus-color-accent-primary);
   transform: translateX(16px);
 }
 
@@ -983,7 +983,7 @@
 }
 
 .runtimeStatus_running .liveDot {
-  background: var(--nexus-color-long);
+  background: var(--nexus-color-accent-primary);
 }
 
 .runtimeStatus_idle .liveDot {

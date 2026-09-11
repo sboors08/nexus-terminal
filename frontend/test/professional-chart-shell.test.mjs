@@ -85,7 +85,7 @@ test(
 
     assert.match(
       workspaceStyles,
-      /height: clamp\(500px, 62vh, 760px\)/,
+      /Workspace Desktop Visual Layout v0\.1[\s\S]*?@media \(min-width: 1181px\)[\s\S]*?\.chartCanvas\s*\{[\s\S]*?height: auto;[\s\S]*?flex: 1 1 auto;/,
     );
 
     assert.match(

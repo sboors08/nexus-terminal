@@ -5,6 +5,7 @@ import {
   DEFAULT_SCANNER_SETUP_TABLE_SORT_STATE,
   SCANNER_SETUP_TABLE_SORT_KEYS,
   applyScannerSetupLiveMetrics,
+  buildScannerSetupDistanceView,
   buildScannerSetupMetricKey,
   indexScannerSetupMetrics,
   isScannerSetupBelowKnownQuoteVolume,
@@ -17,6 +18,15 @@ const scannerPageSource =
   await readFile(
     new URL(
       '../src/pages/ScannerPage.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+
+const nexusMockApiSource =
+  await readFile(
+    new URL(
+      '../src/shared/api/mock/nexusMockApi.ts',
       import.meta.url,
     ),
     'utf8',
@@ -86,6 +96,377 @@ function createRow(
     ...overrides,
   };
 }
+
+test(
+  'keeps the selected setup level and realtime price in one current distance calculation',
+  () => {
+    const setup =
+      createRow({
+        symbol: 'XMRUSDT',
+        distancePercent: 0.0427,
+        levelLow: 514.5,
+        levelHigh: 515.5,
+        levelReferencePrice: 515,
+        snapshotPrice: 515.219905,
+        snapshotUpdatedAt:
+          '2026-09-08T09:00:00.000Z',
+      });
+
+    const view =
+      buildScannerSetupDistanceView(
+        setup,
+        {
+          price: 517.09,
+          updatedAt:
+            '2026-09-08T09:05:00.000Z',
+          isCurrent: true,
+        },
+      );
+
+    assert.equal(
+      view.source,
+      'current',
+    );
+
+    assert.equal(
+      view.distancePercent,
+      0.4058,
+    );
+
+    assert.equal(
+      view.distanceLabel,
+      '0.4058%',
+    );
+
+    assert.equal(
+      view.price,
+      517.09,
+    );
+
+    assert.equal(
+      view.levelReferencePrice,
+      515,
+    );
+
+    const historical =
+      buildScannerSetupDistanceView(
+        setup,
+        {
+          price: null,
+          updatedAt: null,
+          isCurrent: false,
+        },
+      );
+
+    assert.equal(
+      historical.source,
+      'candidate-snapshot',
+    );
+
+    assert.equal(
+      historical.distancePercent,
+      0.0427,
+    );
+
+    assert.equal(
+      historical.distanceLabel,
+      '0.0427%',
+    );
+
+    assert.equal(
+      historical.price,
+      515.219905,
+    );
+
+    assert.equal(
+      historical.calculatedAt,
+      '2026-09-08T09:00:00.000Z',
+    );
+  },
+);
+
+test(
+  'keeps the BNB current distance separate from its Setup Engine snapshot',
+  () => {
+    const setup = createRow({
+      id: 'bnb-short',
+      symbol: 'BNBUSDT',
+      direction: 'short',
+      distancePercent: 0.6733,
+      levelLow: 747.07,
+      levelHigh: 747.07,
+      levelReferencePrice: 747.07,
+      snapshotPrice: 742.0407,
+      snapshotUpdatedAt: '2026-09-09T17:15:59.000Z',
+    });
+
+    const current = buildScannerSetupDistanceView(setup, {
+      price: 741.78,
+      updatedAt: '2026-09-09T17:20:00.000Z',
+      isCurrent: true,
+    });
+    assert.equal(current.source, 'current');
+    assert.equal(current.price, 741.78);
+    assert.equal(current.levelReferencePrice, 747.07);
+    assert.equal(current.distancePercent, 0.7081);
+    assert.equal(current.distanceLabel, '0.7081%');
+
+    const historical = buildScannerSetupDistanceView(setup, {
+      price: null,
+      updatedAt: null,
+      isCurrent: false,
+    });
+    assert.equal(historical.source, 'candidate-snapshot');
+    assert.equal(historical.distancePercent, 0.6733);
+    assert.equal(historical.distanceLabel, '0.6733%');
+    assert.equal(historical.calculatedAt, '2026-09-09T17:15:59.000Z');
+  },
+);
+
+test(
+  'uses the level center for both kinds and both price sides',
+  () => {
+    for (
+      const kind
+      of [
+        'Уровень поддержки',
+        'Уровень сопротивления',
+      ]
+    ) {
+      for (
+        const price
+        of [
+          510,
+          520,
+        ]
+      ) {
+        const view =
+          buildScannerSetupDistanceView(
+            createRow({
+              kind,
+              levelLow: 514,
+              levelHigh: 516,
+              levelReferencePrice: 515,
+            }),
+            {
+              price,
+              updatedAt:
+                '2026-09-08T09:05:00.000Z',
+              isCurrent: true,
+            },
+          );
+
+        assert.equal(
+          view.distancePercent,
+          Number(
+            (
+              Math.abs(
+                (
+                  price - 515
+                ) / 515,
+              ) * 100
+            ).toFixed(4),
+          ),
+        );
+      }
+    }
+  },
+);
+
+test(
+  'distinguishes current zero, a saved snapshot, and unavailable distance',
+  () => {
+    const setup =
+      createRow({
+        distancePercent: 0.75,
+        levelReferencePrice: 515,
+        snapshotPrice: 511.1375,
+        snapshotUpdatedAt:
+          '2026-09-08T09:00:00.000Z',
+      });
+
+    const zero =
+      buildScannerSetupDistanceView(
+        setup,
+        {
+          price: 515,
+          updatedAt:
+            '2026-09-08T09:05:00.000Z',
+          isCurrent: true,
+        },
+      );
+
+    assert.equal(
+      zero.distancePercent,
+      0,
+    );
+
+    assert.equal(
+      zero.distanceLabel,
+      '0.0000%',
+    );
+
+    const snapshot =
+      buildScannerSetupDistanceView(
+        setup,
+        {
+          price: null,
+          updatedAt: null,
+          isCurrent: false,
+        },
+      );
+
+    assert.equal(
+      snapshot.source,
+      'candidate-snapshot',
+    );
+
+    assert.equal(
+      snapshot.distancePercent,
+      0.75,
+    );
+
+    assert.equal(
+      snapshot.calculatedAt,
+      '2026-09-08T09:00:00.000Z',
+    );
+
+    const unavailable =
+      buildScannerSetupDistanceView(
+        createRow({
+          distancePercent:
+            Number.POSITIVE_INFINITY,
+          levelReferencePrice:
+            undefined,
+        }),
+        {
+          price: null,
+          updatedAt: null,
+          isCurrent: false,
+        },
+      );
+
+    assert.equal(
+      unavailable.source,
+      'unavailable',
+    );
+
+    assert.equal(
+      unavailable.distancePercent,
+      null,
+    );
+
+    assert.equal(
+      unavailable.distanceLabel,
+      '—',
+    );
+  },
+);
+
+test(
+  'marks a disconnected market price as a timestamped snapshot',
+  () => {
+    const view =
+      buildScannerSetupDistanceView(
+        createRow({
+          levelLow: 515,
+          levelHigh: 515,
+          levelReferencePrice: 515,
+        }),
+        {
+          price: 517.09,
+          updatedAt:
+            '2026-09-08T09:05:00.000Z',
+          isCurrent: false,
+        },
+      );
+
+    assert.equal(
+      view.source,
+      'market-snapshot',
+    );
+
+    assert.equal(
+      view.distancePercent,
+      0.4058,
+    );
+
+    assert.equal(
+      view.calculatedAt,
+      '2026-09-08T09:05:00.000Z',
+    );
+  },
+);
+
+test(
+  'binds the selected Scanner distance to the displayed price and labels snapshot semantics',
+  () => {
+    assert.match(
+      scannerPageSource,
+      /buildScannerSetupDistanceView\([\s\S]*?selectedSetup,[\s\S]*?price:\s*realtimeMarket\.price,[\s\S]*?updatedAt:\s*realtimeMarket\.updatedAt/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /Снимок Setup Engine/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /До уровня · снимок/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /График · \{chartTimeframe\}/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /Сетап · \{selectedSetup\.timeframe\}/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /buildSelectedSetupHorizontalSegments\(\s*selectedSetup,[\s\S]*?causalLevelLines\s*\.horizontalSegments/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /horizontalSegments=\{chartHorizontalSegments\}/u,
+    );
+
+    assert.match(
+      scannerPageSource,
+      /segment\.endTime\s*!==\s*undefined[\s\S]*?return true/u,
+    );
+
+    assert.doesNotMatch(
+      scannerPageSource,
+      /ближайшей границы/u,
+    );
+  },
+);
+
+test(
+  'labels the V1 reason distance as a timestamped Setup Engine snapshot',
+  () => {
+    assert.doesNotMatch(
+      nexusMockApiSource,
+      /Расстояние до уровня:/u,
+    );
+
+    assert.match(
+      nexusMockApiSource,
+      /Снимок Setup Engine/u,
+    );
+
+    assert.match(
+      nexusMockApiSource,
+      /setup\.updatedAt/u,
+    );
+  },
+);
 
 test(
   'does not render disconnected Scanner trading-preset controls',
@@ -269,7 +650,7 @@ test(
 
     assert.match(
       scannerPageSource,
-      /useState\(\s*DEFAULT_SCANNER_MIN_QUOTE_VOLUME_MILLIONS,?\s*\)/u,
+      /useState\(\s*\(\) =>\s*resolveInitialScannerMinQuoteVolumeMillions\([\s\S]*?requestedMinQuoteVolumeMillions/u,
     );
 
     assert.match(

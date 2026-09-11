@@ -188,7 +188,7 @@ test(
   () => {
     assert.match(
       pageSource,
-      /Рабочее пространство · runtime-сетап Setup Engine/u,
+      /Сетап, стадия и ценовая зона получены из Setup Engine/u,
     );
 
     assert.match(

@@ -139,6 +139,10 @@ export function TokenLogo({
     sourceIndex,
     setSourceIndex,
   ] = useState(0);
+  const [
+    loadedSource,
+    setLoadedSource,
+  ] = useState<string | null>(null);
 
   useEffect(
     () => {
@@ -153,6 +157,10 @@ export function TokenLogo({
   const source =
     sources[sourceIndex]
     ?? null;
+
+  const imageLoaded =
+    source !== null
+    && loadedSource === source;
 
   const classNames = [
     styles.root,
@@ -170,39 +178,42 @@ export function TokenLogo({
       role="img"
       aria-label={`${baseAsset} logo`}
       title={baseAsset}
-    >
-      {
-        source
-          ? (
-              <img
-                key={source}
-                className={styles.image}
-                src={source}
-                alt=""
-                loading={
-                  eager
-                    ? 'eager'
-                    : 'lazy'
-                }
-                decoding="async"
-                referrerPolicy="no-referrer"
-                onError={() => {
-                  setSourceIndex(
-                    (current) =>
-                      current + 1,
-                  );
-                }}
-              />
-            )
-          : (
-              <span
-                className={styles.fallback}
-                aria-hidden="true"
-              >
-                {baseAsset.slice(0, 2)}
-              </span>
-            )
+      data-token-logo-state={
+        source && imageLoaded
+          ? 'loaded'
+          : 'fallback'
       }
+      data-token-logo-symbol={baseAsset}
+    >
+      <span
+        className={styles.fallback}
+        aria-hidden="true"
+      >
+        {baseAsset.slice(0, 2)}
+      </span>
+
+      {source ? (
+        <img
+          key={source}
+          className={[
+            styles.image,
+            imageLoaded
+              ? styles.imageLoaded
+              : '',
+          ].filter(Boolean).join(' ')}
+          src={source}
+          alt=""
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onLoad={() => setLoadedSource(source)}
+          onError={() => {
+            setSourceIndex(
+              (current) => current + 1,
+            );
+          }}
+        />
+      ) : null}
     </span>
   );
 }

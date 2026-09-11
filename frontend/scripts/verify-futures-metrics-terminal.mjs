@@ -16,6 +16,7 @@ const requiredFiles = [
   'src/shared/realtime/useMarketWideLiquidations.ts',
   'src/shared/realtime/index.ts',
   'src/pages/ScannerPage.tsx',
+  'src/pages/ScannerChartMarketOverlay.tsx',
 ];
 
 const missingFiles = [];
@@ -78,12 +79,12 @@ const requiredMarkers = [
   'useMarketWideLiquidations',
   "export * from './marketWideLiquidations'",
   "export * from './useMarketWideLiquidations'",
-  'Futures метрики',
+  'futures метрики',
   'Mark Price',
   'Funding',
   'Open Interest',
-  'Последняя ликвидация:',
-  '.side.toUpperCase()} order',
+  'Ликвидация:',
+  'latestLiquidation.side.toUpperCase()',
 ];
 
 const missingMarkers =

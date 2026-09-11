@@ -64,6 +64,8 @@ export type ScannerSetup = {
   levelLow?: number;
   levelHigh?: number;
   levelReferencePrice?: number;
+  snapshotPrice?: number | null;
+  snapshotUpdatedAt?: string | null;
   levelActiveFrom?: string;
   shadowLevelId?: string;
   shadowScore?: number;

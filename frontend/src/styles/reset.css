@@ -28,6 +28,7 @@ button,
 input,
 select,
 textarea {
+  accent-color: var(--nexus-color-accent-primary);
   color: inherit;
   font: inherit;
 }
@@ -44,5 +45,5 @@ a {
 
 ::selection {
   color: var(--nexus-color-text-primary);
-  background: rgb(82 185 244 / 30%);
+  background: var(--nexus-color-accent-muted);
 }

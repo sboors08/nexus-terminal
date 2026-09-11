@@ -157,14 +157,14 @@
 
 .primaryButton,
 .noteEditor button {
-  border: var(--nexus-border-width) solid var(--nexus-color-long);
+  border: var(--nexus-border-width) solid var(--nexus-color-accent-primary);
   color: var(--nexus-color-text-on-accent);
-  background: var(--nexus-color-long);
+  background: var(--nexus-color-accent-primary);
 }
 
 .primaryButton:hover,
 .noteEditor button:hover {
-  background: var(--nexus-color-long-hover);
+  background: var(--nexus-color-accent-hover);
 }
 
 .secondaryButton,
@@ -184,9 +184,9 @@
 }
 
 .alertButtonActive {
-  border: var(--nexus-border-width) solid var(--nexus-color-long);
-  color: var(--nexus-color-long);
-  background: var(--nexus-color-long-soft);
+  border: var(--nexus-border-width) solid var(--nexus-color-accent-border);
+  color: var(--nexus-color-accent-primary);
+  background: var(--nexus-color-accent-muted);
 }
 
 .workspaceGrid {
@@ -287,7 +287,7 @@
 }
 
 .liveIndicator {
-  color: var(--nexus-color-long);
+  color: var(--nexus-color-accent-primary);
   font-family: var(--nexus-font-family-mono);
   font-weight: var(--nexus-font-weight-bold);
 }
@@ -296,8 +296,8 @@
   width: 7px;
   height: 7px;
   border-radius: var(--nexus-radius-round);
-  background: var(--nexus-color-long);
-  box-shadow: 0 0 0 4px var(--nexus-color-long-soft);
+  background: var(--nexus-color-accent-primary);
+  box-shadow: 0 0 0 4px var(--nexus-color-accent-muted);
 }
 
 .chartCanvas {
@@ -528,9 +528,9 @@
 }
 
 .tapeStatus_live {
-  color: var(--nexus-color-long);
-  border-color: color-mix(in srgb, var(--nexus-color-long) 52%, var(--nexus-color-border-subtle));
-  background: var(--nexus-color-long-soft);
+  color: var(--nexus-color-accent-primary);
+  border-color: var(--nexus-color-accent-border);
+  background: var(--nexus-color-accent-muted);
 }
 
 .tapeStatus_pending {
@@ -1291,13 +1291,13 @@
 }
 
 .inlineFeedbackButton {
-  border: var(--nexus-border-width) solid color-mix(in srgb, var(--nexus-color-long) 55%, var(--nexus-color-border-strong));
+  border: var(--nexus-border-width) solid var(--nexus-color-accent-border);
   color: var(--nexus-color-text-on-accent);
-  background: var(--nexus-color-long);
+  background: var(--nexus-color-accent-primary);
 }
 
 .inlineFeedbackButton:hover {
-  background: var(--nexus-color-long-hover);
+  background: var(--nexus-color-accent-hover);
 }
 
 .externalButton {
@@ -1647,7 +1647,7 @@
 }
 
 .priceSourceLive {
-  color: var(--nexus-color-long);
+  color: var(--nexus-color-accent-primary);
 }
 
 .priceSourceTest {
@@ -1692,7 +1692,7 @@
 }
 
 .priceSource_live {
-  color: var(--nexus-color-long);
+  color: var(--nexus-color-accent-primary);
 }
 
 .priceSource_pending {
@@ -1736,19 +1736,15 @@
 }
 
 .freshnessBadge_live {
-  color: var(--nexus-color-long);
-  border-color: color-mix(
-    in srgb,
-    var(--nexus-color-long) 52%,
-    transparent
-  );
-  background: var(--nexus-color-long-soft);
+  color: var(--nexus-color-accent-primary);
+  border-color: var(--nexus-color-accent-border);
+  background: var(--nexus-color-accent-muted);
 }
 
 .freshnessBadge_live i {
-  background: var(--nexus-color-long);
+  background: var(--nexus-color-accent-primary);
   box-shadow:
-    0 0 0 3px var(--nexus-color-long-soft);
+    0 0 0 3px var(--nexus-color-accent-muted);
 }
 
 .freshnessBadge_pending {
@@ -2196,10 +2192,6 @@
   background: #101112;
 }
 
-.chartLevelStateStrip {
-  min-width: 0;
-}
-
 .chartPanel:fullscreen {
   width: 100vw;
   height: 100vh;
@@ -2215,7 +2207,6 @@
   height: auto;
 }
 
-.chartPanel:fullscreen .chartLevelStateStrip,
 .chartPanel:fullscreen .chartMetrics {
   display: none;
 }
@@ -2297,4 +2288,451 @@
   flex: 0 0 34px;
   margin-right: 2px;
   border-color: var(--nexus-color-border-info);
+}
+
+/* Workspace Desktop Visual Layout v0.1 */
+
+.tradeTapePanel,
+.marketDynamicsPanel {
+  display: flex;
+  flex-direction: column;
+}
+
+.panelScrollBody,
+.nexusPanelBody {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.panelScrollBody,
+.nexusPanelBody {
+  flex: 1 1 auto;
+}
+
+.compactToolTabs {
+  display: none;
+}
+
+@media (min-width: 1181px) {
+  .workspace {
+    height: calc(100dvh - var(--nexus-topbar-height) - var(--nexus-space-2));
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .workspaceGrid {
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .leftColumn {
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr) clamp(240px, 31vh, 330px);
+    overflow: hidden;
+  }
+
+  .chartPanel {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .chartCanvas {
+    min-height: 120px;
+    height: auto;
+    flex: 1 1 auto;
+  }
+
+  .chartMetrics {
+    flex: 0 0 auto;
+  }
+
+  .chartMetrics > div {
+    padding: 8px 10px;
+  }
+
+  .lowerGrid {
+    min-height: 0;
+    height: 100%;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.18fr) minmax(0, 0.87fr);
+  }
+
+  .lowerGrid > :last-child {
+    grid-column: auto;
+  }
+
+  .dataPanel {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .panelHeader {
+    min-height: 52px;
+    flex: 0 0 auto;
+    padding: 10px 12px;
+  }
+
+  .tapeSummary {
+    flex: 0 0 auto;
+    padding: 7px 12px;
+  }
+
+  .tapeTable {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .tapeHeader {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+  }
+
+  .tapeRow {
+    font-size: 11px;
+  }
+
+  .tapeEmpty {
+    min-height: 100%;
+  }
+
+  .dynamicMetric > span,
+  .dynamicMetric em {
+    font-size: 11px;
+  }
+
+  .dynamicMetric strong {
+    font-size: 13px;
+  }
+
+  .nexusPanel {
+    position: static;
+    min-height: 0;
+    height: 100%;
+    max-height: none;
+    overflow: hidden;
+  }
+
+  .nexusPanelHeader {
+    flex: 0 0 auto;
+  }
+}
+
+@media (min-width: 1181px) and (max-width: 1500px) {
+  .dynamicsList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dynamicMetric {
+    border-right: 0;
+    border-bottom: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+  }
+}
+
+@media (min-width: 1181px) and (max-height: 820px) {
+  .professionalChartToolbar,
+  .chartInstrumentStrip {
+    min-height: 36px;
+  }
+
+  .chartMetrics > div {
+    gap: 2px;
+    padding-block: 6px;
+  }
+
+  .panelHeader {
+    min-height: 46px;
+    padding-block: 7px;
+  }
+
+  .dynamicMetric {
+    min-height: 56px;
+    padding-block: 8px;
+  }
+}
+
+@media (min-width: 1181px) and (max-width: 1500px) and (max-height: 820px) {
+  .leftColumn {
+    grid-template-rows: minmax(0, 1fr) 170px;
+  }
+
+  .chartCanvas {
+    min-height: 280px;
+  }
+
+  .lowerGrid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 30px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .compactToolTabs {
+    display: flex;
+    min-width: 0;
+    grid-column: 1;
+    grid-row: 1;
+    align-items: stretch;
+    gap: 4px;
+    padding: 0 2px;
+  }
+
+  .compactToolTabs button {
+    min-width: 96px;
+    border: var(--nexus-border-width) solid var(--nexus-color-border-subtle);
+    border-radius: var(--nexus-radius-sm);
+    padding: 0 14px;
+    color: var(--nexus-color-text-secondary);
+    background: var(--nexus-color-bg-surface-raised);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .compactToolTabs button[aria-selected='true'] {
+    color: var(--nexus-color-text-primary);
+    border-color: var(--nexus-color-border-accent);
+    background: var(--nexus-color-bg-selected);
+  }
+
+  .compactToolTabs button:focus-visible {
+    outline: 2px solid var(--nexus-color-focus-ring);
+    outline-offset: 1px;
+  }
+
+  .compactPanelActive {
+    min-height: 0;
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .compactPanelInactive {
+    display: none;
+  }
+
+  .liquidationHeatmapPanel {
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .lowerGrid .panelHeader {
+    min-height: 38px;
+    padding: 5px 10px;
+  }
+
+  .lowerGrid .panelEyebrow {
+    display: none;
+  }
+
+  .lowerGrid .tapeSummary {
+    padding: 4px 10px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .workspace {
+    height: auto;
+    min-height: 0;
+    display: block;
+    overflow: visible;
+  }
+
+  .workspaceGrid {
+    min-height: 0;
+    align-items: start;
+  }
+
+  .leftColumn {
+    min-height: 0;
+    grid-template-rows: auto;
+    overflow: visible;
+  }
+
+  .chartPanel,
+  .dataPanel,
+  .nexusPanel {
+    height: auto;
+  }
+
+  .chartCanvas {
+    min-height: 0;
+    height: clamp(460px, 58vh, 680px);
+    flex: 0 0 auto;
+  }
+
+  .tapeTable {
+    min-height: 330px;
+    overflow: visible;
+  }
+
+  .panelScrollBody,
+  .nexusPanelBody {
+    overflow: visible;
+  }
+
+  .nexusPanel {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* Workspace Compact Header v0.1 */
+
+@media (min-width: 821px) {
+  .pageHeader {
+    min-width: 0;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .instrumentHeader {
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 7px;
+    overflow: hidden;
+  }
+
+  .instrumentHeader h1 {
+    flex: 0 0 auto;
+    margin: 0;
+    font-size: 16px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .symbolLogo {
+    flex: 0 0 26px;
+    margin-right: 0;
+  }
+
+  .symbolPicker {
+    min-width: 92px;
+    flex: 0 1 144px;
+  }
+
+  .symbolPicker select {
+    width: 100%;
+    min-height: 30px;
+    font-size: 12px;
+  }
+
+  .exchangeBadge,
+  .timeframeBadge {
+    flex: 0 0 auto;
+    font-size: 11px;
+  }
+
+  .workspaceModeStatus {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--nexus-color-text-secondary);
+    font-size: 12px;
+    font-weight: var(--nexus-font-weight-semibold);
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .headerRight {
+    min-width: 0;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .priceBlock {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .priceBlock span {
+    font-size: 11px;
+  }
+
+  .priceBlock strong {
+    font-size: 18px;
+  }
+
+  .priceSource {
+    max-width: 160px;
+    overflow: hidden;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .headerActions {
+    flex-wrap: nowrap;
+  }
+}
+
+@media (min-width: 1181px) and (max-width: 1500px) {
+  .pageHeader {
+    gap: 6px;
+  }
+
+  .instrumentHeader {
+    gap: 5px;
+  }
+
+  .symbolPicker {
+    flex-basis: 128px;
+  }
+
+  .workspaceModeStatus {
+    max-width: 120px;
+  }
+
+  .priceBlock > span {
+    display: none;
+  }
+
+  .priceSource {
+    max-width: 104px;
+  }
+
+  .headerActions > button:disabled {
+    display: none;
+  }
+
+  .headerActions .secondaryButton {
+    padding-inline: 8px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 820px) {
+  .instrumentHeader {
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .instrumentHeader h1 {
+    margin: 0;
+    font-size: 20px;
+  }
+
+  .workspaceModeStatus {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--nexus-color-text-secondary);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
